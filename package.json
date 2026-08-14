@@ -8,10 +8,24 @@
     "start": "next start",
     "lint": "eslint"
   },
+  "overrides": {
+    "sharp": "$sharp"
+  },
   "dependencies": {
+    "@imgly/background-removal-node": "^1.4.5",
+    "@react-pdf/renderer": "^4.6.1",
+    "bcryptjs": "^3.0.3",
+    "exceljs": "^4.4.0",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.22.5",
     "next": "16.2.10",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-easy-crop": "^6.2.2",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
