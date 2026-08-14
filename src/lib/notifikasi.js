@@ -24,3 +24,14 @@ export async function kirimNotifikasiAdmin(conn, { tipe, judul, pesan, link }) {
     await kirimNotifikasi(conn, { user_id: a.id, tipe, judul, pesan, link });
   }
 }
+
+// Broadcast KHUSUS super_admin (bukan admin biasa) — dipakai untuk data
+// sensitif/eksklusif super_admin (mis. reminder stok WMS perlengkapan,
+// lihat src/lib/perlengkapanStokOtomatis.js), sama semangatnya dengan
+// wajibSuperAdmin() di src/lib/auth.js.
+export async function kirimNotifikasiSuperAdmin(conn, { tipe, judul, pesan, link }) {
+  const [superAdmins] = await conn.query("SELECT id FROM users WHERE role = 'super_admin'");
+  for (const a of superAdmins) {
+    await kirimNotifikasi(conn, { user_id: a.id, tipe, judul, pesan, link });
+  }
+}

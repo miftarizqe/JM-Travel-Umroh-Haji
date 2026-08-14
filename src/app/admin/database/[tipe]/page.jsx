@@ -267,10 +267,16 @@ const TIPE_CONFIG = {
         // Klik nama = buka Manifest Jamaah program ini (bukan ke editor
         // program — itu ada di menu Kelola Program tersendiri).
         render: (row, { router }) => (
-          <button onClick={() => router.push(`/admin/manifest/${encodeURIComponent(row.name)}`)}
-            className="text-[#1A4FA0] font-bold hover:underline whitespace-nowrap" title="Lihat manifest jamaah program ini">
-            {row.name}
-          </button>
+          <div className="flex flex-col items-start gap-1">
+            <button onClick={() => router.push(`/admin/manifest/${encodeURIComponent(row.name)}`)}
+              className="text-[#1A4FA0] font-bold hover:underline whitespace-nowrap" title="Lihat manifest jamaah program ini">
+              {row.name}
+            </button>
+            <button onClick={() => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(row.name)}`)}
+              className="text-[10px] font-bold text-gray-400 hover:text-[#1A4FA0] whitespace-nowrap" title="Status pengiriman perlengkapan jamaah program ini">
+              📦 Perlengkapan
+            </button>
+          </div>
         ),
       },
       { key: 'type', label: 'Tipe' },

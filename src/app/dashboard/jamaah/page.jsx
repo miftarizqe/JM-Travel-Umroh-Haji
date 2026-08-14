@@ -211,6 +211,32 @@ export default function DashboardJamaah() {
                         </button>
                       )}
 
+                      {/* Status pengiriman perlengkapan (koper, ihrom/mukena, dll)
+                          — cuma muncul begitu DP confirmed, per jamaah karena item
+                          gender-spesifik beda per orang. */}
+                      {Array.isArray(b.perlengkapan_status) && b.perlengkapan_status.length > 0 && (
+                        <div className="mt-3 bg-gray-50 rounded-xl p-3">
+                          <div className="text-xs font-bold text-[#0E2F6E] mb-2">📦 Status Perlengkapan</div>
+                          <div className="space-y-1.5">
+                            {b.perlengkapan_status.map((p, i) => (
+                              <div key={i} className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600">{p.nama}</span>
+                                <span className={`font-bold px-2 py-0.5 rounded-full ${
+                                  p.status === 'diterima' ? 'bg-green-100 text-green-700' :
+                                  p.status === 'dikirim' ? 'bg-yellow-100 text-yellow-700' :
+                                  p.status === 'disiapkan' ? 'bg-blue-100 text-blue-700' :
+                                  'bg-gray-100 text-gray-500'
+                                }`}>
+                                  {p.status === 'diterima' ? '✅ Diterima' :
+                                   p.status === 'dikirim' ? '🚚 Dikirim' :
+                                   p.status === 'disiapkan' ? '📦 Disiapkan' : '⏳ Belum Diproses'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <button
                         onClick={() => router.push(`/batalkan-program?booking_id=${b.id}`)}
                         className="w-full mt-2 border border-red-300 text-red-500 text-xs font-bold py-2 rounded-full hover:bg-red-50 transition-colors"

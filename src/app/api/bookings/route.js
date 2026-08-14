@@ -35,6 +35,30 @@ export async function GET(request) {
       'SELECT * FROM bookings WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     );
+
+    // Status perlengkapan per jamaah (WMS) — cuma relevan begitu DP confirmed,
+    // dilampirkan di sini biar dashboard jamaah gak perlu fetch endpoint
+    // terpisah. Identitas jamaah = (booking_id, idx array jamaah_data), sama
+    // seperti pola manifest/perlengkapan-pengiriman.
+    const bookingIdsDpConfirmed = bookings.filter(b => b.dp_status === 'confirmed').map(b => b.id);
+    if (bookingIdsDpConfirmed.length > 0) {
+      const [pengirimanRows] = await pool.query(
+        `SELECT booking_id, jamaah_idx, status FROM perlengkapan_pengiriman WHERE booking_id IN (${bookingIdsDpConfirmed.map(() => '?').join(',')})`,
+        bookingIdsDpConfirmed
+      );
+      const statusMap = new Map(pengirimanRows.map(p => [`${p.booking_id}:${p.jamaah_idx}`, p.status]));
+      for (const b of bookings) {
+        if (b.dp_status !== 'confirmed') continue;
+        let jd = b.jamaah_data;
+        if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+        const entries = Array.isArray(jd) ? jd : [];
+        b.perlengkapan_status = entries.map((j, idx) => ({
+          nama: j.nama || `Jamaah ${idx + 1}`,
+          status: statusMap.get(`${b.id}:${idx}`) || 'belum_diproses',
+        }));
+      }
+    }
+
     return Response.json({ bookings });
   } catch (error) {
     console.error(error);

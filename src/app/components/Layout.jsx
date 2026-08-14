@@ -194,6 +194,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         ...(user?.role === 'super_admin' ? [
           { icon: '🧮', label: 'Costing Program', path: '/admin/program-costing' },
           { icon: '🤝', label: 'Proposal Corporate', path: '/admin/proposal-corporate' },
+          { icon: '🔒', label: 'Kelola Perlengkapan (Gudang)', path: '/admin/perlengkapan' },
         ] : []),
       ] },
       { icon: '📊', label: 'Laporan', children: [
