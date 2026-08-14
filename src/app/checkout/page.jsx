@@ -94,7 +94,7 @@ function CheckoutPageInner() {
           user_id: user.id,
           prog_id: progId,
           items: cart.map(c => ({
-            paket: c.paket, kamar: c.kamar, jumlah_jamaah: c.jumlah, namas: c.namas, was: c.was, jks: c.jks,
+            paket: c.paket, kamar: c.kamar, jumlah_jamaah: c.jumlah, namas: c.namas, was: c.was, jks: c.jks, alamats: c.alamats,
             harga_custom_per_jamaah: c.hargaCustom || null,
             opsi_tambahan_ids: (c.opsiTambahan || []).map(o => o.id),
           })),

@@ -159,7 +159,12 @@ export default function PerlengkapanPengirimanPage() {
                   const sudahDikirim = idx >= URUTAN_STATUS.indexOf('dikirim');
                   return (
                     <tr key={key} className="border-t border-gray-100">
-                      <td className="px-3 py-2 font-semibold text-[#0E2F6E]">{j.nama}</td>
+                      <td className="px-3 py-2">
+                        <div className="font-semibold text-[#0E2F6E]">{j.nama}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5 max-w-[220px]">
+                          📦 {j.alamat_kirim || <span className="text-red-400">Alamat belum diisi</span>}
+                        </div>
+                      </td>
                       <td className="px-3 py-2 text-gray-500">{jkSingkat(j.jk)}</td>
                       <td className="px-3 py-2 text-gray-500">{j.pemesan_nama}</td>
                       <td className="px-3 py-2">

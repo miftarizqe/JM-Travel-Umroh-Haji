@@ -55,6 +55,7 @@ export async function daftarJamaahPerluKit(pool, progName) {
         pemesan_nama: b.pemesan_nama || '-',
         nama: j.nama || '(formulir belum diisi)',
         jk: j.jk || null,
+        alamat_kirim: j.alamat_kirim || null,
         status: p?.status || 'belum_diproses',
         disiapkan_at: p?.disiapkan_at || null,
         dikirim_at: p?.dikirim_at || null,

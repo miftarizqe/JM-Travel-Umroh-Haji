@@ -567,6 +567,7 @@ function AdminPageInner() {
     {key:'pembayaran', label:'Pending Konfirmasi Pembayaran', icon:'💳', color:'border-red-200 bg-red-50', items: pending.pembayaran||[]},
     {key:'akun_jamaah', label:'Pending Pendaftaran Akun Jamaah', icon:'🧳', color:'border-green-200 bg-green-50', items: pending.akun_jamaah||[]},
     {key:'akun_perwakilan', label:'Pending Pendaftaran Akun Perwakilan', icon:'🏢', color:'border-purple-200 bg-purple-50', items: pending.akun_perwakilan||[]},
+    {key:'perlengkapan', label:'Perlengkapan Perlu Dikirim', icon:'📦', color:'border-yellow-200 bg-yellow-50', items: pending.perlengkapan||[]},
   ];
 
   return (
@@ -614,10 +615,13 @@ function AdminPageInner() {
                   {c.items.length > 0 && (
                     <div className="mt-2 space-y-1">
                       {tampil.map((it,idx) => (
-                        <div key={idx} className="text-xs text-gray-500 bg-white/60 rounded px-2 py-1">
+                        <div key={idx}
+                          onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : undefined}
+                          className={`text-xs text-gray-500 bg-white/60 rounded px-2 py-1 ${c.key==='perlengkapan' ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
                           {c.key==='pembayaran' ? `${it.nama||'User'} — ${it.booking_id} (${(it.type||'').toUpperCase()})`
                             : c.key==='program_umroh' ? `${it.pemesan||'User'} — ${it.prog_name} (${it.form_filled}/${it.form_total} form)`
                             : c.key==='custom_harga' ? `${it.pengaju_nama||'User'} — ${it.prog_name} (${rp(it.harga_diajukan)})`
+                            : c.key==='perlengkapan' ? `${it.nama} — ${it.prog_name} (${it.status.replace('_',' ')})`
                             : `${it.name} — ${it.email||it.wa||''}`}
                         </div>
                       ))}
@@ -631,6 +635,7 @@ function AdminPageInner() {
                         else if (c.key.startsWith('akun_')) { setActiveTab('users'); setFilterUserStatus('pending'); }
                         else if (c.key==='program_umroh') setActiveTab('programs');
                         else if (c.key==='custom_harga') setActiveTab('customharga');
+                        else if (c.key==='perlengkapan' && c.items[0]) router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(c.items[0].prog_name)}`);
                       }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
                     </div>
                   )}

@@ -147,8 +147,10 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     const jks = resizeNamas(current.jks, current.jumlah);
     if (jks.some(j => j !== 'Laki-Laki' && j !== 'Perempuan')) { alert('Pilih jenis kelamin semua jamaah dulu!'); return; }
     const was = resizeNamas(current.was, current.jumlah).map(w => w.trim());
-    onAdd({ ...current, namas, was, jks });
-    onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', namas: [''], was: [''], jks: [''], opsiTambahan: [] });
+    const alamats = resizeNamas(current.alamats, current.jumlah).map(a => a.trim());
+    if (alamats.some(a => !a)) { alert('Isi alamat kirim perlengkapan semua jamaah dulu!'); return; }
+    onAdd({ ...current, namas, was, jks, alamats });
+    onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', namas: [''], was: [''], jks: [''], alamats: [''], opsiTambahan: [] });
   }
 
   function toggleOpsiTambahan(opsi) {
@@ -229,13 +231,13 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         <div className="flex items-center gap-4">
           <button onClick={() => {
               const jumlah = Math.max(1, current.jumlah - 1);
-              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah) });
+              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah) });
             }}
             className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors">−</button>
           <span className="text-2xl font-black text-[#0E2F6E] w-8 text-center">{current.jumlah}</span>
           <button onClick={() => {
               const jumlah = Math.min(maxJumlah, current.jumlah + 1);
-              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah) });
+              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah) });
             }}
             className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors">+</button>
           <span className="text-xs text-gray-400">Sisa seat: {Math.max(0, sisaSeat)}</span>
@@ -252,43 +254,54 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         <div className="font-bold text-[#0E2F6E] mb-3">Data Jamaah</div>
         <div className="space-y-3">
           {Array.from({ length: current.jumlah }).map((_, i) => (
-            <div key={i} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div key={i} className="space-y-2 pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <input
+                  value={current.namas?.[i] || ''}
+                  onChange={e => {
+                    const namas = resizeNamas(current.namas, current.jumlah);
+                    namas[i] = e.target.value;
+                    onChangeCurrent({ ...current, namas });
+                  }}
+                  placeholder={`Nama lengkap jamaah #${i + 1} sesuai KTP/Paspor`}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
+                <select
+                  value={current.jks?.[i] || ''}
+                  onChange={e => {
+                    const jks = resizeNamas(current.jks, current.jumlah);
+                    jks[i] = e.target.value;
+                    onChangeCurrent({ ...current, jks });
+                  }}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm text-gray-700">
+                  <option value="">Jenis kelamin jamaah #{i + 1}</option>
+                  <option value="Laki-Laki">Laki-Laki</option>
+                  <option value="Perempuan">Perempuan</option>
+                </select>
+                <input
+                  value={current.was?.[i] || ''}
+                  onChange={e => {
+                    const was = resizeNamas(current.was, current.jumlah);
+                    was[i] = e.target.value;
+                    onChangeCurrent({ ...current, was });
+                  }}
+                  placeholder={`No. WhatsApp jamaah #${i + 1} (opsional)`}
+                  inputMode="numeric"
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
+              </div>
               <input
-                value={current.namas?.[i] || ''}
+                value={current.alamats?.[i] || ''}
                 onChange={e => {
-                  const namas = resizeNamas(current.namas, current.jumlah);
-                  namas[i] = e.target.value;
-                  onChangeCurrent({ ...current, namas });
+                  const alamats = resizeNamas(current.alamats, current.jumlah);
+                  alamats[i] = e.target.value;
+                  onChangeCurrent({ ...current, alamats });
                 }}
-                placeholder={`Nama lengkap jamaah #${i + 1} sesuai KTP/Paspor`}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
-              <select
-                value={current.jks?.[i] || ''}
-                onChange={e => {
-                  const jks = resizeNamas(current.jks, current.jumlah);
-                  jks[i] = e.target.value;
-                  onChangeCurrent({ ...current, jks });
-                }}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm text-gray-700">
-                <option value="">Jenis kelamin jamaah #{i + 1}</option>
-                <option value="Laki-Laki">Laki-Laki</option>
-                <option value="Perempuan">Perempuan</option>
-              </select>
-              <input
-                value={current.was?.[i] || ''}
-                onChange={e => {
-                  const was = resizeNamas(current.was, current.jumlah);
-                  was[i] = e.target.value;
-                  onChangeCurrent({ ...current, was });
-                }}
-                placeholder={`No. WhatsApp jamaah #${i + 1} (opsional)`}
-                inputMode="numeric"
+                placeholder={`📦 Alamat kirim perlengkapan jamaah #${i + 1} (koper, ihrom/mukena, dll)`}
                 className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
             </div>
           ))}
         </div>
         <div className="text-[10px] text-gray-400 mt-1">
-          Wajib nama lengkap & jenis kelamin — dipakai buat rencanakan kamar (non-mahram gak sekamar) sejak awal & otomatis mengisi formulir jamaah nanti. No. WA opsional, tapi isi kalau jamaah tidak bikin akun sendiri — dipakai admin buat kirim info status via WhatsApp.
+          Wajib nama lengkap, jenis kelamin & alamat kirim perlengkapan — dipakai buat rencanakan kamar (non-mahram gak sekamar), kirim perlengkapan (koper/ihrom/mukena), & otomatis mengisi formulir jamaah nanti (alamat ini bisa diubah lagi di formulir kalau perlu). No. WA opsional, tapi isi kalau jamaah tidak bikin akun sendiri — dipakai admin buat kirim info status via WhatsApp.
         </div>
       </div>
 

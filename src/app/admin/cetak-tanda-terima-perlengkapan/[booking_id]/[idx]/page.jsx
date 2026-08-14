@@ -67,6 +67,10 @@ export default function CetakTandaTerimaPerlengkapan() {
           </div>
         </div>
 
+        <div style={{ fontSize: 12, marginBottom: 20 }}>
+          Alamat Kirim:<br /><b>{data.alamat_kirim || '-'}</b>
+        </div>
+
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 30 }}>
           <thead>
             <tr>

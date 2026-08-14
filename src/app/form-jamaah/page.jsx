@@ -8,7 +8,7 @@ const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
 
 const emptyJamaah = () => ({
   nama: '', nik: '', paspor: '', tl: '', ttl: '', exp_mulai: '', exp_paspor: '',
-  tkp: '', jk: 'Laki-Laki', alamat: '', wa: '', email: '',
+  tkp: '', jk: 'Laki-Laki', alamat: '', alamat_kirim: '', wa: '', email: '',
   pkj: '', penyakit: '', mahram: '', hub_mahram: 'Suami/Istri',
   kdnama: '', kdwa: '', kdhub: '',
   // Dokumen pendukung — OPSIONAL, gak wajib buat lanjut submit formulir.
@@ -200,6 +200,7 @@ function FormJamaahPageInner() {
       ['ttl', 'Tanggal Lahir'],
       ['jk', 'Jenis Kelamin'],
       ['alamat', 'Alamat Domisili'],
+      ['alamat_kirim', 'Alamat Kirim Perlengkapan'],
       ['wa', 'No. WhatsApp'],
       ['mahram', 'Nama Mahram'],
       ['hub_mahram', 'Hubungan Mahram'],
@@ -488,6 +489,18 @@ function FormJamaahPageInner() {
             <div>
               <label className={lbl}>Alamat Domisili *</label>
               <input value={j.alamat} onChange={e => setField('alamat', e.target.value)} className={inp}/>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className={lbl} style={{ marginBottom: 0 }}>📦 Alamat Kirim Perlengkapan *</label>
+                <button type="button" onClick={() => setField('alamat_kirim', j.alamat)}
+                  className="text-[10px] font-bold text-[#1A4FA0] underline whitespace-nowrap">
+                  Sama dengan Alamat Domisili
+                </button>
+              </div>
+              <input value={j.alamat_kirim} onChange={e => setField('alamat_kirim', e.target.value)} className={inp}/>
+              <div className="text-[10px] text-gray-400 mt-1">Alamat tujuan pengiriman koper, ihrom/mukena, dan perlengkapan lainnya.</div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

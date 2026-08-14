@@ -43,7 +43,7 @@ export async function cekPemesanBolehOrder(conn, userId) {
  */
 export async function buatSatuBooking(conn, params) {
   const {
-    user_id, prog_id, paket, kamar, jumlah_jamaah, namas, was, jks,
+    user_id, prog_id, paket, kamar, jumlah_jamaah, namas, was, jks, alamats,
     kode_unik_dp, sumber_info, referral_kode, batch_id,
     referral_perw_id, ordered_by, ordered_by_role,
     bukti_path, bukti_nama, harga_custom_per_jamaah,
@@ -72,6 +72,13 @@ export async function buatSatuBooking(conn, params) {
   const jkListRaw = Array.isArray(jks) ? jks.map(j => String(j || '').trim()) : [];
   if (jkListRaw.length !== jamaahCount || jkListRaw.some(j => j !== 'Laki-Laki' && j !== 'Perempuan')) {
     throw errStatus('Jenis kelamin wajib diisi untuk semua jamaah', 400);
+  }
+  // Alamat kirim perlengkapan (koper/ihrom/mukena dll) — wajib diisi PAS
+  // BOOKING (bukan nunggu form-jamaah), soalnya WMS perlengkapan butuh alamat
+  // begitu DP confirmed. Bisa diedit lagi nanti di form-jamaah kalau berubah.
+  const alamatList = Array.isArray(alamats) ? alamats.map(a => String(a || '').trim()) : [];
+  if (alamatList.length !== jamaahCount || alamatList.some(a => !a)) {
+    throw errStatus('Alamat kirim perlengkapan wajib diisi untuk semua jamaah', 400);
   }
 
   const [progs] = await conn.query('SELECT * FROM programs WHERE id = ?', [prog_id]);
@@ -169,7 +176,7 @@ export async function buatSatuBooking(conn, params) {
   // tapi krusial buat jamaah yang gak bikin akun sendiri (dipesankan admin/agen)
   // — tanpa ini admin gak punya kontak buat kirim info status via WhatsApp.
   const waList = Array.isArray(was) ? was.map(w => String(w || '').trim()) : [];
-  const jamaahDataAwal = JSON.stringify(namaList.map((nama, i) => ({ nama, wa: waList[i] || '', jk: jkListRaw[i] })));
+  const jamaahDataAwal = JSON.stringify(namaList.map((nama, i) => ({ nama, wa: waList[i] || '', jk: jkListRaw[i], alamat_kirim: alamatList[i] })));
 
   await conn.query(
     `INSERT INTO bookings

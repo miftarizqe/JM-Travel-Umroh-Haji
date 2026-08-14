@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { ambilJamaah } from '@/app/api/admin/database/route';
+import { daftarJamaahPerluKit } from '@/lib/perlengkapan';
 
 // GET /api/admin/dashboard
 // Menyediakan angka stat + semua daftar pending berdasar cluster.
@@ -60,6 +61,11 @@ export async function GET(request) {
     const pendingAkunJamaah = users.filter(u => u.role === 'jamaah' && u.status === 'pending');
     const pendingAkunPerw = users.filter(u => u.role === 'perwakilan' && u.status === 'pending');
 
+    // 6. Perlengkapan yang belum dikirim (DP confirmed, status belum
+    // dikirim/diterima) — lihat src/lib/perlengkapan.js.
+    const semuaJamaahKit = await daftarJamaahPerluKit(pool);
+    const pendingPerlengkapan = semuaJamaahKit.filter(j => j.status !== 'dikirim' && j.status !== 'diterima');
+
     return Response.json({
       stat: {
         jamaah: jamaahUnik,
@@ -72,6 +78,7 @@ export async function GET(request) {
         pembayaran: pendingPayment,
         akun_jamaah: pendingAkunJamaah,
         akun_perwakilan: pendingAkunPerw,
+        perlengkapan: pendingPerlengkapan,
       },
     });
   } catch (error) {

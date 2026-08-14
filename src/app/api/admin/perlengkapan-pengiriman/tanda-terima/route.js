@@ -38,6 +38,7 @@ export async function GET(request) {
       prog_name: b.prog_name,
       pemesan_nama: pemesan?.name || '-',
       nama: jamaah.nama || '-',
+      alamat_kirim: jamaah.alamat_kirim || null,
       dikirim_at: pengiriman?.dikirim_at || null,
       items,
     });
