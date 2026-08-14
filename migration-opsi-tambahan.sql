@@ -1,0 +1,13 @@
+CREATE TABLE IF NOT EXISTS opsi_tambahan (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  urutan INT NOT NULL,
+  nama VARCHAR(150) NOT NULL,
+  harga BIGINT NOT NULL DEFAULT 0,
+  deskripsi VARCHAR(255),
+  aktif TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+ALTER TABLE bookings
+  ADD COLUMN opsi_tambahan_data JSON,
+  ADD COLUMN opsi_tambahan_total BIGINT DEFAULT 0;
