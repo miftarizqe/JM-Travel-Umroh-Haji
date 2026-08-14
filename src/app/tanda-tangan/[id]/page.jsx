@@ -9,6 +9,10 @@ const DOKUMEN_LABEL = {
   formulir: 'Formulir Pendaftaran Perwakilan',
   invoice: 'Invoice/Kwitansi',
 };
+const RANGKAP_LABEL = {
+  travel: 'Rangkap 1 — Untuk JM Travel',
+  luar: 'Rangkap 2 — Untuk Perwakilan',
+};
 
 // Halaman signer-facing — link dikirim via notifikasi/WA ke penandatangan.
 // Sekarang cuma mock (tombol "Tanda Tangan Sekarang" langsung menyelesaikan
@@ -58,6 +62,9 @@ export default function TandaTanganPage() {
       <div className="max-w-xl mx-auto space-y-4">
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-5">
           <div className="font-bold text-[#0E2F6E] mb-1">{DOKUMEN_LABEL[sig.dokumen] || sig.dokumen}</div>
+          {sig.rangkap && sig.rangkap !== 'tunggal' && (
+            <div className="text-xs font-bold text-[#C9952A] mb-1">{RANGKAP_LABEL[sig.rangkap] || sig.rangkap}</div>
+          )}
           <div className="text-xs text-gray-400 mb-3">Provider: {sig.ttd_provider === 'mock' ? 'Mock — belum terhubung provider tersertifikasi' : (sig.ttd_provider || '-')}</div>
 
           {pdfUrl && (

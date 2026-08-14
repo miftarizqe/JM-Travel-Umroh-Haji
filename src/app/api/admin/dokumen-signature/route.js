@@ -2,9 +2,9 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasi } from '@/lib/notifikasi';
-import { apakahPerluMaterai } from '@/lib/materaiRule';
+import { apakahPerluMaterai, RANGKAP_SPKA_INS } from '@/lib/materaiRule';
 import { beliMaterai } from '@/lib/eMeterai';
-import { kirimUntukTtd } from '@/lib/eSignature';
+import { kirimUntukTtd, selesaikanTtd } from '@/lib/eSignature';
 import { renderSpkaInsPdf } from '@/lib/pdfDokumen/renderSpkaIns';
 import { renderJamaahPdf } from '@/lib/pdfDokumen/renderJamaah';
 import { renderFormulirPdf } from '@/lib/pdfDokumen/renderFormulir';
@@ -21,10 +21,68 @@ async function ambilPengaturan() {
   return p || {};
 }
 
-// Generate PDF "awal" (belum materai/ttd) + tentukan siapa signer + konteks
-// buat aturan materai (apakahPerluMaterai) — 1 fungsi per jenis dokumen,
-// dipanggil dari POST di bawah lewat switch, BUKAN 4 endpoint terpisah.
-async function generatePdfAwal(dokumen, refId) {
+// Proses SATU sesi digital (satu baris dokumen_signature) sampai tuntas:
+// upsert draft -> materai (kalau perlu) -> kirim TTD -> (opsional) langsung
+// selesaikan di tempat. Dipakai baik oleh dokumen 1-rangkap (jamaah/formulir/
+// invoice) maupun 2 kali berturutan oleh SPKA-Ins (rangkap 'travel'/'luar').
+//
+// `autoSelesai` khusus buat rangkap 'luar' SPKA-Ins: materainya di-TTD PIHAK
+// JM TRAVEL SENDIRI (bukan perwakilan) — gak ada pihak eksternal yang perlu
+// ditunggu, jadi begitu admin klik "Kirim TTD Digital", tanda tangan JM Travel
+// langsung dianggap selesai saat itu juga (persis alur fisik: JM Travel TTD
+// dulu sebelum dokumen dikirim ke perwakilan buat ditandatangani).
+async function prosesSatuSesiDigital({ dokumen, refId, rangkap, pdfBuffer, signer, perluMaterai, requestedBy, baseUrl, autoSelesai }) {
+  const pdfAwalPath = await simpanPdfDokumenSignature(pdfBuffer, { dokumen, refId, tahap: `awal-${rangkap}` });
+
+  await pool.query(
+    `INSERT INTO dokumen_signature
+      (dokumen, ref_id, rangkap, metode, fase, perlu_materai, signer_nama, signer_email, signer_wa, pdf_awal_path, requested_by, requested_at)
+     VALUES (?, ?, ?, 'digital', 'draft', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON DUPLICATE KEY UPDATE
+      metode = 'digital', fase = 'draft', perlu_materai = VALUES(perlu_materai),
+      signer_nama = VALUES(signer_nama), signer_email = VALUES(signer_email), signer_wa = VALUES(signer_wa),
+      pdf_awal_path = VALUES(pdf_awal_path), pdf_bermaterai_path = NULL, pdf_final_path = NULL,
+      materai_provider = NULL, materai_kode_unik = NULL, materai_dibeli_at = NULL,
+      ttd_provider = NULL, ttd_provider_ref = NULL, completed_at = NULL,
+      requested_by = VALUES(requested_by), requested_at = CURRENT_TIMESTAMP`,
+    [dokumen, refId, rangkap, perluMaterai ? 1 : 0, signer?.nama || null, signer?.email || null, signer?.wa || null, pdfAwalPath, requestedBy]
+  );
+  const [[sig]] = await pool.query('SELECT * FROM dokumen_signature WHERE dokumen = ? AND ref_id = ? AND rangkap = ?', [dokumen, refId, rangkap]);
+
+  let pdfUntukTtd = pdfBuffer;
+  if (perluMaterai) {
+    const hasilMaterai = await beliMaterai({ dokumen, refId, pdfBuffer, baseUrl });
+    const pdfBermateraiPath = await simpanPdfDokumenSignature(hasilMaterai.pdfBuffer, { dokumen, refId, tahap: `bermaterai-${rangkap}` });
+    await pool.query(
+      `UPDATE dokumen_signature SET fase = 'materai_selesai', materai_provider = ?, materai_kode_unik = ?, materai_dibeli_at = ?, pdf_bermaterai_path = ? WHERE id = ?`,
+      [hasilMaterai.provider, hasilMaterai.kodeUnik, hasilMaterai.dibeliAt, pdfBermateraiPath, sig.id]
+    );
+    pdfUntukTtd = hasilMaterai.pdfBuffer;
+  }
+
+  const hasilTtd = await kirimUntukTtd({ dokumen, refId, signer, pdfBuffer: pdfUntukTtd });
+  await pool.query(
+    `UPDATE dokumen_signature SET fase = 'ttd_menunggu', ttd_provider = ?, ttd_provider_ref = ? WHERE id = ?`,
+    [hasilTtd.provider, hasilTtd.providerRef, sig.id]
+  );
+
+  if (autoSelesai) {
+    const hasilSelesai = await selesaikanTtd({ providerRef: hasilTtd.providerRef, signer, pdfBuffer: pdfUntukTtd, dokumen });
+    const pdfFinalPath = await simpanPdfDokumenSignature(hasilSelesai.pdfBuffer, { dokumen, refId, tahap: `final-${rangkap}` });
+    await pool.query(
+      `UPDATE dokumen_signature SET fase = 'selesai', pdf_final_path = ?, completed_at = ? WHERE id = ?`,
+      [pdfFinalPath, hasilSelesai.selesaiAt, sig.id]
+    );
+  }
+
+  const [[sigAkhir]] = await pool.query('SELECT * FROM dokumen_signature WHERE id = ?', [sig.id]);
+  return sigAkhir;
+}
+
+// Kumpulkan data + generate PDF utk 1 jenis dokumen. Untuk spka_ins,
+// balikin fungsi generator (bukan buffer langsung) karena PDF-nya digenerate
+// 2x (beda rangkapLabel per salinan) — jenis lain cukup 1x generate.
+async function siapkanData(dokumen, refId) {
   const pengaturan = await ambilPengaturan();
   const logoPath = logoAbsolutePath();
 
@@ -48,17 +106,20 @@ async function generatePdfAwal(dokumen, refId) {
       if (perekrut) perekrut.alamat = perekrut.alamat_ktp || perekrut.alamat;
     }
 
-    const signerInfo = { nama: user.name, email: user.email, wa: user.wa };
-
     if (dokumen === 'spka_ins') {
       const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SPKA-Ins');
       if (nomor) await pastikanSnapshot(pool, user.id, 'spka_ins');
       const { pasal, signer } = await ambilPasalUntukCetak('spka_ins', user.id);
-      const pdfBuffer = await renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital: true });
-      return { pdfBuffer, signer: signerInfo, materaiCtx: {} };
+      return {
+        user, perekrut, jmSigner: signer,
+        generatePdf: (rangkapLabel) => renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel }),
+      };
     }
-    const pdfBuffer = await renderFormulirPdf({ user, perekrut, pengaturan, logoPath, untukTtdDigital: true });
-    return { pdfBuffer, signer: signerInfo, materaiCtx: {} };
+    return {
+      user, perekrut,
+      generatePdf: () => renderFormulirPdf({ user, perekrut, pengaturan, logoPath, untukTtdDigital: true }),
+      signer: { nama: user.name, email: user.email, wa: user.wa },
+    };
   }
 
   if (dokumen === 'jamaah') {
@@ -68,8 +129,10 @@ async function generatePdfAwal(dokumen, refId) {
     const [[pemesan]] = await pool.query('SELECT name, email, wa FROM users WHERE id = ?', [booking.ordered_by || booking.user_id]);
     booking.pemesan_nama = pemesan?.name || null;
     const { pasal } = await ambilPasalUntukCetak('jamaah', refId);
-    const pdfBuffer = await renderJamaahPdf({ booking, pasal, untukTtdDigital: true });
-    return { pdfBuffer, signer: { nama: pemesan?.name, email: pemesan?.email, wa: pemesan?.wa }, materaiCtx: {} };
+    return {
+      generatePdf: () => renderJamaahPdf({ booking, pasal, untukTtdDigital: true }),
+      signer: { nama: pemesan?.name, email: pemesan?.email, wa: pemesan?.wa },
+    };
   }
 
   // invoice
@@ -80,9 +143,11 @@ async function generatePdfAwal(dokumen, refId) {
     const [[b]] = await pool.query('SELECT id, prog_name, jumlah_jamaah FROM bookings WHERE id = ?', [dok.booking_id]);
     booking = b || null;
   }
-  const pdfBuffer = await renderInvoicePdf({ dokumen: dok, booking, pengaturan, logoPath, untukTtdDigital: true });
-  const signerInfo = { nama: pengaturan.nama_penandatangan_keuangan || pengaturan.nama_penandatangan, email: null, wa: null };
-  return { pdfBuffer, signer: signerInfo, materaiCtx: { jenis: dok.jenis, status: dok.status, nominal: dok.nominal } };
+  return {
+    generatePdf: () => renderInvoicePdf({ dokumen: dok, booking, pengaturan, logoPath, untukTtdDigital: true }),
+    signer: { nama: pengaturan.nama_penandatangan_keuangan || pengaturan.nama_penandatangan, email: null, wa: null },
+    materaiCtx: { jenis: dok.jenis, status: dok.status, nominal: dok.nominal },
+  };
 }
 
 // POST /api/admin/dokumen-signature  body: { dokumen, ref_id, metode }
@@ -90,6 +155,10 @@ async function generatePdfAwal(dokumen, refId) {
 // metode='fisik': cuma catat pilihan, jalur upload scan existing sama sekali
 // tidak disentuh. metode='digital': generate PDF -> materai (kalau perlu,
 // mock) -> kirim TTD (mock) -> notifikasi signer.
+//
+// SPKA-Ins KHUSUS: 2 rangkap/2 materai (lihat RANGKAP_SPKA_INS) — bukan 1
+// sesi kayak dokumen lain. Rangkap 'travel' nunggu TTD PERWAKILAN (async,
+// dinotif), rangkap 'luar' langsung auto-selesai (JM Travel TTD di tempat).
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -113,61 +182,64 @@ export async function POST(request) {
 
     if (metodeFinal === 'fisik') {
       await pool.query(
-        `INSERT INTO dokumen_signature (dokumen, ref_id, metode, fase, requested_by)
-         VALUES (?, ?, 'fisik', 'selesai', ?)
+        `INSERT INTO dokumen_signature (dokumen, ref_id, rangkap, metode, fase, requested_by)
+         VALUES (?, ?, 'tunggal', 'fisik', 'selesai', ?)
          ON DUPLICATE KEY UPDATE metode = 'fisik', fase = 'selesai', requested_by = VALUES(requested_by), completed_at = CURRENT_TIMESTAMP`,
         [dokumen, ref_id, isAdmin ? auth.user.id : null]
       );
       return Response.json({ message: 'Dicatat untuk jalur TTD fisik — lanjutkan cetak & unggah scan seperti biasa.' });
     }
 
-    const { pdfBuffer, signer, materaiCtx } = await generatePdfAwal(dokumen, ref_id);
-    const perluMaterai = apakahPerluMaterai(dokumen, materaiCtx);
-    const pdfAwalPath = await simpanPdfDokumenSignature(pdfBuffer, { dokumen, refId: ref_id, tahap: 'awal' });
+    const baseUrl = new URL(request.url).origin;
+    const requestedBy = isAdmin ? auth.user.id : null;
+    const data = await siapkanData(dokumen, ref_id);
 
-    await pool.query(
-      `INSERT INTO dokumen_signature
-        (dokumen, ref_id, metode, fase, perlu_materai, signer_nama, signer_email, signer_wa, pdf_awal_path, requested_by, requested_at)
-       VALUES (?, ?, 'digital', 'draft', ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-       ON DUPLICATE KEY UPDATE
-        metode = 'digital', fase = 'draft', perlu_materai = VALUES(perlu_materai),
-        signer_nama = VALUES(signer_nama), signer_email = VALUES(signer_email), signer_wa = VALUES(signer_wa),
-        pdf_awal_path = VALUES(pdf_awal_path), pdf_bermaterai_path = NULL, pdf_final_path = NULL,
-        materai_provider = NULL, materai_kode_unik = NULL, materai_dibeli_at = NULL,
-        ttd_provider = NULL, ttd_provider_ref = NULL, completed_at = NULL,
-        requested_by = VALUES(requested_by), requested_at = CURRENT_TIMESTAMP`,
-      [dokumen, ref_id, perluMaterai ? 1 : 0, signer?.nama || null, signer?.email || null, signer?.wa || null, pdfAwalPath, isAdmin ? auth.user.id : null]
-    );
-    const [[sig]] = await pool.query('SELECT * FROM dokumen_signature WHERE dokumen = ? AND ref_id = ?', [dokumen, ref_id]);
+    if (dokumen === 'spka_ins') {
+      const hasil = [];
+      for (const r of RANGKAP_SPKA_INS) {
+        const pdfBuffer = await data.generatePdf(r.label);
+        const signerInfo = r.signerPihak === 'perwakilan'
+          ? { nama: data.user.name, email: data.user.email, wa: data.user.wa }
+          : { nama: data.jmSigner?.nama || 'JM Travel', email: null, wa: null };
+        const row = await prosesSatuSesiDigital({
+          dokumen: 'spka_ins', refId: ref_id, rangkap: r.rangkap, pdfBuffer, signer: signerInfo,
+          perluMaterai: true, requestedBy, baseUrl, autoSelesai: r.signerPihak === 'jm',
+        });
+        hasil.push(row);
+      }
 
-    let pdfUntukTtd = pdfBuffer;
-    if (perluMaterai) {
-      const baseUrl = new URL(request.url).origin;
-      const hasilMaterai = await beliMaterai({ dokumen, refId: ref_id, pdfBuffer, baseUrl });
-      const pdfBermateraiPath = await simpanPdfDokumenSignature(hasilMaterai.pdfBuffer, { dokumen, refId: ref_id, tahap: 'bermaterai' });
-      await pool.query(
-        `UPDATE dokumen_signature SET fase = 'materai_selesai', materai_provider = ?, materai_kode_unik = ?, materai_dibeli_at = ?, pdf_bermaterai_path = ? WHERE id = ?`,
-        [hasilMaterai.provider, hasilMaterai.kodeUnik, hasilMaterai.dibeliAt, pdfBermateraiPath, sig.id]
-      );
-      pdfUntukTtd = hasilMaterai.pdfBuffer;
+      await catatAudit(pool, {
+        actor: auth.user, aksi: 'dokumen_signature_dikirim', target_type: 'spka_ins', target_id: String(ref_id),
+        keterangan: '2 rangkap SPKA-Ins dikirim untuk TTD digital (provider mock) — rangkap travel menunggu perwakilan, rangkap luar auto-selesai (TTD JM Travel).',
+      });
+
+      const rangkapTravel = hasil.find(h => h.rangkap === 'travel');
+      if (rangkapTravel) {
+        await kirimNotifikasi(pool, {
+          user_id: data.user.id,
+          tipe: 'dokumen_menunggu_ttd',
+          judul: 'SPKA-Ins Menunggu Tanda Tangan Digital Anda',
+          pesan: 'Rangkap Perjanjian Kerja Sama Perwakilan yang akan disimpan JM Travel menunggu tanda tangan digital Anda.',
+          link: `/tanda-tangan/${rangkapTravel.id}`,
+        });
+      }
+
+      return Response.json({ message: 'SPKA-Ins dikirim untuk TTD digital (2 rangkap).', rangkap: hasil });
     }
 
-    const hasilTtd = await kirimUntukTtd({ dokumen, refId: ref_id, signer, pdfBuffer: pdfUntukTtd });
-    await pool.query(
-      `UPDATE dokumen_signature SET fase = 'ttd_menunggu', ttd_provider = ?, ttd_provider_ref = ? WHERE id = ?`,
-      [hasilTtd.provider, hasilTtd.providerRef, sig.id]
-    );
+    // Dokumen 1-rangkap (jamaah/formulir/invoice)
+    const pdfBuffer = await data.generatePdf();
+    const perluMaterai = apakahPerluMaterai(dokumen, data.materaiCtx || {});
+    const row = await prosesSatuSesiDigital({
+      dokumen, refId: ref_id, rangkap: 'tunggal', pdfBuffer, signer: data.signer,
+      perluMaterai, requestedBy, baseUrl, autoSelesai: false,
+    });
 
     await catatAudit(pool, {
-      actor: auth.user,
-      aksi: 'dokumen_signature_dikirim',
-      target_type: dokumen,
-      target_id: String(ref_id),
+      actor: auth.user, aksi: 'dokumen_signature_dikirim', target_type: dokumen, target_id: String(ref_id),
       keterangan: `Dokumen ${dokumen} dikirim untuk TTD digital (provider mock).`,
     });
 
-    // Notifikasi in-app ke signer kalau dia punya akun (jamaah/perwakilan) —
-    // invoice signer-nya finance internal, gak perlu dinotif via sistem ini.
     if (dokumen !== 'invoice') {
       const [[signerUser]] = await pool.query(
         dokumen === 'jamaah'
@@ -181,12 +253,12 @@ export async function POST(request) {
           tipe: 'dokumen_menunggu_ttd',
           judul: 'Dokumen Menunggu Tanda Tangan Digital',
           pesan: 'Ada dokumen yang menunggu tanda tangan digital Anda.',
-          link: `/tanda-tangan/${sig.id}`,
+          link: `/tanda-tangan/${row.id}`,
         });
       }
     }
 
-    return Response.json({ message: 'Dikirim untuk TTD digital.', id: sig.id, fase: 'ttd_menunggu' });
+    return Response.json({ message: 'Dikirim untuk TTD digital.', id: row.id, fase: row.fase });
   } catch (error) {
     console.error(error);
     const status = error.status || 500;
@@ -195,7 +267,8 @@ export async function POST(request) {
 }
 
 // GET /api/admin/dokumen-signature?dokumen=&ref_id= — status lookup buat
-// badge di UI (halaman cetak & /pks).
+// badge di UI (halaman cetak & /pks). Selalu balikin ARRAY (biasanya 1 baris,
+// SPKA-Ins bisa sampai 2 — satu per rangkap) biar UI-nya konsisten.
 export async function GET(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -206,8 +279,11 @@ export async function GET(request) {
     if (!DOKUMEN_VALID.includes(dokumen) || !refId) {
       return Response.json({ error: 'Parameter tidak valid' }, { status: 400 });
     }
-    const [[sig]] = await pool.query('SELECT * FROM dokumen_signature WHERE dokumen = ? AND ref_id = ?', [dokumen, refId]);
-    return Response.json({ signature: sig || null });
+    const [rows] = await pool.query(
+      `SELECT * FROM dokumen_signature WHERE dokumen = ? AND ref_id = ? ORDER BY FIELD(rangkap, 'tunggal', 'travel', 'luar')`,
+      [dokumen, refId]
+    );
+    return Response.json({ signatures: rows });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

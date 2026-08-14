@@ -23,8 +23,12 @@ const tglIndo = (d) => `${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}
  * @param {string} opts.logoPath - path absolut file logo
  * @param {boolean} [opts.untukTtdDigital] - kalau true, blok TTD dikosongkan
  *   dgn keterangan "menunggu TTD digital" alih-alih garis kosong buat TTD basah
+ * @param {string} [opts.rangkapLabel] - "Rangkap 1 — Untuk JM Travel" dst
+ *   (lihat RANGKAP_SPKA_INS di src/lib/materaiRule.js) — SPKA-Ins SATU-SATUNYA
+ *   dokumen yang pakai skema 2 rangkap/2 materai, jadi label ini wajib
+ *   ditera di tiap salinan biar gak ketuker pas dicetak/diarsip.
  */
-export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital }) {
+export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital, rangkapLabel }) {
   const namaPenandatangan = signer?.nama || 'Ahmad Zaky Arief Bestary';
   const jabatanPenandatangan = signer?.jabatan || 'Direktur Pengembangan Bisnis & Sumber Daya Manusia';
   const perekrutEfektif = perekrut || {
@@ -48,6 +52,9 @@ export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, p
     <Document>
       <Page size="A4" style={styles.page}>
         <Kop pengaturan={pengaturan} logoPath={logoPath} />
+        {rangkapLabel && (
+          <Text style={{ textAlign: 'right', fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#C9952A', marginBottom: 4 }}>{rangkapLabel}</Text>
+        )}
         <Text style={styles.judul}>SURAT PERJANJIAN KERJA SAMA PERWAKILAN</Text>
         <Text style={styles.subJudul}>Nomor: {nomor}</Text>
 
