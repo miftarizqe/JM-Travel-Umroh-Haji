@@ -12,13 +12,30 @@ export default function DashboardJamaah() {
   const [pengaturan] = usePengaturan();
   const [bookings, setBookings] = useState([]);
   const [expandBooking, setExpandBooking] = useState(null);
+  const [konfirmasiLoading, setKonfirmasiLoading] = useState(null);
 
-  useEffect(() => {
+  function muatBookings() {
     if (!user) return;
     fetch(`/api/bookings?user_id=${user.id}`)
       .then(r => r.json())
       .then(d => setBookings(d.bookings || []));
-  }, [user]);
+  }
+  useEffect(muatBookings, [user]);
+
+  async function konfirmasiTerima(bookingId, idx) {
+    const key = `${bookingId}:${idx}`;
+    setKonfirmasiLoading(key);
+    try {
+      const res = await fetch('/api/perlengkapan-pengiriman/terima', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId, jamaah_idx: idx }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setKonfirmasiLoading(null); return; }
+      muatBookings();
+    } catch { alert('Terjadi kesalahan'); }
+    setKonfirmasiLoading(null);
+  }
 
   if (!user) return <div className="flex items-center justify-center min-h-screen text-gray-500">Loading...</div>;
 
@@ -218,22 +235,38 @@ export default function DashboardJamaah() {
                         <div className="mt-3 bg-gray-50 rounded-xl p-3">
                           <div className="text-xs font-bold text-[#0E2F6E] mb-2">📦 Status Perlengkapan</div>
                           <div className="space-y-1.5">
-                            {b.perlengkapan_status.map((p, i) => (
-                              <div key={i} className="flex items-center justify-between text-xs">
-                                <span className="text-gray-600">{p.nama}</span>
-                                <span className={`font-bold px-2 py-0.5 rounded-full ${
-                                  p.status === 'diterima' ? 'bg-green-100 text-green-700' :
-                                  p.status === 'dikirim' ? 'bg-yellow-100 text-yellow-700' :
-                                  p.status === 'disiapkan' ? 'bg-blue-100 text-blue-700' :
-                                  'bg-gray-100 text-gray-500'
-                                }`}>
-                                  {p.status === 'diterima' ? '✅ Diterima' :
-                                   p.status === 'dikirim' ? '🚚 Dikirim' :
-                                   p.status === 'disiapkan' ? '📦 Disiapkan' : '⏳ Belum Diproses'}
-                                </span>
-                              </div>
-                            ))}
+                            {b.perlengkapan_status.map((p, i) => {
+                              const key = `${b.id}:${p.idx}`;
+                              return (
+                                <div key={i} className="flex items-center justify-between text-xs gap-2">
+                                  <span className="text-gray-600">{p.nama}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
+                                      p.status === 'diterima' ? 'bg-green-100 text-green-700' :
+                                      p.status === 'dikirim' ? 'bg-yellow-100 text-yellow-700' :
+                                      p.status === 'disiapkan' ? 'bg-blue-100 text-blue-700' :
+                                      'bg-gray-100 text-gray-500'
+                                    }`}>
+                                      {p.status === 'diterima' ? '✅ Diterima' :
+                                       p.status === 'dikirim' ? '🚚 Dikirim' :
+                                       p.status === 'disiapkan' ? '📦 Disiapkan' : '⏳ Belum Diproses'}
+                                    </span>
+                                    {p.status === 'dikirim' && (
+                                      <button onClick={() => konfirmasiTerima(b.id, p.idx)} disabled={konfirmasiLoading === key}
+                                        className="text-[10px] font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] px-2 py-0.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                                        {konfirmasiLoading === key ? '...' : 'Sudah Terima'}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
+                          {b.perlengkapan_status.some(p => p.status === 'dikirim') && (
+                            <div className="text-[10px] text-gray-400 mt-2">
+                              Kalau tidak dikonfirmasi, otomatis dianggap diterima setelah 7 hari.
+                            </div>
+                          )}
                         </div>
                       )}
 

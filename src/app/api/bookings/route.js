@@ -53,6 +53,7 @@ export async function GET(request) {
         if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
         const entries = Array.isArray(jd) ? jd : [];
         b.perlengkapan_status = entries.map((j, idx) => ({
+          idx,
           nama: j.nama || `Jamaah ${idx + 1}`,
           status: statusMap.get(`${b.id}:${idx}`) || 'belum_diproses',
         }));

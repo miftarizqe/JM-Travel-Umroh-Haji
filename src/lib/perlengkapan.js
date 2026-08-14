@@ -99,11 +99,21 @@ export async function cekItemPerluDipesan(pool) {
   return hasil;
 }
 
+const URUTAN_STATUS = ['belum_diproses', 'disiapkan', 'dikirim', 'diterima'];
+
+// Item yang berlaku buat 1 jamaah (dipakai UI admin buat nampilin checklist
+// sebelum kirim — "contreng satu-satu" atau "pilih semua").
+export async function daftarItemUntukJamaah(pool, jk) {
+  const [items] = await pool.query('SELECT * FROM perlengkapan_jamaah ORDER BY urutan');
+  return itemUntukGender(items, jk);
+}
+
 // Update status pengiriman 1 jamaah. Kalau maju ke 'dikirim', catat ledger
-// 'out' + kurangi stok_saat_ini utk tiap item yang berlaku ke gender jamaah
-// itu (transaksi — stok & status harus konsisten, gak boleh nyangkut separuh).
-export async function tandaiPengirimanJamaah(pool, { bookingId, jamaahIdx, jk, statusBaru, catatan, actorId }) {
-  const URUTAN_STATUS = ['belum_diproses', 'disiapkan', 'dikirim', 'diterima'];
+// 'out' + kurangi stok_saat_ini — `itemIds` (opsional) = item yang DICONTRENG
+// admin di UI (checklist satu-satu ATAU "pilih semua"); kalau tidak diisi,
+// default ke SEMUA item yang berlaku ke gender jamaah itu. Transaksi — stok &
+// status harus konsisten, gak boleh nyangkut separuh.
+export async function tandaiPengirimanJamaah(pool, { bookingId, jamaahIdx, jk, statusBaru, itemIds, catatan, actorId }) {
   if (!URUTAN_STATUS.includes(statusBaru)) {
     throw Object.assign(new Error('Status tidak valid'), { status: 400 });
   }
@@ -138,7 +148,15 @@ export async function tandaiPengirimanJamaah(pool, { bookingId, jamaahIdx, jk, s
     if (statusBaru === 'dikirim') {
       const [items] = await conn.query('SELECT * FROM perlengkapan_jamaah ORDER BY urutan');
       const applicable = itemUntukGender(items, jk);
-      for (const it of applicable) {
+      // itemIds dari admin WAJIB subset item yang berlaku ke gender jamaah —
+      // jangan percaya begitu saja apa yang dikirim client.
+      const dipilih = Array.isArray(itemIds) && itemIds.length > 0
+        ? applicable.filter(it => itemIds.includes(it.id))
+        : applicable;
+      if (dipilih.length === 0) {
+        throw Object.assign(new Error('Pilih minimal 1 item untuk dikirim'), { status: 400 });
+      }
+      for (const it of dipilih) {
         await conn.query(
           `INSERT INTO perlengkapan_stok_ledger (item_id, tipe, qty, keterangan, booking_id, jamaah_idx, input_oleh)
            VALUES (?, 'out', 1, 'Pengiriman kit jamaah', ?, ?, ?)`,
@@ -155,6 +173,41 @@ export async function tandaiPengirimanJamaah(pool, { bookingId, jamaahIdx, jk, s
   } finally {
     conn.release();
   }
+}
+
+// Item yang benar-benar dikirim ke 1 jamaah — dibaca dari ledger (bukan
+// tabel baru, ledger sudah nyimpen booking_id+jamaah_idx per baris 'out').
+// Dipakai buat cetak Tanda Terima.
+export async function ambilItemDikirimJamaah(pool, { bookingId, jamaahIdx }) {
+  const [rows] = await pool.query(
+    `SELECT l.qty, l.created_at, p.nama, p.gender_spesifik
+     FROM perlengkapan_stok_ledger l JOIN perlengkapan_jamaah p ON p.id = l.item_id
+     WHERE l.booking_id = ? AND l.jamaah_idx = ? AND l.tipe = 'out'
+     ORDER BY l.created_at ASC`,
+    [bookingId, jamaahIdx]
+  );
+  return rows;
+}
+
+// Sweep: booking yang statusnya 'dikirim' >= 7 hari tanpa dikonfirmasi
+// jamaah, otomatis dianggap 'diterima'. Dipanggil dari
+// src/instrumentation.js — pola sama seperti sweep lain di sistem ini.
+export async function jalankanAutoTerimaPerlengkapan(pool) {
+  const [rows] = await pool.query(
+    `SELECT booking_id, jamaah_idx FROM perlengkapan_pengiriman
+     WHERE status = 'dikirim' AND dikirim_at <= DATE_SUB(NOW(), INTERVAL 7 DAY)`
+  );
+  const diproses = [];
+  for (const r of rows) {
+    await pool.query(
+      `UPDATE perlengkapan_pengiriman SET status = 'diterima', diterima_at = CURRENT_TIMESTAMP,
+         catatan = 'Otomatis diterima sistem — 7 hari tanpa konfirmasi jamaah.'
+       WHERE booking_id = ? AND jamaah_idx = ?`,
+      [r.booking_id, r.jamaah_idx]
+    );
+    diproses.push(r);
+  }
+  return diproses;
 }
 
 // Tambah stok masuk (pembelian/restock) — super_admin only, dipanggil dari

@@ -18,4 +18,13 @@ export async function register() {
 
   setTimeout(jalanStok, 15_000);
   setInterval(jalanStok, 24 * 60 * 60 * 1000);
+
+  // Auto-terima perlengkapan — jamaah yang gak konfirmasi manual dalam 7 hari
+  // sejak 'dikirim' dianggap sudah terima (lihat jalankanAutoTerimaPerlengkapan).
+  const dbPool = (await import('@/lib/db')).default;
+  const { jalankanAutoTerimaPerlengkapan } = await import('@/lib/perlengkapan');
+  const jalanAutoTerima = () => jalankanAutoTerimaPerlengkapan(dbPool).catch(e => console.error('[perlengkapan-auto-terima]', e));
+
+  setTimeout(jalanAutoTerima, 20_000);
+  setInterval(jalanAutoTerima, 24 * 60 * 60 * 1000);
 }
