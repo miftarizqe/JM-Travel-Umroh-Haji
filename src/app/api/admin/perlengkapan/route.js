@@ -26,15 +26,44 @@ export async function GET(request) {
   }
 }
 
-// POST /api/admin/perlengkapan  body: { item_id, qty, keterangan } — catat
-// stok masuk (restock/pembelian).
+// POST /api/admin/perlengkapan
+// - body: { nama, deskripsi?, gender_spesifik?, kategori_program? } — bikin
+//   item katalog BARU (dibedain dari stok masuk lewat ada/gaknya `nama`).
+//   SEBELUM ini gak ada jalur sama sekali buat nambah item baru (cuma bisa
+//   atur stok/ambang item yang udah ada) — ketauan pas nyiapin kit
+//   "Program Sahabat Baitullah" yang butuh item kategori baru.
+// - body: { item_id, qty, keterangan, harga_satuan?, akun_id?, program_id? }
+//   — catat stok masuk (restock/pembelian), pola lama gak berubah.
 export async function POST(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
-    const { item_id, qty, keterangan } = await request.json();
+    const body = await request.json();
+
+    if (body.nama) {
+      const { nama, deskripsi, gender_spesifik, kategori_program } = body;
+      if (gender_spesifik && !['semua', 'laki', 'perempuan'].includes(gender_spesifik)) {
+        return Response.json({ error: 'gender_spesifik tidak valid' }, { status: 400 });
+      }
+      if (kategori_program && !['umum', 'sahabat_baitullah'].includes(kategori_program)) {
+        return Response.json({ error: 'kategori_program tidak valid' }, { status: 400 });
+      }
+      const [[{ maxUrutan }]] = await pool.query('SELECT COALESCE(MAX(urutan), 0) AS maxUrutan FROM perlengkapan_jamaah');
+      const [result] = await pool.query(
+        `INSERT INTO perlengkapan_jamaah (urutan, nama, deskripsi, gender_spesifik, kategori_program, aktif, stok_saat_ini, stok_minimum)
+         VALUES (?, ?, ?, ?, ?, 1, 0, 0)`,
+        [maxUrutan + 1, nama.trim(), deskripsi || null, gender_spesifik || 'semua', kategori_program || 'umum']
+      );
+      return Response.json({ message: 'Item baru ditambahkan!', id: result.insertId }, { status: 201 });
+    }
+
+    const { item_id, qty, keterangan, harga_satuan, akun_id, program_id } = body;
     if (!item_id || !qty) return Response.json({ error: 'item_id dan qty wajib diisi' }, { status: 400 });
-    await tambahStokMasuk(pool, { itemId: item_id, qty: Number(qty), keterangan, actorId: auth.user.id });
+    await tambahStokMasuk(pool, {
+      itemId: item_id, qty: Number(qty), keterangan,
+      hargaSatuan: harga_satuan, akunId: akun_id, programId: program_id,
+      actorId: auth.user.id,
+    });
     return Response.json({ message: 'Stok masuk dicatat!' });
   } catch (error) {
     console.error(error);
@@ -43,21 +72,27 @@ export async function POST(request) {
   }
 }
 
-// PUT /api/admin/perlengkapan  body: { id, stok_minimum?, gender_spesifik?, aktif? }
+// PUT /api/admin/perlengkapan  body: { id, stok_minimum?, gender_spesifik?, kategori_program?, nama?, deskripsi?, aktif? }
 export async function PUT(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
-    const { id, stok_minimum, gender_spesifik, aktif } = await request.json();
+    const { id, stok_minimum, gender_spesifik, kategori_program, nama, deskripsi, aktif } = await request.json();
     if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
     if (gender_spesifik && !['semua', 'laki', 'perempuan'].includes(gender_spesifik)) {
       return Response.json({ error: 'gender_spesifik tidak valid' }, { status: 400 });
+    }
+    if (kategori_program && !['umum', 'sahabat_baitullah'].includes(kategori_program)) {
+      return Response.json({ error: 'kategori_program tidak valid' }, { status: 400 });
     }
 
     const set = [];
     const params = [];
     if (stok_minimum != null) { set.push('stok_minimum = ?'); params.push(Number(stok_minimum)); }
     if (gender_spesifik) { set.push('gender_spesifik = ?'); params.push(gender_spesifik); }
+    if (kategori_program) { set.push('kategori_program = ?'); params.push(kategori_program); }
+    if (nama != null) { set.push('nama = ?'); params.push(String(nama).trim()); }
+    if (deskripsi != null) { set.push('deskripsi = ?'); params.push(deskripsi || null); }
     if (aktif != null) { set.push('aktif = ?'); params.push(aktif ? 1 : 0); }
     if (set.length === 0) return Response.json({ error: 'Tidak ada field yang diubah' }, { status: 400 });
 

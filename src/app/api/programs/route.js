@@ -1,13 +1,42 @@
 import pool from '@/lib/db';
 import { wajibRole, verifikasiToken } from '@/lib/auth';
+import { PAKET, BINTANG_PAKET } from '@/lib/hotelCustomPricing';
+
+// Custom Hotel per Kota — jamaah pilih Bintang Mekkah & Madinah TERPISAH,
+// diambil dari 3 paket (Deluxe/Eksekutif/Signature = Bintang 3/4/5) yang
+// SUDAH ADA (dikonfirmasi user 2026-08-20, gak perlu data opsi terpisah
+// lagi). `custom_hotel_tersedia` = admin sudah nyalain mode Margin Persen
+// (satu-satunya cara harga kombinasi MIX bisa dihitung adil, lihat
+// hitungHargaCustomHotelDenganDb) — margin_mode/persen/komisi_mode/persen
+// sendiri TETAP di-strip (info margin internal, gak boleh ke client),
+// cuma dipakai buat nentuin boolean ini. hotel_mekkah_{paket}/
+// hotel_madinah_{paket} aman dibuka (nama hotel doang, bukan rate).
+function stripProgramsUntukPublik(programs) {
+  return programs.map(p => {
+    const rest = { ...p };
+    const marginPersenAktif = rest.margin_mode === 'persen';
+    delete rest.margin_persen; delete rest.komisi_persen; delete rest.margin_mode; delete rest.komisi_mode;
+    return {
+      ...rest,
+      custom_hotel_tersedia: marginPersenAktif,
+      hotel_opsi: marginPersenAktif ? PAKET.map(pk => ({
+        paket: pk, bintang: BINTANG_PAKET[pk],
+        hotel_mekkah: p[`hotel_mekkah_${pk}`], hotel_madinah: p[`hotel_madinah_${pk}`],
+      })) : [],
+    };
+  });
+}
 
 // Listing publik — dipanggil tanpa login (pengunjung) maupun oleh
 // jamaah/perwakilan yang login. Identitas pemanggil diambil dari token
 // SENDIRI (bukan query params dari client — params role/perw_id lama gak
 // pernah dikirim caller manapun & gampang dipalsuin kalau tetap dipercaya).
-// publish_type='private' TIDAK PERNAH keluar dari sini apapun rolenya (cuma
-// bisa didaftarin admin lewat panel admin). publish_type='perwakilan' cuma
-// keluar buat perwakilan yang diotorisasi lewat program_perwakilan.
+// publish_type='private' cuma keluar buat: (a) admin/super_admin (lihat
+// cabang di bawah), (b) jamaah yang ditunjuk admin lewat program_private_akun
+// (dikonfirmasi user 2026-09-06 — sebelumnya blanket gak pernah keluar sama
+// sekali, cuma bisa didaftarin admin). Anonim & role lain TETAP gak pernah
+// liat. publish_type='perwakilan' cuma keluar buat perwakilan yang
+// diotorisasi lewat program_perwakilan.
 export async function GET(request) {
   try {
     const user = verifikasiToken(request);
@@ -22,7 +51,19 @@ export async function GET(request) {
          ) ORDER BY p.created_at DESC`,
         [user.id]
       );
-      return Response.json({ programs });
+      return Response.json({ programs: stripProgramsUntukPublik(programs) });
+    }
+
+    // Jamaah Sahabat Baitullah (role=sahabat) — liat program publik biasa
+    // (boleh di-closing-in buat jamaah lain) DITAMBAH program khusus
+    // publish_type='sahabat_baitullah' (exclusive, cuma buat checkout diri sendiri —
+    // guard-nya di src/lib/booking.js, bukan di sini). Role lain TIDAK
+    // PERNAH liat publish_type='sahabat_baitullah' sama sekali, apapun kondisinya.
+    if (user?.role === 'sahabat_baitullah') {
+      const [programs] = await pool.query(
+        `SELECT * FROM programs WHERE active = 1 AND publish_type IN ('public', 'sahabat_baitullah') ORDER BY created_at DESC`
+      );
+      return Response.json({ programs: stripProgramsUntukPublik(programs) });
     }
 
     // Admin/super_admin (dipakai a.l. oleh halaman Order Jamaah, admin bikinin
@@ -35,13 +76,31 @@ export async function GET(request) {
       const [programs] = await pool.query(
         "SELECT * FROM programs WHERE active = 1 ORDER BY created_at DESC"
       );
-      return Response.json({ programs });
+      return Response.json({ programs: stripProgramsUntukPublik(programs) });
+    }
+
+    // Jamaah (login) — program publik DITAMBAH program 'private' yang
+    // ditunjuk admin buat akun ini spesifik (dikonfirmasi user 2026-09-06 —
+    // sebelumnya 'private' gak pernah keluar sama sekali ke jamaah manapun,
+    // cuma bisa didaftarin admin langsung). Anonim (belum login) tetap cuma
+    // publish_type='public'.
+    if (user?.role === 'jamaah') {
+      const [programs] = await pool.query(
+        `SELECT p.* FROM programs p WHERE p.active = 1 AND (
+           p.publish_type = 'public'
+           OR (p.publish_type = 'private' AND EXISTS (
+             SELECT 1 FROM program_private_akun ppa WHERE ppa.program_id = p.id AND ppa.user_id = ?
+           ))
+         ) ORDER BY p.created_at DESC`,
+        [user.id]
+      );
+      return Response.json({ programs: stripProgramsUntukPublik(programs) });
     }
 
     const [programs] = await pool.query(
       "SELECT * FROM programs WHERE active = 1 AND publish_type = 'public' ORDER BY created_at DESC"
     );
-    return Response.json({ programs });
+    return Response.json({ programs: stripProgramsUntukPublik(programs) });
 
   } catch (error) {
     console.error(error);

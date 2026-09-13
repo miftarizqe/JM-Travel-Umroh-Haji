@@ -35,14 +35,14 @@ export async function POST(request) {
       return Response.json({ error: 'Ukuran file maksimal 5MB' }, { status: 400 });
     }
 
-    const dir = path.join(process.cwd(), 'public', 'uploads', 'dokumen-jamaah');
+    const dir = path.join(process.cwd(), 'private-uploads', 'dokumen-jamaah');
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
 
     const ext = path.extname(file.name || '') || (file.type === 'application/pdf' ? '.pdf' : '.jpg');
     const nama = `${jenis}_${auth.user.id}_${Date.now()}${ext}`;
     await writeFile(path.join(dir, nama), Buffer.from(await file.arrayBuffer()));
 
-    return Response.json({ message: 'Dokumen berhasil diunggah!', path: `/uploads/dokumen-jamaah/${nama}` });
+    return Response.json({ message: 'Dokumen berhasil diunggah!', path: `/api/dokumen/dokumen-jamaah/${nama}` });
   } catch (error) {
     console.error('Upload dokumen jamaah gagal:', error);
     return Response.json({ error: 'Gagal mengunggah dokumen' }, { status: 500 });

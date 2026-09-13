@@ -25,7 +25,7 @@ const namaBulan = (b) => {
   return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 };
 
-const KOSONG_FORM = { id: null, tanggal: '', deskripsi: '', kategori_id: '', akun_id: '', tipe: 'out', nominal: '', bukti_path: null, bukti_nama: null, is_settlement: false, penerima_settlement: '' };
+const KOSONG_FORM = { id: null, tanggal: '', deskripsi: '', kategori_id: '', program_id: '', akun_id: '', tipe: 'out', nominal: '', bukti_path: null, bukti_nama: null, is_settlement: false, penerima_settlement: '' };
 const KOSONG_TRANSFER = { tanggal: '', deskripsi: '', akun_dari_id: '', akun_ke_id: '', nominal: '' };
 const KOSONG_BREAKDOWN = { tanggal: '', deskripsi: '', kategori_id: '', nominal: '', bukti_path: null, bukti_nama: null, kembalian: false };
 const KOSONG_REIMBURSE = { id: null, nama_staff: '', tanggal_pengeluaran: '', deskripsi: '', kategori_id: '', nominal: '', bukti_path: null, bukti_nama: null };
@@ -38,13 +38,13 @@ const lbl = "block text-xs font-semibold text-gray-500 mb-1";
 // nempel INLINE tepat di bawah baris transaksi yang diedit (di dalam
 // <table>, sebagai <tr> tambahan — pola sama kayak "Rincikan" yang sudah
 // ada), bukan di atas tabel — biar gak perlu scroll naik-turun.
-function FormTransaksi({ form, setForm, akunList, kategoriList, saving, onSimpan, onBatal }) {
+function FormTransaksi({ form, setForm, akunList, kategoriList, programList, saving, onSimpan, onBatal }) {
   return (
     <div className="bg-white rounded-xl border-2 border-[#1A4FA0] p-4 space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={lbl}>Tanggal</label>
-          <input type="date" value={form.tanggal} onChange={e => setForm({ ...form, tanggal: e.target.value })} className={inp} />
+          <input type="date" value={form.tanggal} onChange={e => { if (e.target.value) setForm({ ...form, tanggal: e.target.value }); }} className={inp} />
         </div>
         <div>
           <label className={lbl}>Akun</label>
@@ -77,6 +77,17 @@ function FormTransaksi({ form, setForm, akunList, kategoriList, saving, onSimpan
         <select value={form.kategori_id} onChange={e => setForm({ ...form, kategori_id: e.target.value ? Number(e.target.value) : '' })} className={inp}>
           <option value="">— Tanpa kategori —</option>
           {kategoriList.filter(k => k.tipe === form.tipe).map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}
+        </select>
+      </div>
+      <div>
+        {/* Tag opsional ke 1 program — fondasi laporan Realisasi vs Budget
+            (bandingin duit yang BENERAN keluar/masuk di sini vs HPP budget
+            program itu). Kosong = transaksi company-wide, gak nempel ke
+            program manapun (gaji, sewa, dst) — perilaku lama gak berubah. */}
+        <label className={lbl}>Program (opsional — biar bisa dibandingin budget vs realisasi)</label>
+        <select value={form.program_id} onChange={e => setForm({ ...form, program_id: e.target.value })} className={inp}>
+          <option value="">— Tanpa program —</option>
+          {programList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       </div>
       <div>
@@ -125,6 +136,7 @@ function CashflowPeriodeInner() {
   const [anggaran, setAnggaran] = useState(null);
   const [akunList, setAkunList] = useState([]);
   const [kategoriList, setKategoriList] = useState([]);
+  const [programList, setProgramList] = useState([]);
   const [transaksi, setTransaksi] = useState([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState(null);
@@ -148,7 +160,8 @@ function CashflowPeriodeInner() {
       fetch('/api/admin/cashflow/kategori').then(r => r.json()),
       fetch(`/api/admin/cashflow/transaksi?periode_id=${periodeId}`).then(r => r.json()),
       fetch('/api/admin/cashflow/reimburse?status=belum_dibayar').then(r => r.json()),
-    ]).then(([p, a, k, t, r]) => {
+      fetch('/api/admin/programs').then(r => r.json()),
+    ]).then(([p, a, k, t, r, pr]) => {
       if (p.error) { alert(p.error); router.push('/admin/laporan/cashflow'); return; }
       setPeriode(p.periode);
       setSaldo(p.saldo || []);
@@ -157,6 +170,7 @@ function CashflowPeriodeInner() {
       setKategoriList(k.kategori || []);
       setTransaksi(t.transaksi || []);
       setReimburseList(r.reimburse || []);
+      setProgramList(pr.programs || []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }
@@ -668,7 +682,7 @@ function CashflowPeriodeInner() {
           <div className="border-2 border-[#1A4FA0] rounded-lg p-3 mb-3 space-y-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input value={formReimburse.nama_staff} onChange={e => setFormReimburse({ ...formReimburse, nama_staff: e.target.value })} placeholder="Nama staff" className={inp} />
-              <input type="date" value={formReimburse.tanggal_pengeluaran} onChange={e => setFormReimburse({ ...formReimburse, tanggal_pengeluaran: e.target.value })} className={inp} />
+              <input type="date" value={formReimburse.tanggal_pengeluaran} onChange={e => { if (e.target.value) setFormReimburse({ ...formReimburse, tanggal_pengeluaran: e.target.value }); }} className={inp} />
             </div>
             <input value={formReimburse.deskripsi} onChange={e => setFormReimburse({ ...formReimburse, deskripsi: e.target.value })} placeholder="Dipakai buat apa (mis. bensin Karawang-Bandung)" className={inp} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -742,7 +756,7 @@ function CashflowPeriodeInner() {
           (lihat di bawah, di dalam <tbody>). */}
       {form?.id === null && (
         <div className="mb-6">
-          <FormTransaksi form={form} setForm={setForm} akunList={akunList} kategoriList={kategoriList} saving={saving} onSimpan={simpanTransaksi} onBatal={() => setForm(null)} />
+          <FormTransaksi form={form} setForm={setForm} akunList={akunList} kategoriList={kategoriList} programList={programList} saving={saving} onSimpan={simpanTransaksi} onBatal={() => setForm(null)} />
         </div>
       )}
 
@@ -754,7 +768,7 @@ function CashflowPeriodeInner() {
             <div className="text-xs text-gray-400">Mis. &quot;Pindah dana cash to bank&quot; — dicatat otomatis sebagai OUT di akun asal + IN di akun tujuan.</div>
             <div>
               <label className={lbl}>Tanggal</label>
-              <input type="date" value={transferForm.tanggal} onChange={e => setTransferForm({ ...transferForm, tanggal: e.target.value })} className={inp} />
+              <input type="date" value={transferForm.tanggal} onChange={e => { if (e.target.value) setTransferForm({ ...transferForm, tanggal: e.target.value }); }} className={inp} />
             </div>
             <div>
               <label className={lbl}>Deskripsi</label>
@@ -906,7 +920,7 @@ function CashflowPeriodeInner() {
                       <div className="flex items-start gap-2">
                         <input type="checkbox" checked={r.sertakan} onChange={e => ubahBarisImport(idx, { sertakan: e.target.checked })} className="mt-2" />
                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input type="date" value={r.tanggal} onChange={e => ubahBarisImport(idx, { tanggal: e.target.value })} className={inp} />
+                          <input type="date" value={r.tanggal} onChange={e => { if (e.target.value) ubahBarisImport(idx, { tanggal: e.target.value }); }} className={inp} />
                           <input type="number" value={r.nominal} onChange={e => ubahBarisImport(idx, { nominal: e.target.value })} className={inp} />
                           <input value={r.deskripsi} onChange={e => ubahBarisImport(idx, { deskripsi: e.target.value })} className={`${inp} sm:col-span-2`} />
                           <div className="flex gap-2">
@@ -1004,6 +1018,7 @@ function CashflowPeriodeInner() {
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {t.kategori_nama ? <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">{t.kategori_nama}</span> : <span className="text-gray-300">—</span>}
+                      {t.program_nama && <span className="block text-[10px] font-semibold text-[#1A4FA0] mt-0.5" title="Ditag ke program ini — masuk laporan Realisasi vs Budget">🏷️ {t.program_nama}</span>}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap text-gray-600">{t.akun_nama}</td>
                     <td className="px-3 py-2.5 text-right whitespace-nowrap text-red-600">{t.tipe === 'out' ? rp(t.nominal) : ''}</td>
@@ -1033,7 +1048,7 @@ function CashflowPeriodeInner() {
                     </td>
                     {!terkunci && (
                       <td className="px-3 py-2.5 text-center whitespace-nowrap">
-                        <button onClick={() => setForm({ id: t.id, tanggal: keTanggalInput(t.tanggal), deskripsi: t.deskripsi, kategori_id: t.kategori_id || '', akun_id: t.akun_id, tipe: t.tipe, nominal: t.nominal, bukti_path: t.bukti_path, bukti_nama: t.bukti_nama, is_settlement: !!t.is_settlement, penerima_settlement: t.penerima_settlement || '' })}
+                        <button onClick={() => setForm({ id: t.id, tanggal: keTanggalInput(t.tanggal), deskripsi: t.deskripsi, kategori_id: t.kategori_id || '', program_id: t.program_id || '', akun_id: t.akun_id, tipe: t.tipe, nominal: t.nominal, bukti_path: t.bukti_path, bukti_nama: t.bukti_nama, is_settlement: !!t.is_settlement, penerima_settlement: t.penerima_settlement || '' })}
                           className="text-xs font-bold text-[#1A4FA0] hover:underline mr-2">Edit</button>
                         <button onClick={() => hapusTransaksi(t.id)} className="text-xs font-bold text-red-500 hover:underline">Hapus</button>
                         {!!t.is_settlement && (
@@ -1047,7 +1062,7 @@ function CashflowPeriodeInner() {
                     <tr>
                       <td colSpan={terkunci ? 8 : 9} className="p-0">
                         <div className="p-3 bg-[#F8FAFD] border-y border-[#1A4FA0]/20">
-                          <FormTransaksi form={form} setForm={setForm} akunList={akunList} kategoriList={kategoriList} saving={saving} onSimpan={simpanTransaksi} onBatal={() => setForm(null)} />
+                          <FormTransaksi form={form} setForm={setForm} akunList={akunList} kategoriList={kategoriList} programList={programList} saving={saving} onSimpan={simpanTransaksi} onBatal={() => setForm(null)} />
                         </div>
                       </td>
                     </tr>
@@ -1088,7 +1103,7 @@ function CashflowPeriodeInner() {
                         </td>
                         {!terkunci && (
                           <td className="px-3 py-2 text-center whitespace-nowrap">
-                            <button onClick={() => setForm({ id: a.id, tanggal: keTanggalInput(a.tanggal), deskripsi: a.deskripsi, kategori_id: a.kategori_id || '', akun_id: a.akun_id, tipe: a.tipe, nominal: a.nominal, bukti_path: a.bukti_path, bukti_nama: a.bukti_nama, is_settlement: false, penerima_settlement: '' })}
+                            <button onClick={() => setForm({ id: a.id, tanggal: keTanggalInput(a.tanggal), deskripsi: a.deskripsi, kategori_id: a.kategori_id || '', program_id: a.program_id || '', akun_id: a.akun_id, tipe: a.tipe, nominal: a.nominal, bukti_path: a.bukti_path, bukti_nama: a.bukti_nama, is_settlement: false, penerima_settlement: '' })}
                               className="text-xs font-bold text-[#1A4FA0] hover:underline mr-2">Edit</button>
                             <button onClick={() => hapusTransaksi(a.id)} className="text-xs font-bold text-red-500 hover:underline">Hapus</button>
                           </td>
@@ -1098,7 +1113,7 @@ function CashflowPeriodeInner() {
                         <tr>
                           <td colSpan={terkunci ? 8 : 9} className="p-0">
                             <div className="p-3 bg-[#F8FAFD] border-y border-[#1A4FA0]/20">
-                              <FormTransaksi form={form} setForm={setForm} akunList={akunList} kategoriList={kategoriList} saving={saving} onSimpan={simpanTransaksi} onBatal={() => setForm(null)} />
+                              <FormTransaksi form={form} setForm={setForm} akunList={akunList} kategoriList={kategoriList} programList={programList} saving={saving} onSimpan={simpanTransaksi} onBatal={() => setForm(null)} />
                             </div>
                           </td>
                         </tr>
@@ -1119,7 +1134,7 @@ function CashflowPeriodeInner() {
                                 )}
                               </div>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <input type="date" value={item.tanggal} onChange={e => ubahItemRincikan(idx, { tanggal: e.target.value })} className={inp} />
+                                <input type="date" value={item.tanggal} onChange={e => { if (e.target.value) ubahItemRincikan(idx, { tanggal: e.target.value }); }} className={inp} />
                                 <input value={item.deskripsi} onChange={e => ubahItemRincikan(idx, { deskripsi: e.target.value })} placeholder="Item apa" className={inp} />
                                 <input type="number" value={item.nominal} onChange={e => ubahItemRincikan(idx, { nominal: e.target.value })} placeholder="Nominal" className={inp} />
                               </div>

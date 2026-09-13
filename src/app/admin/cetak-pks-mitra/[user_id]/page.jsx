@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { renderPasalMarkup } from '@/lib/pasalMarkup';
+import { renderPasalBlock, KopPasalDokumen, TtdBoxHtml, FONT_DOKUMEN, UKURAN_DOKUMEN } from '@/lib/pasalMarkup';
 import { usePengaturan } from '@/lib/usePengaturan';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
@@ -15,38 +15,10 @@ function tglIndo(d) {
 
 function Field({ label, value }) {
   return (
-    <div style={{ display: 'flex', fontSize: 12, marginBottom: 3 }}>
+    <div style={{ display: 'flex', marginBottom: 3 }}>
       <div style={{ width: 100, flexShrink: 0 }}>{label}</div>
       <div style={{ width: 10 }}>:</div>
       <div style={{ flex: 1, borderBottom: '1px dotted #999', minHeight: 16 }}>{value || ''}</div>
-    </div>
-  );
-}
-
-// Render semua pasal 1 dokumen legal — nomor, judul, isi sesuai sintaks di
-// /admin/pasal (lihat migration-dokumen-pasal.sql).
-function Pasal({ pasal, mergeData }) {
-  if (!pasal) return <div style={{ fontSize: 12, color: '#999', marginTop: 18 }}>Memuat isi pasal...</div>;
-  return pasal.map(p => (
-    <div key={p.nomor} style={{ marginTop: 18 }}>
-      <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 12.5 }}>PASAL {p.nomor}</div>
-      <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 12.5, marginBottom: 8 }}>{p.judul}</div>
-      <div style={{ fontSize: 11.5, lineHeight: 1.6 }}>{renderPasalMarkup(p.isi, mergeData)}</div>
-    </div>
-  ));
-}
-
-function Kop({ pengaturan }) {
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #1A4FA0', paddingBottom: 10, marginBottom: 20 }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo/jm-travel-logo.png" alt="JM Travel" style={{ height: 78, objectFit: 'contain' }} />
-      <div style={{ fontSize: 10, textAlign: 'right', lineHeight: 1.5 }}>
-        <div style={{ fontWeight: 700 }}>{pengaturan.nama_perusahaan}</div>
-        <div>{pengaturan.alamat_kantor}</div>
-        <div>Phone: {pengaturan.telepon_kantor}</div>
-        <div>Email: {pengaturan.email_kantor}</div>
-      </div>
     </div>
   );
 }
@@ -81,6 +53,7 @@ function PrintStyle() {
         body { background: #fff !important; }
         .sheet { box-shadow: none !important; margin: 0 auto !important; page-break-after: always; width: 100% !important; }
       }
+      @page { size: A4; margin: 15mm; }
     `}</style>
   );
 }
@@ -171,62 +144,53 @@ export default function CetakPksMitra() {
       <PrintBtn user={user} nomor={nomor} dibekukan={dibekukan} dibekukanAt={dibekukanAt} />
       <DokumenSignatureAksi dokumen="spka_ins" refId={user.id} onCetakFisik={() => window.print()} hideCetakFisik />
       <UploadScanDokumen label="Dokumen fisik" uploadUrl="/api/admin/upload-dokumen-pks-fisik" userId={user.id} path={user.dokumen_pks_fisik_path} uploadedAt={user.dokumen_pks_fisik_uploaded_at} onUploaded={tandaiTerunggah} />
-      <div className="sheet" style={{ background: '#fff', width: 760, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
-        <Kop pengaturan={pengaturan} />
+      <div className="sheet" style={{ background: '#fff', width: 760, minHeight: '29.7cm', margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal, lineHeight: 1.6, color: '#111' }}>
+        <KopPasalDokumen pengaturan={pengaturan} />
 
-        <div style={{ textAlign: 'center', fontSize: 16, fontWeight: 800 }}>SURAT PERJANJIAN KERJA SAMA PERWAKILAN</div>
-        <div style={{ textAlign: 'center', fontSize: 11.5, marginBottom: 18 }}>Nomor: {nomor}</div>
+        <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.judul, fontWeight: 800 }}>SURAT PERJANJIAN KERJA SAMA PERWAKILAN</div>
+        <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.nomor, marginBottom: 18 }}>Nomor: {nomor}</div>
 
-        <p style={{ fontSize: 12, lineHeight: 1.6 }}>
+        <p>
           Pada hari {HARI[tglGabungP.getDay()]}, tanggal {tglIndo(tglGabungP)}, bertempat di Jakarta, kami yang bertanda tangan dibawah ini :
         </p>
 
-        <div style={{ fontWeight: 700, fontSize: 12, marginTop: 10 }}>Pihak Pertama (Penyelenggara Umroh & Haji)</div>
+        <div style={{ fontWeight: 700, marginTop: 10 }}>Pihak Pertama (Penyelenggara Umroh & Haji)</div>
         <Field label="Nama Perusahaan" value="PT. Alkhalid Jaya Megah" />
         <Field label="No. Izin PPIU/PIHK" value="SK PPIU No.921 Tahun 2017 / SK PHIK No.35 Tahun 2019" />
         <Field label="Diwakilkan oleh" value={namaPenandatangan} />
         <Field label="Jabatan" value={jabatanPenandatangan} />
 
-        <div style={{ fontWeight: 700, fontSize: 12, marginTop: 12 }}>Pihak Kedua (Perwakilan)</div>
+        <div style={{ fontWeight: 700, marginTop: 12 }}>Pihak Kedua (Perwakilan)</div>
         <Field label="Nama" value={user.name} />
         <Field label="NIK" value={user.nik} />
         <Field label="Alamat" value={user.alamat} />
         <Field label="No. Telepon" value={user.wa} />
 
-        <div style={{ fontWeight: 700, fontSize: 12, marginTop: 12 }}>Pihak Ketiga (Perekrut)</div>
+        <div style={{ fontWeight: 700, marginTop: 12 }}>Pihak Ketiga (Perekrut)</div>
         <Field label="Nama" value={perekrutEfektif.name} />
         <Field label="NIK" value={perekrutEfektif.nik} />
         <Field label="Alamat" value={perekrutEfektif.alamat} />
         <Field label="No. Telepon" value={perekrutEfektif.wa} />
 
-        <p style={{ fontSize: 12, lineHeight: 1.6, marginTop: 12 }}>
+        <p style={{ marginTop: 12 }}>
           PIHAK PERTAMA dan PIHAK KEDUA selanjutnya secara bersama-sama disebut <b>PARA PIHAK</b>, sepakat untuk mengikatkan diri dalam Perjanjian Kerja Sama dengan ketentuan sebagai berikut:
         </p>
 
-        <Pasal pasal={pasal} mergeData={{ bank_agen: user.bank, rekening_agen: user.no_rekening, nama_rekening_agen: user.nama_pemilik_rekening }} />
+        {!pasal ? (
+          <div style={{ color: '#999', marginTop: 18 }}>Memuat isi pasal...</div>
+        ) : pasal.map(p => (
+          <div key={p.nomor}>
+            {renderPasalBlock(p, { bank_agen: user.bank, rekening_agen: user.no_rekening, nama_rekening_agen: user.nama_pemilik_rekening })}
+          </div>
+        ))}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, fontSize: 12 }}>
-          <div style={{ textAlign: 'center', width: '45%' }}>
-            <div>PIHAK PERTAMA</div>
-            <div style={{ fontWeight: 700 }}>PT. Alkhalid Jaya Megah</div>
-            <div style={{ height: 70 }}></div>
-            <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>({namaPenandatangan})</div>
-          </div>
-          <div style={{ textAlign: 'center', width: '45%' }}>
-            <div>PIHAK KEDUA</div>
-            <div style={{ fontWeight: 700 }}>Perwakilan</div>
-            <div style={{ height: 70 }}></div>
-            <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>({user.name})</div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, breakInside: 'avoid' }}>
+          <TtdBoxHtml pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} />
+          <TtdBoxHtml pihak="PIHAK KEDUA" sub="Perwakilan" nama={user.name} />
         </div>
 
-        <div style={{ marginTop: 30, fontSize: 12 }}>
-          <div style={{ display: 'inline-block', textAlign: 'center' }}>
-            <div>PIHAK KETIGA</div>
-            <div style={{ fontWeight: 700 }}>Perekrut</div>
-            <div style={{ height: 70 }}></div>
-            <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>({perekrutEfektif.name})</div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 30 }}>
+          <TtdBoxHtml pihak="PIHAK KETIGA" sub="Perekrut" nama={perekrutEfektif.name} width={300} />
         </div>
       </div>
       <PrintStyle />

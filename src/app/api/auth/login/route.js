@@ -44,7 +44,7 @@ export async function POST(request) {
     }
 
     const token = jwt.sign(
-      { id: user.id, role: user.role, name: user.name },
+      { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -56,6 +56,7 @@ export async function POST(request) {
       wa: user.wa,
       nik: user.nik,
       role: user.role,
+      role_kedua: user.role_kedua || null,
       kode_unik: user.kode_unik,
       status: user.status,
       wilayah: user.wilayah,

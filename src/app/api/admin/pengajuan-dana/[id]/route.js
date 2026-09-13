@@ -131,7 +131,9 @@ export async function PUT(request, { params }) {
   }
 }
 
-// DELETE /api/admin/pengajuan-dana/[id] — CUMA draft yang boleh dihapus.
+// DELETE /api/admin/pengajuan-dana/[id] — hapus draft, ATAU batalin pengajuan
+// yang statusnya masih 'diajukan' (lagi nunggu keputusan). Yang udah
+// 'disetujui'/'ditolak' dianggap final, gak bisa dihapus/dibatalin lagi.
 export async function DELETE(request, { params }) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
@@ -139,11 +141,11 @@ export async function DELETE(request, { params }) {
     const { id } = await params;
     const [[existing]] = await pool.query('SELECT status FROM pengajuan_dana WHERE id = ?', [id]);
     if (!existing) return Response.json({ error: 'Pengajuan tidak ditemukan' }, { status: 404 });
-    if (existing.status !== 'draft') {
-      return Response.json({ error: 'Cuma draft yang bisa dihapus.' }, { status: 400 });
+    if (!['draft', 'diajukan'].includes(existing.status)) {
+      return Response.json({ error: 'Pengajuan yang udah disetujui/ditolak gak bisa dihapus/dibatalin.' }, { status: 400 });
     }
     await pool.query('DELETE FROM pengajuan_dana WHERE id = ?', [id]);
-    return Response.json({ message: 'Draft dihapus.' });
+    return Response.json({ message: existing.status === 'draft' ? 'Draft dihapus.' : 'Pengajuan dibatalkan.' });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

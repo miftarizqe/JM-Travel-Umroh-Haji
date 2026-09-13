@@ -6,6 +6,9 @@ import { usePengaturan } from '@/lib/usePengaturan';
 import { terbilang } from '@/lib/terbilang';
 import KopSurat from '@/app/components/KopSurat';
 import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
+import UploadScanDokumen from '@/app/components/UploadScanDokumen';
+import TombolWA from '@/app/components/TombolWA';
+import { pesanDokumenFisikTerkirim } from '@/lib/waTemplates';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
@@ -139,6 +142,27 @@ export default function CetakInvoiceKwitansi() {
       </div>
 
       <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={() => window.print()} hideCetakFisik />
+
+      {dokumen.terkirim ? (
+        <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 10, fontSize: 12, background: '#ecfdf5', color: '#047857', fontWeight: 700 }}>
+            ✅ Sudah dikirim ({dokumen.terkirim_metode === 'fisik' ? 'fisik' : 'digital'}, {tgl(dokumen.terkirim_at)})
+          </div>
+          {dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
+            <div style={{ marginTop: 8 }}>
+              <TombolWA nomor={booking?.pemesan_wa} label="Kirim Ulang Scan via WA"
+                pesan={pesanDokumenFisikTerkirim({
+                  namaJamaah: dokumen.nama, jenis: dokumen.jenis, nomor: dokumen.nomor,
+                  linkScan: typeof window !== 'undefined' ? `${window.location.origin}${dokumen.scan_fisik_path}` : dokumen.scan_fisik_path,
+                })} />
+            </div>
+          )}
+        </div>
+      ) : (
+        <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
+          userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
+          onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path, terkirim: 1, terkirim_metode: 'fisik', terkirim_at: new Date().toISOString() }))} />
+      )}
 
       <div className="sheet" style={{ background: '#fff', width: 720, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
         <KopSurat pengaturan={pengaturan} />

@@ -4,12 +4,15 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { hargaTermurahPaket, hargaTermurahProgram } from '@/lib/harga';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { tangkapRefPerwakilan } from '@/lib/referralCapture';
 
 export default function ProgramsPage() {
   const router = useRouter();
   const [programs, setPrograms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [user] = useCurrentUser();
+
+  useEffect(() => { tangkapRefPerwakilan(); }, []);
 
   useEffect(() => {
     fetch('/api/programs')
@@ -18,7 +21,7 @@ export default function ProgramsPage() {
   }, []);
 
   return (
-    <Layout title="🕌 Program Umroh">
+    <Layout title="🕌 Program Umroh" backHref={!user ? '/' : undefined}>
       {loading && (
         <div className="flex items-center justify-center py-20">
           <div className="text-gray-400 text-sm">Memuat program...</div>

@@ -175,3 +175,23 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
   );
   return { id: result.insertId, nomor, isNew: true };
 }
+
+/**
+ * Tanda Terima Uang yang belum "dikirim" (belum dipilih jalur fisik/digital
+ * sama sekali) — dipakai cluster "Perlu Perhatian" di admin dashboard biar
+ * TTU gak nongkrong di DB doang tanpa pernah sampai ke jamaah. Baru dipakai
+ * untuk jenis 'tanda_terima' (yang eksplisit diminta) — kolom terkirim di
+ * invoice_kwitansi sendiri generik, bisa diperluas ke jenis lain belakangan.
+ */
+export async function daftarTtuBelumDikirim(pool) {
+  const [rows] = await pool.query(
+    `SELECT ik.id, ik.nomor, ik.nominal, ik.tanggal, ik.booking_id, b.prog_name,
+            COALESCE(u.name, ik.nama) AS nama, u.wa
+     FROM invoice_kwitansi ik
+     LEFT JOIN bookings b ON b.id = ik.booking_id
+     LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
+     WHERE ik.jenis = 'tanda_terima' AND ik.terkirim = 0
+     ORDER BY ik.created_at ASC`
+  );
+  return rows;
+}

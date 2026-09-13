@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
-import { wajibRole } from '@/lib/auth';
+import { wajibSuperAdmin } from '@/lib/auth';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
 const MAKS = 3 * 1024 * 1024; // 3MB
@@ -10,7 +10,7 @@ const MAKS = 3 * 1024 * 1024; // 3MB
 // POST /api/admin/metode-pembayaran/upload-qr  (multipart: file, id)
 // Unggah gambar QR code (mis. buat QRIS) buat 1 metode pembayaran.
 export async function POST(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
 
   try {

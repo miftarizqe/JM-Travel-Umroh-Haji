@@ -1,9 +1,9 @@
 import pool from '@/lib/db';
-import { wajibRole } from '@/lib/auth';
+import { wajibSuperAdmin } from '@/lib/auth';
 
 // GET /api/admin/audit-log?target_type=&limit= — riwayat approval admin, terbaru dulu
 export async function GET(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);

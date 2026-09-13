@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibSuperAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
+import { sinkronSaldoAwalBerantai } from '@/lib/cashflow';
 
 // POST — submit & kunci periode ini. Saldo akhirnya jadi tetap (frozen)
 // dan dipakai sebagai saldo awal periode berikutnya saat periode itu dibuat.
@@ -27,6 +28,10 @@ export async function POST(request, { params }) {
       `UPDATE cashflow_periode SET status = 'submitted', submitted_at = NOW(), submitted_by = ? WHERE id = ?`,
       [auth.user.id, id]
     );
+
+    // Sinkron ulang saldo_awal periode berikutnya (kalau sudah kepalang
+    // dibuat duluan sebelum periode ini dikunci) pakai saldo_akhir final.
+    await sinkronSaldoAwalBerantai(pool, id);
 
     await catatAudit(pool, {
       actor: auth.user,

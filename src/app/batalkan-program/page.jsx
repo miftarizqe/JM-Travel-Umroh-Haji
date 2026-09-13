@@ -8,7 +8,7 @@ const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
 export default function BatalkanProgramPage() {
   return (
-    <Suspense fallback={<Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat...</div></Layout>}>
+    <Suspense fallback={<Layout backHref="/dashboard/jamaah"><div className="flex items-center justify-center py-20 text-gray-400">Memuat...</div></Layout>}>
       <BatalkanProgramPageInner />
     </Suspense>
   );
@@ -75,8 +75,8 @@ function BatalkanProgramPageInner() {
     setProses(false);
   }
 
-  if (loading) return <Layout><div className="text-center py-20 text-gray-400">Memuat...</div></Layout>;
-  if (!booking) return <Layout><div className="text-center py-20 text-gray-400">Booking tidak ditemukan.</div></Layout>;
+  if (loading) return <Layout backHref="/dashboard/jamaah"><div className="text-center py-20 text-gray-400">Memuat...</div></Layout>;
+  if (!booking) return <Layout backHref="/dashboard/jamaah"><div className="text-center py-20 text-gray-400">Booking tidak ditemukan.</div></Layout>;
 
   const sudahBayar = booking.dp_status === 'confirmed';
   const sudahLunas = booking.pelunasan_status === 'paid';
@@ -84,7 +84,7 @@ function BatalkanProgramPageInner() {
   // Tidak bisa dibatalkan
   if (booking.status === 'selesai') {
     return (
-      <Layout title="❌ Batalkan Program">
+      <Layout title="❌ Batalkan Program" backHref="/dashboard/jamaah">
         <div className="max-w-md mx-auto bg-blue-50 border border-blue-200 rounded-xl p-5 text-center">
           <div className="text-3xl mb-2">✅</div>
           <h4 className="font-bold text-blue-800 mb-1">Perjalanan Sudah Selesai</h4>
@@ -95,7 +95,7 @@ function BatalkanProgramPageInner() {
   }
   if (booking.status === 'menunggu_batal') {
     return (
-      <Layout title="❌ Batalkan Program">
+      <Layout title="❌ Batalkan Program" backHref="/dashboard/jamaah">
         <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
           <div className="text-3xl mb-2">⏳</div>
           <h4 className="font-bold text-yellow-800 mb-1">Pengajuan Sedang Diproses</h4>
@@ -106,7 +106,7 @@ function BatalkanProgramPageInner() {
   }
 
   return (
-    <Layout title="❌ Batalkan Program" confirmLeave={isDirty}
+    <Layout title="❌ Batalkan Program" backHref="/dashboard/jamaah" confirmLeave={isDirty}
       confirmMessage="Yakin ingin keluar? Alasan/persetujuan yang sudah diisi akan hilang.">
       <div className="max-w-2xl mx-auto space-y-4">
 

@@ -22,11 +22,11 @@ function ModalChecklistKirim({ jamaah, onClose, onKirim, mengirim }) {
   const [dipilih, setDipilih] = useState(new Set());
 
   useEffect(() => {
-    fetch(`/api/admin/perlengkapan-pengiriman/items?jk=${encodeURIComponent(jamaah.jk || '')}`)
+    fetch(`/api/admin/perlengkapan-pengiriman/items?jk=${encodeURIComponent(jamaah.jk || '')}&booking_id=${encodeURIComponent(jamaah.booking_id)}`)
       .then(r => r.json())
       .then(d => { setItems(d.items || []); setDipilih(new Set((d.items || []).map(i => i.id))); })
       .catch(() => setItems([]));
-  }, [jamaah.jk]);
+  }, [jamaah.jk, jamaah.booking_id]);
 
   function toggle(id) {
     setDipilih(prev => {

@@ -1,6 +1,7 @@
 'use client';
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import PasswordInput from '@/app/components/PasswordInput';
 
 export default function LoginPage() {
   return (
@@ -52,6 +53,7 @@ function LoginPageInner() {
         router.push(redirect);
       } else if (role === 'admin' || role === 'super_admin') router.push('/admin');
       else if (role === 'perwakilan') router.push('/dashboard/perwakilan');
+      else if (role === 'sahabat_baitullah') router.push('/dashboard/sahabat');
       else router.push('/dashboard/jamaah');
     } catch (e) {
       setError('Terjadi kesalahan, coba lagi.');
@@ -94,8 +96,7 @@ function LoginPageInner() {
 
             <div>
               <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">Password</label>
-              <input
-                type="password"
+              <PasswordInput
                 className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm transition-colors"
                 placeholder="password"
                 value={form.password}

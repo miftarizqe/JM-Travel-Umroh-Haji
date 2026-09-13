@@ -79,6 +79,7 @@ function PrintStyle() {
         body { background: #fff !important; }
         .sheet { box-shadow: none !important; margin: 0 auto !important; page-break-after: always; width: 100% !important; }
       }
+      @page { size: A4; margin: 0; }
     `}</style>
   );
 }

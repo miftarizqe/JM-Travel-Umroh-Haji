@@ -35,17 +35,10 @@ export default function StatusPendaftaranPage() {
 
   const allSteps = [
     {
-      key: 'pending_sk_bsi',
-      label: 'Verifikasi SK BSI',
-      desc: 'Admin sedang memverifikasi scan Surat Kuasa BSI yang Anda upload.',
-      icon: '📄',
-      both: true
-    },
-    {
-      key: 'sk_bsi_verified',
-      label: 'SK BSI Diverifikasi',
-      desc: 'Surat Kuasa BSI Anda telah diverifikasi oleh admin.',
-      icon: '✅',
+      key: 'pending',
+      label: 'Verifikasi Data oleh Admin',
+      desc: 'Admin sedang memverifikasi data pendaftaran Anda.',
+      icon: '📝',
       both: true
     },
     {
@@ -57,14 +50,14 @@ export default function StatusPendaftaranPage() {
     },
     {
       key: 'docs_sent',
-      label: 'Dokumen Dikirim ke Anda',
-      desc: 'JM Travel telah mengirimkan Perjanjian Kerjasama Perwakilan (2 rangkap) + info rekening BSI + ID Card ke alamat Anda.',
+      label: 'Perjanjian Dikirim ke Alamat Anda',
+      desc: `JM Travel telah mengirimkan Perjanjian Kerjasama Perwakilan (2 rangkap) + info rekening BSI + ID Card ke: ${user.alamat_kirim || '-'}.`,
       icon: '📦',
       paket: true
     },
     {
       key: 'waiting_docs_return',
-      label: 'Menunggu Dokumen Balik',
+      label: 'Menunggu Rangkapan Dikirim Kembali',
       desc: 'Silakan TTD Perjanjian Kerjasama Perwakilan (2 rangkap) di atas materai, lalu kirim balik 1 rangkap + formulir rekening BSI ke kantor JM Travel.',
       icon: '📮',
       paket: true
@@ -82,12 +75,11 @@ export default function StatusPendaftaranPage() {
     s.both || (isViaPacket ? s.paket : s.kantor)
   );
 
-  const currentStatus = user.reg_status || 'pending_sk_bsi';
+  const currentStatus = user.reg_status || 'pending';
   const currentIdx = steps.findIndex(s => s.key === currentStatus);
 
   const statusColors = {
-    pending_sk_bsi: 'bg-yellow-100 text-yellow-700 border-yellow-300',
-    sk_bsi_verified: 'bg-blue-100 text-blue-700 border-blue-300',
+    pending: 'bg-yellow-100 text-yellow-700 border-yellow-300',
     waiting_visit: 'bg-purple-100 text-purple-700 border-purple-300',
     docs_sent: 'bg-orange-100 text-orange-700 border-orange-300',
     waiting_docs_return: 'bg-pink-100 text-pink-700 border-pink-300',

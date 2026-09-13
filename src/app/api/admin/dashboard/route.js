@@ -2,6 +2,8 @@ import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { ambilJamaah } from '@/app/api/admin/database/route';
 import { daftarJamaahPerluKit } from '@/lib/perlengkapan';
+import { daftarTtuBelumDikirim } from '@/lib/invoiceKwitansi';
+import { daftarPerjanjianBelumSelesai, daftarPenyesuaianHargaPending, daftarRefundBelumDitransfer, daftarAjuanKalkulatorPerwakilan } from '@/lib/perjanjianJamaah';
 
 // GET /api/admin/dashboard
 // Menyediakan angka stat + semua daftar pending berdasar cluster.
@@ -26,6 +28,10 @@ export async function GET(request) {
     // "Sudah di-ACC" = pernah diapprove admin (active ATAU dinonaktifkan lagi
     // belakangan) — beda dengan 'pending' (belum direview) & 'rejected'.
     const perwAcc = users.filter(u => u.role === 'perwakilan' && (u.status === 'active' || u.status === 'nonaktif'));
+    // Jamaah Sahabat Baitullah (role sahabat) — cuma yang udah aktif, mirror
+    // kartu "Aktif" di /admin/sahabat/database (dikonfirmasi user 2026-09-03,
+    // sebelumnya dashboard utama ini gak nyinggung Sahabat Baitullah sama sekali).
+    const sahabatAktif = users.filter(u => u.role === 'sahabat_baitullah' && u.status === 'active');
 
     // Program aktif
     const [programs] = await pool.query('SELECT * FROM programs ORDER BY created_at DESC');
@@ -66,11 +72,47 @@ export async function GET(request) {
     const semuaJamaahKit = await daftarJamaahPerluKit(pool);
     const pendingPerlengkapan = semuaJamaahKit.filter(j => j.status !== 'dikirim' && j.status !== 'diterima');
 
+    // 7. Ajuan Budget dari Kalkulator Estimasi Publik yang belum ditindaklanjuti.
+    let pendingKalkulatorLead = [];
+    try {
+      // LEFT JOIN template — lead tipe='custom' (ajukan sendiri, gak pilih
+      // template) punya template_id NULL, JOIN biasa bakal nge-exclude
+      // baris itu dari widget dashboard ini sama sekali.
+      const [kl] = await pool.query(
+        `SELECT l.id, l.tipe, l.paket, l.kamar, l.harga_jual, l.catatan_custom, l.created_at, u.name AS user_nama, t.nama AS template_nama
+         FROM kalkulator_lead l
+         JOIN users u ON u.id = l.user_id
+         LEFT JOIN kalkulator_template_publik t ON t.id = l.template_id
+         WHERE l.status = 'diajukan' AND l.status_tindak_lanjut = 'baru'
+         ORDER BY l.diajukan_at DESC`
+      );
+      pendingKalkulatorLead = kl;
+    } catch { pendingKalkulatorLead = []; } // tabel mungkin belum ada
+
+    // 8. Tanda Terima Uang yang belum dikirim ke jamaah (belum pilih jalur
+    // fisik/digital) — lihat daftarTtuBelumDikirim di src/lib/invoiceKwitansi.js.
+    const pendingTtu = await daftarTtuBelumDikirim(pool);
+
+    // 9. Perjanjian Jamaah belum selesai (materai + TTD, digital/fisik) —
+    // lihat src/lib/perjanjianJamaah.js.
+    const pendingPerjanjian = await daftarPerjanjianBelumSelesai(pool);
+
+    // 10. Penyesuaian harga (kenaikan tiket/force majeure) menunggu
+    // persetujuan jamaah.
+    const pendingPenyesuaian = await daftarPenyesuaianHargaPending(pool);
+
+    // 11. Refund pembatalan sudah disetujui tapi bukti TF belum diunggah.
+    const pendingRefund = await daftarRefundBelumDitransfer(pool);
+
+    // 12. Ajuan Kalkulator Perwakilan (quote HPP+margin sendiri) menunggu review.
+    const pendingKalkulatorPerwakilan = await daftarAjuanKalkulatorPerwakilan(pool);
+
     return Response.json({
       stat: {
         jamaah: jamaahUnik,
         perwakilan: perwAcc.length,
         program: programAktif.length,
+        sahabat: sahabatAktif.length,
       },
       pending: {
         program_umroh: pendingProgram,
@@ -79,6 +121,12 @@ export async function GET(request) {
         akun_jamaah: pendingAkunJamaah,
         akun_perwakilan: pendingAkunPerw,
         perlengkapan: pendingPerlengkapan,
+        kalkulator_lead: pendingKalkulatorLead,
+        ttu_belum_dikirim: pendingTtu,
+        perjanjian_belum_selesai: pendingPerjanjian,
+        penyesuaian_harga_pending: pendingPenyesuaian,
+        refund_belum_ditransfer: pendingRefund,
+        kalkulator_perwakilan_pending: pendingKalkulatorPerwakilan,
       },
     });
   } catch (error) {

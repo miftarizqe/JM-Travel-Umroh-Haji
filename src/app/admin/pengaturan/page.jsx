@@ -66,7 +66,7 @@ export default function AdminPengaturanPage() {
       <div className="text-xs text-gray-400 mb-4">
         Nilai di sini dipakai otomatis di landing page, checkout, pelunasan, kop surat dokumen cetak, dan halaman lain yang butuh kontak/sosmed — ubah di sini, gak perlu ubah kode.
         Buat rekening/cara bayar, lihat <a href="/admin/pengaturan/pembayaran" className="text-[#1A4FA0] font-semibold hover:underline">Metode Pembayaran</a>.
-        Buat isi pasal & penandatangan dokumen legal (SPKA/SPKA-Ins/SPKL/Jamaah), lihat <a href="/admin/pengaturan/dokumen" className="text-[#1A4FA0] font-semibold hover:underline">Pengaturan Dokumen</a>.
+        Buat isi pasal & penandatangan dokumen legal (SPK-PWK/SPJ/SPK-AK/SK-CIF), lihat <a href="/admin/pengaturan/dokumen" className="text-[#1A4FA0] font-semibold hover:underline">Pengaturan Dokumen</a>.
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-6">

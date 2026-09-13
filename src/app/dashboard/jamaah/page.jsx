@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
+import DokumenSayaList from '@/app/components/DokumenSayaList';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 
@@ -12,6 +13,7 @@ export default function DashboardJamaah() {
   const [pengaturan] = usePengaturan();
   const [bookings, setBookings] = useState([]);
   const [expandBooking, setExpandBooking] = useState(null);
+  const [expandRiwayat, setExpandRiwayat] = useState(null);
   const [konfirmasiLoading, setKonfirmasiLoading] = useState(null);
 
   function muatBookings() {
@@ -46,11 +48,23 @@ export default function DashboardJamaah() {
   // Booking dibatalkan tetap masuk histori, bukan hilang begitu saja.
   const done = bookings.filter(b => b.status === 'selesai' || b.status === 'dibatalkan');
 
-  // Tentukan tahap booking (0-4) untuk progress bar & tombol lanjut
-  // 1 = DP dikirim, 2 = DP dikonfirmasi, 3 = form selesai, 4 = lunas
+  // Tentukan tahap booking (1-5) untuk progress bar & tombol lanjut
+  // 1 = DP dikirim, 2 = DP dikonfirmasi, 3 = form selesai, 4 = perjanjian
+  // selesai (siap lunas), 5 = lunas. Perjanjian Jamaah SEKARANG step wajib
+  // tersendiri (materai + TTD, digital atau fisik) — bukan lagi cuma gate
+  // checkbox tersembunyi di /pelunasan (lihat src/lib/materaiRule.js).
+  function perjanjianSelesai(b) {
+    return !!b.setuju_pks && (!!b.perjanjian_scan_path || b.perjanjian_sig?.fase === 'selesai');
+  }
+  // Form murni data-entry — gak butuh DP beneran confirmed buat mulai diisi,
+  // jamaah boleh isi sambil nunggu admin proses DP (lihat render stage 1).
+  function formLengkap(b) {
+    return b.form_filled >= b.form_total;
+  }
   function getStage(b) {
-    if (b.pelunasan_status === 'paid') return 4;
-    if (b.form_filled >= b.form_total && b.dp_status === 'confirmed') return 3;
+    if (b.pelunasan_status === 'paid') return 5;
+    if (formLengkap(b) && b.dp_status === 'confirmed' && perjanjianSelesai(b)) return 4;
+    if (formLengkap(b) && b.dp_status === 'confirmed') return 3;
     if (b.dp_status === 'confirmed') return 2;
     return 1;
   }
@@ -66,7 +80,7 @@ export default function DashboardJamaah() {
     return jamaah[0].nama + (jamaah.length > 1 ? ` & ${jamaah.length - 1} lainnya` : '');
   }
 
-  const stageLabels = ['DP', 'Konfirmasi', 'Formulir', 'Lunas'];
+  const stageLabels = ['DP', 'Konfirmasi', 'Formulir', 'Perjanjian', 'Lunas'];
 
   return (
     <Layout>
@@ -187,9 +201,19 @@ export default function DashboardJamaah() {
 
                       {/* Tombol lanjut — dinamis sesuai tahap */}
                       {stage === 1 && (
-                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full">
-                          ⏳ Menunggu admin konfirmasi pembayaran DP
-                        </div>
+                        <>
+                          <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full">
+                            ⏳ Menunggu admin konfirmasi pembayaran DP
+                          </div>
+                          {!formLengkap(b) && (
+                            <button
+                              onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
+                              className="w-full mt-2 bg-[#1A4FA0] text-white text-sm font-bold py-2 rounded-full hover:bg-[#0E2F6E] transition-colors"
+                            >
+                              Isi Formulir Jamaah sambil menunggu ({b.form_filled}/{b.form_total}) →
+                            </button>
+                          )}
+                        </>
                       )}
 
                       {stage === 2 && (
@@ -201,7 +225,31 @@ export default function DashboardJamaah() {
                         </button>
                       )}
 
-                      {stage === 3 && (
+                      {stage === 3 && !b.setuju_pks && (
+                        <button
+                          onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${b.id}`)}
+                          className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"
+                        >
+                          📜 Baca & Setujui Perjanjian →
+                        </button>
+                      )}
+
+                      {stage === 3 && b.setuju_pks && b.perjanjian_sig?.metode === 'digital' && b.perjanjian_sig?.fase !== 'selesai' && (
+                        <button
+                          onClick={() => router.push(`/tanda-tangan/${b.perjanjian_sig.id}`)}
+                          className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"
+                        >
+                          ✍️ Lanjutkan Tanda Tangan Digital →
+                        </button>
+                      )}
+
+                      {stage === 3 && b.setuju_pks && (!b.perjanjian_sig || b.perjanjian_sig.metode === 'fisik') && (
+                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full">
+                          ⏳ Menunggu materai & TTD fisik Perjanjian Jamaah diproses admin
+                        </div>
+                      )}
+
+                      {stage === 4 && (
                         <button
                           onClick={() => router.push(`/pelunasan?booking_id=${b.id}`)}
                           className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"
@@ -212,20 +260,46 @@ export default function DashboardJamaah() {
                         </button>
                       )}
 
-                      {stage === 4 && (
+                      {stage === 5 && (
                         <div className="bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
                           ✅ Lunas — Selamat menunaikan ibadah!
                         </div>
                       )}
 
                       {/* Upgrade paket/kamar: boleh selama belum lunas & DP sudah confirmed */}
-                      {(stage === 2 || stage === 3) && b.pelunasan_status !== 'pending_confirm' && (
+                      {(stage === 2 || stage === 3 || stage === 4) && b.pelunasan_status !== 'pending_confirm' && (
                         <button
                           onClick={() => router.push(`/upgrade-paket?booking_id=${b.id}`)}
                           className="w-full mt-2 border border-[#C9952A] text-[#C9952A] text-xs font-bold py-2 rounded-full hover:bg-[#FEF3DC] transition-colors"
                         >
                           ⬆️ Upgrade Paket / Kamar
                         </button>
+                      )}
+
+                      {/* Link balik ke form-jamaah SELALU ada (gak hilang
+                          begitu tahap form kelewat) — dokumen pendukung
+                          (paspor/KTP/KK/vaksin/foto) opsional & boleh
+                          disusulin, jamaah perlu jalan buat lanjutin upload
+                          kapan aja selama booking masih aktif. */}
+                      <button
+                        onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
+                        className="w-full mt-2 text-xs text-[#1A4FA0] underline"
+                      >
+                        📎 Lengkapi/Update Dokumen Pendukung
+                      </button>
+
+                      {/* Info Manasik — sekadar info jadwal/lokasi (gak ada
+                          gate/tracking kehadiran), muncul begitu DP confirmed
+                          dan admin sudah isi jadwalnya di program ini. */}
+                      {b.manasik && (
+                        <div className="mt-3 bg-[#E8F0FB] rounded-xl p-3">
+                          <div className="text-xs font-bold text-[#0E2F6E] mb-1">🕋 Info Manasik</div>
+                          <div className="text-xs text-gray-600">
+                            📅 {new Date(b.manasik.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                            {b.manasik.lokasi && <> · 📍 {b.manasik.lokasi}</>}
+                          </div>
+                          {b.manasik.catatan && <div className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{b.manasik.catatan}</div>}
+                        </div>
                       )}
 
                       {/* Status pengiriman perlengkapan (koper, ihrom/mukena, dll)
@@ -270,6 +344,8 @@ export default function DashboardJamaah() {
                         </div>
                       )}
 
+                      <DokumenSayaList bookingId={b.id} />
+
                       <button
                         onClick={() => router.push(`/batalkan-program?booking_id=${b.id}`)}
                         className="w-full mt-2 border border-red-300 text-red-500 text-xs font-bold py-2 rounded-full hover:bg-red-50 transition-colors"
@@ -302,7 +378,8 @@ export default function DashboardJamaah() {
                 const dibatalkan = b.status === 'dibatalkan';
                 return (
                 <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-                  <div className={`p-4 text-white flex justify-between items-start ${
+                  <div onClick={() => setExpandRiwayat(expandRiwayat === b.id ? null : b.id)}
+                    className={`p-4 text-white flex justify-between items-start cursor-pointer ${
                     dibatalkan ? 'bg-gradient-to-r from-gray-500 to-gray-600' : 'bg-gradient-to-r from-[#C9952A] to-[#f59e0b]'
                   }`}>
                     <div>
@@ -317,9 +394,25 @@ export default function DashboardJamaah() {
                       {dibatalkan ? '❌ Dibatalkan' : '✅ Selesai'}
                     </span>
                   </div>
-                  <div className="p-4 flex justify-between items-center text-sm">
-                    <span className="text-gray-500">Total Harga</span>
-                    <span className="font-bold text-[#0E2F6E]">Rp {b.total_harga?.toLocaleString('id-ID')}</span>
+                  <div className="p-4">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500">Total Harga</span>
+                      <span className="font-bold text-[#0E2F6E]">Rp {b.total_harga?.toLocaleString('id-ID')}</span>
+                    </div>
+                    {dibatalkan && b.refund && (
+                      <div className="flex justify-between items-center text-sm mt-1.5">
+                        <span className="text-gray-500">💰 Refund</span>
+                        <span className="font-bold text-[#0E2F6E]">
+                          Rp {Number(b.refund.nominal || 0).toLocaleString('id-ID')} ({b.refund.persen}%)
+                          {b.refund.bukti_path ? (
+                            <a href={b.refund.bukti_path} target="_blank" rel="noopener noreferrer" className="ml-2 text-[#1A4FA0] underline font-normal">Lihat Bukti</a>
+                          ) : (
+                            <span className="ml-2 text-yellow-600 font-normal">— diproses</span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                    {expandRiwayat === b.id && <DokumenSayaList bookingId={b.id} />}
                   </div>
                 </div>
                 );

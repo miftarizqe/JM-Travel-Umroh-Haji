@@ -52,6 +52,11 @@ export async function cariVoucherValid(conn, kode, progId, userInfo, totalJamaah
   const v = vs[0];
 
   if (v.aktif === 0) throw errStatus('Voucher tidak aktif', 400);
+  // Voucher auto-generate (mis. program Sahabat Baitullah) lahir dengan
+  // disetujui_at NULL, butuh ACC admin dulu sebelum valid dipakai — voucher
+  // yang dibuat manual admin lewat POST /api/admin/vouchers udah langsung
+  // disetujui_at=NOW() saat insert, jadi gak kena blokir ini.
+  if (!v.disetujui_at) throw errStatus('Voucher ini masih menunggu persetujuan admin', 400);
   if (v.valid_until && new Date(v.valid_until) < new Date(new Date().toDateString())) {
     throw errStatus('Voucher sudah kedaluwarsa', 400);
   }

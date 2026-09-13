@@ -27,14 +27,14 @@ export async function POST(request) {
       return Response.json({ error: 'Ukuran foto maksimal 3MB' }, { status: 400 });
     }
 
-    const dir = path.join(process.cwd(), 'public', 'uploads', 'ktp');
+    const dir = path.join(process.cwd(), 'private-uploads', 'ktp');
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
 
     const ext = path.extname(file.name || '') || '.jpg';
     const nama = `ktp_${auth.user.id}_${Date.now()}${ext}`;
     await writeFile(path.join(dir, nama), Buffer.from(await file.arrayBuffer()));
 
-    const publicPath = `/uploads/ktp/${nama}`;
+    const publicPath = `/api/dokumen/ktp/${nama}`;
     await pool.query('UPDATE users SET foto_ktp_path = ? WHERE id = ?', [publicPath, auth.user.id]);
 
     return Response.json({ message: 'Foto KTP berhasil diunggah!', path: publicPath });

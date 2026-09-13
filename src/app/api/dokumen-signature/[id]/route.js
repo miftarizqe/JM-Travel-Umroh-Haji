@@ -19,7 +19,7 @@ export async function GET(request, { params }) {
       if (sig.dokumen === 'jamaah') {
         const [[b]] = await pool.query('SELECT user_id, ordered_by FROM bookings WHERE id = ?', [sig.ref_id]);
         cocok = !!b && (b.user_id === auth.user.id || b.ordered_by === auth.user.id);
-      } else if (sig.dokumen === 'spka_ins' || sig.dokumen === 'formulir') {
+      } else if (['spka_ins', 'formulir', 'spk_ak', 'sk_cif'].includes(sig.dokumen)) {
         cocok = sig.ref_id === auth.user.id;
       }
       if (!cocok) return Response.json({ error: 'Anda tidak berwenang melihat sesi ini' }, { status: 403 });

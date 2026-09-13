@@ -1,11 +1,23 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 export default function VerifikasiPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-400">Memuat...</div>}>
+      <VerifikasiPageInner />
+    </Suspense>
+  );
+}
+
+function VerifikasiPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Diteruskan dari register (lihat komentar di sana) — diteruskan lagi ke
+  // upload-foto, langkah wajib terakhir sebelum balik ke halaman asal.
+  const redirect = searchParams.get('redirect');
   const [user] = useCurrentUser();
   const [step, setStep] = useState(1); // 1=pilih metode, 2=input kode
   const [metode, setMetode] = useState('');
@@ -41,7 +53,7 @@ export default function VerifikasiPage() {
         alert(d.message);
         const u = { ...user, terverifikasi: 1 };
         localStorage.setItem('user', JSON.stringify(u));
-        router.push('/upload-foto');
+        router.push(redirect ? `/upload-foto?redirect=${encodeURIComponent(redirect)}` : '/upload-foto');
       } else alert(d.error);
     } catch { alert('Gagal verifikasi'); }
     setLoading(false);

@@ -1,11 +1,11 @@
 import { readFile } from 'fs/promises';
-import path from 'path';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasi } from '@/lib/notifikasi';
 import { selesaikanTtd } from '@/lib/eSignature';
 import { simpanPdfDokumenSignature } from '@/lib/pdfDokumen/simpanPdf';
+import { absolutePathDariUrl } from '@/lib/dokumenProteksi';
 
 // POST /api/dokumen-signature/[id]/selesaikan
 // Trigger MOCK buat simulasi provider TTD selesai — di produksi nanti (begitu
@@ -34,14 +34,14 @@ export async function POST(request, { params }) {
       if (sig.dokumen === 'jamaah') {
         const [[b]] = await pool.query('SELECT user_id, ordered_by FROM bookings WHERE id = ?', [sig.ref_id]);
         cocok = !!b && (b.user_id === auth.user.id || b.ordered_by === auth.user.id);
-      } else if (sig.dokumen === 'spka_ins' || sig.dokumen === 'formulir') {
+      } else if (['spka_ins', 'formulir', 'spk_ak', 'sk_cif'].includes(sig.dokumen)) {
         cocok = sig.ref_id === auth.user.id;
       }
       if (!cocok) return Response.json({ error: 'Anda tidak berwenang menyelesaikan sesi ini' }, { status: 403 });
     }
 
     const sumberPath = sig.pdf_bermaterai_path || sig.pdf_awal_path;
-    const pdfBuffer = await readFile(path.join(process.cwd(), 'public', sumberPath.replace(/^\//, '')));
+    const pdfBuffer = await readFile(absolutePathDariUrl(sumberPath));
 
     const hasil = await selesaikanTtd({
       providerRef: sig.ttd_provider_ref,

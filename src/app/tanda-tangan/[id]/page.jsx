@@ -3,11 +3,16 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 
+// Label tampilan — key dokumen di database TIDAK ikut berubah (dokumen lama
+// yang sudah ditandatangani gak perlu migrasi), cuma teks yang ditampilkan.
 const DOKUMEN_LABEL = {
-  spka_ins: 'Surat Perjanjian Kerja Sama Perwakilan',
-  jamaah: 'Perjanjian Keberangkatan Jamaah',
+  spka_ins: 'SPK-PWK — Surat Perjanjian Kerja Sama Perwakilan',
+  jamaah: 'Surat Perjanjian Jamaah Umroh',
   formulir: 'Formulir Pendaftaran Perwakilan',
   invoice: 'Invoice/Kwitansi',
+  spk_ak: 'Surat Perjanjian Jamaah Umroh — Program Sahabat Baitullah',
+  sk_cif: 'SK-CIF — Surat Keterangan CIF',
+  surat_pemblokiran: 'Surat Pernyataan Kuasa Blokir Rekening & Instruksi Pemindahbukuan',
 };
 const RANGKAP_LABEL = {
   travel: 'Rangkap 1 — Untuk JM Travel',
@@ -52,13 +57,13 @@ export default function TandaTanganPage() {
     setMemproses(false);
   }
 
-  if (loading) return <Layout title="✍️ Tanda Tangan Digital"><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
-  if (!sig) return <Layout title="✍️ Tanda Tangan Digital"><div className="text-center text-gray-400 py-10">Sesi tanda tangan tidak ditemukan.</div></Layout>;
+  if (loading) return <Layout title="✍️ Tanda Tangan Digital" showBack><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
+  if (!sig) return <Layout title="✍️ Tanda Tangan Digital" showBack><div className="text-center text-gray-400 py-10">Sesi tanda tangan tidak ditemukan.</div></Layout>;
 
   const pdfUrl = sig.pdf_final_path || sig.pdf_bermaterai_path || sig.pdf_awal_path;
 
   return (
-    <Layout title="✍️ Tanda Tangan Digital">
+    <Layout title="✍️ Tanda Tangan Digital" showBack>
       <div className="max-w-xl mx-auto space-y-4">
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-5">
           <div className="font-bold text-[#0E2F6E] mb-1">{DOKUMEN_LABEL[sig.dokumen] || sig.dokumen}</div>
@@ -77,6 +82,18 @@ export default function TandaTanganPage() {
               <div className="text-2xl mb-1">✅</div>
               <div className="font-bold text-green-700">Sudah ditandatangani</div>
               <div className="text-xs text-green-600 mt-1">Selesai pada {new Date(sig.completed_at).toLocaleString('id-ID')}</div>
+              {sig.dokumen === 'formulir' && (
+                <button onClick={() => router.push('/pks?jenis=perwakilan')}
+                  className="mt-3 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-5 py-2.5 rounded-full text-sm">
+                  Lanjutkan ke Persetujuan Kerjasama →
+                </button>
+              )}
+              {sig.dokumen === 'spk_ak' && (
+                <button onClick={() => router.push('/status-pendaftaran-sahabat')}
+                  className="mt-3 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-5 py-2.5 rounded-full text-sm">
+                  Lanjutkan Pendaftaran Sahabat Baitullah →
+                </button>
+              )}
             </div>
           ) : sig.fase === 'ttd_menunggu' ? (
             <div className="bg-[#E8F0FB] rounded-lg p-4 text-center">

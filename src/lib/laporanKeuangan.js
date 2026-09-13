@@ -1,9 +1,4 @@
-function kamarKeyOf(kamar) {
-  const k = String(kamar || '').toLowerCase();
-  if (k.includes('quad')) return 'quad';
-  if (k.includes('double')) return 'double';
-  return 'triple';
-}
+import { groupJamaahAktif } from '@/lib/jamaahHarga';
 
 const KOSONG = {
   jumlah_booking: 0, jumlah_jamaah: 0,
@@ -48,7 +43,7 @@ export async function hitungLaporanKeuanganProgram(pool, { from, to, progId } = 
   if (progId) { where += ' AND b.prog_id = ?'; params.push(progId); }
 
   const [rows] = await pool.query(
-    `SELECT b.id, b.prog_id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah,
+    `SELECT b.id, b.prog_id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.jamaah_data,
             b.total_harga, b.opsi_tambahan_total, b.voucher_nominal, b.created_at,
             p.hpp_deluxe_quad, p.hpp_deluxe_triple, p.hpp_deluxe_double,
             p.hpp_eksekutif_quad, p.hpp_eksekutif_triple, p.hpp_eksekutif_double,
@@ -72,10 +67,12 @@ export async function hitungLaporanKeuanganProgram(pool, { from, to, progId } = 
   ledgerRows.forEach(r => { komisiMap[r.booking_id] = Number(r.total); });
 
   const enriched = rows.map(b => {
-    const paket = String(b.paket || 'deluxe').toLowerCase();
-    const kamar = kamarKeyOf(b.kamar);
-    const hppPerJamaah = Number(b[`hpp_${paket}_${kamar}`] || 0);
-    const hpp = hppPerJamaah * (b.jumlah_jamaah || 1);
+    // HPP dihitung PER KOMBO paket+kamar (bisa beda per jamaah dalam 1
+    // booking, lihat groupJamaahAktif) bukan 1 kombo seragam × jumlah_jamaah.
+    const hpp = groupJamaahAktif(b).reduce((s, g) => {
+      const paketG = String(g.paket || 'deluxe').toLowerCase();
+      return s + Number(b[`hpp_${paketG}_${g.kamarKey}`] || 0) * g.count;
+    }, 0);
     const opsiTambahan = Number(b.opsi_tambahan_total || 0);
     const diskonVoucher = Number(b.voucher_nominal || 0);
     // total_harga sudah bersih (opsi tambahan ditambah, voucher dikurangi
@@ -113,4 +110,59 @@ export async function hitungLaporanKeuanganProgram(pool, { from, to, progId } = 
   }), { ...KOSONG });
 
   return { per_program: perProgram, per_bulan: perBulan, grand_total: grand };
+}
+
+/**
+ * Realisasi vs Budget per program — budget-nya HPP dari
+ * hitungLaporanKeuanganProgram() di atas (angka RENCANA, dari
+ * programs.hpp_* × jamaah yang beneran booking), realisasi-nya duit yang
+ * BENERAN keluar/masuk lewat cashflow_transaksi yang di-tag ke program itu
+ * (lihat migration-cashflow-program-id.sql — admin nge-tag pas input
+ * transaksi vendor, ATAU otomatis kebentuk pas belanja perlengkapan diisi
+ * harga, lihat tambahStokMasuk() di src/lib/perlengkapan.js).
+ *
+ * Semua program ikut ditampilin (bukan cuma yang punya salah satu sisi) —
+ * program yang udah keluar biaya vendor duluan sebelum ada booking (budget
+ * 0) tetap kelihatan, begitu juga program yang punya booking tapi belum ada
+ * transaksi ke-tag sama sekali (realisasi 0, bukan berarti gratis — cuma
+ * belum sempat dicatat admin).
+ */
+export async function hitungRealisasiVsBudget(pool, { progId } = {}) {
+  const budget = await hitungLaporanKeuanganProgram(pool, { progId });
+  const budgetMap = new Map(budget.per_program.map(p => [String(p.key), p]));
+
+  const params = [];
+  let whereRealisasi = 'WHERE program_id IS NOT NULL';
+  if (progId) { whereRealisasi += ' AND program_id = ?'; params.push(progId); }
+  const [realisasiRows] = await pool.query(
+    `SELECT program_id,
+            SUM(CASE WHEN tipe = 'out' THEN nominal ELSE 0 END) AS realisasi_keluar,
+            SUM(CASE WHEN tipe = 'in' THEN nominal ELSE 0 END) AS realisasi_masuk
+     FROM cashflow_transaksi ${whereRealisasi} GROUP BY program_id`,
+    params
+  );
+  const realisasiMap = new Map(realisasiRows.map(r => [String(r.program_id), r]));
+
+  const [programRows] = await pool.query(
+    `SELECT id, name FROM programs ${progId ? 'WHERE id = ?' : ''} ORDER BY created_at DESC`,
+    progId ? [progId] : []
+  );
+
+  const perProgram = programRows.map(p => {
+    const b = budgetMap.get(String(p.id));
+    const r = realisasiMap.get(String(p.id));
+    const budgetHpp = Number(b?.hpp || 0);
+    const realisasiKeluar = Number(r?.realisasi_keluar || 0);
+    return {
+      prog_id: p.id, prog_name: p.name,
+      jumlah_jamaah: b?.jumlah_jamaah || 0,
+      budget_hpp: budgetHpp,
+      realisasi_keluar: realisasiKeluar,
+      realisasi_masuk: Number(r?.realisasi_masuk || 0),
+      selisih: budgetHpp - realisasiKeluar, // positif = masih di bawah budget, negatif = sudah kebobolan
+      persen_realisasi: budgetHpp > 0 ? Math.round((realisasiKeluar / budgetHpp) * 100) : (realisasiKeluar > 0 ? null : 0), // null = gak ada budget pembanding sama sekali (biar UI gak nampilin persentase ngawur)
+    };
+  }).sort((a, b) => b.realisasi_keluar - a.realisasi_keluar);
+
+  return { per_program: perProgram };
 }

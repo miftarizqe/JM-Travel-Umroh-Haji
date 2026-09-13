@@ -98,7 +98,7 @@ export default function UpgradePerwakilanPage() {
             </div>
           </div>
           <div className="text-[10px] opacity-80 mt-3">
-            Rincian lengkap tercantum dalam Surat Perjanjian Kerja Sama Perwakilan (SPKA-Ins).
+            Rincian lengkap tercantum dalam Surat Perjanjian Kerja Sama Perwakilan (SPK-PWK).
           </div>
         </div>
 

@@ -46,7 +46,7 @@ function OrderJamaahPageInner() {
 
   useEffect(() => {
     if (!user) return;
-    if (!['perwakilan', 'admin', 'super_admin'].includes(user.role)) {
+    if (!['perwakilan', 'sahabat_baitullah', 'admin', 'super_admin'].includes(user.role)) {
       router.push('/dashboard/jamaah'); return;
     }
 
@@ -80,6 +80,7 @@ function OrderJamaahPageInner() {
           items: cart.map(c => ({
             paket: c.paket, kamar: c.kamar, jumlah_jamaah: c.jumlah, namas: c.namas, was: c.was, jks: c.jks, alamats: c.alamats,
             harga_custom_per_jamaah: (user.role === 'admin' || user.role === 'super_admin') && c.hargaCustom !== '' ? Number(c.hargaCustom) : null,
+            customHotel: c.customHotel || null,
             opsi_tambahan_ids: (c.opsiTambahan || []).map(o => o.id),
           })),
           kode_unik_dp: kodeUnik,
@@ -91,6 +92,10 @@ function OrderJamaahPageInner() {
           // Closing otomatis ke akun yang order — sama seperti checkout,
           // bedanya di sini referral TIDAK perlu dipilih manual.
           referral_perw_id: user.role === 'perwakilan' ? user.id : null,
+          // Sahabat: ini "closing langsung" (jamaah booking langsung dibantu
+          // anggota sahabat, bukan nabung) — MURNI tag atribusi, tidak ada
+          // reseller pricing/komisi berjenjang kayak perwakilan.
+          referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id : null,
           referral_kode: user.kode_unik || null,
           sumber_info: (user.role === 'admin' || user.role === 'super_admin') ? 'langsung_kantor' : user.role,
         })
@@ -121,9 +126,9 @@ function OrderJamaahPageInner() {
     <Layout title="➕ Order Jamaah"><div className="flex items-center justify-center py-20 text-gray-400">Memuat...</div></Layout>
   );
 
-  // Perwakilan yang belum di-ACC admin belum boleh order —
+  // Perwakilan/sahabat yang belum di-ACC admin belum boleh order —
   // blokir di awal, sama seperti gerbang di checkout jamaah.
-  if (user.role === 'perwakilan' && user.status !== 'active') {
+  if (['perwakilan', 'sahabat_baitullah'].includes(user.role) && user.status !== 'active') {
     return (
       <Layout title="➕ Order Jamaah" showBack>
         <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
@@ -215,6 +220,7 @@ function OrderJamaahPageInner() {
             }`}>
               {(user.role === 'admin' || user.role === 'super_admin') && '⚙️ Order sebagai Admin — closing tercatat sebagai Direct/Kantor (tanpa ujroh)'}
               {user.role === 'perwakilan' && `🏢 Order sebagai Perwakilan — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
+              {user.role === 'sahabat_baitullah' && `🤝 Order sebagai Jamaah Sahabat Baitullah (Closing Langsung) — tercatat atas nama Anda (${user.name}, ${user.kode_unik}). Begitu booking ini selesai, ujroh-nya otomatis tercatat sebagai saldo pending di akun Anda, menunggu proses Pencairan Komisi admin.`}
             </div>
 
             <button onClick={() => setStep(2)}
@@ -357,7 +363,7 @@ function OrderJamaahPageInner() {
               <div>③ Lanjutkan pelunasan setelah formulir selesai</div>
             </div>
             <button onClick={() => {
-              const tujuan = { admin: '/admin', perwakilan: '/dashboard/perwakilan' };
+              const tujuan = { admin: '/admin', perwakilan: '/dashboard/perwakilan', sahabat: '/dashboard/sahabat' };
               router.push(tujuan[user.role] || '/dashboard/jamaah');
             }} className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors">
               Ke Dashboard →

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
+import { tangkapRefPerwakilan } from '@/lib/referralCapture';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
@@ -49,6 +50,11 @@ export default function ProgramDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  // Tangkap ?ref=<kode_unik_perwakilan> kalau ada — link program sering jadi
+  // titik masuk pertama yang dibagikan perwakilan (dikonfirmasi user
+  // 2026-09-02), disimpan buat auto-fill "Sumber Informasi" di /checkout.
+  useEffect(() => { tangkapRefPerwakilan(); }, []);
+
   useEffect(() => {
     if (!id) return;
     fetch('/api/programs')
@@ -75,11 +81,11 @@ export default function ProgramDetailPage() {
   }
 
   if (loading) {
-    return <Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat program...</div></Layout>;
+    return <Layout showBack><div className="flex items-center justify-center py-20 text-gray-400">Memuat program...</div></Layout>;
   }
   if (notFound || !prog) {
     return (
-      <Layout>
+      <Layout showBack>
         <div className="max-w-lg mx-auto text-center py-20">
           <div className="text-5xl mb-3">🔍</div>
           <div className="font-bold text-[#0E2F6E] mb-1">Program tidak ditemukan</div>
@@ -111,9 +117,8 @@ export default function ProgramDetailPage() {
   });
 
   return (
-    <Layout title={prog.name}>
+    <Layout title={prog.name} showBack>
       <div className="max-w-3xl mx-auto">
-        <button onClick={() => router.push('/programs')} className="text-sm text-gray-500 mb-4 hover:text-[#1A4FA0]">← Semua Program</button>
 
         {/* HERO */}
         <div className="bg-gradient-to-br from-[#0E2F6E] to-[#2060C0] rounded-2xl p-6 text-white mb-4">

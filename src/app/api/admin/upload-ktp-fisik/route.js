@@ -12,7 +12,7 @@ const MAKS = 10 * 1024 * 1024; // 10MB
 // akun yang lagi login — gak bisa dipakai admin upload-in punya orang lain).
 // Buat nge-backfill foto KTP perwakilan lama yang belum pernah unggah
 // (mayoritas kasusnya, cek DB: 0/14 perwakilan yang udah ada).
-// Simpan ke folder & kolom yang SAMA (public/uploads/ktp, users.foto_ktp_path)
+// Simpan ke folder & kolom yang SAMA (private-uploads/ktp, users.foto_ktp_path)
 // biar renderNik() di Database Perwakilan otomatis kepake.
 export async function POST(request) {
   const auth = wajibRole(request, ['admin']);
@@ -41,14 +41,14 @@ export async function POST(request) {
       return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
     }
 
-    const dir = path.join(process.cwd(), 'public', 'uploads', 'ktp');
+    const dir = path.join(process.cwd(), 'private-uploads', 'ktp');
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
 
     const ext = path.extname(file.name || '') || (file.type === 'application/pdf' ? '.pdf' : '.jpg');
     const nama = `ktp_${userId}_${Date.now()}${ext}`;
     await writeFile(path.join(dir, nama), Buffer.from(await file.arrayBuffer()));
 
-    const publicPath = `/uploads/ktp/${nama}`;
+    const publicPath = `/api/dokumen/ktp/${nama}`;
     await pool.query('UPDATE users SET foto_ktp_path = ? WHERE id = ?', [publicPath, userId]);
 
     return Response.json({ message: 'Foto KTP berhasil diunggah!', path: publicPath });

@@ -16,8 +16,7 @@ const DOC_FIELDS = [
   ['doc_vaksin', 'Bukti Vaksin'], ['doc_foto', 'Pas Foto'],
 ];
 
-// Dipakai bareng utk kolom Nama perwakilan — klik buka modal
-// formulir pendaftaran + SK BSI.
+// Dipakai bareng utk kolom Nama perwakilan — klik buka modal formulir pendaftaran.
 function renderNamaMitra(row, { onShowDetail }) {
   return (
     <button onClick={() => onShowDetail(row)} className="text-[#1A4FA0] font-bold hover:underline whitespace-nowrap">
@@ -82,66 +81,16 @@ function NikKtpCell({ row, onUploaded }) {
   );
 }
 
-// Sama pola dgn NikKtpCell — kalau SK BSI belum diunggah, admin bisa
-// langsung unggah dari sini (mis. diterima via WhatsApp lalu di-scan admin).
-function SkBsiButton({ row, onUploaded }) {
-  const [uploading, setUploading] = useState(false);
-
-  async function pilihFile(file) {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('user_id', row.id);
-      const res = await fetch('/api/admin/upload-sk-bsi', { method: 'POST', body: fd });
-      const d = await res.json();
-      if (res.ok) onUploaded(row.id, { sk_bsi_path: d.path });
-      else alert(d.error || 'Gagal mengunggah SK BSI');
-    } catch { alert('Terjadi kesalahan saat mengunggah'); }
-    setUploading(false);
-  }
-
-  if (row.sk_bsi_path) {
-    return (
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-        <button onClick={() => window.open(row.sk_bsi_path, '_blank')}
-          className="text-[10px] font-bold text-gray-400 hover:text-[#1A4FA0] whitespace-nowrap">
-          📄 Lihat SK BSI
-        </button>
-        <label className="text-[10px] text-gray-400 hover:text-[#1A4FA0] cursor-pointer">
-          {uploading ? '...' : '(ganti)'}
-          <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={uploading}
-            onChange={e => pilihFile(e.target.files?.[0])} />
-        </label>
-      </span>
-    );
-  }
-
-  return (
-    <label className="inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
-      title="Klik untuk unggah SK BSI">
-      <span className="text-[10px] font-bold text-amber-600">
-        {uploading ? 'Mengunggah...' : '⚠️ SK BSI belum diunggah — klik'}
-      </span>
-      <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={uploading}
-        onChange={e => pilihFile(e.target.files?.[0])} />
-    </label>
-  );
-}
-
 // Kolom sendiri (bukan di dalam modal nama) — perwakilan pasti punya nomor
 // perjanjian, jadi ditaruh sebagai kolom biar langsung kelihatan & bisa
 // diklik langsung ke surat cetaknya tanpa muter ke modal nama dulu.
-// SK BSI ditaruh nempel di bawahnya, bukan di modal nama.
-function renderNomorPerjanjian(row, ctx) {
+function renderNomorPerjanjian(row) {
   return (
     <div className="flex flex-col items-start gap-1">
       <button onClick={() => window.open(`/admin/cetak-pks-mitra/${row.id}`, '_blank')}
         className="text-[#1A4FA0] font-bold hover:underline whitespace-nowrap text-xs">
         {row.no_perjanjian_kerjasama || 'Belum ada — klik utk buat'}
       </button>
-      <SkBsiButton row={row} onUploaded={ctx.patchRow} />
       <button onClick={() => window.open(`/admin/cetak-formulir-mitra/${row.id}`, '_blank')}
         className="text-[10px] font-bold text-gray-400 hover:text-[#1A4FA0] whitespace-nowrap">
         📋 Formulir Pendaftaran
@@ -182,9 +131,13 @@ const TIPE_CONFIG = {
     // "Sudah berangkat" cuma yang PERNAH punya minimal 1 booking beneran
     // 'selesai' (closing sudah lewat tanggal keberangkatan) — sekali pernah,
     // selamanya masuk grup ini walau ada juga booking lain yang batal/nunggu.
+    // Dipisah 3 (dikonfirmasi user 2026-09-07, sebelumnya "Menunggu" & "Cancel"
+    // digabung 1 grup "Belum Clear") — biar gak nyampur, tiap status punya
+    // tab sendiri.
     splitGroups: [
-      { key: 'berangkat', label: '✅ Sudah Pernah Berangkat', match: r => r.status_jamaah === 'Sudah Berangkat' },
-      { key: 'belum_clear', label: '⏳ Belum Clear Keberangkatan', match: r => r.status_jamaah !== 'Sudah Berangkat' },
+      { key: 'berangkat', label: '✅ Sudah Berangkat', match: r => r.status_jamaah === 'Sudah Berangkat' },
+      { key: 'menunggu', label: '⏳ Menunggu Keberangkatan', match: r => r.status_jamaah === 'Menunggu Keberangkatan' },
+      { key: 'cancel', label: '❌ Cancel Program', match: r => r.status_jamaah === 'Cancel Program' },
     ],
     columns: [
       {
@@ -228,33 +181,9 @@ const TIPE_CONFIG = {
       { key: 'keberangkatan_pertama', label: 'Keberangkatan Pertama', format: tgl },
     ],
   },
-  perwakilan: {
-    title: '🏢 Database Perwakilan',
-    searchFields: ['name', 'kode_unik', 'nik', 'email', 'wa'],
-    searchPlaceholder: 'Cari nama, kode unik, NIK, email, atau WA...',
-    exportType: 'users', exportParams: { role: 'perwakilan' },
-    defaultSort: { field: 'kode_unik', dir: 'asc' },
-    columns: [
-      { key: 'kode_unik', label: 'Kode Perwakilan' },
-      { key: 'name', label: 'Nama Lengkap', render: renderNamaMitra },
-      { key: 'nik', label: 'NO KTP', render: renderNik },
-      { key: 'tempat_lahir', label: 'Tempat Lahir' },
-      { key: 'tanggal_lahir', label: 'Tanggal Lahir', format: tgl },
-      { key: 'jenis_kelamin', label: 'Jenis Kelamin' },
-      { key: 'wilayah', label: 'Wilayah' },
-      { key: 'alamat_ktp', label: 'Alamat KTP' },
-      { key: 'alamat_domisili', label: 'Alamat Domisili' },
-      { key: 'wa', label: 'No. Whatsapp' },
-      { key: 'email', label: 'Email Aktif' },
-      { key: 'perekrut_nama', label: 'Perekrut', format: v => v || 'JM Travel' },
-      { key: 'bank', label: 'Nama Bank' },
-      { key: 'no_rekening', label: 'No. Rekening' },
-      { key: 'nama_pemilik_rekening', label: 'Nama Pemilik Rekening' },
-      { key: 'created_at', label: 'Bergabung', format: tgl },
-      { key: 'no_perjanjian_kerjasama', label: 'No. Perjanjian', render: renderNomorPerjanjian },
-      { key: 'status', label: 'Aksi', render: renderAksiMitra },
-    ],
-  },
+  // 'perwakilan' PINDAH ke /admin/perwakilan/database (halaman sendiri,
+  // list+expand-row, setara Sahabat Baitullah) — dikonfirmasi user
+  // 2026-09-06, gak numpang lagi di halaman database generik ini.
   program: {
     title: '🕌 Database Program',
     searchFields: ['name', 'type', 'kategori'],
@@ -314,6 +243,10 @@ export default function DatabasePage() {
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [perekrutOptions, setPerekrutOptions] = useState([]);
+  // Tab buat splitGroups (dikonfirmasi user 2026-09-07: dulu semua grup
+  // ditumpuk keliatan sekaligus, sekarang di-tab biar gak nyampur) — default
+  // ke grup pertama begitu config-nya punya splitGroups.
+  const [activeSplit, setActiveSplit] = useState(config?.splitGroups?.[0]?.key || null);
 
   function muatData() {
     fetch(`/api/admin/database?tipe=${tipe}`)
@@ -335,7 +268,7 @@ export default function DatabasePage() {
     // berikutnya pas user beneran keisi (makanya user ikut jadi dependency).
     if (!user) return;
     if (!['admin','super_admin'].includes(user.role)) { router.replace('/login'); return; }
-    if (!config) { router.replace('/admin'); return; }
+    if (!config) { router.replace(tipe === 'perwakilan' ? '/admin/perwakilan/database' : '/admin'); return; }
     muatData();
   }, [tipe, user]);
 
@@ -345,7 +278,7 @@ export default function DatabasePage() {
 
   // Toggle aktif/nonaktif — dipakai kolom Aksi perwakilan (cuma
   // berlaku utk yang statusnya sudah active/nonaktif, bukan pending —
-  // pending diproses di tab Pendaftaran krn ada tahap SK BSI-nya).
+  // pending diproses di tab Pendaftaran krn ada tahapan verifikasi tersendiri).
   async function toggleStatus(row) {
     const target = row.status === 'active' ? 'nonaktif' : 'active';
     if (!confirm(`${target === 'active' ? 'Aktifkan' : 'Nonaktifkan'} ${row.name}?`)) return;
@@ -353,6 +286,25 @@ export default function DatabasePage() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ user_id: row.id, action: 'set_status', new_status: target }),
     });
+    muatData();
+  }
+
+  // Dual-role: tambah role Sahabat Baitullah ke akun perwakilan yang sudah
+  // aktif — KHUSUS direkrut langsung manajemen (bukan via link referral),
+  // dikonfirmasi user 2026-09-06. Bikin baris sahabat_pendaftaran baru
+  // (data disalin dari akun ini, gak perlu isi ulang KTP) lalu orangnya
+  // lanjut proses lengkap (BSI/SK-CIF/dst) lewat halaman Profil seperti
+  // pendaftar biasa.
+  async function tambahRoleKedua(row) {
+    if (!confirm(`Tambahkan role Sahabat Baitullah ke akun ${row.name}? Orang ini akan tetap wajib lewat proses lengkap (setoran, BSI, SK-CIF) — cuma jalur masuknya via admin, bukan link referral.`)) return;
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: row.id, action: 'tambah_role_kedua', role_kedua: 'sahabat_baitullah' }),
+    });
+    const d = await res.json();
+    if (!res.ok) { alert(d.error || 'Gagal menambahkan role kedua'); return; }
+    alert('Role Sahabat Baitullah berhasil ditambahkan. Orangnya bisa lanjut proses pendaftaran lewat halaman Profil.');
+    setDetailFor(null);
     muatData();
   }
 
@@ -538,16 +490,21 @@ export default function DatabasePage() {
       <div className="text-xs text-gray-400 mb-2">{tampil.length} dari {rows.length} data</div>
 
       {config.splitGroups ? (
-        <div className="space-y-8">
-          {config.splitGroups.map(g => {
-            const groupRows = tampil.filter(g.match);
-            return (
-              <div key={g.key}>
-                <h3 className="font-bold text-[#0E2F6E] mb-2">{g.label} <span className="text-gray-400 font-normal">({groupRows.length})</span></h3>
-                {renderTable(groupRows, g.key)}
-              </div>
-            );
-          })}
+        <div>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {config.splitGroups.map(g => {
+              const count = tampil.filter(g.match).length;
+              return (
+                <button key={g.key} onClick={() => setActiveSplit(g.key)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+                    activeSplit === g.key ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>
+                  {g.label} ({count})
+                </button>
+              );
+            })}
+          </div>
+          {renderTable(tampil.filter(config.splitGroups.find(g => g.key === activeSplit)?.match || (() => true)), activeSplit)}
         </div>
       ) : renderTable(tampil, 'main')}
 
@@ -592,6 +549,16 @@ export default function DatabasePage() {
               </div>
             </div>
 
+            {tipe === 'perwakilan' && detailFor.status === 'active' && !detailFor.role_kedua && (
+              <button onClick={() => tambahRoleKedua(detailFor)} className="w-full mb-3 bg-[#0E2F6E] hover:bg-[#1A4FA0] text-white text-xs font-bold px-3 py-2 rounded-full">
+                🤝 Tambahkan Role Sahabat Baitullah (direkrut manajemen)
+              </button>
+            )}
+            {tipe === 'perwakilan' && detailFor.role_kedua && (
+              <div className="w-full mb-3 bg-[#E8F0FB] text-[#0E2F6E] text-xs font-semibold px-3 py-2 rounded-full text-center">
+                ✓ Akun ini juga terdaftar sebagai {detailFor.role_kedua === 'sahabat_baitullah' ? 'Sahabat Baitullah' : 'Perwakilan'}
+              </div>
+            )}
             {tipe === 'jamaah' && detailFor.wa && detailFor.wa !== '-' && (
               <TombolWA nomor={detailFor.wa}
                 label="Kirim WA ke Jamaah"
@@ -670,9 +637,9 @@ export default function DatabasePage() {
                     <input value={editForm.paspor} onChange={e => setE('paspor', e.target.value)} className={inp} />
                     <div className="grid grid-cols-2 gap-2">
                       <div><label className={lbl}>Masa Berlaku (Mulai)</label>
-                        <input type="date" value={editForm.exp_mulai} onChange={e => setE('exp_mulai', e.target.value)} className={inp} /></div>
+                        <input type="date" value={editForm.exp_mulai} onChange={e => { if (e.target.value) setE('exp_mulai', e.target.value); }} className={inp} /></div>
                       <div><label className={lbl}>Masa Berlaku (Akhir)</label>
-                        <input type="date" value={editForm.exp_paspor} onChange={e => setE('exp_paspor', e.target.value)} className={inp} /></div>
+                        <input type="date" value={editForm.exp_paspor} onChange={e => { if (e.target.value) setE('exp_paspor', e.target.value); }} className={inp} /></div>
                     </div>
                     <label className={lbl}>Tempat Keluar Paspor</label>
                     <input value={editForm.tkp} onChange={e => setE('tkp', e.target.value)} className={inp} />
@@ -680,7 +647,7 @@ export default function DatabasePage() {
                       <div><label className={lbl}>Tempat Lahir</label>
                         <input value={editForm.tl} onChange={e => setE('tl', e.target.value)} className={inp} /></div>
                       <div><label className={lbl}>Tanggal Lahir</label>
-                        <input type="date" value={editForm.ttl} onChange={e => setE('ttl', e.target.value)} className={inp} /></div>
+                        <input type="date" value={editForm.ttl} onChange={e => { if (e.target.value) setE('ttl', e.target.value); }} className={inp} /></div>
                     </div>
                     <label className={lbl}>NIK</label>
                     <input value={editForm.nik} onChange={e => setE('nik', e.target.value.replace(/\D/g, '').slice(0, 16))} inputMode="numeric" className={inp} />
@@ -737,7 +704,7 @@ export default function DatabasePage() {
                     <label className={lbl}>Tempat Lahir</label>
                     <input value={editForm.tempat_lahir} onChange={e => setE('tempat_lahir', e.target.value)} className={inp} />
                     <label className={lbl}>Tanggal Lahir</label>
-                    <input type="date" value={editForm.tanggal_lahir} onChange={e => setE('tanggal_lahir', e.target.value)} className={inp} />
+                    <input type="date" value={editForm.tanggal_lahir} onChange={e => { if (e.target.value) setE('tanggal_lahir', e.target.value); }} className={inp} />
                     <label className={lbl}>Jenis Kelamin</label>
                     <select value={editForm.jenis_kelamin} onChange={e => setE('jenis_kelamin', e.target.value)} className={inp}>
                       <option>Laki-Laki</option><option>Perempuan</option>
@@ -784,8 +751,7 @@ export default function DatabasePage() {
                 );
               }
 
-              // Perwakilan — formulir pendaftaran + link SK BSI + surat
-              // perjanjian kerjasama.
+              // Perwakilan — formulir pendaftaran + surat perjanjian kerjasama.
               return (
                 <div>
                   <div className="text-xs font-bold text-gray-400 uppercase mt-3 mb-1">Data Pendaftaran</div>
@@ -809,6 +775,7 @@ export default function DatabasePage() {
                   <Field label="Nama Pemilik Rekening" value={f.nama_pemilik_rekening} />
                   {f.jadwal_kunjungan && <Field label="Jadwal Kunjungan" value={f.jadwal_kunjungan} />}
                   {f.metode && <Field label="Metode Pendaftaran" value={f.metode === 'paket' ? 'Kirim Paket' : 'Kunjungan Kantor'} />}
+                  {f.metode === 'paket' && <Field label="Alamat Pengiriman" value={f.alamat_kirim} />}
 
                   <div className="flex flex-col gap-2 mt-5 pt-4 border-t border-gray-100">
                     <button onClick={() => downloadIdCard(detailFor)} disabled={downloadingId === detailFor.id}

@@ -15,7 +15,12 @@ function waktuRelatif(iso) {
   return `${hari} hari lalu`;
 }
 
-export default function NotificationBell({ user }) {
+// openUp/openRight — arah dropdown relatif ke posisi tombol lonceng. Default
+// (false/false) cocok buat lonceng di navbar atas kanan (dropdown ke bawah-
+// kiri, muat di layar). Sidebar admin naruh lonceng di POJOK KIRI BAWAH —
+// dropdown ke bawah-kiri dari situ bakal kepotong layar (ke bawah karena
+// udah mepet dasar layar, ke kiri karena mepet tepi kiri) — butuh openUp+openRight.
+export default function NotificationBell({ user, openUp = false, openRight = false }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -93,7 +98,7 @@ export default function NotificationBell({ user }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-xl shadow-xl border border-gray-200 text-gray-800 z-50 overflow-hidden">
+        <div className={`absolute w-80 max-w-[90vw] bg-white rounded-xl shadow-xl border border-gray-200 text-gray-800 z-50 overflow-hidden ${openUp ? 'bottom-full mb-2' : 'top-full mt-2'} ${openRight ? 'left-0' : 'right-0'}`}>
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <span className="font-bold text-sm text-[#0E2F6E]">Notifikasi</span>
             {unreadCount > 0 && (

@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import DaftarEditor from '@/app/components/DaftarEditor';
-import { KOSONG_BREAKDOWN, hitungHppKamar, JENIS_PROGRAM_LIST, modulTambahanArray, KAPASITAS_KAMAR, bulatkanKeAtas } from '@/app/components/KalkulatorBiaya';
+import { KOSONG_BREAKDOWN, hitungHppKamar, modulTambahanArray, KAPASITAS_KAMAR, bulatkanKeAtas } from '@/app/components/KalkulatorBiaya';
 import KalkulatorTerpadu from '@/app/components/KalkulatorTerpadu';
 import { kamarKeyOf } from '@/app/components/CartPaketKamar';
+import { resolveJamaahHarga } from '@/lib/jamaahHarga';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -16,7 +17,8 @@ const KAMAR_LABEL = { quad: 'Quad (4/kamar)', triple: 'Triple (3/kamar)', double
 // `type` (label kategori buat tampilan publik, "Umroh · 9 Hari" dkk di kartu
 // program) diturunin otomatis dari Jenis Program — cuma 1 field yang admin
 // pilih (Jenis Program), gak ada 2 dropdown yang isinya tumpang tindih lagi.
-const TYPE_DARI_JENIS_PROGRAM = { umroh_regular: 'Umroh', umroh_plus: 'Umroh', haji: 'Haji', wisata: 'Wisata Muslim' };
+// Dulu hardcode TYPE_DARI_JENIS_PROGRAM di sini, sekarang field
+// `tipe_program` di jenis_program_master (lihat jenisProgramList state).
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const BULAN_ID = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -42,8 +44,13 @@ function emptyProgram() {
   const p = {
     name: '', type: 'Umroh', jenis_program: '', durasi: 9, tanggal: '', tanggal_berangkat: '', total_seat: 20,
     dp: 5000000, highlight: '', publish_type: 'public', active: true,
+    // Rekomendasi default (dikonfirmasi user 2026-09-06, bisa diedit) buat
+    // program baru publish_type='public' — nominal Sahabat Baitullah
+    // closing-in jamaah lain ke program ini, lihat section Costing di bawah.
+    sahabat_closing_langsung_hop_nominal: 2000000, sahabat_closing_nominal_closer: 1000000,
     include_items: '', exclude_items: '', itinerary: [],
-    perw_ids: [],
+    manasik_tanggal: '', manasik_lokasi: '', manasik_catatan: '',
+    perw_ids: [], private_ids: [],
   };
   for (const paket of PAKET) for (const kamar of KAMAR) {
     p[`harga_${paket}_${kamar}`] = 0;
@@ -67,11 +74,59 @@ export default function ProgramsPage() {
   const [saving, setSaving] = useState(false);
   const [opsiTambahanBaru, setOpsiTambahanBaru] = useState([]); // staging lokal Opsi Tambahan buat Program yang belum pernah disimpan
 
+  // Filter kategori publikasi (tab di atas daftar) — filter list ke kategori
+  // itu aja + jadi default pas bikin program baru dari sini. `?publish_type=`
+  // di URL (link lama/bookmark) tetap dibaca sebagai nilai awal. Dibaca dari
+  // window.location langsung (bukan useSearchParams) biar gak perlu bungkus
+  // Suspense buat halaman sebesar ini.
+  const [filterPublishType, setFilterPublishType] = useState(null);
+  useEffect(() => {
+    const qp = new URLSearchParams(window.location.search).get('publish_type');
+    if (qp) setFilterPublishType(qp);
+  }, []);
+  const visiblePrograms = filterPublishType ? programs.filter(p => p.publish_type === filterPublishType) : programs;
+
+  // Entry point dari tombol "Buat Program Eksklusif dari Quote Ini" di halaman
+  // detail Ajuan Kalkulator Perwakilan (?from_lead=<id>) — buka langsung form
+  // Program Baru dengan publish_type/perw_ids/HPP/Ujroh diprefill dari quote
+  // yang sudah disetujui admin, biar gak diketik ulang manual (dikonfirmasi
+  // user 2026-09-03). Otorisasi checkout eksklusif TETAP lewat sinkronPerwIds
+  // di server begitu program ini disimpan (sama seperti isi perw_ids manual).
+  const [fromLeadId, setFromLeadId] = useState(null);
+  useEffect(() => {
+    const qp = new URLSearchParams(window.location.search).get('from_lead');
+    if (qp) setFromLeadId(qp);
+  }, []);
+  useEffect(() => {
+    if (!fromLeadId || !user) return;
+    fetch(`/api/admin/kalkulator-perwakilan?id=${fromLeadId}`).then(r => r.json()).then(d => {
+      const lead = d.lead;
+      if (!lead) { alert('Quote tidak ditemukan.'); return; }
+      const base = emptyProgram();
+      base.name = lead.nama_quote || `Quote ${lead.template_nama || ''}`.trim();
+      base.tanggal_berangkat = lead.tanggal_berangkat ? String(lead.tanggal_berangkat).slice(0, 10) : '';
+      base.publish_type = 'perwakilan';
+      base.perw_ids = [lead.perwakilan_id];
+      base.from_lead_id = lead.id;
+      base[`hpp_${lead.paket}_${lead.kamar}`] = Number(lead.hpp_snapshot) || 0;
+      base[`ujroh_${lead.paket}_${lead.kamar}`] = Number(lead.margin_perwakilan) || 0;
+      setEditing(base);
+      setHargaDataMap({}); perwFetchedRef.current = new Set(); fetchPerwList();
+      resetKalkulator();
+      setTabProgram('detail');
+    }).catch(() => alert('Gagal memuat quote.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromLeadId, user]);
+
   // Harga reseller perwakilan — OTOMATIS dimuat buat SEMUA perwakilan yang
   // dicentang di "Perwakilan yang Diotorisasi" (bukan pilih 1 dari dropdown
   // lagi), upline (kalau ada) sudah ketauan begitu data dimuat. Semua keyed
   // by perw_id biar bisa nampilin banyak sekaligus.
   const [perwList, setPerwList] = useState([]);
+  // Akun jamaah yang ditunjuk admin buat program 'private' (dikonfirmasi
+  // user 2026-09-06) — mirror perwList di atas, bedanya role=jamaah.
+  const [privateJamaahList, setPrivateJamaahList] = useState([]);
+  const [cariPrivateJamaah, setCariPrivateJamaah] = useState('');
   const [hargaDataMap, setHargaDataMap] = useState({}); // { [perwId]: hargaData }
   const [formsMap, setFormsMap] = useState({}); // { [perwId]: { upline: {...}, perwakilan: {...} } }
   const [savingHargaIds, setSavingHargaIds] = useState(() => new Set());
@@ -101,6 +156,7 @@ export default function ProgramsPage() {
   const [kalkulatorKomisi, setKalkulatorKomisi] = useState({ deluxe: '', eksekutif: '', signature: '' });
   const [kalkulatorMargin, setKalkulatorMargin] = useState({ deluxe: '', eksekutif: '', signature: '' });
   const [katalogModul, setKatalogModul] = useState([]); // modul negara LIVE (dari katalog terkini) — dipakai buat Program BARU (belum ada id) & sumber pas "Sinkronkan"
+  const [jenisProgramList, setJenisProgramList] = useState([]); // jenis_program_master — dulu hardcode JENIS_PROGRAM_LIST
   // Fotokopi modul negara yang dibekukan pas Program ini PERTAMA KALI
   // disimpan (lihat migration-program-katalog-modul-snapshot.sql) — dipakai
   // GANTI katalogModul pas ngedit Program yang UDAH ADA id-nya, biar HPP-nya
@@ -143,6 +199,8 @@ export default function ProgramsPage() {
       .then(d => setTemplateList(d.breakdown || [])).catch(() => {});
     fetch('/api/admin/modul-negara?full=1').then(r => r.json())
       .then(d => setKatalogModul(d.modul || [])).catch(() => {});
+    fetch('/api/admin/jenis-program').then(r => r.json())
+      .then(d => setJenisProgramList(d.jenis_program || [])).catch(() => {});
   }, [user]);
 
   function resetKalkulator() {
@@ -245,6 +303,8 @@ export default function ProgramsPage() {
           tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: b.tiket_pesawat_list || [],
           visa_rate: b.visa_rate, visa_mata_uang: b.visa_mata_uang,
           biaya_lain_lain: b.biaya_lain_lain, biaya_lain_lain_mata_uang: b.biaya_lain_lain_mata_uang,
+          margin_mode: b.margin_mode || 'flat', margin_persen: b.margin_persen,
+          komisi_mode: b.komisi_mode || 'flat', komisi_persen: b.komisi_persen,
           items: [],
         };
       }
@@ -263,6 +323,12 @@ export default function ProgramsPage() {
       if (hotel[paket]?.mekkah_nama) hotelFields[`hotel_mekkah_${paket}`] = hotel[paket].mekkah_nama;
       if (hotel[paket]?.madinah_nama) hotelFields[`hotel_madinah_${paket}`] = hotel[paket].madinah_nama;
     }
+    // Custom Hotel per Kota — mode margin/komisi persen di-snapshot ke
+    // program ini SEKALI di titik "Pakai Template" (sama semangatnya kayak
+    // hpp_*/harga_* yang juga snapshot, bukan live-linked ke template).
+    // Opsi hotelnya sendiri GAK PERLU di-snapshot terpisah — cukup reuse
+    // hotel_mekkah_{paket}/hotel_madinah_{paket} yang udah ke-isi dari
+    // hotelFields di atas (lihat src/lib/hotelCustomPricing.js).
     setEditing(prev => ({
       ...prev,
       jenis_program: shared.jenis_program || prev.jenis_program,
@@ -271,6 +337,8 @@ export default function ProgramsPage() {
       include_items: shared.include_items || prev.include_items,
       exclude_items: shared.exclude_items || prev.exclude_items,
       ...hotelFields,
+      margin_mode: shared.margin_mode, margin_persen: shared.margin_persen,
+      komisi_mode: shared.komisi_mode, komisi_persen: shared.komisi_persen,
     }));
 
     const anyId = d.breakdown.find(b => b.paket)?.id;
@@ -311,6 +379,10 @@ export default function ProgramsPage() {
     // berikutnya pas user beneran keisi.
     if (!user) return;
     if (!['admin','super_admin'].includes(user.role)) { router.replace('/login'); return; }
+    // Create/edit program penuh (harga, HPP, hotel, dst) khusus super_admin
+    // — admin biasa cuma boleh operasional per-program (cetak dokumen,
+    // invoice, dst) lewat tab Programs di /admin, bukan halaman ini.
+    if (user.role !== 'super_admin') { router.replace('/admin?tab=programs'); return; }
     loadPrograms();
   }, [user]);
 
@@ -324,6 +396,11 @@ export default function ProgramsPage() {
   function fetchPerwList() {
     fetch('/api/admin/users?role=perwakilan&status=active')
       .then(r => r.json()).then(d => setPerwList(d.users || [])).catch(() => {});
+  }
+
+  function fetchPrivateJamaahList() {
+    fetch('/api/admin/users?role=jamaah&status=active')
+      .then(r => r.json()).then(d => setPrivateJamaahList(d.users || [])).catch(() => {});
   }
 
   // Draft dibungkus { editing, formsMap, opsiTambahanBaru } — dulu cuma
@@ -353,11 +430,13 @@ export default function ProgramsPage() {
   }
 
   function newProgram() {
-    const draft = ambilDraft(draftKeyFor(null), emptyProgram());
+    const fallback = filterPublishType ? { ...emptyProgram(), publish_type: filterPublishType } : emptyProgram();
+    const draft = ambilDraft(draftKeyFor(null), fallback);
     setEditing(draft.editing);
     setFormsMap(draft.formsMap);
     setOpsiTambahanBaru(draft.opsiTambahanBaru);
     setHargaDataMap({}); perwFetchedRef.current = new Set(); fetchPerwList();
+    fetchPrivateJamaahList();
     resetKalkulator();
     setTabProgram('detail');
   }
@@ -373,17 +452,21 @@ export default function ProgramsPage() {
     if (p.tanggal_berangkat) {
       merged.tanggal_berangkat = String(p.tanggal_berangkat).slice(0, 10);
     }
+    if (p.manasik_tanggal) {
+      merged.manasik_tanggal = String(p.manasik_tanggal).slice(0, 10);
+    }
     const draft = ambilDraft(draftKeyFor(p.id), merged);
     setEditing(draft.editing);
     setFormsMap(draft.formsMap);
     setOpsiTambahanBaru(draft.opsiTambahanBaru);
     setHargaDataMap({}); perwFetchedRef.current = new Set();
     fetchPerwList();
-    // perw_ids (daftar yang diotorisasi) gak ikut di list ringkas
+    fetchPrivateJamaahList();
+    // perw_ids/private_ids (daftar yang diotorisasi) gak ikut di list ringkas
     // /api/admin/programs — ambil terpisah dari endpoint ?id= yang nyertain.
     fetch(`/api/admin/programs?id=${p.id}`).then(r => r.json()).then(d => {
       setEditing(prev => (prev && prev.id === p.id
-        ? { ...prev, perw_ids: d.program?.perw_ids || [] }
+        ? { ...prev, perw_ids: d.program?.perw_ids || [], private_ids: d.program?.private_ids || [] }
         : prev));
     }).catch(() => {});
 
@@ -430,6 +513,8 @@ export default function ProgramsPage() {
             tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: b.tiket_pesawat_list || [],
             visa_rate: b.visa_rate, visa_mata_uang: b.visa_mata_uang,
             biaya_lain_lain: b.biaya_lain_lain, biaya_lain_lain_mata_uang: b.biaya_lain_lain_mata_uang,
+            margin_mode: b.margin_mode || 'flat', margin_persen: b.margin_persen,
+            komisi_mode: b.komisi_mode || 'flat', komisi_persen: b.komisi_persen,
             items: [],
           };
         }
@@ -660,7 +745,7 @@ export default function ProgramsPage() {
   // Payload siap-kirim: hitung Harga Publikasi (HPP+Ujroh) & rapikan itinerary.
   function buildPayload() {
     const payload = { ...editing };
-    payload.type = TYPE_DARI_JENIS_PROGRAM[payload.jenis_program] || 'Umroh';
+    payload.type = jenisProgramList.find(j => j.value === payload.jenis_program)?.tipe_program || 'Umroh';
     for (const paket of PAKET) for (const kamar of KAMAR) {
       const hpp = Number(payload[`hpp_${paket}_${kamar}`] || 0);
       const ujroh = Number(payload[`ujroh_${paket}_${kamar}`] || 0);
@@ -798,20 +883,44 @@ export default function ProgramsPage() {
         {/* LIST */}
         {!editing && (
           <>
+            {/* Filter kategori publikasi — 1 titik akses buat semua kategori
+                (Publik/Perwakilan/Sahabat Baitullah/Private), gantiin link
+                terpisah per kategori yang dulu nyebar di sidebar (mis. entri
+                "Costing Program" khusus Sahabat Baitullah, dikonfirmasi user
+                2026-09-06 digabung ke sini). Query param ?publish_type=...
+                dari link lama TETAP jalan (prefill filter ini), cuma bukan
+                satu-satunya cara lagi. */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { value: null, label: 'Semua' },
+                { value: 'public', label: 'Publik' },
+                { value: 'perwakilan', label: 'Perwakilan' },
+                { value: 'sahabat_baitullah', label: 'Sahabat Baitullah' },
+                { value: 'private', label: 'Private' },
+              ].map(opt => (
+                <button key={opt.label} onClick={() => setFilterPublishType(opt.value)}
+                  className={`text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+                    filterPublishType === opt.value ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+
             <div className="flex justify-between items-center mb-4">
-              <div className="font-bold text-[#0E2F6E]">Daftar Program ({programs.length})</div>
+              <div className="font-bold text-[#0E2F6E]">Daftar Program ({visiblePrograms.length})</div>
               <button onClick={newProgram}
                 className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-4 py-2 rounded-full transition-colors">
                 + Program Baru
               </button>
             </div>
-            {programs.length === 0 ? (
+            {visiblePrograms.length === 0 ? (
               <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">
                 Belum ada program. Klik &quot;Program Baru&quot; untuk menambah.
               </div>
             ) : (
               <div className="space-y-3">
-                {programs.map(p => (
+                {visiblePrograms.map(p => (
                   <div key={p.id} className="bg-white rounded-xl border border-[#e0e8f0] p-4 flex items-center justify-between">
                     <div>
                       <div className="font-bold text-[#0E2F6E]">{p.name}</div>
@@ -822,8 +931,8 @@ export default function ProgramsPage() {
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.active !== 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                           {p.active !== 0 ? 'Aktif' : 'Nonaktif'}
                         </span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.publish_type === 'private' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {p.publish_type === 'private' ? 'Private' : p.publish_type === 'perwakilan' ? 'Perwakilan' : 'Publik'}
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.publish_type === 'private' ? 'bg-amber-100 text-amber-700' : p.publish_type === 'sahabat_baitullah' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {p.publish_type === 'private' ? 'Private' : p.publish_type === 'perwakilan' ? 'Perwakilan' : p.publish_type === 'sahabat_baitullah' ? 'Sahabat Baitullah' : 'Publik'}
                         </span>
                       </div>
                     </div>
@@ -879,7 +988,7 @@ export default function ProgramsPage() {
                     setKalkulatorShared(prev => ({ ...prev, jenis_program: e.target.value }));
                   }} className={inp}>
                     <option value="">— Pilih —</option>
-                    {JENIS_PROGRAM_LIST.map(j => <option key={j.value} value={j.value}>{j.label}</option>)}
+                    {jenisProgramList.map(j => <option key={j.value} value={j.value}>{j.label}</option>)}
                   </select>
                   <div className="text-[10px] text-gray-400 mt-1">
                     Nentuin template mana aja yang muncul di &quot;Pakai Costing Program&quot; di bawah — cuma yang jenisnya sama yang ditawarin.
@@ -903,7 +1012,7 @@ export default function ProgramsPage() {
                 </div>
                 <div>
                   <label className={lbl}>Tanggal Berangkat (untuk itinerary) *</label>
-                  <input type="date" value={editing.tanggal_berangkat || ''} onChange={e => setF('tanggal_berangkat', e.target.value)} className={inp} required/>
+                  <input type="date" value={editing.tanggal_berangkat || ''} onChange={e => { if (e.target.value) setF('tanggal_berangkat', e.target.value); }} className={inp} required/>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -922,7 +1031,8 @@ export default function ProgramsPage() {
                   <select value={editing.publish_type} onChange={e => setF('publish_type', e.target.value)} className={inp}>
                     <option value="public">Publik</option>
                     <option value="perwakilan">Khusus Perwakilan</option>
-                    <option value="private">Private (khusus admin daftarin)</option>
+                    <option value="private">Private</option>
+                    <option value="sahabat_baitullah">Sahabat Baitullah</option>
                   </select>
                 </div>
                 <div>
@@ -932,9 +1042,39 @@ export default function ProgramsPage() {
               </div>
 
               {editing.publish_type === 'private' && (
-                <div className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                  🔒 Program Private — gak akan muncul di halaman publik maupun halaman perwakilan sama
-                  sekali. Jamaahnya cuma bisa didaftarkan langsung oleh admin/super_admin dari panel admin.
+                <div>
+                  <div className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 mb-2">
+                    🔒 Program Private — gak muncul di halaman publik/perwakilan sama sekali. Cuma bisa dicheckout
+                    admin/super_admin (daftarin langsung dari panel), atau akun jamaah yang dicentang di bawah.
+                  </div>
+                  <label className={lbl}>Akun Jamaah yang Ditunjuk (opsional, bisa pilih lebih dari 1)</label>
+                  <input value={cariPrivateJamaah} onChange={e => setCariPrivateJamaah(e.target.value)}
+                    placeholder="Cari nama atau kode unik..."
+                    className={`${inp} mb-1.5`} />
+                  <div className="border-2 border-gray-200 rounded-lg p-2 max-h-48 overflow-y-auto space-y-1">
+                    {privateJamaahList
+                      .filter(j => `${j.name} ${j.kode_unik || ''}`.toLowerCase().includes(cariPrivateJamaah.toLowerCase()))
+                      .map(j => (
+                        <label key={j.id} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={(editing.private_ids || []).includes(j.id)}
+                            onChange={e => {
+                              const current = editing.private_ids || [];
+                              setF('private_ids', e.target.checked ? [...current, j.id] : current.filter(id => id !== j.id));
+                            }}
+                            className="w-4 h-4 accent-[#1A4FA0]"
+                          />
+                          {j.name} ({j.kode_unik})
+                        </label>
+                      ))}
+                    {privateJamaahList.length === 0 && (
+                      <div className="text-[10px] text-red-500">Belum ada jamaah aktif.</div>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    Kosongkan kalau cuma admin yang bakal daftarin jamaahnya manual — gak wajib dicentang.
+                  </div>
                 </div>
               )}
 
@@ -1034,6 +1174,51 @@ export default function ProgramsPage() {
                     tanggalBerangkat={editing.tanggal_berangkat}
                   />
                 </>
+              )}
+
+              {/* Ujroh Sahabat Baitullah closing-in jamaah LAIN ke program
+                  ini — SENGAJA cuma muncul di publish_type='public'
+                  (dikonfirmasi user 2026-09-06): publish_type='sahabat_baitullah'
+                  emang cuma bisa dicheckout jamaah Sahabat Baitullah sendiri
+                  (buat dirinya sendiri), jadi gak ada skenario "closing
+                  jamaah lain" di situ — gak perlu section ini. Dua nominal
+                  independen, DIREKOMENDASIKAN default (lihat emptyProgram())
+                  pas bikin program baru tapi tetap bisa diedit/dikosongkan. */}
+              {editing.publish_type === 'public' && (
+                <div className="mb-4 p-3 bg-amber-50/50 border border-amber-100 rounded-lg">
+                  <div className="text-xs font-bold text-[#0E2F6E] mb-2">🤝 Ujroh Sahabat Baitullah — Closing Jamaah Lain</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className={lbl}>Head of Program (Rp) <span className="font-normal text-gray-400">(opsional)</span></label>
+                      <input
+                        value={editing.sahabat_closing_langsung_hop_nominal ? Number(editing.sahabat_closing_langsung_hop_nominal).toLocaleString('id-ID') : ''}
+                        onChange={e => {
+                          const digits = e.target.value.replace(/\D/g, '');
+                          setF('sahabat_closing_langsung_hop_nominal', digits ? Number(digits) : null);
+                        }}
+                        className={inp}
+                        inputMode="numeric"
+                        placeholder="Kosongkan = 0"
+                      />
+                    </div>
+                    <div>
+                      <label className={lbl}>Yang Closing (Rp) <span className="font-normal text-gray-400">(opsional)</span></label>
+                      <input
+                        value={editing.sahabat_closing_nominal_closer ? Number(editing.sahabat_closing_nominal_closer).toLocaleString('id-ID') : ''}
+                        onChange={e => {
+                          const digits = e.target.value.replace(/\D/g, '');
+                          setF('sahabat_closing_nominal_closer', digits ? Number(digits) : null);
+                        }}
+                        className={inp}
+                        inputMode="numeric"
+                        placeholder="Kosongkan = 1.000.000 (default)"
+                      />
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-1.5">
+                    Berlaku pas anggota Sahabat Baitullah closing-langsungkan jamaah LAIN ke program ini (jamaah booking langsung, bukan gabung Sahabat Baitullah) — dua-duanya nominal fix, independen satu sama lain.
+                  </div>
+                </div>
               )}
 
               {editing.publish_type === 'perwakilan' ? (
@@ -1338,6 +1523,31 @@ export default function ProgramsPage() {
             </div>
             )}
 
+            {/* Info Manasik — sekadar info jadwal/lokasi buat jamaah program
+                ini (dashboard jamaah, muncul begitu DP confirmed), gak ada
+                gate/tracking kehadiran. Selalu tampil (gak ikut disembunyiin
+                pas Costing Program aktif kayak Detail Publikasi di atas). */}
+            <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 mb-4">
+              <div className="font-bold text-[#0E2F6E] mb-1">🕋 Info Manasik</div>
+              <div className="text-xs text-gray-400 mb-4">Tampil otomatis di dashboard jamaah program ini begitu DP dikonfirmasi.</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className={lbl}>📅 Tanggal Manasik</label>
+                  <input type="date" value={editing.manasik_tanggal || ''} onChange={e => setF('manasik_tanggal', e.target.value)} className={inp}/>
+                </div>
+                <div>
+                  <label className={lbl}>📍 Lokasi</label>
+                  <input type="text" value={editing.manasik_lokasi || ''} onChange={e => setF('manasik_lokasi', e.target.value)}
+                    className={inp} placeholder="Contoh: Aula JM Travel, Jl. ..."/>
+                </div>
+              </div>
+              <div>
+                <label className={lbl}>📝 Catatan</label>
+                <textarea value={editing.manasik_catatan || ''} onChange={e => setF('manasik_catatan', e.target.value)}
+                  rows={3} className={inp} placeholder="Info tambahan buat jamaah (perlengkapan yang dibawa, dress code, dll)"/>
+              </div>
+            </div>
+
             {/* Opsi Tambahan — pilihan add-on checkout MILIK program ini
                 (beda program bisa beda opsi & harga), mis. upgrade kamar,
                 request khusus. Cuma bisa dikelola setelah program disimpan
@@ -1414,6 +1624,7 @@ function RealisasiCosting({ progId }) {
   let totalJamaahData = 0;
   for (const b of aktif) {
     for (const j of b.jamaah || []) {
+      if (j.status_jamaah === 'dibatalkan') continue; // dibatalkan per-orang, jamaah lain di booking ini tetap ikut
       totalJamaahData++;
       if (j.jk === 'Laki-Laki') cowok++;
       else if (j.jk === 'Perempuan') cewek++;
@@ -1436,13 +1647,19 @@ function RealisasiCosting({ progId }) {
   // checkout (bug lama: lookup KAPASITAS_KAMAR pakai string mentah, selalu
   // miss & fallback ke kapasitas 1 — "kamar perlu dipesan" jadi keliatan
   // sama persis kayak jumlah jamaah).
+  // Kombo paket/kamar di-resolve PER JAMAAH (bisa beda-beda dalam 1 booking
+  // kalau pernah diedit lewat "Edit Paket/Kamar jamaah ini" di admin booking
+  // detail) — fallback ke kombo booking-level buat booking yang belum
+  // pernah diedit per-orang (lihat src/lib/jamaahHarga.js).
   const grupOrang = {}; // "paket|kamarKey|gender" -> [{bookingId, nama}]
   for (const b of aktif) {
-    if (!b.kamar || !b.paket) continue;
-    const kamarKey = kamarKeyOf(b.kamar);
+    const bkResolve = { ...b, jamaah_data: b.jamaah };
     for (const j of b.jamaah || []) {
+      if (j.status_jamaah === 'dibatalkan') continue;
+      const { paket, kamarKey } = resolveJamaahHarga(bkResolve, j);
+      if (!paket) continue;
       const gender = j.jk === 'Laki-Laki' ? 'Cowok' : j.jk === 'Perempuan' ? 'Cewek' : 'Belum Jelas';
-      const key = `${b.paket}|${kamarKey}|${gender}`;
+      const key = `${paket}|${kamarKey}|${gender}`;
       (grupOrang[key] ||= []).push({ bookingId: b.id, nama: j.nama || '(tanpa nama)' });
     }
   }

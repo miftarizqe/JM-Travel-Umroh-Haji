@@ -6,7 +6,7 @@ const TIPE_DIIZINKAN = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf
 const MAKS_UKURAN = 5 * 1024 * 1024; // 5MB
 
 // POST /api/upload-bukti  (multipart/form-data: file)
-// Menyimpan file ke public/uploads/bukti dan mengembalikan path-nya.
+// Menyimpan file ke private-uploads/bukti dan mengembalikan path-nya (dilindungi login, lihat /api/dokumen/[...slug]).
 export async function POST(request) {
   try {
     const formData = await request.formData();
@@ -33,7 +33,7 @@ export async function POST(request) {
     }
 
     // Siapkan folder tujuan
-    const dir = path.join(process.cwd(), 'public', 'uploads', 'bukti');
+    const dir = path.join(process.cwd(), 'private-uploads', 'bukti');
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
@@ -47,7 +47,7 @@ export async function POST(request) {
     await writeFile(tujuan, Buffer.from(bytes));
 
     // Path yang bisa diakses browser
-    const publicPath = `/uploads/bukti/${namaUnik}`;
+    const publicPath = `/api/dokumen/bukti/${namaUnik}`;
 
     return Response.json({
       message: 'Bukti transfer berhasil diunggah!',

@@ -45,6 +45,16 @@ function nilaiHeader(body) {
     visa_rate: Number(body.visa_rate) || 0, visa_mata_uang: body.visa_mata_uang || 'IDR',
     biaya_lain_lain: Number(body.biaya_lain_lain) || 0, biaya_lain_lain_mata_uang: body.biaya_lain_lain_mata_uang || 'IDR',
     komisi_rate: Number(body.komisi_rate) || 0, margin_rate: Number(body.margin_rate) || 0,
+    // Custom Hotel per Kota (checkout program reguler) — jamaah pilih
+    // Bintang Mekkah/Madinah terpisah, rate-nya reuse baris paket
+    // Deluxe/Eksekutif/Signature di atas (BUKAN opsi checklist terpisah,
+    // desain awal sudah diganti 2026-08-20 — lihat src/lib/hotelCustomPricing.js).
+    // Margin/komisi persen KHUSUS kombinasi mix, margin_rate/komisi_rate
+    // (flat Rp) di atas TETAP dipakai apa adanya buat 3 paket tetap.
+    margin_mode: body.margin_mode === 'persen' ? 'persen' : 'flat',
+    margin_persen: body.margin_persen !== '' && body.margin_persen != null ? Number(body.margin_persen) : null,
+    komisi_mode: body.komisi_mode === 'persen' ? 'persen' : 'flat',
+    komisi_persen: body.komisi_persen !== '' && body.komisi_persen != null ? Number(body.komisi_persen) : null,
   };
 }
 
@@ -114,15 +124,17 @@ export async function POST(request) {
         kurs_usd_idr, kurs_sar_idr,
         hotel_mekkah_nama, hotel_mekkah_rate_double, hotel_mekkah_rate_triple, hotel_mekkah_rate_quad, hotel_mekkah_malam, hotel_mekkah_mata_uang,
         hotel_madinah_nama, hotel_madinah_rate_double, hotel_madinah_rate_triple, hotel_madinah_rate_quad, hotel_madinah_malam, hotel_madinah_mata_uang, hotel_list,
-        tiket_pesawat_rate, tiket_pesawat_mata_uang, tiket_pesawat_list, visa_rate, visa_mata_uang, biaya_lain_lain, biaya_lain_lain_mata_uang, komisi_rate, margin_rate)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        tiket_pesawat_rate, tiket_pesawat_mata_uang, tiket_pesawat_list, visa_rate, visa_mata_uang, biaya_lain_lain, biaya_lain_lain_mata_uang, komisi_rate, margin_rate,
+        margin_mode, margin_persen, komisi_mode, komisi_persen)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [h.nama, body.is_template ? 1 : 0, body.template_group || null, h.jenis_program, h.modul_tambahan, h.include_items, h.exclude_items, h.itinerary, h.itinerary_modul, body.program_id || null, h.paket, h.hotel_mode, h.bintang_aktif, h.pembulatan, h.umroh_dulu, h.pax_jamaah, h.pax_tl, h.pax_mutawwif, h.pax_mutawwifah, h.pax_driver,
         h.total_hari_program, h.manasik_umroh, h.perlengkapan_jamaah, h.haramain_express, h.handling_jeddah,
         h.city_tour_mekkah, h.city_tour_madinah, h.city_tour_thaif, h.transportasi_pilihan,
         h.kurs_usd_idr, h.kurs_sar_idr,
         h.hotel_mekkah_nama, h.hotel_mekkah_rate_double, h.hotel_mekkah_rate_triple, h.hotel_mekkah_rate_quad, h.hotel_mekkah_malam, h.hotel_mekkah_mata_uang,
         h.hotel_madinah_nama, h.hotel_madinah_rate_double, h.hotel_madinah_rate_triple, h.hotel_madinah_rate_quad, h.hotel_madinah_malam, h.hotel_madinah_mata_uang, h.hotel_list,
-        h.tiket_pesawat_rate, h.tiket_pesawat_mata_uang, h.tiket_pesawat_list, h.visa_rate, h.visa_mata_uang, h.biaya_lain_lain, h.biaya_lain_lain_mata_uang, h.komisi_rate, h.margin_rate]
+        h.tiket_pesawat_rate, h.tiket_pesawat_mata_uang, h.tiket_pesawat_list, h.visa_rate, h.visa_mata_uang, h.biaya_lain_lain, h.biaya_lain_lain_mata_uang, h.komisi_rate, h.margin_rate,
+        h.margin_mode, h.margin_persen, h.komisi_mode, h.komisi_persen]
     );
     const breakdownId = result.insertId;
 
@@ -159,7 +171,8 @@ export async function PUT(request) {
         kurs_usd_idr = ?, kurs_sar_idr = ?,
         hotel_mekkah_nama = ?, hotel_mekkah_rate_double = ?, hotel_mekkah_rate_triple = ?, hotel_mekkah_rate_quad = ?, hotel_mekkah_malam = ?, hotel_mekkah_mata_uang = ?,
         hotel_madinah_nama = ?, hotel_madinah_rate_double = ?, hotel_madinah_rate_triple = ?, hotel_madinah_rate_quad = ?, hotel_madinah_malam = ?, hotel_madinah_mata_uang = ?, hotel_list = ?,
-        tiket_pesawat_rate = ?, tiket_pesawat_mata_uang = ?, tiket_pesawat_list = ?, visa_rate = ?, visa_mata_uang = ?, biaya_lain_lain = ?, biaya_lain_lain_mata_uang = ?, komisi_rate = ?, margin_rate = ?
+        tiket_pesawat_rate = ?, tiket_pesawat_mata_uang = ?, tiket_pesawat_list = ?, visa_rate = ?, visa_mata_uang = ?, biaya_lain_lain = ?, biaya_lain_lain_mata_uang = ?, komisi_rate = ?, margin_rate = ?,
+        margin_mode = ?, margin_persen = ?, komisi_mode = ?, komisi_persen = ?
        WHERE id = ?`,
       [h.nama, body.template_group || null, h.jenis_program, h.modul_tambahan, h.include_items, h.exclude_items, h.itinerary, h.itinerary_modul, h.paket, h.hotel_mode, h.bintang_aktif, h.pembulatan, h.umroh_dulu, h.pax_jamaah, h.pax_tl, h.pax_mutawwif, h.pax_mutawwifah, h.pax_driver,
         h.total_hari_program, h.manasik_umroh, h.perlengkapan_jamaah, h.haramain_express, h.handling_jeddah,
@@ -167,7 +180,8 @@ export async function PUT(request) {
         h.kurs_usd_idr, h.kurs_sar_idr,
         h.hotel_mekkah_nama, h.hotel_mekkah_rate_double, h.hotel_mekkah_rate_triple, h.hotel_mekkah_rate_quad, h.hotel_mekkah_malam, h.hotel_mekkah_mata_uang,
         h.hotel_madinah_nama, h.hotel_madinah_rate_double, h.hotel_madinah_rate_triple, h.hotel_madinah_rate_quad, h.hotel_madinah_malam, h.hotel_madinah_mata_uang, h.hotel_list,
-        h.tiket_pesawat_rate, h.tiket_pesawat_mata_uang, h.tiket_pesawat_list, h.visa_rate, h.visa_mata_uang, h.biaya_lain_lain, h.biaya_lain_lain_mata_uang, h.komisi_rate, h.margin_rate, id]
+        h.tiket_pesawat_rate, h.tiket_pesawat_mata_uang, h.tiket_pesawat_list, h.visa_rate, h.visa_mata_uang, h.biaya_lain_lain, h.biaya_lain_lain_mata_uang, h.komisi_rate, h.margin_rate,
+        h.margin_mode, h.margin_persen, h.komisi_mode, h.komisi_persen, id]
     );
 
     await pool.query('DELETE FROM biaya_breakdown_item WHERE breakdown_id = ?', [id]);

@@ -3,6 +3,8 @@ import { wajibRole, wajibLogin } from '@/lib/auth';
 import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib/invoiceKwitansi';
+import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
+import { catatRekening } from '@/lib/rekeningLedger';
 
 // GET — payments (admin/booking), termasuk bukti transfer
 export async function GET(request) {
@@ -76,12 +78,32 @@ export async function POST(request) {
       );
     }
 
-    // Pelunasan hanya boleh setelah setuju Perjanjian Keberangkatan Jamaah
+    // Pelunasan hanya boleh setelah setuju Surat Perjanjian Jamaah Umroh
     if (type === 'lunas' && !bookings[0].setuju_pks) {
       return Response.json(
-        { error: 'Anda belum menyetujui Perjanjian Keberangkatan Jamaah. Setujui dulu sebelum pelunasan.' },
+        { error: 'Anda belum menyetujui Surat Perjanjian Jamaah Umroh. Setujui dulu sebelum pelunasan.' },
         { status: 400 }
       );
+    }
+
+    // Pelunasan hanya boleh setelah Perjanjian Jamaah BENERAN selesai
+    // (materai+TTD, digital ATAU fisik) — bukan cuma "setuju" (setuju_pks
+    // bisa dicentang duluan tanpa TTD/scan-nya kelar). Kondisi SAMA PERSIS
+    // src/lib/perjanjianJamaah.js#daftarPerjanjianBelumSelesai, jangan
+    // hitung ulang beda logic di 2 tempat. Sebelumnya cuma dicek client-side
+    // di /pelunasan, jadi bisa dilewatin kalau API dipanggil langsung.
+    if (type === 'lunas') {
+      const [[sig]] = await pool.query(
+        `SELECT fase FROM dokumen_signature WHERE dokumen = 'jamaah' AND ref_id = ?`,
+        [booking_id]
+      );
+      const perjanjianSelesai = bookings[0].perjanjian_scan_path != null || sig?.fase === 'selesai';
+      if (!perjanjianSelesai) {
+        return Response.json(
+          { error: 'Perjanjian Jamaah belum selesai (TTD digital atau scan fisik). Lengkapi dulu sebelum pelunasan.' },
+          { status: 400 }
+        );
+      }
     }
 
     const [users] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
@@ -146,26 +168,69 @@ export async function PATCH(request) {
     if (action === 'approve') {
       await pool.query("UPDATE payments SET status = 'confirmed' WHERE id = ?", [payment_id]);
 
+      // Rekening Alkhalid Jaya Megah — uang masuk dari SEMUA pembayaran
+      // program umroh biasa (DP maupun pelunasan), KECUALI booking Program
+      // Sahabat Baitullah eksklusif (publish_type='sahabat_baitullah', checkout
+      // mandiri) — itu bukan penjualan umroh reguler, sengaja gak dihitung
+      // ke rekening manapun di sini (dikonfirmasi user 2026-09-02).
+      try {
+        const [[prog]] = await pool.query('SELECT publish_type FROM programs WHERE id = ?', [booking?.prog_id]);
+        if (prog?.publish_type !== 'sahabat_baitullah') {
+          await catatRekening(pool, {
+            rekening: 'alkhalid', jenis: 'masuk', sumber_tipe: payment.type === 'lunas' ? 'payment_lunas' : 'payment_dp',
+            sumber_id: payment.id, nominal: payment.amount,
+            keterangan: `${payment.type === 'lunas' ? 'Pelunasan' : 'DP'} — ${booking?.prog_name || payment.booking_id} (${payment.nama || '-'})`,
+          });
+        }
+      } catch (e) {
+        console.error('Gagal catat rekening Alkhalid:', e);
+      }
+
+      // Booking checkout-mandiri Program Sahabat Baitullah (bayar dari saldo
+      // tabungan + sisa pribadi) butuh KEDUA sumber dana di-acc admin dulu
+      // sebelum beneran lunas (dikonfirmasi user 2026-08-29) — kalau booking
+      // ini punya baris pemakaian_saldo_sahabat terkait, JANGAN langsung set
+      // paid di sini, serahkan ke cekDanFinalisasiLunasSahabat yang cek
+      // dua-duanya. Booking normal (99% kasus) TIDAK punya baris ini sama
+      // sekali — perilaku di bawah SAMA PERSIS kayak sebelumnya, zero regresi.
+      let punyaDebitSaldo = false;
+      if (payment.type === 'lunas') {
+        const [[debit]] = await pool.query(
+          "SELECT id FROM komisi_ledger WHERE booking_id = ? AND jenis = 'pemakaian_saldo_sahabat'",
+          [payment.booking_id]
+        );
+        punyaDebitSaldo = !!debit;
+      }
+
       if (payment.type === 'dp') {
         await pool.query("UPDATE bookings SET dp_status = 'confirmed' WHERE id = ?", [payment.booking_id]);
-      } else if (payment.type === 'lunas') {
+      } else if (payment.type === 'lunas' && !punyaDebitSaldo) {
         await pool.query("UPDATE bookings SET pelunasan_status = 'paid' WHERE id = ?", [payment.booking_id]);
       }
 
       // Tanda Terima Uang digenerate OTOMATIS tiap pembayaran (DP/cicilan/
       // pelunasan) confirmed — 1 dokumen per payment, bukti uang itu spesifik
-      // diterima. Gagal generate JANGAN sampai gagalin approve pembayarannya
-      // sendiri — makanya try/catch.
+      // diterima, TERLEPAS dari status lunas keseluruhan booking (fungsi ini
+      // idempotent, aman dipanggil kapan pun). Gagal generate JANGAN sampai
+      // gagalin approve pembayarannya sendiri — makanya try/catch.
       try {
         await generateTandaTerimaUntukPayment(pool, payment.id, auth.user.id);
       } catch (e) {
         console.error('Gagal auto-generate tanda terima:', e);
       }
 
-      // Kwitansi Pembayaran cuma digenerate/di-update begitu LUNAS TOTAL
-      // (payment.type 'lunas' confirmed) — bukan dari DP. Nomor dibekukan
-      // pas lunas total pertama kali.
-      if (payment.type === 'lunas') {
+      if (payment.type === 'lunas' && punyaDebitSaldo) {
+        // Cek 2 sumber dana (saldo + topup) — kalau saldo-nya juga udah
+        // di-acc, ini yang bakal nge-set paid + generate Kwitansi/invoice.
+        try {
+          await cekDanFinalisasiLunasSahabat(pool, payment.booking_id, auth.user);
+        } catch (e) {
+          console.error('Gagal finalisasi lunas sahabat mandiri:', e);
+        }
+      } else if (payment.type === 'lunas') {
+        // Kwitansi Pembayaran cuma digenerate/di-update begitu LUNAS TOTAL
+        // (payment.type 'lunas' confirmed) — bukan dari DP. Nomor dibekukan
+        // pas lunas total pertama kali.
         try {
           await generateOrUpdateKwitansi(pool, payment.booking_id, auth.user.id);
         } catch (e) {
@@ -188,14 +253,20 @@ export async function PATCH(request) {
         }
       }
 
-      for (const uid of penerimaNotif) {
-        await kirimNotifikasi(pool, {
-          user_id: uid,
-          tipe: payment.type === 'lunas' ? 'pelunasan_confirmed' : 'dp_confirmed',
-          judul: payment.type === 'lunas' ? 'Pelunasan Dikonfirmasi' : 'DP Dikonfirmasi',
-          pesan: `${payment.type === 'lunas' ? 'Pelunasan' : 'DP'} booking ${booking?.prog_name || payment.booking_id} sudah dikonfirmasi admin.`,
-          link: '/dashboard/jamaah',
-        });
+      // Notifikasi "dikonfirmasi" ke jamaah SENGAJA di-skip buat jalur
+      // punyaDebitSaldo — cekDanFinalisasiLunasSahabat yang kirim notifnya
+      // sendiri, TAPI CUMA kalau beneran udah lunas 2-2nya (biar jamaah gak
+      // dapet notif "lunas" padahal masih nunggu acc saldo).
+      if (!(payment.type === 'lunas' && punyaDebitSaldo)) {
+        for (const uid of penerimaNotif) {
+          await kirimNotifikasi(pool, {
+            user_id: uid,
+            tipe: payment.type === 'lunas' ? 'pelunasan_confirmed' : 'dp_confirmed',
+            judul: payment.type === 'lunas' ? 'Pelunasan Dikonfirmasi' : 'DP Dikonfirmasi',
+            pesan: `${payment.type === 'lunas' ? 'Pelunasan' : 'DP'} booking ${booking?.prog_name || payment.booking_id} sudah dikonfirmasi admin.`,
+            link: '/dashboard/jamaah',
+          });
+        }
       }
 
       await catatAudit(pool, {

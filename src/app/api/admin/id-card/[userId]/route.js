@@ -1,7 +1,7 @@
-import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { generateIdCardPdf } from '@/lib/id-card/generate';
+import { absolutePathDariUrl } from '@/lib/dokumenProteksi';
 
 // GET /api/admin/id-card/[userId] — admin download PDF ID card perwakilan.
 export async function GET(request, { params }) {
@@ -25,7 +25,7 @@ export async function GET(request, { params }) {
     }
 
     const baseUrl = process.env.APP_URL || 'http://localhost:3000';
-    const fotoAbsolutePath = path.join(process.cwd(), 'public', u.foto_path);
+    const fotoAbsolutePath = absolutePathDariUrl(u.foto_path);
 
     // STOPGAP: kartu ID ini butuh sebuah URL publik buat QR code-nya
     // (generateIdCardPdf selalu menggambar QR, lihat src/lib/id-card/generate.js

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import PasswordInput from '@/app/components/PasswordInput';
 
 function getDashPath(role) {
   if (role === 'admin' || role === 'super_admin') return '/admin';
@@ -68,15 +69,15 @@ export default function GantiPasswordWajibPage() {
         <div className="space-y-3">
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Password Sementara (dari admin)</label>
-            <input type="password" value={passwordLama} onChange={e => setPasswordLama(e.target.value)} className={inp} />
+            <PasswordInput value={passwordLama} onChange={e => setPasswordLama(e.target.value)} className={inp} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Password Baru</label>
-            <input type="password" value={passwordBaru} onChange={e => setPasswordBaru(e.target.value)} className={inp} />
+            <PasswordInput value={passwordBaru} onChange={e => setPasswordBaru(e.target.value)} className={inp} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Konfirmasi Password Baru</label>
-            <input type="password" value={konfirmasi} onChange={e => setKonfirmasi(e.target.value)} className={inp} />
+            <PasswordInput value={konfirmasi} onChange={e => setKonfirmasi(e.target.value)} className={inp} />
           </div>
         </div>
 

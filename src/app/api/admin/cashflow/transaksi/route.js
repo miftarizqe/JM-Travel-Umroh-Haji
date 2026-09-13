@@ -1,32 +1,45 @@
 import pool from '@/lib/db';
 import { wajibSuperAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
+import { pastikanPeriode } from '@/lib/cashflow';
 
 async function ambilPeriode(id) {
   const [[periode]] = await pool.query('SELECT * FROM cashflow_periode WHERE id = ?', [id]);
   return periode;
 }
 
-// GET /api/admin/cashflow/transaksi?periode_id=X
+// GET /api/admin/cashflow/transaksi?periode_id=X — transaksi 1 periode
+// (Cashflow Bulanan, ber-akun).
+// GET /api/admin/cashflow/transaksi?tanpa_akun=1 — transaksi "purchasing"
+// (akun_id IS NULL, lihat halaman /admin/purchasing), lintas periode,
+// terbaru duluan — gak butuh periode_id karena bukan konteks 1 bulan buku
+// kas, cuma catatan bon.
 export async function GET(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
+    const tanpaAkun = searchParams.get('tanpa_akun') === '1';
     const periodeId = Number(searchParams.get('periode_id'));
-    if (!periodeId) return Response.json({ error: 'Parameter periode_id wajib diisi' }, { status: 400 });
+    if (!tanpaAkun && !periodeId) return Response.json({ error: 'Parameter periode_id wajib diisi' }, { status: 400 });
+
+    const where = tanpaAkun ? 't.akun_id IS NULL' : 't.periode_id = ?';
+    const params = tanpaAkun ? [] : [periodeId];
+    const order = tanpaAkun ? 'ORDER BY t.tanggal DESC, t.id DESC LIMIT 200' : 'ORDER BY t.tanggal ASC, t.id ASC';
 
     const [rows] = await pool.query(
       `SELECT t.*, a.nama AS akun_nama, u.name AS input_oleh_nama, k.nama AS kategori_nama,
+              p.name AS program_nama,
               induk.deskripsi AS settlement_induk_deskripsi
        FROM cashflow_transaksi t
        LEFT JOIN cashflow_akun a ON a.id = t.akun_id
        LEFT JOIN users u ON u.id = t.input_oleh
        LEFT JOIN cashflow_kategori k ON k.id = t.kategori_id
+       LEFT JOIN programs p ON p.id = t.program_id
        LEFT JOIN cashflow_transaksi induk ON induk.id = t.settlement_induk_id
-       WHERE t.periode_id = ?
-       ORDER BY t.tanggal ASC, t.id ASC`,
-      [periodeId]
+       WHERE ${where}
+       ${order}`,
+      params
     );
     return Response.json({ transaksi: rows });
   } catch (error) {
@@ -41,10 +54,23 @@ export async function POST(request) {
   if (auth.error) return auth.error;
   try {
     const body = await request.json();
-    const { periode_id, tanggal, deskripsi, kategori_id, akun_id, tipe, nominal, bukti_path, bukti_nama, is_settlement, penerima_settlement, settlement_induk_id } = body;
+    let { periode_id } = body;
+    const { tanggal, deskripsi, kategori_id, program_id, akun_id, tipe, nominal, bukti_path, bukti_nama, is_settlement, penerima_settlement, settlement_induk_id } = body;
 
-    if (!periode_id || !tanggal || !deskripsi?.trim() || !akun_id || !['in', 'out'].includes(tipe) || !nominal || Number(nominal) <= 0) {
+    if (!tanggal || !deskripsi?.trim() || !['in', 'out'].includes(tipe) || !nominal || Number(nominal) <= 0) {
       return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
+    }
+    // akun_id opsional (lihat migration-cashflow-akun-opsional.sql) — transaksi
+    // "purchasing/realisasi" (bon owner, belanja perlengkapan) gak nempel akun
+    // manapun. Transaksi ber-akun (Cashflow Bulanan asli) tetap wajib periode_id
+    // eksplisit dari client (halaman itu selalu di dalam konteks 1 periode
+    // yang lagi dibuka); transaksi TANPA akun boleh biarin periode_id kosong,
+    // di-resolve/dibikin OTOMATIS dari bulan tanggal-nya biar admin gak perlu
+    // ribet "buka periode" dulu buat sekadar nyatet bon.
+    if (!periode_id) {
+      if (akun_id) return Response.json({ error: 'periode_id wajib diisi' }, { status: 400 });
+      const periodeOtomatis = await pastikanPeriode(pool, String(tanggal).slice(0, 7), auth.user.id);
+      periode_id = periodeOtomatis.id;
     }
 
     const periode = await ambilPeriode(periode_id);
@@ -63,9 +89,9 @@ export async function POST(request) {
 
     const [result] = await pool.query(
       `INSERT INTO cashflow_transaksi
-        (periode_id, tanggal, deskripsi, kategori_id, akun_id, tipe, nominal, bukti_path, bukti_nama, is_settlement, penerima_settlement, settlement_induk_id, input_oleh)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [periode_id, tanggal, deskripsi.trim(), kategori_id || null, akun_id, tipe, Number(nominal), bukti_path || null, bukti_nama || null,
+        (periode_id, tanggal, deskripsi, kategori_id, program_id, akun_id, tipe, nominal, bukti_path, bukti_nama, is_settlement, penerima_settlement, settlement_induk_id, input_oleh)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [periode_id, tanggal, deskripsi.trim(), kategori_id || null, program_id || null, akun_id || null, tipe, Number(nominal), bukti_path || null, bukti_nama || null,
        is_settlement ? 1 : 0, penerima_settlement?.trim() || null, settlement_induk_id || null, auth.user.id]
     );
 
@@ -136,8 +162,8 @@ export async function PUT(request) {
   if (auth.error) return auth.error;
   try {
     const body = await request.json();
-    const { id, tanggal, deskripsi, kategori_id, akun_id, tipe, nominal, bukti_path, bukti_nama, is_settlement, penerima_settlement } = body;
-    if (!id || !tanggal || !deskripsi?.trim() || !akun_id || !['in', 'out'].includes(tipe) || !nominal || Number(nominal) <= 0) {
+    const { id, tanggal, deskripsi, kategori_id, program_id, akun_id, tipe, nominal, bukti_path, bukti_nama, is_settlement, penerima_settlement } = body;
+    if (!id || !tanggal || !deskripsi?.trim() || !['in', 'out'].includes(tipe) || !nominal || Number(nominal) <= 0) {
       return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     }
 
@@ -150,9 +176,9 @@ export async function PUT(request) {
 
     await pool.query(
       `UPDATE cashflow_transaksi
-       SET tanggal = ?, deskripsi = ?, kategori_id = ?, akun_id = ?, tipe = ?, nominal = ?, bukti_path = ?, bukti_nama = ?, is_settlement = ?, penerima_settlement = ?
+       SET tanggal = ?, deskripsi = ?, kategori_id = ?, program_id = ?, akun_id = ?, tipe = ?, nominal = ?, bukti_path = ?, bukti_nama = ?, is_settlement = ?, penerima_settlement = ?
        WHERE id = ?`,
-      [tanggal, deskripsi.trim(), kategori_id || null, akun_id, tipe, Number(nominal), bukti_path || null, bukti_nama || null,
+      [tanggal, deskripsi.trim(), kategori_id || null, program_id || null, akun_id || null, tipe, Number(nominal), bukti_path || null, bukti_nama || null,
        is_settlement ? 1 : 0, penerima_settlement?.trim() || null, id]
     );
 

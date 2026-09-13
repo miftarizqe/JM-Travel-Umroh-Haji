@@ -41,7 +41,7 @@ export default function WaitlistCTA({ progId }) {
 
   return (
     <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 text-center">
-      <div className="text-3xl mb-2">🈵</div>
+      <div className="text-3xl mb-2">🚫</div>
       <div className="font-bold text-amber-800 mb-1">Slot Penuh</div>
       <div className="text-sm text-amber-700 mb-4">
         Semua slot buat program ini lagi penuh. Kadang ada jamaah lain yang batal — kamu bisa didaftarin buat dikabarin duluan kalau itu kejadian.

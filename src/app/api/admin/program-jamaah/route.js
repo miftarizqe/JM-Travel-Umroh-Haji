@@ -14,7 +14,7 @@ export async function GET(request) {
     const [bookings] = await pool.query(
       `SELECT b.id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah,
               b.dp_status, b.pelunasan_status, b.status, b.form_filled, b.form_total,
-              b.total_harga, b.dp_amount,
+              b.total_harga, b.dp_amount, b.opsi_tambahan_total,
               b.sumber_info, b.referral_kode, b.jamaah_data, b.created_at,
               p.tanggal_berangkat,
               EXISTS (
@@ -49,7 +49,7 @@ export async function GET(request) {
         jumlah_jamaah: b.jumlah_jamaah, dp_status: b.dp_status,
         pelunasan_status: b.pelunasan_status, status: b.status,
         form_filled: b.form_filled, form_total: b.form_total,
-        total_harga: b.total_harga, dp_amount: b.dp_amount,
+        total_harga: b.total_harga, dp_amount: b.dp_amount, opsi_tambahan_total: b.opsi_tambahan_total,
         sumber: sumberLabel, referral_kode: b.referral_kode,
         pemesan_nama: b.pemesan_nama, pemesan_email: b.pemesan_email,
         created_at: b.created_at,

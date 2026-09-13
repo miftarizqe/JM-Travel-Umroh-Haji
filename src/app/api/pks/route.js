@@ -2,7 +2,7 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 
-// POST /api/pks  body: { jenis: 'perwakilan'|'jamaah', booking_id? }
+// POST /api/pks  body: { jenis: 'perwakilan'|'jamaah'|'sahabat_baitullah', booking_id? }
 // Mencatat persetujuan Perjanjian Kerjasama.
 export async function POST(request) {
   const auth = wajibLogin(request);
@@ -10,7 +10,7 @@ export async function POST(request) {
 
   try {
     const { jenis, booking_id } = await request.json();
-    if (!['perwakilan', 'jamaah'].includes(jenis)) {
+    if (!['perwakilan', 'jamaah', 'sahabat_baitullah'].includes(jenis)) {
       return Response.json({ error: 'Jenis PKS tidak dikenal' }, { status: 400 });
     }
 
@@ -22,6 +22,17 @@ export async function POST(request) {
 
       await pool.query('UPDATE bookings SET setuju_pks = 1, setuju_pks_at = NOW() WHERE id = ?', [booking_id]);
       await pastikanSnapshot(pool, String(booking_id), 'jamaah');
+      return Response.json({ message: 'Persetujuan tercatat.' });
+    }
+
+    if (jenis === 'sahabat_baitullah') {
+      // Konsep sama dengan perwakilan (persetujuan dicatat di users, role
+      // eksklusif jadi kolom setuju_pks aman dipakai bareng) — snapshot pasal
+      // SPK-AK dibekukan saat nomor surat pertama kali digenerate (lihat
+      // siapkanData('spk_ak') di admin/dokumen-signature/route.js), bukan di
+      // sini, karena user boleh centang persetujuan berkali-kali sebelum
+      // benar-benar memicu TTD.
+      await pool.query('UPDATE users SET setuju_pks = 1, setuju_pks_at = NOW() WHERE id = ?', [auth.user.id]);
       return Response.json({ message: 'Persetujuan tercatat.' });
     }
 

@@ -484,7 +484,7 @@ function InvoiceKwitansiPageInner() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-400 block mb-1">Tanggal</label>
-                <input type="date" value={form.tanggal} onChange={e => setForm(f => ({ ...f, tanggal: e.target.value }))}
+                <input type="date" value={form.tanggal} onChange={e => { if (e.target.value) setForm(f => ({ ...f, tanggal: e.target.value })); }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>

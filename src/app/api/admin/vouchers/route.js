@@ -1,5 +1,5 @@
  import pool from '@/lib/db';
-import { wajibRole } from '@/lib/auth';
+import { wajibRole, wajibSuperAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 
 // GET /api/admin/vouchers — daftar semua voucher
@@ -25,7 +25,7 @@ export async function GET(request) {
 // `kuota` & `valid_until` NULL = tanpa batas (independen, boleh dua-duanya aktif
 // atau dua-duanya kosong) — bukan pilih salah satu.
 export async function POST(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
     const {
@@ -52,9 +52,14 @@ export async function POST(request) {
       return Response.json({ error: 'Kode voucher sudah dipakai' }, { status: 400 });
     }
 
+    // disetujui_at = NOW() langsung — voucher yang dibuat admin manual lewat
+    // form ini dianggap sudah di-ACC saat itu juga (admin yang bikin = admin
+    // yang approve). Cuma voucher AUTO-GENERATE sistem (lihat
+    // status-pendaftaran-sahabat/route.js, program Sahabat Baitullah) yang
+    // lahir dengan disetujui_at NULL dan butuh ACC manual terpisah.
     await pool.query(
-      `INSERT INTO vouchers (kode, potongan, kuota, terpakai, aktif, prog_id, for_user, akses_role, tampil, valid_until, catatan, dibuat_oleh, used)
-       VALUES (?, ?, ?, 0, 1, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      `INSERT INTO vouchers (kode, potongan, kuota, terpakai, aktif, disetujui_at, prog_id, for_user, akses_role, tampil, valid_until, catatan, dibuat_oleh, used)
+       VALUES (?, ?, ?, 0, 1, NOW(), ?, ?, ?, ?, ?, ?, ?, 0)`,
       [kodeUpper, Number(potongan), kuota != null ? Number(kuota) : null, prog_id || null,
        aksesFinal === 'akun' ? for_user : null, aksesFinal, tampil === false ? 0 : 1,
        valid_until || null, catatan || null, dibuat_oleh || null]
@@ -75,16 +80,28 @@ export async function POST(request) {
   }
 }
 
-// PATCH /api/admin/vouchers — aktif / nonaktif
-// body: { id, aktif }
+// PATCH /api/admin/vouchers — aktif/nonaktif ATAU ACC voucher auto-generate
+// body: { id, aktif } | { id, approve: true }
 export async function PATCH(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
-    const { id, aktif } = await request.json();
+    const { id, aktif, approve } = await request.json();
     if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
 
     const [v] = await pool.query('SELECT kode FROM vouchers WHERE id = ?', [id]);
+
+    if (approve) {
+      await pool.query('UPDATE vouchers SET disetujui_at = NOW() WHERE id = ? AND disetujui_at IS NULL', [id]);
+      await catatAudit(pool, {
+        actor: auth.user,
+        aksi: 'approve_voucher',
+        target_type: 'voucher',
+        target_id: v[0]?.kode || id,
+      });
+      return Response.json({ message: 'Voucher disetujui, siap dipakai.' });
+    }
+
     await pool.query('UPDATE vouchers SET aktif = ? WHERE id = ?', [aktif ? 1 : 0, id]);
 
     await catatAudit(pool, {
@@ -103,7 +120,7 @@ export async function PATCH(request) {
 
 // DELETE /api/admin/vouchers?id=xxx
 export async function DELETE(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);

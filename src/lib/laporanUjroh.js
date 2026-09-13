@@ -1,11 +1,5 @@
 import { cariPotensiResellerLangsung, costBasisPerwakilan } from '@/lib/closing';
-
-function kamarKeyOf(kamar) {
-  const k = String(kamar || '').toLowerCase();
-  if (k.includes('quad')) return 'quad';
-  if (k.includes('double')) return 'double';
-  return 'triple';
-}
+import { groupJamaahAktif } from '@/lib/jamaahHarga';
 
 // 'closing_bsi' dikunci ke tabungan BSI (bukan ditransfer ke rekening
 // pribadi) — semua jenis lain ditransfer ke rekening pribadi penerima.
@@ -51,7 +45,7 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
     `SELECT DISTINCT id FROM (
        SELECT referral_perw_id AS id FROM bookings WHERE referral_perw_id IS NOT NULL AND status = 'selesai'
        UNION
-       SELECT kl.penerima_id AS id FROM komisi_ledger kl JOIN users u ON u.id = kl.penerima_id WHERE u.role = 'perwakilan'
+       SELECT kl.penerima_id AS id FROM komisi_ledger kl JOIN users u ON u.id = kl.penerima_id WHERE u.role = 'perwakilan' OR u.role_kedua = 'perwakilan'
      ) t`
   );
   if (perwClosers.length > 0) {
@@ -67,7 +61,8 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
       if (from) { closingWhere += ' AND b.created_at >= ?'; closingParams.push(`${from} 00:00:00`); }
       if (to) { closingWhere += ' AND b.created_at <= ?'; closingParams.push(`${to} 23:59:59`); }
       const [closedRows] = await pool.query(
-        `SELECT b.id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.total_harga, b.created_at, b.prog_id,
+        `SELECT b.id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.jamaah_data,
+                b.total_harga, b.opsi_tambahan_total, b.created_at, b.prog_id,
                 p.hpp_deluxe_quad, p.hpp_deluxe_triple, p.hpp_deluxe_double,
                 p.hpp_eksekutif_quad, p.hpp_eksekutif_triple, p.hpp_eksekutif_double,
                 p.hpp_signature_quad, p.hpp_signature_triple, p.hpp_signature_double
@@ -79,11 +74,17 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
       let realizedTotal = 0;
       const realizedDetail = [];
       for (const c of closedRows) {
-        const paket = String(c.paket || 'deluxe').toLowerCase();
-        const kamar = kamarKeyOf(c.kamar);
-        const hppKantor = Number(c[`hpp_${paket}_${kamar}`] || 0);
-        const cost = await costBasisPerwakilan(pool, pu.id, c.prog_id, paket, kamar, hppKantor);
-        const ujroh = (c.total_harga || 0) - cost * (c.jumlah_jamaah || 1);
+        // Cost basis dihitung PER KOMBO paket+kamar (lihat groupJamaahAktif)
+        // — bisa beda per jamaah dalam 1 booking. Revenue tetap pakai
+        // total_harga (udah akurat, jumlah harga_jual semua jamaah + opsi).
+        let costTotal = 0;
+        for (const g of groupJamaahAktif(c)) {
+          const paketG = String(g.paket || 'deluxe').toLowerCase();
+          const hppKantor = Number(c[`hpp_${paketG}_${g.kamarKey}`] || 0);
+          const cost = await costBasisPerwakilan(pool, pu.id, c.prog_id, paketG, g.kamarKey, hppKantor);
+          costTotal += cost * g.count;
+        }
+        const ujroh = (c.total_harga || 0) - costTotal;
         realizedTotal += ujroh;
         const row = {
           booking_id: c.id, prog_name: c.prog_name, jumlah_jamaah: c.jumlah_jamaah || 1,
@@ -122,7 +123,8 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
       realizedDetail.sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
 
       const [ownActive] = await pool.query(
-        `SELECT b.id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.total_harga, b.prog_id,
+        `SELECT b.id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.jamaah_data,
+                b.total_harga, b.opsi_tambahan_total, b.prog_id,
                 p.hpp_deluxe_quad, p.hpp_deluxe_triple, p.hpp_deluxe_double,
                 p.hpp_eksekutif_quad, p.hpp_eksekutif_triple, p.hpp_eksekutif_double,
                 p.hpp_signature_quad, p.hpp_signature_triple, p.hpp_signature_double
@@ -132,11 +134,14 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
       let ownForecastTotal = 0;
       const ownForecastDetail = [];
       for (const c of ownActive) {
-        const paket = String(c.paket || 'deluxe').toLowerCase();
-        const kamar = kamarKeyOf(c.kamar);
-        const hppKantor = Number(c[`hpp_${paket}_${kamar}`] || 0);
-        const cost = await costBasisPerwakilan(pool, pu.id, c.prog_id, paket, kamar, hppKantor);
-        const ujroh = (c.total_harga || 0) - cost * (c.jumlah_jamaah || 1);
+        let costTotal = 0;
+        for (const g of groupJamaahAktif(c)) {
+          const paketG = String(g.paket || 'deluxe').toLowerCase();
+          const hppKantor = Number(c[`hpp_${paketG}_${g.kamarKey}`] || 0);
+          const cost = await costBasisPerwakilan(pool, pu.id, c.prog_id, paketG, g.kamarKey, hppKantor);
+          costTotal += cost * g.count;
+        }
+        const ujroh = (c.total_harga || 0) - costTotal;
         if (ujroh <= 0) continue;
         ownForecastTotal += ujroh;
         ownForecastDetail.push({ booking_id: c.id, prog_name: c.prog_name, jumlah_jamaah: c.jumlah_jamaah || 1, jenis: 'margin_pribadi', keterangan: 'Belum closing', nominal: ujroh });

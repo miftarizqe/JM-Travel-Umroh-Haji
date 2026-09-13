@@ -5,8 +5,9 @@
 // /api/admin/dokumen-signature dengan data yang SUDAH di-fetch (bukan
 // nge-fetch sendiri) — biar fungsi ini murni presentational & gampang dites.
 import { Document, Page, Text, View, renderToBuffer } from '@react-pdf/renderer';
-import { styles, Kop, Field } from './pdfStyles';
+import { styles, Kop, Field, SPASI_SEBELUM_PASAL_PDF, UKURAN_PDF } from './pdfStyles';
 import { renderPasalMarkupPdf } from '@/lib/pasalMarkupPdf';
+import { tambahNomorHalaman } from './nomorHalaman';
 
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -37,12 +38,12 @@ export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, p
   const tglGabung = new Date(user.created_at);
   const mergeData = { bank_agen: user.bank, rekening_agen: user.no_rekening, nama_rekening_agen: user.nama_pemilik_rekening };
 
-  const TtdBox = ({ pihak, sub, nama }) => (
-    <View style={styles.ttdBox}>
+  const TtdBox = ({ pihak, sub, nama, solo }) => (
+    <View style={solo ? [styles.ttdBox, styles.ttdBoxSolo] : styles.ttdBox}>
       <Text>{pihak}</Text>
-      <Text style={{ fontFamily: 'Helvetica-Bold' }}>{sub}</Text>
+      <Text style={{ fontFamily: 'Times-Bold' }}>{sub}</Text>
       <View style={styles.ttdSpace}>
-        {untukTtdDigital && <Text style={{ fontSize: 8, color: '#999' }}>(menunggu TTD digital)</Text>}
+        {untukTtdDigital && <Text style={{ fontSize: 6, color: '#999' }}>(menunggu TTD digital)</Text>}
       </View>
       <Text style={styles.ttdLine}>({nama})</Text>
     </View>
@@ -51,14 +52,14 @@ export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, p
   const doc = (
     <Document>
       <Page size="A4" style={styles.page}>
-        <Kop pengaturan={pengaturan} logoPath={logoPath} />
+        <View fixed><Kop pengaturan={pengaturan} logoPath={logoPath} /></View>
         {rangkapLabel && (
-          <Text style={{ textAlign: 'right', fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#C9952A', marginBottom: 4 }}>{rangkapLabel}</Text>
+          <Text style={{ textAlign: 'right', fontSize: 6.75, fontFamily: 'Times-Bold', color: '#C9952A', marginBottom: 3 }}>{rangkapLabel}</Text>
         )}
         <Text style={styles.judul}>SURAT PERJANJIAN KERJA SAMA PERWAKILAN</Text>
         <Text style={styles.subJudul}>Nomor: {nomor}</Text>
 
-        <Text style={{ fontSize: 10, marginBottom: 6 }}>
+        <Text style={{ fontSize: UKURAN_PDF.normal, marginBottom: 4.5 }}>
           Pada hari {HARI[tglGabung.getDay()]}, tanggal {tglIndo(tglGabung)}, bertempat di Jakarta, kami yang bertanda tangan dibawah ini :
         </Text>
 
@@ -80,14 +81,21 @@ export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, p
         <Field label="Alamat" value={perekrutEfektif.alamat} />
         <Field label="No. Telepon" value={perekrutEfektif.wa} />
 
-        <Text style={{ fontSize: 10, marginTop: 8 }}>
-          PIHAK PERTAMA dan PIHAK KEDUA selanjutnya secara bersama-sama disebut <Text style={{ fontFamily: 'Helvetica-Bold' }}>PARA PIHAK</Text>, sepakat untuk mengikatkan diri dalam Perjanjian Kerja Sama dengan ketentuan sebagai berikut:
+        <Text style={{ fontSize: UKURAN_PDF.normal, marginTop: 6 }}>
+          PIHAK PERTAMA dan PIHAK KEDUA selanjutnya secara bersama-sama disebut <Text style={{ fontFamily: 'Times-Bold' }}>PARA PIHAK</Text>, sepakat untuk mengikatkan diri dalam Perjanjian Kerja Sama dengan ketentuan sebagai berikut:
         </Text>
 
         {(pasal || []).map(p => (
-          <View key={p.nomor} style={{ marginTop: 12 }} wrap={false}>
-            <Text style={{ textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 10.5 }}>PASAL {p.nomor}</Text>
-            <Text style={{ textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 10.5, marginBottom: 4 }}>{p.judul}</Text>
+          <View key={p.nomor} style={{ marginTop: SPASI_SEBELUM_PASAL_PDF }}>
+            {/* wrap={false} CUMA di heading (bukan seluruh pasal) — pasal
+                panjang (lebih dari 1 halaman) bikin react-pdf crash
+                ("unsupported number") kalau seluruh isinya dipaksa jadi 1
+                blok gak-bisa-kepotong, dikonfirmasi bug nyata dari
+                SPKA-Ins yang isinya 15 pasal, salah satunya panjang. */}
+            <View wrap={false}>
+              <Text style={{ textAlign: 'center', fontFamily: 'Times-Bold', fontSize: UKURAN_PDF.subJudul }}>PASAL {p.nomor}</Text>
+              <Text style={{ textAlign: 'center', fontFamily: 'Times-Bold', fontSize: UKURAN_PDF.subJudul, marginBottom: 3 }}>{p.judul}</Text>
+            </View>
             {renderPasalMarkupPdf(p.isi, mergeData)}
           </View>
         ))}
@@ -96,12 +104,16 @@ export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, p
           <TtdBox pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} />
           <TtdBox pihak="PIHAK KEDUA" sub="Perwakilan" nama={user.name} />
         </View>
-        <View style={{ marginTop: 20 }}>
-          <TtdBox pihak="PIHAK KETIGA" sub="Perekrut" nama={perekrutEfektif.name} />
+        <View style={styles.ttdSolo}>
+          <TtdBox pihak="PIHAK KETIGA" sub="Perekrut" nama={perekrutEfektif.name} solo />
         </View>
+
       </Page>
     </Document>
   );
 
-  return renderToBuffer(doc);
+  // Nomor halaman DISTEMPEL SETELAH render (pdf-lib), bukan fixed+render
+  // react-pdf bawaan — lihat komentar lengkap di nomorHalaman.js kenapa.
+  const buffer = await renderToBuffer(doc);
+  return tambahNomorHalaman(buffer);
 }

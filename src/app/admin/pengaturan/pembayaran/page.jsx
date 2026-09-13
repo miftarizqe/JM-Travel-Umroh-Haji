@@ -51,9 +51,23 @@ function FormMetode({ editing, setEditing, saving, uploadingQr, onPilihQr, onSim
         </>
       )}
 
+      <div className="mb-3">
+        <label className={lbl}>Ruang Lingkup</label>
+        <div className="flex flex-col gap-1.5">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="ruang_lingkup" checked={!editing.khusus_sahabat} onChange={() => setEditing(ed => ({ ...ed, khusus_sahabat: false }))} className="w-4 h-4 accent-[#1A4FA0]" />
+            <span className="text-sm text-gray-600">Publik — booking/checkout biasa</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="ruang_lingkup" checked={editing.khusus_sahabat} onChange={() => setEditing(ed => ({ ...ed, khusus_sahabat: true }))} className="w-4 h-4 accent-[#C9952A]" />
+            <span className="text-sm text-gray-600">Khusus Sahabat Baitullah — cuma buat setoran pendaftaran Rp1.000.000</span>
+          </label>
+        </div>
+      </div>
+
       <label className="flex items-center gap-2 mb-4 cursor-pointer">
         <input type="checkbox" checked={editing.aktif} onChange={e => setEditing(ed => ({ ...ed, aktif: e.target.checked }))} className="w-4 h-4 accent-[#1A4FA0]" />
-        <span className="text-sm text-gray-600">Tampilkan ke publik</span>
+        <span className="text-sm text-gray-600">Aktif (dipakai)</span>
       </label>
 
       <div className="flex gap-2">
@@ -95,20 +109,22 @@ export default function AdminMetodePembayaranPage() {
     // user null krn localStorage belum kebaca di render pertama — bukan
     // berarti belum login (pola sama di halaman admin lain).
     if (!user) return;
-    if (!['admin','super_admin'].includes(user.role)) { router.replace('/login'); return; }
+    // Rekening tujuan transfer — khusus super_admin (dikonfirmasi user
+    // 2026-08-21, admin biasa gak boleh ganti2 rekening/nomor pembayaran).
+    if (user.role !== 'super_admin') { router.replace('/admin?tab=dashboard'); return; }
     muatData();
   }, [user]);
 
-  if (!user || !['admin','super_admin'].includes(user.role) || loading) {
+  if (!user || user.role !== 'super_admin' || loading) {
     return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
   }
 
   function mulaiEdit(m) {
-    setEditing({ id: m.id, nama: m.nama, nomor: m.nomor || '', atas_nama: m.atas_nama || '', catatan: m.catatan || '', aktif: !!m.aktif, gambar_qr: m.gambar_qr, isNew: false });
+    setEditing({ id: m.id, nama: m.nama, nomor: m.nomor || '', atas_nama: m.atas_nama || '', catatan: m.catatan || '', aktif: !!m.aktif, khusus_sahabat: !!m.khusus_sahabat, gambar_qr: m.gambar_qr, isNew: false });
   }
 
   function mulaiTambah() {
-    setEditing({ id: null, nama: '', nomor: '', atas_nama: '', catatan: '', aktif: true, gambar_qr: null, isNew: true });
+    setEditing({ id: null, nama: '', nomor: '', atas_nama: '', catatan: '', aktif: true, khusus_sahabat: false, gambar_qr: null, isNew: true });
   }
 
   async function simpan() {
@@ -117,7 +133,7 @@ export default function AdminMetodePembayaranPage() {
     try {
       const res = await fetch('/api/admin/metode-pembayaran', {
         method: editing.isNew ? 'POST' : 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editing.id, nama: editing.nama, nomor: editing.nomor, atas_nama: editing.atas_nama, catatan: editing.catatan, aktif: editing.aktif }),
+        body: JSON.stringify({ id: editing.id, nama: editing.nama, nomor: editing.nomor, atas_nama: editing.atas_nama, catatan: editing.catatan, aktif: editing.aktif, khusus_sahabat: editing.khusus_sahabat }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal menyimpan'); return; }
@@ -172,7 +188,7 @@ export default function AdminMetodePembayaranPage() {
   async function toggleAktif(m) {
     await fetch('/api/admin/metode-pembayaran', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: m.id, nama: m.nama, nomor: m.nomor, atas_nama: m.atas_nama, catatan: m.catatan, aktif: m.aktif ? 0 : 1 }),
+      body: JSON.stringify({ id: m.id, nama: m.nama, nomor: m.nomor, atas_nama: m.atas_nama, catatan: m.catatan, aktif: m.aktif ? 0 : 1, khusus_sahabat: m.khusus_sahabat }),
     });
     muatData();
   }
@@ -182,7 +198,7 @@ export default function AdminMetodePembayaranPage() {
   return (
     <Layout title="💳 Metode Pembayaran" backHref="/admin/pengaturan/dokumen">
       <div className="text-xs text-gray-400 mb-4">
-        Semua cara bayar yang ditampilkan ke jamaah (landing page, checkout, order jamaah, pelunasan) — bisa lebih dari satu (beberapa bank, e-wallet, QRIS, dst). Yang non-aktif gak tampil ke publik tapi datanya tetap tersimpan.
+        Semua cara bayar yang ditampilkan ke jamaah (landing page, checkout, order jamaah, pelunasan) — bisa lebih dari satu (beberapa bank, e-wallet, QRIS, dst). Yang non-aktif gak tampil di manapun tapi datanya tetap tersimpan. Ruang Lingkup "Khusus Sahabat Baitullah" cuma tampil di halaman pendaftaran Sahabat Baitullah, gak pernah ikut nongol di checkout/booking biasa walau aktif.
       </div>
 
       {editing?.isNew && <div className="mb-3"><FormMetode {...formProps} /></div>}
@@ -203,7 +219,12 @@ export default function AdminMetodePembayaranPage() {
                 <img src={m.gambar_qr} alt="" className="w-10 h-10 object-contain rounded-lg border border-gray-200 bg-white shrink-0" />
               )}
               <div onClick={() => mulaiEdit(m)} className="min-w-0 flex-1 cursor-pointer">
-                <div className="text-sm font-semibold text-gray-700">{m.nama}</div>
+                <div className="text-sm font-semibold text-gray-700 flex items-center gap-1.5">
+                  {m.nama}
+                  {!!m.khusus_sahabat && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 whitespace-nowrap">🤝 Sahabat Baitullah</span>
+                  )}
+                </div>
                 <div className="text-xs text-gray-400">
                   {m.nomor && <>{m.nomor}{m.atas_nama && ` · a.n. ${m.atas_nama}`}</>}
                   {m.catatan && <> · {m.catatan}</>}

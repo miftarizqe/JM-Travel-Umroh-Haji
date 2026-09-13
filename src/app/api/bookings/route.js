@@ -58,6 +58,57 @@ export async function GET(request) {
           status: statusMap.get(`${b.id}:${idx}`) || 'belum_diproses',
         }));
       }
+
+      // Status TTD Perjanjian Jamaah (dokumen_signature dokumen='jamaah') —
+      // dipakai getStage() di dashboard jamaah buat nentuin apakah jalur
+      // digital sudah selesai atau masih perlu lanjut ke /tanda-tangan/[id].
+      const [sigRows] = await pool.query(
+        `SELECT ref_id, id, fase, metode FROM dokumen_signature WHERE dokumen = 'jamaah' AND ref_id IN (${bookingIdsDpConfirmed.map(() => '?').join(',')})`,
+        bookingIdsDpConfirmed
+      );
+      const sigMap = new Map(sigRows.map(s => [String(s.ref_id), { id: s.id, fase: s.fase, metode: s.metode }]));
+
+      // Penyesuaian harga (kenaikan tiket/force majeure) yang masih pending
+      // persetujuan jamaah — dipakai gate di /pelunasan.
+      const [penyesuaianRows] = await pool.query(
+        `SELECT id, booking_id, harga_baru, alasan FROM booking_penyesuaian_harga WHERE booking_id IN (${bookingIdsDpConfirmed.map(() => '?').join(',')}) AND status = 'pending'`,
+        bookingIdsDpConfirmed
+      );
+      const penyesuaianMap = new Map(penyesuaianRows.map(p => [String(p.booking_id), { id: p.id, harga_baru: p.harga_baru, alasan: p.alasan }]));
+
+      // Info Manasik per program (jadwal/lokasi/catatan) — sekadar info,
+      // tampil di dashboard jamaah begitu DP confirmed.
+      const progIds = [...new Set(bookings.filter(b => b.dp_status === 'confirmed').map(b => b.prog_id).filter(Boolean))];
+      let manasikMap = new Map();
+      if (progIds.length > 0) {
+        const [progRows] = await pool.query(
+          `SELECT id, manasik_tanggal, manasik_lokasi, manasik_catatan FROM programs WHERE id IN (${progIds.map(() => '?').join(',')})`,
+          progIds
+        );
+        manasikMap = new Map(progRows.filter(p => p.manasik_tanggal).map(p => [String(p.id), {
+          tanggal: p.manasik_tanggal, lokasi: p.manasik_lokasi, catatan: p.manasik_catatan,
+        }]));
+      }
+
+      // Refund pembatalan yang sudah disetujui — dp_status booking yang
+      // dibatalkan TIDAK pernah direset (lihat setujuiPembatalan di
+      // src/app/api/pembatalan/route.js), jadi tetap ke-cover subset ini.
+      const [refundRows] = await pool.query(
+        `SELECT booking_id, refund_nominal, refund_persen, refund_status, bukti_refund_path
+         FROM pembatalan WHERE booking_id IN (${bookingIdsDpConfirmed.map(() => '?').join(',')}) AND status = 'disetujui'`,
+        bookingIdsDpConfirmed
+      );
+      const refundMap = new Map(refundRows.map(r => [String(r.booking_id), {
+        nominal: r.refund_nominal, persen: r.refund_persen, status: r.refund_status, bukti_path: r.bukti_refund_path,
+      }]));
+
+      for (const b of bookings) {
+        if (b.dp_status !== 'confirmed') continue;
+        b.perjanjian_sig = sigMap.get(String(b.id)) || null;
+        b.penyesuaian_pending = penyesuaianMap.get(String(b.id)) || null;
+        b.manasik = manasikMap.get(String(b.prog_id)) || null;
+        b.refund = refundMap.get(String(b.id)) || null;
+      }
     }
 
     return Response.json({ bookings });
@@ -95,7 +146,17 @@ export async function POST(request) {
 
     const hasil = await buatSatuBooking(pool, {
       ...body,
-      meRole: me.role,
+      // `auth.user.role` (JWT sesi aktif), BUKAN `me.role` (kolom role
+      // PRIMER di DB) — buat akun dual-role (role_kedua, lihat
+      // migration-role-kedua.sql), meRole harus ngikutin mode yang lagi
+      // di-switch aktif (mis. checkout sebagai Perwakilan walau role
+      // primernya sahabat_baitullah), bukan selalu role primer. Ditemukan &
+      // diperbaiki 2026-09-06 — sebelumnya auto-atribusi closing-langsung
+      // ke Head of Program (buatSatuBooking di src/lib/booking.js) tetap
+      // kepicu walau user udah pindah mode ke Perwakilan. `me` dari
+      // cekPemesanBolehOrder di atas TETAP dipakai buat gerbang status/
+      // terverifikasi (query DB fresh, benar buat itu).
+      meRole: auth.user.role,
       voucher_kode_final: voucherKodeFinal,
       voucher_nominal: voucherNominal,
     });

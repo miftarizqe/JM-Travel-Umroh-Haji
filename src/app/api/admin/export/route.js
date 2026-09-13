@@ -230,33 +230,54 @@ async function buildPayments(searchParams) {
   };
 }
 
+// `jenis` boleh dikirim berkali-kali (?jenis=a&jenis=b) — dipakai rekap
+// per-orang Perwakilan/Sahabat Baitullah yang butuh filter beberapa jenis
+// sekaligus (dikonfirmasi user 2026-09-06), tetap backward-compatible sama
+// pemanggil lama yang cuma kirim 1 nilai. `penerima_id`/`prog_id` baru —
+// prog_id butuh JOIN ke bookings (booking_id NULL pada baris yang gak
+// nempel ke booking spesifik, mis. komisi rekrutan/tabungan awal, otomatis
+// gak match filter prog_id manapun, munculnya cuma pas prog_id kosong).
 async function buildKomisi(searchParams) {
-  const jenis = searchParams.get('jenis');
+  // Terima 2 bentuk: ?jenis=a&jenis=b (multi-param) ATAU ?jenis=a,b (1 param
+  // koma-separated, dipakai downloadExcel() di client yang cuma bisa kirim
+  // 1 value per key lewat URLSearchParams.set()) — biar gak perlu ubah util
+  // downloadExcel generik-nya buat pemanggil lain yang udah ada.
+  const jenisList = searchParams.getAll('jenis').flatMap(v => v.split(','));
+  const penerimaId = searchParams.get('penerima_id');
+  const progId = searchParams.get('prog_id');
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const params = [];
   let where = ' WHERE 1=1';
-  if (jenis) { where += ' AND jenis = ?'; params.push(jenis); }
-  where += rangeClause('created_at', from, to, params);
+  if (jenisList.length === 1) { where += ' AND kl.jenis = ?'; params.push(jenisList[0]); }
+  else if (jenisList.length > 1) { where += ` AND kl.jenis IN (${jenisList.map(() => '?').join(',')})`; params.push(...jenisList); }
+  if (penerimaId) { where += ' AND kl.penerima_id = ?'; params.push(penerimaId); }
+  if (progId) { where += ' AND b.prog_id = ?'; params.push(progId); }
+  where += rangeClause('kl.created_at', from, to, params);
 
   const [rows] = await pool.query(
-    `SELECT booking_id, penerima_nama, jenis, jumlah_jamaah, nominal, paket, keterangan, created_at
-     FROM komisi_ledger ${where} ORDER BY created_at DESC`,
+    `SELECT kl.booking_id, kl.penerima_nama, kl.jenis, kl.jumlah_jamaah, kl.nominal, kl.paket, kl.keterangan, kl.created_at,
+            b.prog_name, kl.dikonfirmasi_at
+     FROM komisi_ledger kl
+     LEFT JOIN bookings b ON b.id = kl.booking_id
+     ${where} ORDER BY kl.created_at DESC`,
     params
   );
   return {
     filename: 'komisi',
     columns: [
       { header: 'Booking ID', key: 'booking_id', width: 14 },
+      { header: 'Program', key: 'prog_name', width: 26 },
       { header: 'Penerima', key: 'penerima_nama', width: 22 },
       { header: 'Jenis Komisi', key: 'jenis', width: 20 },
       { header: 'Jumlah Jamaah', key: 'jumlah_jamaah', width: 12 },
       { header: 'Nominal', key: 'nominal', width: 14 },
       { header: 'Paket', key: 'paket', width: 12 },
       { header: 'Keterangan', key: 'keterangan', width: 30 },
+      { header: 'Status', key: 'status_label', width: 12 },
       { header: 'Tanggal', key: 'created_at', width: 18 },
     ],
-    rows,
+    rows: rows.map(r => ({ ...r, status_label: r.dikonfirmasi_at ? 'Cair' : 'Pending' })),
   };
 }
 

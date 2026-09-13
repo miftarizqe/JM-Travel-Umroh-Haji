@@ -70,7 +70,8 @@ Closing ini sudah otomatis tercatat ke akun Anda. Cek dashboard untuk detail ujr
 
 const DOKUMEN_LABEL_WA = {
   spka_ins: 'Surat Perjanjian Kerja Sama Perwakilan',
-  jamaah: 'Perjanjian Keberangkatan Jamaah',
+  jamaah: 'Surat Perjanjian Jamaah Umroh',
+  spk_ak: 'Surat Perjanjian Jamaah Umroh — Program Sahabat Baitullah',
   formulir: 'Formulir Pendaftaran Perwakilan',
   invoice: 'Invoice/Kwitansi',
 };
@@ -82,6 +83,46 @@ Ada dokumen *${DOKUMEN_LABEL_WA[dokumen] || dokumen}* yang menunggu tanda tangan
 
 Silakan buka link berikut untuk membaca & menandatangani:
 ${linkTtd}
+
+Terima kasih 🙏`;
+}
+
+const JENIS_LABEL_WA = {
+  invoice: 'Invoice',
+  kwitansi: 'Kwitansi Pembayaran',
+  tanda_terima: 'Tanda Terima Uang',
+};
+
+export function pesanDokumenFisikTerkirim({ namaJamaah, jenis, nomor, linkScan }) {
+  return `Assalamu'alaikum ${namaJamaah || ''},
+
+Berikut scan *${JENIS_LABEL_WA[jenis] || jenis}* (${nomor}) yang sudah ditandatangani & bermaterai:
+${linkScan}
+
+Mohon disimpan sebagai bukti. Terima kasih 🙏`;
+}
+
+export function pesanReminderManasik({ namaJamaah, progName, tanggal, lokasi }) {
+  const tglLabel = tanggal ? new Date(tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
+  return `Assalamu'alaikum ${namaJamaah || ''},
+
+Mengingatkan jadwal Manasik untuk program *${progName}*:
+📅 ${tglLabel}
+📍 ${lokasi || '-'}
+
+Mohon hadir tepat waktu. Terima kasih 🙏`;
+}
+
+export function pesanPenyesuaianHarga({ namaJamaah, progName, hargaLama, hargaBaru, alasan, link }) {
+  return `Assalamu'alaikum ${namaJamaah || ''},
+
+Ada penyesuaian harga untuk program *${progName}*:
+Harga lama: ${rp(hargaLama)}
+Harga baru: ${rp(hargaBaru)}
+Alasan: ${alasan}
+
+Mohon baca & setujui dulu sebelum melanjutkan pelunasan:
+${link}
 
 Terima kasih 🙏`;
 }

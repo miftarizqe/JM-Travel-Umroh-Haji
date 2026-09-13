@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
-import { daftarJamaahPerluKit, tandaiPengirimanJamaah } from '@/lib/perlengkapan';
+import { daftarJamaahPerluKit, tandaiPengirimanJamaah, kategoriProgramUntukBooking } from '@/lib/perlengkapan';
 import { catatAudit } from '@/lib/audit';
 
 // GET /api/admin/perlengkapan-pengiriman?program=<nama> — daftar jamaah
@@ -37,8 +37,9 @@ export async function PATCH(request) {
     if (!booking_id || jamaah_idx == null || !status) {
       return Response.json({ error: 'booking_id, jamaah_idx, dan status wajib diisi' }, { status: 400 });
     }
+    const kategoriProgram = await kategoriProgramUntukBooking(pool, booking_id);
     await tandaiPengirimanJamaah(pool, {
-      bookingId: booking_id, jamaahIdx: jamaah_idx, jk, statusBaru: status, itemIds: item_ids, catatan, actorId: auth.user.id,
+      bookingId: booking_id, jamaahIdx: jamaah_idx, jk, kategoriProgram, statusBaru: status, itemIds: item_ids, catatan, actorId: auth.user.id,
     });
     await catatAudit(pool, {
       actor: auth.user, aksi: 'perlengkapan_pengiriman_update', target_type: 'booking', target_id: booking_id,

@@ -115,6 +115,15 @@ export default function PengajuanDanaDetailPage({ params }) {
     router.push('/admin/laporan/pengajuan-dana');
   }
 
+  async function batalkanPengajuan() {
+    if (!confirm(`Batalkan pengajuan dana bulan ${namaBulan(pengajuan.bulan)}? Pengajuan ini akan dihapus dan harus dibuat ulang kalau dibutuhkan lagi.`)) return;
+    setBusy(true);
+    const res = await fetch(`/api/admin/pengajuan-dana/${id}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (!res.ok) { alert(d.error || 'Gagal membatalkan'); setBusy(false); return; }
+    router.push('/admin/laporan/pengajuan-dana');
+  }
+
   async function ajukan() {
     if (!confirm(`Ajukan pengajuan dana bulan ${namaBulan(pengajuan.bulan)} sebesar ${rp(total)}? Gak bisa diedit lagi setelah ini.`)) return;
     setBusy(true);
@@ -303,12 +312,15 @@ export default function PengajuanDanaDetailPage({ params }) {
             <div className="font-bold text-[#0E2F6E] mb-2">Keputusan</div>
             <textarea value={catatanKeputusan} onChange={e => setCatatanKeputusan(e.target.value)} rows={2} className={`${inp} mb-3`}
               placeholder="Catatan (opsional) — mis. alasan penolakan, atau catatan persetujuan"/>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button onClick={() => putuskan('setujui')} disabled={busy} className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-bold px-5 py-2.5 rounded-xl">
                 ✅ Setujui
               </button>
               <button onClick={() => putuskan('tolak')} disabled={busy} className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold px-5 py-2.5 rounded-xl">
                 ❌ Tolak
+              </button>
+              <button onClick={batalkanPengajuan} disabled={busy} className="ml-auto text-red-500 hover:text-red-700 disabled:opacity-50 text-sm font-bold px-3 py-2.5">
+                🚫 Batalkan Pengajuan
               </button>
             </div>
           </div>

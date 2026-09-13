@@ -2,6 +2,7 @@
 // (1 booking) maupun POST /api/bookings/batch (keranjang multi-item, tiap
 // item jadi booking terpisah dalam 1 transaksi). `conn` boleh pool atau
 // connection transaksi, pola sama seperti src/lib/closing.js.
+import { hitungHargaCustomHotelDenganDb } from './hotelCustomPricing';
 
 function generateBookingId() {
   return 'JMT-' + Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -11,7 +12,7 @@ function errStatus(message, status) {
   return Object.assign(new Error(message), { status });
 }
 
-// Gerbang: perwakilan yang belum di-ACC admin, atau akun belum
+// Gerbang: perwakilan/sahabat yang belum di-ACC admin, atau akun belum
 // terverifikasi, tidak boleh order jamaah. Dipakai di awal route sebelum
 // memproses booking apapun (single maupun batch).
 export async function cekPemesanBolehOrder(conn, userId) {
@@ -25,7 +26,7 @@ export async function cekPemesanBolehOrder(conn, userId) {
   if (me.terverifikasi === 0) {
     throw errStatus('Verifikasi akun Anda terlebih dahulu.', 403);
   }
-  if (me.role === 'perwakilan' && me.status !== 'active') {
+  if (['perwakilan', 'sahabat_baitullah'].includes(me.role) && me.status !== 'active') {
     throw errStatus('Akun Anda belum dikonfirmasi admin. Anda belum bisa melakukan order jamaah.', 403);
   }
   return me;
@@ -45,15 +46,29 @@ export async function buatSatuBooking(conn, params) {
   const {
     user_id, prog_id, paket, kamar, jumlah_jamaah, namas, was, jks, alamats,
     kode_unik_dp, sumber_info, referral_kode, batch_id,
-    referral_perw_id, ordered_by, ordered_by_role,
+    referral_perw_id, referral_sahabat_id, ordered_by, ordered_by_role,
     bukti_path, bukti_nama, harga_custom_per_jamaah,
     voucher_kode_final = null, voucher_nominal = 0,
     opsi_tambahan_ids = [],
-    meRole,
+    meRole, customHotel,
   } = params;
 
   if (!user_id || !prog_id || !paket) {
     throw errStatus('Field wajib tidak lengkap', 400);
+  }
+
+  // Jamaah Sahabat Baitullah yang checkout buat DIRINYA SENDIRI (bukan
+  // dipilih orang lain lewat dropdown "sahabat_baitullah" di checkout — itu udah
+  // kekirim eksplisit di referral_sahabat_id, jadi kondisi ini gak
+  // ke-trigger) otomatis atribusi ke Head of Program, bukan ke diri
+  // sendiri atau kosong. Titik ini yang bikin komisi closing-langsung
+  // (persentase, lihat src/lib/closing.js::prosesBookingSelesai) otomatis
+  // cair ke Head of Program pas booking-nya selesai — gak ada kode
+  // tambahan yang perlu disentuh di closing.js.
+  let referralSahabatFinal = referral_sahabat_id || null;
+  if (!referralSahabatFinal && meRole === 'sahabat_baitullah') {
+    const [[pengHop]] = await conn.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
+    referralSahabatFinal = pengHop?.head_of_program_user_id || null;
   }
 
   // Nama tiap jamaah wajib diisi di step pilih paket — jumlahnya harus
@@ -88,21 +103,62 @@ export async function buatSatuBooking(conn, params) {
   const prog = progs[0];
   const isAdminBooking = meRole === 'admin' || meRole === 'super_admin';
 
-  // 'private' = cuma admin yang boleh daftarin (jamaah private, gak lewat
-  // publik/agen/perwakilan sama sekali). 'perwakilan' = cuma perwakilan yang
-  // diotorisasi di program_perwakilan (atau admin) yang boleh closing —
-  // gerbang server-side ini yang sebelumnya gak ada sama sekali (listing aja
-  // yang nyaring, gampang di-bypass kalau tau prog_id-nya).
+  // Referral perwakilan permanen (dikunci sejak registrasi, lihat kolom
+  // users.perekrut_perwakilan_jamaah_id) — HANYA berlaku utk booking
+  // self-checkout jamaah (bukan booking admin, yang tetap boleh override
+  // manual lewat PATCH /api/bookings/[id]). Server TIDAK PERNAH percaya
+  // referral_perw_id dari client kalau pemilik booking statusnya jamaah,
+  // soalnya field ini JUGA menentukan harga jual reseller (perwakilan_harga)
+  // di bawah, bukan cuma atribusi ujroh — kalau cuma dibenerin pas closing,
+  // harga yang ditagih ke jamaah bisa gak konsisten sama siapa yang
+  // akhirnya dapat ujroh.
+  const [[pemilikBooking]] = await conn.query(
+    'SELECT role, perekrut_perwakilan_jamaah_id FROM users WHERE id = ?', [user_id]
+  );
+  let referralPerwIdFinal = referral_perw_id || null;
+  if (!isAdminBooking && pemilikBooking?.role === 'jamaah') {
+    referralPerwIdFinal = pemilikBooking.perekrut_perwakilan_jamaah_id || null;
+  }
+
+  // 'private' = admin ATAU akun jamaah yang ditunjuk admin di
+  // program_private_akun (dikonfirmasi user 2026-09-06 — sebelumnya blanket
+  // admin-only, gak ada jalur self-checkout sama sekali). 'perwakilan' = cuma
+  // perwakilan yang diotorisasi di program_perwakilan (atau admin) yang boleh
+  // closing — gerbang server-side ini yang sebelumnya gak ada sama sekali
+  // (listing aja yang nyaring, gampang di-bypass kalau tau prog_id-nya).
   if (prog.publish_type === 'private' && !isAdminBooking) {
-    throw errStatus('Program ini khusus didaftarkan oleh admin.', 403);
+    const [otorisasiPrivate] = await conn.query(
+      'SELECT 1 FROM program_private_akun WHERE program_id = ? AND user_id = ?',
+      [prog_id, user_id]
+    );
+    if (otorisasiPrivate.length === 0) {
+      throw errStatus('Program ini khusus didaftarkan oleh admin atau akun yang ditunjuk.', 403);
+    }
   }
   if (prog.publish_type === 'perwakilan' && !isAdminBooking) {
     const [otorisasi] = await conn.query(
       'SELECT 1 FROM program_perwakilan WHERE program_id = ? AND perw_id = ?',
-      [prog_id, referral_perw_id || '']
+      [prog_id, referralPerwIdFinal || '']
     );
     if (otorisasi.length === 0) {
       throw errStatus('Program ini khusus untuk perwakilan tertentu — Anda tidak berwenang closing program ini.', 403);
+    }
+  }
+  // 'sahabat_baitullah' = Program Sahabat Baitullah, exclusive buat Jamaah Sahabat
+  // Baitullah checkout ATAS NAMA DIRI SENDIRI — beda branding & perlengkapan
+  // dari program publik, gak boleh dipakein buat closing-in jamaah lain
+  // (dikonfirmasi user 2026-08-29). `ordered_by` cuma keisi kalau lewat
+  // /order-jamaah (checkout normal gak pernah kirim ini) — beda dari
+  // `user_id` berarti dipesenin buat orang lain. Role-check ditambahkan
+  // (sebelumnya cuma cek ordered_by) — tanpa ini, jamaah non-sahabat bisa
+  // lolos booking program sahabat lewat /api/bookings/batch langsung kalau
+  // tau prog_id-nya, walau gak pernah muncul di listing.
+  if (prog.publish_type === 'sahabat_baitullah' && !isAdminBooking) {
+    if (pemilikBooking?.role !== 'sahabat_baitullah') {
+      throw errStatus('Program ini cuma bisa dipesan oleh Jamaah Sahabat Baitullah.', 403);
+    }
+    if (ordered_by && String(ordered_by) !== String(user_id)) {
+      throw errStatus('Program ini cuma bisa dipesan buat diri sendiri.', 403);
     }
   }
   if (prog.used_seat + (jumlah_jamaah || 1) > prog.total_seat) {
@@ -110,46 +166,65 @@ export async function buatSatuBooking(conn, params) {
   }
 
   const kamarKey = kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
-  let hargaPerJamaah = prog[`harga_${paket}_${kamarKey}`] || prog[`harga_${paket}`] || 0;
+  let hargaPerJamaah;
+  let hotelCustomNama = null;
 
-  // Kalau checkout lewat referral perwakilan, pakai harga jual perwakilan (kalau sudah diatur)
-  if (referral_perw_id) {
-    const [phRows] = await conn.query(
-      'SELECT * FROM perwakilan_harga WHERE perw_id = ? AND prog_id = ?',
-      [referral_perw_id, prog_id]
-    );
-    if (phRows.length > 0) {
-      const jualPerw = phRows[0][`jual_${paket}_${kamarKey}`];
-      if (jualPerw && Number(jualPerw) > 0) {
-        hargaPerJamaah = Number(jualPerw);
-      }
+  if (paket === 'custom') {
+    // Custom Hotel per Kota — harga TIDAK PERNAH dipercaya dari client
+    // (bukan lewat harga_custom_per_jamaah yang admin-only itu), dihitung
+    // ULANG di server dari Bintang Mekkah/Madinah yang dikirim, fungsi SAMA
+    // PERSIS dipakai preview /api/programs/[id]/hitung-hotel-custom —
+    // mencegah manipulasi harga lewat DevTools. Reseller berjenjang & harga
+    // custom admin (jalur di bawah) SENGAJA gak berlaku di sini — belum ada
+    // model harga reseller per kombinasi custom, di luar scope sekarang.
+    if (!customHotel || !customHotel.mekkahPaket || !customHotel.madinahPaket) {
+      throw errStatus('Pilihan Bintang Mekkah/Madinah belum lengkap', 400);
     }
+    const hasilCustom = await hitungHargaCustomHotelDenganDb(conn, prog_id, customHotel);
+    hargaPerJamaah = hasilCustom.perKamar[kamarKey];
+    hotelCustomNama = { bintang_mekkah: hasilCustom.bintangMekkah, bintang_madinah: hasilCustom.bintangMadinah };
+  } else {
+    hargaPerJamaah = prog[`harga_${paket}_${kamarKey}`] || prog[`harga_${paket}`] || 0;
 
-    // Gerbang reseller berjenjang: kalau perwakilan ini direkrut agen/perwakilan
-    // lain, perekrutnya WAJIB sudah pasang harga reseller utk kombinasi ini
-    // dulu sebelum closing bisa jalan — kalau belum, margin reseller upline
-    // tidak akan pernah tercatat.
-    const [perwRows] = await conn.query('SELECT perekrut_id FROM users WHERE id = ?', [referral_perw_id]);
-    const perekrutId = perwRows[0]?.perekrut_id;
-    if (perekrutId) {
-      const [perekrutRows] = await conn.query('SELECT role FROM users WHERE id = ?', [perekrutId]);
-      const perekrutRole = perekrutRows[0]?.role;
-      if (perekrutRole === 'perwakilan') {
-        const [uplineHarga] = await conn.query(
-          'SELECT * FROM perwakilan_harga WHERE perw_id = ? AND prog_id = ?',
-          [perekrutId, prog_id]
-        );
-        const hargaUpline = uplineHarga[0]?.[`jual_${paket}_${kamarKey}`];
-        if (!hargaUpline || Number(hargaUpline) <= 0) {
-          throw errStatus('Upline Anda belum mengatur harga reseller untuk program ini. Hubungi upline Anda terlebih dahulu.', 400);
+    // Kalau checkout lewat referral perwakilan, pakai harga jual perwakilan (kalau sudah diatur)
+    if (referralPerwIdFinal) {
+      const [phRows] = await conn.query(
+        'SELECT * FROM perwakilan_harga WHERE perw_id = ? AND prog_id = ?',
+        [referralPerwIdFinal, prog_id]
+      );
+      if (phRows.length > 0) {
+        const jualPerw = phRows[0][`jual_${paket}_${kamarKey}`];
+        if (jualPerw && Number(jualPerw) > 0) {
+          hargaPerJamaah = Number(jualPerw);
+        }
+      }
+
+      // Gerbang reseller berjenjang: kalau perwakilan ini direkrut agen/perwakilan
+      // lain, perekrutnya WAJIB sudah pasang harga reseller utk kombinasi ini
+      // dulu sebelum closing bisa jalan — kalau belum, margin reseller upline
+      // tidak akan pernah tercatat.
+      const [perwRows] = await conn.query('SELECT perekrut_id FROM users WHERE id = ?', [referralPerwIdFinal]);
+      const perekrutId = perwRows[0]?.perekrut_id;
+      if (perekrutId) {
+        const [perekrutRows] = await conn.query('SELECT role FROM users WHERE id = ?', [perekrutId]);
+        const perekrutRole = perekrutRows[0]?.role;
+        if (perekrutRole === 'perwakilan') {
+          const [uplineHarga] = await conn.query(
+            'SELECT * FROM perwakilan_harga WHERE perw_id = ? AND prog_id = ?',
+            [perekrutId, prog_id]
+          );
+          const hargaUpline = uplineHarga[0]?.[`jual_${paket}_${kamarKey}`];
+          if (!hargaUpline || Number(hargaUpline) <= 0) {
+            throw errStatus('Upline Anda belum mengatur harga reseller untuk program ini. Hubungi upline Anda terlebih dahulu.', 400);
+          }
         }
       }
     }
-  }
 
-  // Admin (termasuk super_admin) bebas menentukan harga sendiri untuk order direct/kantor
-  if ((meRole === 'admin' || meRole === 'super_admin') && Number(harga_custom_per_jamaah) > 0) {
-    hargaPerJamaah = Number(harga_custom_per_jamaah);
+    // Admin (termasuk super_admin) bebas menentukan harga sendiri untuk order direct/kantor
+    if ((meRole === 'admin' || meRole === 'super_admin') && Number(harga_custom_per_jamaah) > 0) {
+      hargaPerJamaah = Number(harga_custom_per_jamaah);
+    }
   }
 
   // Opsi tambahan (upgrade kamar, request khusus, dst) — ambil harga resmi
@@ -175,21 +250,29 @@ export async function buatSatuBooking(conn, params) {
   // otomatis keisi tanpa perlu logic tambahan di sisi form-jamaah. WA opsional
   // tapi krusial buat jamaah yang gak bikin akun sendiri (dipesankan admin/agen)
   // — tanpa ini admin gak punya kontak buat kirim info status via WhatsApp.
+  // paket/kamar/harga_jual disnapshot ke tiap entry sejak awal (bukan cuma
+  // di kolom booking-level) — dari sini booking baru langsung "lengkap",
+  // siap diedit per-orang belakangan tanpa perlu fallback/backfill (lihat
+  // src/lib/jamaahHarga.js#resolveJamaahHarga).
   const waList = Array.isArray(was) ? was.map(w => String(w || '').trim()) : [];
-  const jamaahDataAwal = JSON.stringify(namaList.map((nama, i) => ({ nama, wa: waList[i] || '', jk: jkListRaw[i], alamat_kirim: alamatList[i] })));
+  const jamaahDataAwal = JSON.stringify(namaList.map((nama, i) => ({
+    nama, wa: waList[i] || '', jk: jkListRaw[i], alamat_kirim: alamatList[i],
+    paket, kamar: kamar || 'Triple', harga_jual: hargaPerJamaah,
+    ...(hotelCustomNama ? { hotel_custom: hotelCustomNama } : {}),
+  })));
 
   await conn.query(
     `INSERT INTO bookings
     (id, user_id, prog_id, prog_name, paket, kamar, jumlah_jamaah, jamaah_data,
     dp_amount, kode_unik_dp, total_harga, voucher_kode, voucher_nominal, form_total,
-    sumber_info, referral_kode, referral_perw_id,
+    sumber_info, referral_kode, referral_perw_id, referral_sahabat_id,
     ordered_by, ordered_by_role, opsi_tambahan_data, opsi_tambahan_total)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [bookingId, user_id, prog_id, prog.name, paket, kamar||'Triple',
     jumlah_jamaah||1, jamaahDataAwal, dpAmount, kode_unik_dp||0, totalSetelahVoucher,
     voucher_kode_final, voucher_nominal || 0,
     jumlah_jamaah||1, sumber_info||null, referral_kode||null,
-    referral_perw_id||null,
+    referralPerwIdFinal||null, referralSahabatFinal,
     ordered_by||user_id, ordered_by_role||'jamaah',
     JSON.stringify(opsiTambahanSnapshot), opsiTambahanTotal]
   );

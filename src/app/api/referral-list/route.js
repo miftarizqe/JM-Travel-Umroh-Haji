@@ -15,14 +15,27 @@ import pool from '@/lib/db';
  * SENGAJA PUBLIK (tanpa login): dipakai juga di /register sebelum akun
  * dibuat, jadi belum ada sesi. Endpoint ini hanya mengembalikan data yang
  * aman: nama, kode unik, wilayah. Tanpa NIK, alamat, rekening, atau komisi.
+ *
+ * ?role= opsional (whitelist 'perwakilan'|'sahabat_baitullah', default 'perwakilan')
+ * — dipakai juga buat dropdown/lock perekrut di pendaftaran sahabat.
+ * Response key TETAP "perwakilan" apapun role-nya (bukan diganti dinamis)
+ * biar caller lama (checkout, daftar-perwakilan) yang belum kirim ?role
+ * gak perlu diubah sama sekali.
  */
+const ROLE_VALID = ['perwakilan', 'sahabat_baitullah'];
+
 export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const roleParam = searchParams.get('role');
+    const role = ROLE_VALID.includes(roleParam) ? roleParam : 'perwakilan';
+
     const [perwakilan] = await pool.query(
       `SELECT id, name, kode_unik, wilayah
        FROM users
-       WHERE role = 'perwakilan' AND status = 'active'
-       ORDER BY name ASC`
+       WHERE role = ? AND status = 'active'
+       ORDER BY name ASC`,
+      [role]
     );
 
     return Response.json({ perwakilan });

@@ -20,21 +20,31 @@ const FASE_WARNA = {
   materai_gagal: { bg: '#fef2f2', fg: '#b91c1c' },
   gagal: { bg: '#fef2f2', fg: '#b91c1c' },
 };
+// spka_ins & spk_ak DUA-DUANYA 2 rangkap (dikonfirmasi user 2026-09-09) —
+// label beda dikit tergantung siapa pihak eksternalnya (Perwakilan vs
+// Jamaah Sahabat Baitullah).
 const RANGKAP_LABEL = {
-  travel: 'Rangkap 1 — Untuk JM Travel (TTD Perwakilan)',
-  luar: 'Rangkap 2 — Untuk Perwakilan (TTD JM Travel)',
+  spka_ins: {
+    travel: 'Rangkap 1 — Untuk JM Travel (TTD Perwakilan)',
+    luar: 'Rangkap 2 — Untuk Perwakilan (TTD JM Travel)',
+  },
+  spk_ak: {
+    travel: 'Rangkap 1 — Untuk JM Travel (TTD Jamaah)',
+    luar: 'Rangkap 2 — Untuk Jamaah Sahabat Baitullah (TTD JM Travel)',
+  },
 };
+const RANGKAP_2X = ['spka_ins', 'spk_ak'];
 
-// 1 sesi = 1 baris dokumen_signature. SPKA-Ins bisa punya 2 baris sekaligus
-// (rangkap 'travel'/'luar', lihat src/lib/materaiRule.js) — dokumen lain
-// cuma 1 baris ('tunggal'). Dipisah jadi komponen sendiri biar gampang
-// diulang tanpa duplikasi kalau ada >1 sesi.
-function PanelSesi({ sig, onSelesai, loading }) {
+// 1 sesi = 1 baris dokumen_signature. spka_ins/spk_ak bisa punya 2 baris
+// sekaligus (rangkap 'travel'/'luar', lihat src/lib/materaiRule.js) —
+// dokumen lain cuma 1 baris ('tunggal'). Dipisah jadi komponen sendiri
+// biar gampang diulang tanpa duplikasi kalau ada >1 sesi.
+function PanelSesi({ sig, dokumen, onSelesai, loading }) {
   const warna = FASE_WARNA[sig.fase] || { bg: '#F5F8FE', fg: '#1A4FA0' };
   return (
     <div style={{ display: 'inline-block', marginTop: 10, marginLeft: 4, marginRight: 4, padding: '8px 16px', borderRadius: 10, fontSize: 12, background: warna.bg, color: warna.fg, textAlign: 'left' }}>
       {sig.rangkap !== 'tunggal' && (
-        <div style={{ fontSize: 10, fontWeight: 700, color: '#C9952A', marginBottom: 2 }}>{RANGKAP_LABEL[sig.rangkap] || sig.rangkap}</div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: '#C9952A', marginBottom: 2 }}>{RANGKAP_LABEL[dokumen]?.[sig.rangkap] || sig.rangkap}</div>
       )}
       <div style={{ fontWeight: 700 }}>{FASE_LABEL[sig.fase] || sig.fase}</div>
       {sig.perlu_materai ? <div>Materai: {sig.materai_kode_unik || 'menunggu'}</div> : null}
@@ -125,7 +135,7 @@ export default function DokumenSignatureAksi({ dokumen, refId, onCetakFisik, hid
         )}
         <button onClick={kirimDigital} disabled={loading || sudahDigital}
           style={{ background: '#C9952A', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: loading ? 0.6 : 1 }}>
-          ✍️ Kirim TTD Digital{dokumen === 'spka_ins' ? ' (2 Rangkap)' : ''}
+          ✍️ Kirim TTD Digital{RANGKAP_2X.includes(dokumen) ? ' (2 Rangkap)' : ''}
         </button>
       </div>
 
@@ -134,7 +144,7 @@ export default function DokumenSignatureAksi({ dokumen, refId, onCetakFisik, hid
       {sudahDigital && (
         <div>
           {sigs.filter(s => s.metode === 'digital').map(s => (
-            <PanelSesi key={s.id} sig={s} onSelesai={tandaiSelesaiMock} loading={loading} />
+            <PanelSesi key={s.id} sig={s} dokumen={dokumen} onSelesai={tandaiSelesaiMock} loading={loading} />
           ))}
         </div>
       )}

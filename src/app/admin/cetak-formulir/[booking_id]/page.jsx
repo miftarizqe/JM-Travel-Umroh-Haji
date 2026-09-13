@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { usePengaturan } from '@/lib/usePengaturan';
+import { resolveJamaahHarga } from '@/lib/jamaahHarga';
 
 function Field({ label, value, star }) {
   return (
@@ -20,6 +21,21 @@ function fmtTgl(t) {
   const d = new Date(t);
   if (isNaN(d)) return t;
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function Kop({ pengaturan }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #1A4FA0', paddingBottom: 10, marginBottom: 16 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/logo/jm-travel-logo.png" alt="JM Travel" style={{ height: 78, objectFit: 'contain' }} />
+      <div style={{ fontSize: 10, textAlign: 'right', lineHeight: 1.5 }}>
+        <div style={{ fontWeight: 700 }}>{pengaturan.nama_perusahaan}</div>
+        <div>{pengaturan.alamat_kantor}</div>
+        <div>Phone: {pengaturan.telepon_kantor}</div>
+        <div>Email: {pengaturan.email_kantor}</div>
+      </div>
+    </div>
+  );
 }
 
 export default function CetakFormulir() {
@@ -87,15 +103,6 @@ function CetakFormulirInner() {
     ? [{ j: jamaahArr[idxNum], idx: idxNum }]
     : jamaahArr.map((j, idx) => ({ j, idx }));
 
-  // booking.total_harga adalah total keseluruhan booking (semua jamaah + opsi tambahan - voucher),
-  // formulir per jamaah butuh harga program untuk 1 orang saja -> turunkan kembali dari total.
-  const jumlahJamaah = booking.jumlah_jamaah || jamaahArr.length || 1;
-  const opsiTambahanTotal = Number(booking.opsi_tambahan_total || 0);
-  const voucherNominal = Number(booking.voucher_nominal || 0);
-  const hargaProgramSatuOrang = Math.round(
-    (Number(booking.total_harga || 0) + voucherNominal - opsiTambahanTotal) / jumlahJamaah
-  );
-
   if (jamaahArr.length === 0) {
     return (
       <div style={{ padding: 40, fontFamily: 'Arial' }}>
@@ -117,13 +124,13 @@ function CetakFormulirInner() {
         </div>
       </div>
 
-      {sheetsToRender.map(({ j, idx }) => (
+      {sheetsToRender.map(({ j, idx }) => {
+        const jk = resolveJamaahHarga(booking, j); // kombo paket/kamar/harga jamaah ini (sendiri kalau pernah diedit per-orang, else ikut booking)
+        return (
         <div key={idx} className="sheet" style={{ background: '#fff', width: 720, margin: '0 auto 20px', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-            <div>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo/jm-travel-logo.png" alt="JM Travel" style={{ height: 78, objectFit: 'contain' }} />
-            </div>
+          <Kop pengaturan={pengaturan} />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
             <div style={{ fontSize: 11, textAlign: 'right' }}>
               <div>Kode Booking: <b>{booking.id}</b></div>
               <div>Kode Referral: <b>{booking.referral_kode || '-'}</b></div>
@@ -158,11 +165,11 @@ function CetakFormulirInner() {
 
           <div style={{ fontSize: 15, fontWeight: 800, color: '#000', margin: '14px 0 6px' }}>Data Program</div>
           <Field label="Pilihan Program" value={booking.prog_name} />
-          <Field label="Pilihan Kamar" value={booking.kamar} />
+          <Field label="Pilihan Kamar" value={jk.kamar} />
           {Array.isArray(booking.opsi_tambahan_data) && booking.opsi_tambahan_data.length > 0 && (
             <Field label="Opsi Tambahan" value={booking.opsi_tambahan_data.map(o => `${o.nama} (+Rp ${Number(o.harga || 0).toLocaleString('id-ID')})`).join(', ')} />
           )}
-          <Field label="Total Harga Program" value={`Rp ${hargaProgramSatuOrang.toLocaleString('id-ID')}`} />
+          <Field label="Total Harga Program" value={`Rp ${jk.hargaJual.toLocaleString('id-ID')}`} />
 
           <div style={{ fontSize: 9.5, color: '#000', marginTop: 16, lineHeight: 1.5 }}>
             <p style={{ margin: '4px 0' }}>1. Jamaah dilarang keras menitipkan pembayaran DP/pelunasan kepada perorangan/Perwakilan. Kerugian yang terjadi akibat hal tersebut bukan menjadi tanggung jawab perusahaan.</p>
@@ -179,7 +186,8 @@ function CetakFormulirInner() {
             </div>
           </div>
         </div>
-      ))}
+        );
+      })}
 
       <style>{`
         @media print {
@@ -187,6 +195,7 @@ function CetakFormulirInner() {
           body { background: #fff !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; page-break-after: always; width: 100% !important; }
         }
+        @page { size: A4; margin: 15mm; }
       `}</style>
     </div>
   );

@@ -12,7 +12,7 @@ function tglIndoJam(t) {
 // di cetak-pks-mitra (dokumen_pks_fisik_path) & cetak-formulir-mitra
 // (formulir_pendaftaran_fisik_path). Endpoint & nama field beda per jenis
 // dokumen, komponennya sendiri generik.
-export default function UploadScanDokumen({ label, uploadUrl, userId, path: filePath, uploadedAt, onUploaded }) {
+export default function UploadScanDokumen({ label, uploadUrl, userId, path: filePath, uploadedAt, onUploaded, extraFields }) {
   const [uploading, setUploading] = useState(false);
 
   async function pilihFile(file) {
@@ -22,6 +22,10 @@ export default function UploadScanDokumen({ label, uploadUrl, userId, path: file
       const fd = new FormData();
       fd.append('file', file);
       fd.append('user_id', userId);
+      // Route terparameterisasi (mis. upload-dokumen-sahabat-fisik) butuh
+      // field pembeda tambahan (jenis) — opsional, gak dipakai endpoint
+      // bespoke lama.
+      Object.entries(extraFields || {}).forEach(([k, v]) => fd.append(k, v));
       const res = await fetch(uploadUrl, { method: 'POST', body: fd });
       const d = await res.json();
       if (res.ok) onUploaded(d.path);

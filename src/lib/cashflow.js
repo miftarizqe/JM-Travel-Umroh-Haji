@@ -24,10 +24,14 @@ export async function hitungSaldoAkhirPeriode(pool, periodeId) {
     'SELECT akun_id, saldo_awal FROM cashflow_saldo_awal WHERE periode_id = ?',
     [periodeId]
   );
+  // akun_id IS NOT NULL — transaksi "purchasing/realisasi" (bon dari
+  // owner, belanja perlengkapan) SENGAJA gak nempel akun manapun (lihat
+  // migration-cashflow-akun-opsional.sql), gak boleh ikut ngotorin
+  // rekonsiliasi saldo akun manapun.
   const [mutasiRows] = await pool.query(
     `SELECT akun_id, tipe, SUM(nominal) AS total
      FROM cashflow_transaksi
-     WHERE periode_id = ? AND ${KLAUSA_HITUNG_SALDO}
+     WHERE periode_id = ? AND akun_id IS NOT NULL AND ${KLAUSA_HITUNG_SALDO}
      GROUP BY akun_id, tipe`,
     [periodeId]
   );
@@ -70,6 +74,76 @@ export function hitungPrintRows(transaksi) {
     if (t.settlement_induk_id) return modeById[t.settlement_induk_id] !== 'totalan';
     return true;
   });
+}
+
+/**
+ * Ambil periode bulan `bulan` (YYYY-MM), bikin otomatis kalau belum ada —
+ * dipakai jalur "purchasing" (transaksi tanpa akun, lihat
+ * migration-cashflow-akun-opsional.sql) biar admin gak perlu manual buka
+ * periode dulu buat sekadar nyatet bon dari owner. Replikasi logika chaining
+ * saldo yang sama kayak POST /api/admin/cashflow/periode (bukan cuma INSERT
+ * polos) — kalau NANTI periode ini ternyata juga kepake transaksi ber-akun
+ * (mis. admin lain iseng nambah transaksi CIMB di bulan yang sama), saldo
+ * awal akun-akunnya tetap ke-chain benar dari bulan sebelumnya, bukan 0.
+ */
+export async function pastikanPeriode(pool, bulan, actorId) {
+  const [[existing]] = await pool.query('SELECT * FROM cashflow_periode WHERE bulan = ?', [bulan]);
+  if (existing) return existing;
+
+  const akunAktif = await ambilAkunAktif(pool);
+  const sebelumnya = await ambilPeriodeSebelumnya(pool, bulan);
+  let saldoPerAkun = {};
+  if (sebelumnya) {
+    const saldoAkhirSebelumnya = await hitungSaldoAkhirPeriode(pool, sebelumnya.id);
+    saldoAkhirSebelumnya.forEach(s => { saldoPerAkun[s.akun_id] = s.saldo_akhir; });
+  }
+
+  const [result] = await pool.query('INSERT INTO cashflow_periode (bulan, created_by) VALUES (?, ?)', [bulan, actorId || null]);
+  for (const akun of akunAktif) {
+    await pool.query(
+      'INSERT INTO cashflow_saldo_awal (periode_id, akun_id, saldo_awal) VALUES (?, ?, ?)',
+      [result.insertId, akun.id, saldoPerAkun[akun.id] || 0]
+    );
+  }
+  const [[created]] = await pool.query('SELECT * FROM cashflow_periode WHERE id = ?', [result.insertId]);
+  return created;
+}
+
+/**
+ * Setelah periode dikunci (submit), saldo_akhir final-nya harus jadi
+ * saldo_awal periode berikutnya. Tapi periode berikutnya bisa saja sudah
+ * kepalang dibuat duluan (tombol "Buat Cashflow Bulan Ini", atau auto-create
+ * lewat pastikanPeriode saat ada bon/transaksi purchasing yang tanggalnya
+ * sudah masuk bulan itu) — snapshot saldo_awal-nya waktu itu diambil dari
+ * saldo_akhir periode ini yang MASIH draft, jadi basi begitu ada transaksi
+ * susulan sebelum akhirnya dikunci. Fungsi ini nyegerin ulang saldo_awal
+ * periode berikutnya (dan berantai ke periode-periode draft setelahnya lagi,
+ * kalau ada) pakai saldo_akhir final yang baru dikunci. Periode yang statusnya
+ * sudah 'submitted' gak disentuh — itu sudah beku sesuai desain, dan urutan
+ * submit yang dipaksa linier (lihat POST .../submit) menjamin gak ada periode
+ * submitted setelah periode draft.
+ */
+export async function sinkronSaldoAwalBerantai(pool, periodeId) {
+  let current = periodeId;
+  for (;;) {
+    const [[periode]] = await pool.query('SELECT * FROM cashflow_periode WHERE id = ?', [current]);
+    if (!periode) break;
+    const [[berikutnya]] = await pool.query(
+      `SELECT * FROM cashflow_periode WHERE bulan > ? ORDER BY bulan ASC LIMIT 1`,
+      [periode.bulan]
+    );
+    if (!berikutnya || berikutnya.status !== 'draft') break;
+
+    const saldoAkhir = await hitungSaldoAkhirPeriode(pool, periode.id);
+    for (const s of saldoAkhir) {
+      await pool.query(
+        `INSERT INTO cashflow_saldo_awal (periode_id, akun_id, saldo_awal) VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE saldo_awal = VALUES(saldo_awal)`,
+        [berikutnya.id, s.akun_id, s.saldo_akhir]
+      );
+    }
+    current = berikutnya.id;
+  }
 }
 
 /** Periode terakhir (bulan mana pun, draft atau submitted) sebelum `bulan` (YYYY-MM). */

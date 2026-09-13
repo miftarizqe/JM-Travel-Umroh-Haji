@@ -38,14 +38,14 @@ export async function POST(request) {
       return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
     }
 
-    const dir = path.join(process.cwd(), 'public', 'uploads', 'formulir-fisik');
+    const dir = path.join(process.cwd(), 'private-uploads', 'formulir-fisik');
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
 
     const ext = path.extname(file.name || '') || (file.type === 'application/pdf' ? '.pdf' : '.jpg');
     const nama = `formulir_${userId}_${Date.now()}${ext}`;
     await writeFile(path.join(dir, nama), Buffer.from(await file.arrayBuffer()));
 
-    const publicPath = `/uploads/formulir-fisik/${nama}`;
+    const publicPath = `/api/dokumen/formulir-fisik/${nama}`;
     await pool.query(
       'UPDATE users SET formulir_pendaftaran_fisik_path = ?, formulir_pendaftaran_fisik_uploaded_at = NOW() WHERE id = ?',
       [publicPath, userId]

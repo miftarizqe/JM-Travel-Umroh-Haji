@@ -106,7 +106,12 @@ function PelunasanPageInner() {
   );
 
   const formBelumLengkap = (booking.form_filled || 0) < (booking.form_total || booking.jumlah_jamaah || 1);
-  const pksBelumSetuju = !booking.setuju_pks;
+  // Defense-in-depth — jalur normal (dashboard jamaah) sudah menahan tombol
+  // "Lanjut Pelunasan" sampai Perjanjian Jamaah beneran selesai (materai +
+  // TTD, digital atau fisik), bukan cuma centang setuju. Gate ini jaga-jaga
+  // kalau halaman ini diakses langsung lewat URL.
+  const perjanjianBelumSelesai = !booking.setuju_pks || !(booking.perjanjian_scan_path || booking.perjanjian_sig?.fase === 'selesai');
+  const adaPenyesuaianPending = !!booking.penyesuaian_pending;
 
   return (
     <Layout title="💳 Pelunasan" showBack confirmLeave={isDirty}
@@ -123,12 +128,22 @@ function PelunasanPageInner() {
           </div>
         )}
 
-        {!formBelumLengkap && pksBelumSetuju && (
+        {!formBelumLengkap && perjanjianBelumSelesai && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-700">
-            ⚠️ Anda belum menyetujui Perjanjian Keberangkatan Jamaah. Setujui dulu sebelum bisa melunasi.
+            ⚠️ Surat Perjanjian Jamaah Umroh Anda belum selesai (materai + tanda tangan). Selesaikan dulu sebelum bisa melunasi.
             <button onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${booking.id}`)}
               className="block mt-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2 rounded-full transition-colors text-center">
               📜 Baca & Setujui Perjanjian
+            </button>
+          </div>
+        )}
+
+        {!formBelumLengkap && !perjanjianBelumSelesai && adaPenyesuaianPending && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-700">
+            ⚠️ Ada penyesuaian harga yang perlu Anda setujui dulu sebelum bisa melunasi.
+            <button onClick={() => router.push(`/penyesuaian-harga?booking_id=${booking.id}`)}
+              className="block mt-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2 rounded-full transition-colors text-center">
+              💰 Lihat Penyesuaian Harga
             </button>
           </div>
         )}
@@ -230,7 +245,7 @@ function PelunasanPageInner() {
             label="Klik untuk upload bukti pelunasan"
           />
 
-        <button onClick={submitPelunasan} disabled={!buktiPath || loading || formBelumLengkap || pksBelumSetuju}
+        <button onClick={submitPelunasan} disabled={!buktiPath || loading || formBelumLengkap || perjanjianBelumSelesai || adaPenyesuaianPending}
           className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           {loading ? 'Memproses...' : 'Kirim Bukti Pelunasan →'}
         </button>

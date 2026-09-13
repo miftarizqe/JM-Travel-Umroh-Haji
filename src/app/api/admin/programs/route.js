@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import pool from '@/lib/db';
-import { wajibRole } from '@/lib/auth';
+import { wajibSuperAdmin } from '@/lib/auth';
 
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KAMAR = ['quad', 'triple', 'double'];
@@ -25,6 +25,10 @@ const BASE = ['name', 'type', 'jenis_program', 'durasi', 'tanggal', 'tanggal_ber
 // diedit belakangan (lihat KalkulatorTerpadu.jsx: teksModulHari/ubahItineraryModul).
 const DETAIL = ['include_items', 'exclude_items', 'itinerary', 'itinerary_modul'];
 
+// Info Manasik — sekadar info jadwal/lokasi buat jamaah program ini, gak ada
+// gate/tracking kehadiran (lihat dashboard/jamaah/page.jsx).
+const MANASIK = ['manasik_tanggal', 'manasik_lokasi', 'manasik_catatan'];
+
 // Fotokopi data modul negara (tier+addon) yang dipakai program ini, dibekukan
 // pas pertama kali disimpan — lihat migration-program-katalog-modul-snapshot.sql.
 // Frontend yang nentuin isinya (kapan dibekukan/disinkron ulang), di sini
@@ -34,13 +38,30 @@ const SNAPSHOT = ['katalog_modul_snapshot'];
 // Nama hotel Mekkah & Madinah — beda per paket krn beda bintang hotel juga.
 const HOTEL = PAKET.flatMap(p => [`hotel_mekkah_${p}`, `hotel_madinah_${p}`]);
 
+// Custom Hotel per Kota (checkout) — jamaah pilih Bintang Mekkah/Madinah
+// terpisah, rate-nya reuse HOTEL (hotel_mekkah_{paket} dkk) & harga_* yang
+// sudah ada, gak perlu kolom opsi terpisah (lihat src/lib/hotelCustomPricing.js).
+// margin_mode/margin_persen/komisi_mode/komisi_persen di-bake dari template
+// biaya_breakdown pas admin "Pakai Template" (admin/programs/page.jsx) —
+// snapshot per-program, kalau template diedit lagi belakangan program yang
+// sudah diterbitkan TIDAK ikut berubah.
+const CUSTOM_HOTEL = ['margin_mode', 'margin_persen', 'komisi_mode', 'komisi_persen'];
+
+// Nominal Head of Program + nominal closer buat "Closing Langsung Sahabat
+// Baitullah" (Sahabat Baitullah closing-in jamaah LAIN ke program PUBLIK —
+// dikonfirmasi user 2026-09-06, SENGAJA cuma relevan buat publish_type=
+// 'public', publish_type='sahabat_baitullah' emang cuma bisa dicheckout
+// jamaah Sahabat Baitullah sendiri jadi gak ada skenario ini). Per-program,
+// boleh kosong (NULL) supaya fallback ke default (lihat src/lib/closing.js).
+const SAHABAT_CLOSING = ['sahabat_closing_langsung_hop_nominal', 'sahabat_closing_nominal_closer'];
+
 // Nilai kolom untuk INSERT/UPDATE (dipakai POST & PUT biar konsisten)
 function mapVals(cols, body) {
   return cols.map(c => {
     if (
       c === 'name' || c === 'type' || c === 'jenis_program' || c === 'tanggal' || c === 'tanggal_berangkat' ||
       c === 'highlight' || c === 'publish_type' || c === 'kategori' ||
-      c === 'include_items' || c === 'exclude_items' || HOTEL.includes(c)
+      c === 'include_items' || c === 'exclude_items' || HOTEL.includes(c) || MANASIK.includes(c)
     ) {
       return body[c] ?? null;
     }
@@ -53,7 +74,16 @@ function mapVals(cols, body) {
     if (c === 'katalog_modul_snapshot') {
       return body.katalog_modul_snapshot ? JSON.stringify(body.katalog_modul_snapshot) : null;
     }
+    if (c === 'margin_mode' || c === 'komisi_mode') {
+      return body[c] === 'persen' ? 'persen' : 'flat';
+    }
+    if (c === 'margin_persen' || c === 'komisi_persen') {
+      return body[c] !== '' && body[c] != null ? Number(body[c]) : null;
+    }
     if (c === 'active') return body.active === false ? 0 : 1;
+    if (c === 'sahabat_closing_langsung_hop_nominal' || c === 'sahabat_closing_nominal_closer') {
+      return body[c] !== '' && body[c] != null ? Number(body[c]) : null;
+    }
     return Number(body[c] || 0);
   });
 }
@@ -67,7 +97,8 @@ export async function GET(request) {
       const [rows] = await pool.query('SELECT * FROM programs WHERE id = ?', [id]);
       if (rows.length === 0) return Response.json({ error: 'Program tidak ditemukan' }, { status: 404 });
       const [perwRows] = await pool.query('SELECT perw_id FROM program_perwakilan WHERE program_id = ?', [id]);
-      return Response.json({ program: { ...rows[0], perw_ids: perwRows.map(r => r.perw_id) } });
+      const [privateRows] = await pool.query('SELECT user_id FROM program_private_akun WHERE program_id = ?', [id]);
+      return Response.json({ program: { ...rows[0], perw_ids: perwRows.map(r => r.perw_id), private_ids: privateRows.map(r => r.user_id) } });
     }
     const [rows] = await pool.query('SELECT * FROM programs ORDER BY created_at DESC');
     return Response.json({ programs: rows });
@@ -88,9 +119,20 @@ async function sinkronPerwIds(programId, publishType, perwIds) {
   }
 }
 
+// Sinkron daftar akun jamaah yang ditunjuk admin buat lihat+checkout sendiri
+// program 'private' (dikonfirmasi user 2026-09-06) — mirror PERSIS
+// sinkronPerwIds di atas, bedanya nunjuk akun jamaah spesifik bukan role.
+async function sinkronPrivateIds(programId, publishType, privateIds) {
+  await pool.query('DELETE FROM program_private_akun WHERE program_id = ?', [programId]);
+  if (publishType !== 'private' || !Array.isArray(privateIds) || privateIds.length === 0) return;
+  for (const userId of new Set(privateIds)) {
+    await pool.query('INSERT INTO program_private_akun (program_id, user_id) VALUES (?, ?)', [programId, userId]);
+  }
+}
+
 // POST /api/admin/programs — buat program baru
 export async function POST(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
     const body = await request.json();
@@ -108,8 +150,8 @@ export async function POST(request) {
     // eksplisit di sini biar bisa langsung dikembalikan ke frontend
     // (result.insertId TIDAK berlaku untuk kolom UUID, selalu 0).
     const id = randomUUID();
-    const cols = ['id', ...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL];
-    const vals = [id, ...mapVals([...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL], body)];
+    const cols = ['id', ...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL, ...CUSTOM_HOTEL, ...MANASIK, ...SAHABAT_CLOSING];
+    const vals = [id, ...mapVals([...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL, ...CUSTOM_HOTEL, ...MANASIK, ...SAHABAT_CLOSING], body)];
 
     const placeholders = cols.map(() => '?').join(', ');
     await pool.query(
@@ -117,6 +159,15 @@ export async function POST(request) {
       vals
     );
     await sinkronPerwIds(id, body.publish_type, body.perw_ids);
+    await sinkronPrivateIds(id, body.publish_type, body.private_ids);
+
+    // Link-back opsional ke ajuan Kalkulator Perwakilan asal (kalau program ini
+    // dibuat lewat tombol "Buat Program Eksklusif dari Quote Ini") — murni
+    // penanda administratif, gak mempengaruhi otorisasi (itu sudah beres lewat
+    // sinkronPerwIds di atas berdasarkan body.perw_ids apa adanya).
+    if (body.from_lead_id) {
+      await pool.query('UPDATE kalkulator_perwakilan_lead SET program_id = ? WHERE id = ?', [id, body.from_lead_id]);
+    }
 
     return Response.json({ message: 'Program berhasil dibuat!', id }, { status: 201 });
   } catch (error) {
@@ -127,7 +178,7 @@ export async function POST(request) {
 
 // PUT /api/admin/programs — update program (butuh body.id)
 export async function PUT(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
     const body = await request.json();
@@ -136,12 +187,13 @@ export async function PUT(request) {
       return Response.json({ error: 'Tanggal keberangkatan wajib diisi' }, { status: 400 });
     }
 
-    const cols = [...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL];
+    const cols = [...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL, ...CUSTOM_HOTEL, ...MANASIK, ...SAHABAT_CLOSING];
     const setClause = cols.map(c => `${c} = ?`).join(', ');
     const vals = mapVals(cols, body);
 
     await pool.query(`UPDATE programs SET ${setClause} WHERE id = ?`, [...vals, body.id]);
     await sinkronPerwIds(body.id, body.publish_type, body.perw_ids);
+    await sinkronPrivateIds(body.id, body.publish_type, body.private_ids);
     return Response.json({ message: 'Program berhasil diperbarui!' });
   } catch (error) {
     console.error(error);
@@ -151,7 +203,7 @@ export async function PUT(request) {
 
 // DELETE /api/admin/programs?id=xxx
 export async function DELETE(request) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);

@@ -80,6 +80,20 @@ interface PerlengkapanJamaah {
   gambar: string | null;
 }
 
+interface KalkulatorTemplateCard {
+  id: string;
+  nama: string;
+  deskripsi?: string | null;
+  gambar?: string | null;
+  gambar_posisi_y?: number;
+}
+
+interface KalkulatorBaselineCard {
+  id: string;
+  jenis_program: string;
+  label: string;
+}
+
 interface BeritaPost {
   id: number;
   judul: string;
@@ -121,7 +135,6 @@ export default function Home() {
   const [galeriBatches, setGaleriBatches] = useState<GaleriBatch[]>([]);
   const [beritaPosts, setBeritaPosts] = useState<BeritaPost[]>([]);
   const [promo, setPromo] = useState<Promo | null>(null);
-  const [promoDismissed, setPromoDismissed] = useState(false);
   const [promoModalOpen, setPromoModalOpen] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [beritaOpen, setBeritaOpen] = useState<BeritaPost | null>(null);
@@ -136,6 +149,8 @@ export default function Home() {
   const [alurPendaftaran, setAlurPendaftaran] = useState<AlurLangkah[]>([]);
   const [skemaPembayaran, setSkemaPembayaran] = useState<SkemaPembayaran[]>([]);
   const [perlengkapan, setPerlengkapan] = useState<PerlengkapanJamaah[]>([]);
+  const [kalkulatorTemplate, setKalkulatorTemplate] = useState<KalkulatorTemplateCard[]>([]);
+  const [kalkulatorBaseline, setKalkulatorBaseline] = useState<KalkulatorBaselineCard[]>([]);
   const [teks] = useLandingTeks();
   // Field "1 baris = 1 item" (lihat migration-landing-teks.sql) — parse
   // jadi array, buang baris kosong.
@@ -179,6 +194,9 @@ export default function Home() {
     fetch('/api/perlengkapan-jamaah')
       .then(r => r.json())
       .then(d => setPerlengkapan(d.perlengkapan || []));
+    fetch('/api/kalkulator-publik/template')
+      .then(r => r.json())
+      .then(d => { setKalkulatorTemplate(d.template || []); setKalkulatorBaseline(d.baseline || []); });
     fetch('/api/promo')
       .then(r => r.json())
       .then(d => {
@@ -188,13 +206,16 @@ export default function Home() {
         // BARU otomatis muncul lagi walau yang lama sempat di-close.
         try {
           const dismissedId = localStorage.getItem('promo_dismissed_id');
-          if (dismissedId === String(d.promo.id)) setPromoDismissed(true);
+          if (dismissedId === String(d.promo.id)) return;
         } catch {}
+        // Auto-popup kayak iklan, dikasih jeda dikit biar gak "nge-jump"
+        // pas halaman baru aja kebuka.
+        setTimeout(() => setPromoModalOpen(true), 1000);
       });
   }, []);
 
   function dismissPromo() {
-    setPromoDismissed(true);
+    setPromoModalOpen(false);
     try { if (promo) localStorage.setItem('promo_dismissed_id', String(promo.id)); } catch {}
   }
 
@@ -262,31 +283,6 @@ export default function Home() {
           </div>
         </div>
       </nav>
-
-      {/* BANNER PROMO — dismissible, diinget per-ID promo di localStorage
-          (bukan permanen), jadi promo baru selalu muncul lagi walau yang
-          lama sempat di-close. Ada detail (flyer/S&K/kode voucher) -> buka
-          modal; kalau cuma link doang -> langsung ke link (gak perlu modal). */}
-      {promo && !promoDismissed && (
-        <div className="bg-[#C9952A] text-white px-4 py-2.5 text-sm flex items-center justify-center gap-3 relative">
-          <span className="text-center">📣 {promo.judul}</span>
-          {(promo.deskripsi || promo.flyer_path || promo.kode_voucher) ? (
-            <button onClick={() => setPromoModalOpen(true)}
-              className="underline font-bold whitespace-nowrap shrink-0">
-              Lihat Detail →
-            </button>
-          ) : promo.link && (
-            <a href={promo.link} target={promo.link.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer"
-              className="underline font-bold whitespace-nowrap shrink-0">
-              {promo.link_label || 'Lihat Detail'} →
-            </a>
-          )}
-          <button onClick={dismissPromo} aria-label="Tutup"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 hover:text-white text-lg leading-none">
-            ×
-          </button>
-        </div>
-      )}
 
       {/* HERO */}
       <section className="bg-gradient-to-br from-[#0E2F6E] via-[#1A4FA0] to-[#2060C0] text-white py-20 px-4 text-center">
@@ -421,25 +417,94 @@ export default function Home() {
             ))}
           </div>
 
-          {/* Ajakan Umroh Private + info layanan lain — biar yang gak
-              nemu jadwal pas di atas tetap ada jalan lanjut, bukan mentok. */}
-          <div className="mt-10 bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 md:p-8">
-            <div className="md:flex items-center justify-between gap-6">
-              <div className="mb-4 md:mb-0">
-                <h3 className="font-bold text-lg mb-1">{teks.program_private_judul || 'Tidak menemukan program yang sesuai kebutuhanmu?'}</h3>
-                <p className="text-sm opacity-85">{teks.program_private_desk || 'Segera konsultasikan melalui Umroh Private — atur sendiri tanggal keberangkatan, rute, dan preferensimu.'}</p>
+        </div>
+      </section>
+
+      {/* UMROH SEMI PRIVATE / PRIVATE / FULL CUSTOMIZED — paket private/custom
+          yang bisa dihitung sendiri estimasinya (dulu halaman terpisah
+          /kalkulator, dipindah langsung ke landing 2026-08-16 biar nyambung
+          sama section Program di atas, gak perlu pindah halaman). Tombol
+          "Konsultasi Umroh Private" di section Program di atas nge-push ke
+          /kalkulator/custom, sama kayak CTA "Full Customized" di bawah. */}
+      <section className="py-12 px-4 bg-[#F8F9FD]" id="umroh-private">
+        <div className="max-w-5xl mx-auto">
+          {kalkulatorTemplate.length > 0 && (
+            <div className="mb-12">
+              <div className="text-center mb-8">
+                <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">Program Tematik</div>
+                <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Umroh Private</h2>
+                <p className="text-sm text-gray-500 max-w-xl mx-auto mt-2">Paket bertema buat kelompok kecil — isi tanggal &amp; add-on yang kamu mau, langsung dapat estimasi harganya.</p>
               </div>
-              <button onClick={() => window.open(waLink(pengaturan.wa_kantor, 'Assalamu\'alaikum JM Travel, saya ingin konsultasi Umroh Private.') || '#', '_blank')}
-                className="bg-[#25D366] text-white font-bold px-6 py-3 rounded-full whitespace-nowrap hover:bg-green-600 transition-colors">
-                💬 Konsultasi Umroh Private
-              </button>
-            </div>
-            <div className="border-t border-white/20 mt-5 pt-5">
-              <div className="text-xs opacity-75 mb-2">{teks.program_layanan_lain_label || 'Selain Umroh reguler, kami juga melayani:'}</div>
-              <div className="flex flex-wrap gap-2">
-                {parseBaris(teks.program_layanan_lain_tags || '🕋 Haji Khusus\n🌍 Wisata Halal\n✈️ Umroh+ (kombinasi negara lain, tidak cuma UEA)').map(t => (
-                  <span key={t} className="bg-white/15 text-xs font-semibold px-3 py-1.5 rounded-full">{t}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {kalkulatorTemplate.map(t => (
+                  <button key={t.id} onClick={() => router.push(`/kalkulator/${t.id}`)}
+                    className="text-left bg-white rounded-2xl border border-[#e0e8f0] overflow-hidden hover:shadow-xl transition-all group">
+                    {t.gambar ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={t.gambar} alt={t.nama} className="w-full h-40 object-cover"
+                        style={{ objectPosition: `50% ${t.gambar_posisi_y ?? 50}%` }} />
+                    ) : (
+                      <div className="w-full h-40 bg-gradient-to-br from-[#0E2F6E] to-[#2060C0] flex items-center justify-center text-white text-4xl">🕋</div>
+                    )}
+                    <div className="p-5">
+                      <div className="text-lg font-bold text-[#0E2F6E] mb-1">{t.nama}</div>
+                      {t.deskripsi && <div className="text-xs text-gray-500 mb-3 line-clamp-3">{t.deskripsi}</div>}
+                      <div className="text-sm font-bold text-[#1A4FA0] group-hover:underline">Hitung Estimasi →</div>
+                    </div>
+                  </button>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Umroh Private baseline (pilih jenis program) + CTA Full
+              Customized digabung jadi 1 "unit" — 1 judul buat keduanya,
+              alurnya: coba hitung dari jenis program dulu, kalau gak ada
+              yang cocok baru ceritain kebutuhan lewat kotak biru di bawah
+              (2026-08-16, dikoreksi dari versi sebelumnya yang misah 2 judul). */}
+          <div>
+            <div className="text-center mb-8">
+              <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">Custom</div>
+              <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Full Customized Umroh Private</h2>
+              <p className="text-sm text-gray-500 max-w-xl mx-auto mt-2">Gak nemu paket tematik yang pas di atas? Pilih jenis program-nya dulu buat estimasi cepat, atau langsung ceritain kebutuhanmu kalau maunya beda lagi.</p>
+            </div>
+
+            {kalkulatorBaseline.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                {kalkulatorBaseline.map(b => (
+                  <button key={b.id} onClick={() => router.push(`/kalkulator/${b.id}`)}
+                    className="text-left bg-white rounded-xl border border-[#e0e8f0] p-4 hover:border-[#1A4FA0] hover:shadow-md transition-all">
+                    <div className="font-bold text-[#0E2F6E] mb-1">{b.label}</div>
+                    <div className="text-xs font-bold text-[#1A4FA0]">Hitung Estimasi →</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Ajakan Full Customized + info layanan lain — desain dipindah dari
+                CTA "Tidak menemukan program..." yang dulu nempel di bawah
+                section Program (open trip), sekarang cuma ada di sini biar
+                gak dobel (2026-08-16). */}
+            <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 md:p-8">
+              <div className="md:flex items-center justify-between gap-6">
+                <div className="mb-4 md:mb-0">
+                  <h3 className="font-bold text-lg mb-1">Gak ada yang cocok?</h3>
+                  <p className="text-sm opacity-85">Ceritain aja maunya gimana — tim kami bantu susunkan itinerary &amp; quote harganya khusus buat kamu.</p>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button onClick={() => router.push('/kalkulator/custom')}
+                    className="bg-[#25D366] text-white font-bold px-6 py-3 rounded-full whitespace-nowrap hover:bg-green-600 transition-colors">
+                    💬 Ajukan Custom Sendiri
+                  </button>
+                </div>
+              </div>
+              <div className="border-t border-white/20 mt-5 pt-5">
+                <div className="text-xs opacity-75 mb-2">{teks.program_layanan_lain_label || 'Selain Umroh reguler, kami juga melayani:'}</div>
+                <div className="flex flex-wrap gap-2">
+                  {parseBaris(teks.program_layanan_lain_tags || '🕋 Haji Khusus\n🌍 Wisata Halal\n✈️ Umroh+ (kombinasi negara lain, tidak cuma UEA)').map(t => (
+                    <span key={t} className="bg-white/15 text-xs font-semibold px-3 py-1.5 rounded-full">{t}</span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -574,6 +639,47 @@ export default function Home() {
         </div>
       </section>
 
+      {/* PROMO — reminder promo yang lagi aktif buat yang udah nutup popup-nya
+          (lihat popup auto-open di atas). Sumber datanya sama (satu promo
+          aktif terbaru dari /api/promo), bukan daftar/arsip promo. */}
+      {promo && (
+        <section className="bg-[#FFF8E7] py-12 px-4" id="promo">
+          <div className="max-w-3xl mx-auto">
+            <div className="text-center mb-6">
+              <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">Promo</div>
+              <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Jangan Sampai Kelewatan</h2>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-[#f0e2bd] overflow-hidden md:flex md:items-center">
+              {promo.flyer_path && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={promo.flyer_path} alt={promo.judul} className="w-full md:w-56 md:h-56 object-cover shrink-0" />
+              )}
+              <div className="p-6 text-center md:text-left">
+                <h3 className="text-xl font-bold text-[#0E2F6E] mb-2">📣 {promo.judul}</h3>
+                {promo.deskripsi && (
+                  <p className="text-sm text-gray-600 whitespace-pre-line mb-4">{promo.deskripsi}</p>
+                )}
+                <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+                  {promo.kode_voucher && (
+                    <button onClick={copyKodeVoucher}
+                      className="flex items-center gap-2 bg-[#E8F0FB] border-2 border-dashed border-[#1A4FA0] rounded-xl px-4 py-2 hover:bg-[#dbe8f9] transition-colors">
+                      <span className="font-black text-[#0E2F6E] tracking-widest">{promo.kode_voucher}</span>
+                      <span className="text-xs font-bold text-[#1A4FA0] whitespace-nowrap">{codeCopied ? '✅ Disalin!' : '📋 Copy'}</span>
+                    </button>
+                  )}
+                  {promo.link && (
+                    <a href={promo.link} target={promo.link.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer"
+                      className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-6 py-2 rounded-full transition-colors">
+                      {promo.link_label || 'Lihat Selengkapnya'} →
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* CTA + KONTAK */}
       <section className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white py-14 px-4 text-center" id="kontak">
         <div className="max-w-2xl mx-auto">
@@ -660,6 +766,15 @@ export default function Home() {
                     <li key={item}>✔ {item}</li>
                   ))}
                 </ul>
+              </div>
+              <div className="bg-[#FFF8E8] border border-[#E9CC8A] rounded-lg p-3">
+                <div className="font-bold text-[#8a6300] mb-1 text-sm">📋 Syarat Menjadi Perwakilan</div>
+                <ul className="text-sm text-[#6b4f10] space-y-1">
+                  <li>✔ Sudah pernah umroh bersama JM Travel, <i>atau</i></li>
+                  <li>✔ Punya kode referral dari Perwakilan JM Travel yang sudah aktif, <i>atau</i></li>
+                  <li>✔ Didaftarkan langsung oleh manajemen JM Travel</li>
+                </ul>
+                <div className="text-[11px] text-[#8a6300]/80 mt-1.5">Belum memenuhi salah satu di atas? Hubungi kami langsung untuk info lebih lanjut.</div>
               </div>
               <div className="text-xs text-gray-400">Detail lengkap & ketentuan akan dijelaskan saat pendaftaran.</div>
             </div>
@@ -804,18 +919,24 @@ export default function Home() {
         </div>
       )}
 
-      {/* DETAIL PROMO — flyer + S&K + kode voucher copy-able */}
+      {/* POPUP PROMO — auto-muncul sendiri pas halaman load (ada jeda dikit,
+          lihat useEffect di atas), kayak iklan. Dismiss diinget per-ID promo
+          di localStorage (bukan permanen), jadi promo BARU tetap auto-popup
+          lagi walau yang lama sempat di-close. */}
       {promoModalOpen && promo && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={() => setPromoModalOpen(false)}>
-          <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={dismissPromo}>
+          <div className="relative bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={dismissPromo} aria-label="Tutup"
+              className="absolute -top-3 -right-3 z-10 w-8 h-8 flex items-center justify-center bg-white text-gray-600 hover:text-gray-900 rounded-full shadow-lg text-lg leading-none">
+              ×
+            </button>
             {promo.flyer_path && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={promo.flyer_path} alt={promo.judul} className="w-full rounded-t-2xl" />
             )}
             <div className="p-5">
               <div className="flex items-start justify-between gap-3 mb-2">
-                <h3 className="font-bold text-[#0E2F6E] text-lg">{promo.judul}</h3>
-                <button onClick={() => setPromoModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0">×</button>
+                <h3 className="font-bold text-[#0E2F6E] text-lg">📣 {promo.judul}</h3>
               </div>
               {promo.deskripsi && (
                 <p className="text-sm text-gray-600 whitespace-pre-line mb-4">{promo.deskripsi}</p>

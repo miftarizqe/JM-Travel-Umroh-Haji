@@ -62,7 +62,10 @@ export async function POST(request) {
         ...bersama,
         ...items[i],
         batch_id: batchId,
-        meRole: me.role,
+        // auth.user.role (JWT sesi aktif), bukan me.role (role primer DB) —
+        // lihat catatan sama di /api/bookings/route.js, biar akun dual-role
+        // ngikutin mode yang lagi di-switch aktif pas checkout keranjang.
+        meRole: auth.user.role,
         voucher_kode_final: voucher?.kode || null,
         voucher_nominal: voucherNominal,
         // Kode unik cuma nempel di item pertama — supaya total (DP semua

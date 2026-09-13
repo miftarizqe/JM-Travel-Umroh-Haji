@@ -8,7 +8,7 @@ import SearchableSelect from '@/app/components/SearchableSelect';
 let idCounter = 0;
 
 const JENIS_LIST = [
-  { key: 'pks', label: 'SPKA-Ins', uploadUrl: '/api/admin/upload-dokumen-pks-fisik', contoh: 'SPKAINS' },
+  { key: 'pks', label: 'SPK-PWK', uploadUrl: '/api/admin/upload-dokumen-pks-fisik', contoh: 'SPKAINS' },
   { key: 'formulir', label: 'Formulir Pendaftaran', uploadUrl: '/api/admin/upload-formulir-fisik', contoh: 'FORMULIR' },
   { key: 'ktp', label: 'Foto KTP', uploadUrl: '/api/admin/upload-ktp-fisik', contoh: 'KTP' },
   { key: 'foto', label: 'Foto Profil', uploadUrl: '/api/admin/upload-foto-profil', contoh: 'FOTO' },

@@ -37,6 +37,19 @@ function gabungKategori(...daftarList) {
  * pendapatan di luar booking dan pengeluaran operasional — jadi Laba
  * Bersih PERUSAHAAN yang sesungguhnya, bukan cuma laba per booking.
  *
+ * HPP dihitung dari duit vendor yang BENERAN keluar (cashflow_transaksi
+ * kategori adalah_hpp_vendor=1, "Pembayaran Vendor/HPP"), BUKAN angka
+ * budget (programs.hpp_* × pax booking) — budget itu cuma alat bantu admin
+ * nentuin Harga Jual pas costing program, gak dipakai lagi buat P&L
+ * (dikonfirmasi user: "budget program itu margin dan hpp cuma buat ngitung
+ * harga jual, realisasinya ikutin yang beneran keluar"). Konsekuensinya:
+ * kalau ada tagihan vendor yang belum sempat diinput admin ke Cashflow,
+ * HPP di sini keliatan lebih kecil (laba keliatan lebih tinggi) sampai
+ * transaksinya diinput — DISENGAJA, bukan bug, biar jadi pengingat buat
+ * admin melengkapi data, bukan ditutupi angka rencana. Company-wide (semua
+ * transaksi kategori ini dihitung, TERLEPAS di-tag ke program_id atau
+ * enggak) — buat gap per-program pakai /admin/laporan/realisasi-program.
+ *
  * Sumber opex & pendapatan lain digabung dari 2 tempat:
  * 1. Tabel lama pengeluaran_operasional/pendapatan_lain — sudah TIDAK
  *    nerima entri baru (lihat halaman Keuangan Perusahaan, tombol +Tambah
@@ -75,6 +88,19 @@ export async function hitungLaporanKeuanganPerusahaan(pool, { from, to } = {}) {
   let where = ' WHERE 1=1';
   if (from) { where += ' AND tanggal >= ?'; params.push(from); }
   if (to) { where += ' AND tanggal <= ?'; params.push(to); }
+
+  // --- HPP real (vendor) — gantiin bisnis.hpp yang budget, lihat komentar fungsi ---
+  const hppParams = [];
+  let hppWhere = " WHERE t.tipe = 'out' AND k.adalah_hpp_vendor = 1";
+  if (from) { hppWhere += ' AND t.tanggal >= ?'; hppParams.push(from); }
+  if (to) { hppWhere += ' AND t.tanggal <= ?'; hppParams.push(to); }
+  const [[hppRealRow]] = await pool.query(
+    `SELECT COALESCE(SUM(t.nominal), 0) AS total
+     FROM cashflow_transaksi t JOIN cashflow_kategori k ON k.id = t.kategori_id
+     ${hppWhere}`,
+    hppParams
+  );
+  const hppReal = Number(hppRealRow.total);
 
   // --- Opex: legacy + cashflow ---
   const [opexLegacyRows] = await pool.query(
@@ -139,7 +165,7 @@ export async function hitungLaporanKeuanganPerusahaan(pool, { from, to } = {}) {
 
   const pendapatanTotal = bisnis.pendapatan_bersih + totalPendapatanLain;
   const pendapatanSetelahUjroh = pendapatanTotal - bisnis.komisi;
-  const labaBersihBisnis = pendapatanSetelahUjroh - bisnis.hpp;
+  const labaBersihBisnis = pendapatanSetelahUjroh - hppReal;
   const labaBersihPerusahaan = labaBersihBisnis - totalOpex - totalReimbursePending;
 
   return {
@@ -149,7 +175,8 @@ export async function hitungLaporanKeuanganPerusahaan(pool, { from, to } = {}) {
     pendapatan_total: pendapatanTotal,
     komisi: bisnis.komisi,
     pendapatan_setelah_ujroh: pendapatanSetelahUjroh, // bersih setelah ujroh, sebelum HPP
-    hpp: bisnis.hpp,
+    hpp: hppReal, // REAL (duit vendor beneran keluar) — bukan budget, lihat komentar fungsi
+    hpp_budget_referensi: bisnis.hpp, // cuma buat perbandingan/referensi, TIDAK dipakai di perhitungan laba manapun
     laba_bersih_bisnis: labaBersihBisnis, // sebelum opex, sudah termasuk pendapatan lain
     pengeluaran_operasional: perKategoriOpex,
     total_pengeluaran_operasional: totalOpex,

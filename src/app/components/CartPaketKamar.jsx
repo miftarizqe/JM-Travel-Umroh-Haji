@@ -6,6 +6,10 @@ import WaitlistCTA from '@/app/components/WaitlistCTA';
 const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
 
 function hargaProgram(prog, item) {
+  // Custom Hotel per Kota (paket==='custom') SELALU pakai hargaCustom (harga
+  // hasil hitung live dari /api/programs/[id]/hitung-hotel-custom, lihat
+  // CustomHotelPicker) — gak ada kolom harga_custom_* statis buat di-fallback,
+  // beda dari override admin manual di paket tetap.
   if (item.hargaCustom && Number(item.hargaCustom) > 0) return Number(item.hargaCustom);
   const kamarKey = kamarKeyOf(item.kamar);
   return prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
@@ -22,12 +26,63 @@ function hargaItem(prog, item) {
   return hargaProgram(prog, item) + hargaOpsiTambahan(item);
 }
 
+// Label ringkasan keranjang — paket tetap tampil "Deluxe · Triple" seperti
+// biasa, khusus Custom Hotel tampil Bintang Mekkah/Madinah yang dipilih
+// (lebih informatif daripada cuma tulisan "custom").
+function labelPaketKamar(item) {
+  if (item.paket === 'custom' && item.customHotel) {
+    return `🎨 Mekkah Bintang ${BINTANG_PAKET[item.customHotel.mekkahPaket]} + Madinah Bintang ${BINTANG_PAKET[item.customHotel.madinahPaket]} · ${item.kamar}`;
+  }
+  return `${item.paket} · ${item.kamar}`;
+}
+
 const PAKET_LIST = [
   { key: 'deluxe', label: '⭐⭐⭐ Deluxe', hotel: 'Ramada Al Fayzeen' },
   { key: 'eksekutif', label: '⭐⭐⭐⭐ Eksekutif', hotel: 'Maysan Al Mashaer' },
   { key: 'signature', label: '⭐⭐⭐⭐⭐ Signature', hotel: 'Ghufron Al Shofwa' },
 ];
 const KAMAR_LIST = ['Quad (4/Kamar)', 'Triple (3/Kamar)', 'Double (2/Kamar)'];
+const BINTANG_PAKET = { deluxe: 3, eksekutif: 4, signature: 5 };
+
+// Custom Hotel per Kota — hitung harga LIVE tiap kali pilihan Bintang/kamar
+// berubah (KEY paket aja yang dikirim, server yang resolve rate dari baris
+// paket bersangkutan & hitung margin/komisi proporsional, lihat
+// /api/programs/[id]/hitung-hotel-custom). Dipisah jadi hook sendiri (bukan
+// langsung di komponen utama) biar effect-nya cuma bergantung ke 4 nilai
+// primitif ini, gak keikut re-run tiap `current` berubah karena alasan lain
+// (ganti nama jamaah, dst).
+function useCustomHotelHarga(progId, mekkahPaket, madinahPaket, kamarKey) {
+  const [hasil, setHasil] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const valid = !!(progId && mekkahPaket && madinahPaket && kamarKey);
+
+  useEffect(() => {
+    // Input belum lengkap — jangan setState di sini (dianggap "derived state"
+    // oleh lint, bukan side effect beneran), cukup skip. `valid` di bawah yang
+    // nentuin `hasil`/`error` balikin null selama input belum lengkap.
+    if (!valid) return;
+    let ignore = false;
+    // Pola fetch-in-effect standar (setLoading sebelum async, dipakai luas
+    // di proyek ini) — lint react-hooks/set-state-in-effect terlalu ketat
+    // buat pola ini, sudah ada beberapa exception serupa di codebase.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true); setError(null);
+    fetch(`/api/programs/${progId}/hitung-hotel-custom`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mekkah_paket: mekkahPaket, madinah_paket: madinahPaket, kamar: kamarKey }),
+    }).then(r => r.json()).then(d => {
+      if (ignore) return;
+      if (d.error) { setError(d.error); setHasil(null); }
+      else setHasil({ harga: d.harga_per_orang });
+    }).catch(() => { if (!ignore) { setError('Gagal menghitung harga'); setHasil(null); } })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
+  }, [valid, progId, mekkahPaket, madinahPaket, kamarKey]);
+
+  return { hasil: valid ? hasil : null, loading: valid && loading, error: valid ? error : null };
+}
 
 // Jaga panjang array nama tetap = jumlah jamaah, tanpa buang nama yang
 // sudah diketik kalau jumlahnya cuma naik/turun sedikit.
@@ -85,6 +140,35 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
   const sisaSeat = (prog?.total_seat || 0) - (prog?.used_seat || 0) - cart.reduce((s, c) => s + c.jumlah, 0);
   const maxJumlah = Math.max(1, sisaSeat);
 
+  // Auto-koreksi kalau paket yang lagi kepilih ternyata harganya belum
+  // diisi admin (harga_X_Y = 0/NULL) — jangan biarin jamaah nyangkut di
+  // pilihan "Rp 0" (bisa kejadian di program mana pun kalau admin belum
+  // sempat isi semua tier, bukan cuma pas paket default 'eksekutif' pas
+  // load pertama). Pindah otomatis ke tier PERTAMA yang beneran ada
+  // harganya buat kombinasi kamar yang sama; kalau gak ada satu pun yang
+  // punya harga, biarin apa adanya (nanti ke-block di tambahkan()).
+  useEffect(() => {
+    if (!prog || semuaHargaSama || current.paket === 'custom') return;
+    const hargaSaatIni = Number(prog[`harga_${current.paket}_${kamarKey}`]) || Number(prog[`harga_${current.paket}`]) || 0;
+    if (hargaSaatIni > 0) return;
+    const alternatif = PAKET_LIST.find(pk => (Number(prog[`harga_${pk.key}_${kamarKey}`]) || Number(prog[`harga_${pk.key}`]) || 0) > 0);
+    if (alternatif && alternatif.key !== current.paket) onChangeCurrent({ ...current, paket: alternatif.key });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prog?.id, kamarKey, current.paket, semuaHargaSama]);
+
+  // Custom Hotel per Kota — cuma aktif kalau program ini beneran nyediakan
+  // (prog.custom_hotel_tersedia, lihat GET /api/programs) DAN paket yang lagi
+  // dipilih emang 'custom' (kartu ke-4 di "Pilih Akomodasi" di bawah).
+  const customHotelPilihan = current.customHotel || {};
+  const { hasil: customHotelHasil, loading: customHotelLoading, error: customHotelError } =
+    useCustomHotelHarga(prog?.id, customHotelPilihan.mekkahPaket, customHotelPilihan.madinahPaket, current.paket === 'custom' ? kamarKey : null);
+  useEffect(() => {
+    if (current.paket !== 'custom') return;
+    const harga = customHotelHasil?.harga || '';
+    if (String(current.hargaCustom || '') !== String(harga)) onChangeCurrent({ ...current, hargaCustom: harga });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customHotelHasil]);
+
   const totalDpCart = cart.reduce((s, c) => s + (prog?.dp || 0) * c.jumlah, 0);
   const totalHargaCart = cart.reduce((s, c) => s + hargaItem(prog, c) * c.jumlah, 0);
 
@@ -94,6 +178,19 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
   // { kode, total, cartSnapshot } — cartSnapshot dipakai deteksi keranjang
   // berubah SETELAH voucher di-apply, supaya nggak ada angka basi ke-tampilkan.
   const [voucherApplied, setVoucherApplied] = useState(null);
+  // Daftar voucher aktif milik user (buat picker klik-langsung ala Shopee,
+  // bukan cuma ketik manual) — /api/vouchers/saya udah nge-filter aktif/
+  // kuota/expired/akses_role, tinggal disaring lagi ke program yang lagi
+  // dibuka (voucher publik/akun bisa scoped ke 1 program lewat prog_id,
+  // NULL berarti berlaku semua program).
+  const [voucherList, setVoucherList] = useState([]);
+
+  useEffect(() => {
+    fetch('/api/vouchers/saya').then(r => r.json())
+      .then(d => setVoucherList((d.vouchers || []).filter(v => !v.prog_id || v.prog_id === prog?.id)))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prog?.id]);
 
   const cartSnapshot = JSON.stringify(cart.map(c => ({ paket: c.paket, jumlah: c.jumlah })));
   const voucherStale = voucherApplied && voucherApplied.cartSnapshot !== cartSnapshot;
@@ -113,15 +210,20 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalHargaCart, totalDpCart, voucherDiskonTotal, totalHargaSetelahDiskon, sisaPelunasan]);
 
-  async function terapkanVoucher() {
-    if (!voucherInput.trim() || cart.length === 0) return;
+  // `kodeOverride` dipakai klik langsung dari picker (lihat render di bawah)
+  // — gak bisa andelin state voucherInput yang baru di-set barengan (setState
+  // async), jadi kode-nya dioper eksplisit alih-alih dibaca dari state.
+  async function terapkanVoucher(kodeOverride) {
+    const kode = (kodeOverride ?? voucherInput).trim();
+    if (!kode || cart.length === 0) return;
+    setVoucherInput(kode);
     setVoucherChecking(true);
     setVoucherError(null);
     try {
       const res = await fetch('/api/vouchers/validate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          kode: voucherInput, prog_id: prog.id,
+          kode, prog_id: prog.id,
           items: cart.map(c => ({ paket: c.paket, kamar: c.kamar, jumlah_jamaah: c.jumlah })),
           referral_perw_id: referralPerwId || null,
         }),
@@ -142,6 +244,17 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
 
   function tambahkan() {
     if (current.jumlah < 1) return;
+    if (current.paket === 'custom') {
+      if (!customHotelPilihan.mekkahPaket || !customHotelPilihan.madinahPaket) { alert('Pilih Bintang Mekkah & Madinah dulu!'); return; }
+      if (customHotelLoading) { alert('Tunggu harga selesai dihitung dulu...'); return; }
+      if (customHotelError || !customHotelHasil?.harga) { alert('Gagal menghitung harga kombinasi bintang ini, coba pilih ulang.'); return; }
+    } else if (hargaItem(prog, current) <= 0) {
+      // Jaga-jaga kalau somehow lolos dari disable di kartu paket (mis. semua
+      // tier belum diisi harga sama sekali) — jangan sampai item Rp 0 masuk
+      // keranjang.
+      alert('Harga paket ini belum tersedia. Pilih akomodasi lain atau hubungi admin.');
+      return;
+    }
     const namas = resizeNamas(current.namas, current.jumlah).map(n => n.trim());
     if (namas.some(n => !n)) { alert('Isi nama lengkap semua jamaah dulu!'); return; }
     const jks = resizeNamas(current.jks, current.jumlah);
@@ -150,7 +263,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     const alamats = resizeNamas(current.alamats, current.jumlah).map(a => a.trim());
     if (alamats.some(a => !a)) { alert('Isi alamat kirim perlengkapan semua jamaah dulu!'); return; }
     onAdd({ ...current, namas, was, jks, alamats });
-    onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', namas: [''], was: [''], jks: [''], alamats: [''], opsiTambahan: [] });
+    onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', customHotel: current.paket === 'custom' ? {} : null, namas: [''], was: [''], jks: [''], alamats: [''], opsiTambahan: [] });
   }
 
   function toggleOpsiTambahan(opsi) {
@@ -189,22 +302,46 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
             <div className="space-y-3">
               {PAKET_LIST.map(pk => {
                 const harga = prog?.[`harga_${pk.key}_${kamarKey}`] || prog?.[`harga_${pk.key}`] || 0;
+                const belumTersedia = harga <= 0;
                 return (
-                  <div key={pk.key} onClick={() => onChangeCurrent({ ...current, paket: pk.key })}
-                    className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                      current.paket === pk.key ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
+                  <div key={pk.key} onClick={() => { if (!belumTersedia) onChangeCurrent({ ...current, paket: pk.key }); }}
+                    className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
+                      belumTersedia ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
+                        : current.paket === pk.key ? 'border-[#1A4FA0] bg-[#E8F0FB] cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'
                     }`}>
                     <div>
                       <div className="font-bold text-[#0E2F6E]">{pk.label}</div>
                       <div className="text-xs text-gray-400">{pk.hotel}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-black text-[#0E2F6E]">Rp {(harga / 1000000).toFixed(1)} jt</div>
-                      {current.paket === pk.key && <div className="text-xs text-[#1A4FA0] font-semibold">✓ Dipilih</div>}
+                      {belumTersedia ? (
+                        <div className="text-xs font-semibold text-gray-400">Belum tersedia</div>
+                      ) : (
+                        <div className="font-black text-[#0E2F6E]">Rp {(harga / 1000000).toFixed(1)} jt</div>
+                      )}
+                      {!belumTersedia && current.paket === pk.key && <div className="text-xs text-[#1A4FA0] font-semibold">✓ Dipilih</div>}
                     </div>
                   </div>
                 );
               })}
+
+              {/* Custom Hotel per Kota — cuma muncul kalau admin sudah
+                  siapkan opsi hotelnya buat program ini (lihat KalkulatorTerpadu
+                  §Custom Hotel per Kota). Harga BELUM diketahui sampai jamaah
+                  pilih Hotel Mekkah & Madinah di bawah (beda dari 3 kartu di
+                  atas yang harganya sudah pasti). */}
+              {prog?.custom_hotel_tersedia && (
+                <div onClick={() => onChangeCurrent({ ...current, paket: 'custom', customHotel: current.customHotel || {} })}
+                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                    current.paket === 'custom' ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                  <div>
+                    <div className="font-bold text-[#0E2F6E]">🎨 Custom Hotel</div>
+                    <div className="text-xs text-gray-400">Pilih sendiri hotel Mekkah & Madinah</div>
+                  </div>
+                  {current.paket === 'custom' && <div className="text-xs text-[#1A4FA0] font-semibold">✓ Dipilih</div>}
+                </div>
+              )}
             </div>
           </div>
 
@@ -222,6 +359,53 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
               ))}
             </div>
           </div>
+
+          {/* Pilihan Bintang Custom — cuma tampil kalau kartu "Custom Hotel"
+              di atas lagi dipilih. KEY paket ('deluxe'/'eksekutif'/'signature')
+              aja yang disimpen di current.customHotel — rate mentah gak
+              pernah nyampe browser, server yang resolve dari baris paket
+              bersangkutan (lihat prog.hotel_opsi, cuma nama hotel + bintang,
+              di-derive server-side dari GET /api/programs). */}
+          {current.paket === 'custom' && (
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+              <div className="font-bold text-[#0E2F6E] text-sm">🎨 Pilih Bintang Custom</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Bintang Mekkah</label>
+                  <select value={customHotelPilihan.mekkahPaket ?? ''}
+                    onChange={e => onChangeCurrent({ ...current, customHotel: { ...customHotelPilihan, mekkahPaket: e.target.value || null } })}
+                    className="w-full px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
+                    <option value="">-- Pilih Bintang Mekkah --</option>
+                    {(prog?.hotel_opsi || []).map(o => (
+                      <option key={o.paket} value={o.paket}>Bintang {o.bintang}{o.hotel_mekkah ? ` — ${o.hotel_mekkah}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">Bintang Madinah</label>
+                  <select value={customHotelPilihan.madinahPaket ?? ''}
+                    onChange={e => onChangeCurrent({ ...current, customHotel: { ...customHotelPilihan, madinahPaket: e.target.value || null } })}
+                    className="w-full px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
+                    <option value="">-- Pilih Bintang Madinah --</option>
+                    {(prog?.hotel_opsi || []).map(o => (
+                      <option key={o.paket} value={o.paket}>Bintang {o.bintang}{o.hotel_madinah ? ` — ${o.hotel_madinah}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {customHotelPilihan.mekkahPaket && customHotelPilihan.madinahPaket && (
+                <div className="text-sm">
+                  {customHotelLoading ? (
+                    <span className="text-gray-400">Menghitung harga...</span>
+                  ) : customHotelError ? (
+                    <span className="text-red-500">⚠️ {customHotelError}</span>
+                  ) : customHotelHasil?.harga ? (
+                    <span className="font-black text-[#0E2F6E]">Rp {Number(customHotelHasil.harga).toLocaleString('id-ID')} / jamaah</span>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
@@ -351,7 +535,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
             {cart.map((c, i) => (
               <div key={i} className="flex items-center justify-between bg-white border border-[#e0e8f0] rounded-xl p-3">
                 <div>
-                  <div className="font-semibold text-[#0E2F6E] text-sm capitalize">{c.paket} · {c.kamar}</div>
+                  <div className="font-semibold text-[#0E2F6E] text-sm capitalize">{labelPaketKamar(c)}</div>
                   <div className="text-xs text-gray-400">{c.jumlah} jamaah · Rp {(hargaItem(prog, c) * c.jumlah).toLocaleString('id-ID')}</div>
                   {c.opsiTambahan?.length > 0 && (
                     <div className="text-xs text-[#1A4FA0] mt-0.5">🧳 {c.opsiTambahan.map(o => o.nama).join(', ')}</div>
@@ -377,15 +561,31 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
               <button onClick={hapusVoucher} className="text-xs text-red-500 hover:text-red-700 font-bold underline whitespace-nowrap ml-2">Hapus</button>
             </div>
           ) : (
-            <div className="flex gap-2">
-              <input value={voucherInput} onChange={e => setVoucherInput(e.target.value.toUpperCase())}
-                placeholder="Masukkan kode voucher"
-                className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm uppercase"/>
-              <button onClick={terapkanVoucher} disabled={voucherChecking || !voucherInput.trim()}
-                className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-5 rounded-xl transition-colors disabled:opacity-50">
-                {voucherChecking ? '...' : 'Terapkan'}
-              </button>
-            </div>
+            <>
+              {voucherList.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {voucherList.map(v => (
+                    <button key={v.kode} onClick={() => terapkanVoucher(v.kode)} disabled={voucherChecking}
+                      className="flex items-center gap-2 bg-white border-2 border-dashed border-[#C9952A] hover:bg-[#FEF3DC] rounded-xl px-3 py-2 text-left disabled:opacity-50 transition-colors">
+                      <span className="text-lg">🎟️</span>
+                      <div>
+                        <div className="text-xs font-bold text-[#0E2F6E]">{v.kode} — Rp {v.potongan.toLocaleString('id-ID')}</div>
+                        <div className="text-[10px] text-gray-400">{v.catatan || (v.khusus_untuk_saya ? 'Khusus akun Anda' : 'Klik untuk pakai')}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input value={voucherInput} onChange={e => setVoucherInput(e.target.value.toUpperCase())}
+                  placeholder="Atau masukkan kode voucher lain"
+                  className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm uppercase"/>
+                <button onClick={() => terapkanVoucher()} disabled={voucherChecking || !voucherInput.trim()}
+                  className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-5 rounded-xl transition-colors disabled:opacity-50">
+                  {voucherChecking ? '...' : 'Terapkan'}
+                </button>
+              </div>
+            </>
           )}
           {voucherError && <div className="text-xs text-red-500 mt-1.5">⚠️ {voucherError}</div>}
           {voucherStale && (
@@ -400,7 +600,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
           <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0] mb-3">📋 Ringkasan</div>
           {cart.map((c, i) => (
             <div key={i} className="flex justify-between text-sm text-gray-500">
-              <span className="capitalize">{c.paket} · {c.kamar} × {c.jumlah}</span>
+              <span className="capitalize">{labelPaketKamar(c)} × {c.jumlah}</span>
               <span className="font-semibold text-[#0E2F6E]">Rp {(hargaItem(prog, c) * c.jumlah).toLocaleString('id-ID')}</span>
             </div>
           ))}

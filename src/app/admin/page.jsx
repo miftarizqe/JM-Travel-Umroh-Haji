@@ -1,16 +1,20 @@
 'use client';
-import { Fragment, Suspense, useEffect, useState } from 'react';
+import { Fragment, Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import SearchableSelect from '@/app/components/SearchableSelect';
 import TombolWA from '@/app/components/TombolWA';
+import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan } from '@/lib/usePengaturan';
 import { urutkan, cocok } from '@/lib/sortTable';
 import { downloadExcel as downloadExcelFile } from '@/lib/downloadExcel';
+import { downloadDokumenZip } from '@/lib/downloadDokumenZip';
 import SortTh from '@/app/components/SortTh';
-import { pesanDpDikonfirmasi, pesanPelunasanDikonfirmasi, pesanReferralBaru, pesanReminderPelunasan } from '@/lib/waTemplates';
+import { pesanDpDikonfirmasi, pesanPelunasanDikonfirmasi, pesanReferralBaru, pesanReminderPelunasan, pesanReminderManasik } from '@/lib/waTemplates';
+import { resolveJamaahHarga, ringkasanPaketKamar } from '@/lib/jamaahHarga';
+import { persenKesiapan, diBawahProgress } from '@/lib/kesiapanTabungan';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
@@ -27,6 +31,17 @@ const KAMAR_OPSI = ['Quad (4/Kamar)', 'Triple (3/Kamar)', 'Double (2/Kamar)'];
 // Status booking yang masih boleh diedit paket/kamar-nya atau dibatalkan
 // langsung admin — sudah dibatalkan/selesai/lagi diproses jamaah gak relevan lagi.
 const BOOKING_BISA_DIUBAH = (status) => !['dibatalkan', 'selesai', 'menunggu_batal'].includes(status);
+
+// Sama persis label/warna status pengiriman perlengkapan (WMS) yang dipakai
+// di /admin/perlengkapan-pengiriman/[program] — dipakai lagi di modal detail
+// booking biar 1 istilah konsisten di 2 tempat.
+const PERLENGKAPAN_STATUS_LABEL = { belum_diproses: 'Belum Diproses', disiapkan: 'Disiapkan', dikirim: 'Dikirim', diterima: 'Diterima' };
+const PERLENGKAPAN_STATUS_WARNA = {
+  belum_diproses: 'bg-gray-100 text-gray-500',
+  disiapkan: 'bg-blue-100 text-blue-700',
+  dikirim: 'bg-yellow-100 text-yellow-700',
+  diterima: 'bg-green-100 text-green-700',
+};
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', {day:'2-digit',month:'short',year:'numeric'}) : '-';
@@ -69,6 +84,23 @@ function flattenGenealogi(nodes, depth = 0) {
   return rows;
 }
 
+// Reseller margin perwakilan cuma jalan 1 tingkat dari SI PEREKRUT (lihat
+// closing.js — walau loopnya secara teknis bisa lanjut sampai 20 hop kalau
+// tiap upline punya harga jual sendiri di perwakilan_harga, DALAM PRAKTIK
+// cuma 1 tingkat yang keisi harganya, dikonfirmasi user 2026-09-06). Badge
+// ini nandain gen 1 (relatif ke akar tree yang ditampilkan) vs gen 2+ yang
+// cuma tercatat struktur doang, sama pola kayak GenBadge Sahabat Baitullah.
+const GEN_MAX_UJROH_PERWAKILAN = 1;
+function GenBadgePerwakilan({ depth }) {
+  const dapatUjroh = depth <= GEN_MAX_UJROH_PERWAKILAN;
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${dapatUjroh ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-400'}`}
+      title={dapatUjroh ? 'Gen 1 dari akar ini — berpotensi dapat margin reseller' : 'Di luar gen 1 — tercatat, di luar margin reseller akar ini'}>
+      Gen {depth}{!dapatUjroh && ' 🔒'}
+    </span>
+  );
+}
+
 // Node pohon hierarki perwakilan — bisa expand/collapse rekursif.
 // Root (depth 0) default kebuka, level di bawahnya default tertutup.
 function HierarkiNode({ node, depth, expanded, onToggle, onClickUser }) {
@@ -84,6 +116,7 @@ function HierarkiNode({ node, depth, expanded, onToggle, onClickUser }) {
         ) : <span className="w-5 flex-shrink-0"></span>}
         <div onClick={() => onClickUser(node)} className="flex-1 cursor-pointer flex items-center gap-2 flex-wrap min-w-0">
           <span className="font-semibold text-[#0E2F6E] text-sm hover:underline">{node.name}</span>
+          {depth > 0 && <GenBadgePerwakilan depth={depth} />}
           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">{node.role}</span>
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${node.status==='active'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-500'}`}>{node.status}</span>
           <span className="text-xs text-gray-400">{node.kode_unik}</span>
@@ -116,20 +149,6 @@ const AKSI_LABEL = {
   hapus_transaksi_cashflow: 'Hapus Transaksi Cashflow', transfer_antar_akun_cashflow: 'Transfer Antar Akun Cashflow',
   submit_cashflow: 'Submit Cashflow', buka_cashflow: 'Buka Kembali Cashflow',
 };
-// Tahapan agen_pendaftaran.status — HARUS sama persis dengan step registrasi
-// di src/app/api/status-pendaftaran/route.js (itu yang menegakkan urutan &
-// syarat SK BSI). Dropdown ini cuma dipakai kalau baris pendaftaran BENERAN
-// ada (ap.id, dari alur /daftar-perwakilan) — pendaftaran perwakilan langsung
-// via /register tidak punya SK BSI apa pun untuk diverifikasi, jadi tetap
-// pakai ACC/Tolak biner saja.
-const REG_STAGES = [
-  { key: 'pending', label: '📝 Formulir Terkirim' },
-  { key: 'sk_bsi_verified', label: '✅ SK BSI Diverifikasi' },
-  { key: 'waiting_visit', label: '🏢 Menunggu Kunjungan Kantor', jalur: 'kantor' },
-  { key: 'docs_sent', label: '📦 Dokumen Dikirim', jalur: 'paket' },
-  { key: 'waiting_docs_return', label: '📮 Menunggu Dokumen Balik', jalur: 'paket' },
-  { key: 'active', label: '🎉 Aktifkan (final)' },
-];
 const TARGET_TYPE_LABEL = {
   payment: '💳 Pembayaran', booking: '📦 Booking', pembatalan: '🚫 Pembatalan',
   user: '👤 Akun', custom_harga: '💰 Custom Harga', voucher: '🎟️ Voucher',
@@ -155,7 +174,28 @@ function AdminPageInner() {
   const [users, setUsers] = useState([]);
   const [programs, setPrograms] = useState([]);
   const [pembatalan, setPembatalan] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Konsolidasi Sahabat Baitullah (dikonfirmasi user 2026-09-06) — semua hal
+  // yang BUKAN "belum aktif, butuh tindak lanjut" (voucher ACC, ujroh belum
+  // diajukan, siap berangkat, di bawah progress, closing referral & langsung)
+  // PINDAH kesini dari /admin/sahabat, biar admin gak perlu cek satu-satu
+  // section — Pendaftaran sekarang murni funnel status. Lazy-load pas tab
+  // dashboard dibuka aja (pola sama kayak tab bookings/hierarki di bawah).
+  const [sahabatPendaftaran, setSahabatPendaftaran] = useState([]);
+  const [sahabatJamaahDb, setSahabatJamaahDb] = useState([]);
+  const [sahabatPencairan, setSahabatPencairan] = useState(null);
+  const [loadingSahabatDash, setLoadingSahabatDash] = useState(true);
+  const [openSahabatCluster, setOpenSahabatCluster] = useState(null);
+  const [busySahabat, setBusySahabat] = useState(false);
+
+  // Konsolidasi Perwakilan (dikonfirmasi user 2026-09-06, mirror pola
+  // Sahabat Baitullah di atas) — pending akun perwakilan PINDAH dari cluster
+  // "Perlu Perhatian" kesini, + ujroh perwakilan belum diajukan.
+  const [perwakilanPencairan, setPerwakilanPencairan] = useState(null);
+  const [loadingPerwakilanDash, setLoadingPerwakilanDash] = useState(true);
+  const [openPerwakilanCluster, setOpenPerwakilanCluster] = useState(null);
 
   // sub-view
   const [openPayment, setOpenPayment] = useState(null);
@@ -179,7 +219,9 @@ function AdminPageInner() {
   const [detailBooking, setDetailBooking] = useState(null);
   const [editPaketForm, setEditPaketForm] = useState(null); // { paket, kamar, harga_custom } — null = form tertutup
   const [editPaketBusy, setEditPaketBusy] = useState(false);
-  const [batalForm, setBatalForm] = useState(null); // { penyebab, refund_nominal, catatan_admin } — null = form tertutup
+  const [editJamaahForm, setEditJamaahForm] = useState(null); // { idx, paket, kamar, harga_custom } — null = form tertutup
+  const [editJamaahBusy, setEditJamaahBusy] = useState(false);
+  const [batalForm, setBatalForm] = useState(null); // { penyebab, refund_nominal, catatan_admin, jamaah_idx } — null = form tertutup; jamaah_idx null = batalkan seluruh booking, terisi = batalkan 1 jamaah
   const [batalBusy, setBatalBusy] = useState(false);
   const [exporting, setExporting] = useState(null); // nama tipe export yang lagi diproses, misal 'users'
   const [hierarki, setHierarki] = useState(null); // { tree, flat }
@@ -199,6 +241,8 @@ function AdminPageInner() {
   const [filterUserStatus, setFilterUserStatus] = useState('');
   const [searchPrograms, setSearchPrograms] = useState('');
   const [searchAudit, setSearchAudit] = useState('');
+  const [searchBookings, setSearchBookings] = useState('');
+  const [filterBookingStatus, setFilterBookingStatus] = useState('');
 
   // Sort per tabel (klik header kolom) — key = nama tabel, value = {field, dir}
   const [sortState, setSortState] = useState({
@@ -206,6 +250,7 @@ function AdminPageInner() {
     ranking: { field: 'total_komisi', dir: 'desc' },
     voucher: { field: 'kode', dir: 'asc' },
     auditlog: { field: 'created_at', dir: 'desc' },
+    bookings: { field: 'created_at', dir: 'desc' },
   });
   function toggleSort(table, field) {
     setSortState(prev => {
@@ -222,7 +267,7 @@ function AdminPageInner() {
   // Disinkron langsung di render (bukan efek) biar gak kena flag
   // react-hooks/set-state-in-effect — dibandingkan ke nilai terakhir yang
   // sudah disinkron, bukan ke activeTab itu sendiri.
-  const TAB_KEYS = ['dashboard', 'payments', 'pembatalan', 'pendaftaran', 'users', 'programs', 'hierarki', 'customharga', 'voucher', 'auditlog'];
+  const TAB_KEYS = ['dashboard', 'payments', 'pembatalan', 'users', 'programs', 'hierarki', 'customharga', 'voucher', 'auditlog', 'bookings'];
   const [syncedTabParam, setSyncedTabParam] = useState(null);
   const tabParam = searchParams.get('tab');
   if (tabParam !== syncedTabParam) {
@@ -270,6 +315,76 @@ function AdminPageInner() {
       .then(d => setAuditLog(d.audit_log || []))
       .catch(() => {});
   }, [activeTab, auditFilter]);
+
+  // Daftar booking lintas program — dimuat cuma pas tab-nya dibuka (bisa
+  // banyak baris seiring waktu), bukan ikut loadAll() tiap buka dashboard.
+  useEffect(() => {
+    if (activeTab !== 'bookings') return;
+    fetch('/api/admin/bookings')
+      .then(r => r.json())
+      .then(d => setBookings(d.bookings || []))
+      .catch(() => {});
+  }, [activeTab]);
+
+  function muatSahabatDash() {
+    Promise.all([
+      fetch('/api/admin/sahabat').then(r => r.json()),
+      fetch('/api/admin/sahabat/database').then(r => r.json()),
+      fetch('/api/admin/sahabat/pencairan-ringkasan').then(r => r.json()),
+    ]).then(([pend, db, pencairan]) => {
+      setSahabatPendaftaran(pend.pendaftaran || []);
+      setSahabatJamaahDb(db.jamaah || []);
+      setSahabatPencairan(pencairan);
+      setLoadingSahabatDash(false);
+    }).catch(() => setLoadingSahabatDash(false));
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    muatSahabatDash();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  function muatPerwakilanDash() {
+    fetch('/api/admin/perwakilan/pencairan-ringkasan').then(r => r.json())
+      .then(d => { setPerwakilanPencairan(d); setLoadingPerwakilanDash(false); })
+      .catch(() => setLoadingPerwakilanDash(false));
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'dashboard') return;
+    muatPerwakilanDash();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  async function approveSahabatVoucher(voucherId) {
+    setBusySahabat(true);
+    try {
+      const res = await fetch('/api/admin/vouchers', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: voucherId, approve: true }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusySahabat(false); return; }
+      muatSahabatDash();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusySahabat(false);
+  }
+
+  const sahabatVoucherPending = useMemo(
+    () => sahabatPendaftaran.filter(p => p.voucher_kode && !p.voucher_disetujui_at),
+    [sahabatPendaftaran]
+  );
+  const sahabatSiapBerangkat = useMemo(() => sahabatJamaahDb.filter(j => {
+    if (j.status !== 'active') return false;
+    const p = persenKesiapan(j.saldo_tabungan_umroh, j.target_estimasi_harga);
+    return p !== null && p >= 80;
+  }), [sahabatJamaahDb]);
+  const sahabatDibawahProgress = useMemo(() => sahabatJamaahDb.filter(j =>
+    j.status === 'active' && diBawahProgress(j.saldo_tabungan_umroh, j.target_estimasi_harga, j.target_bulan, j.target_set_at)
+  ), [sahabatJamaahDb]);
+  const sahabatUjrohBelumDiajukan = sahabatPencairan?.belum_diajukan_count || 0;
+  const perwakilanUjrohBelumDiajukan = perwakilanPencairan?.belum_diajukan_count || 0;
 
   function loadHierarki() {
     const qs = new URLSearchParams();
@@ -374,18 +489,6 @@ function AdminPageInner() {
     loadAll();
   }
 
-  // Majukan tahap pendaftaran perwakilan (SK BSI dst) — endpoint ini yang
-  // menegakkan urutan step & syarat SK BSI, beda dari patchUser di atas.
-  async function patchStatusPendaftaran(pendaftaranId, statusBaru) {
-    const res = await fetch('/api/status-pendaftaran', {
-      method: 'PATCH', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ pendaftaran_id: pendaftaranId, status_baru: statusBaru })
-    });
-    const d = await res.json();
-    if (!res.ok) { alert(d.error || 'Gagal memperbarui status pendaftaran'); return; }
-    loadAll();
-  }
-
   async function toggleUser(u) {
     const to = u.status === 'active' ? 'nonaktif' : 'active';
     if (!confirm(`${to==='active'?'Aktifkan':'Nonaktifkan'} ${u.name}?`)) return;
@@ -467,6 +570,7 @@ function AdminPageInner() {
     setExpandJamaahModal(0);
     setEditPaketForm(null);
     setBatalForm(null);
+    setEditJamaahForm(null);
     setDetailBooking({ loading: true });
     const d = await fetch(`/api/bookings/${bookingId}`).then(r => r.json());
     setDetailBooking(d.booking || { error: d.error || 'Booking tidak ditemukan' });
@@ -491,21 +595,54 @@ function AdminPageInner() {
     setEditPaketBusy(false);
   }
 
+  // Edit paket/kamar 1 jamaah spesifik — beda dari simpanEditPaket di atas
+  // yang nyamain semua orang; ini cuma ubah 1 orang, jamaah lain di booking
+  // yang sama gak kesentuh (server yang jaga invariant lewat lazy-backfill).
+  async function simpanEditJamaah() {
+    setEditJamaahBusy(true);
+    try {
+      const res = await fetch(`/api/bookings/${detailBooking.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jamaah_edit: {
+            idx: editJamaahForm.idx, paket: editJamaahForm.paket, kamar: editJamaahForm.kamar,
+            harga_custom: editJamaahForm.harga_custom ? Number(editJamaahForm.harga_custom) : undefined,
+          },
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal menyimpan'); setEditJamaahBusy(false); return; }
+      setEditJamaahForm(null);
+      openBookingDetail(detailBooking.id);
+      loadAll();
+    } catch { alert('Terjadi kesalahan'); }
+    setEditJamaahBusy(false);
+  }
+
+  // batalForm.jamaah_idx terisi -> batalin SATU jamaah spesifik (bukan
+  // seluruh booking) — jamaah lain di booking yang sama tetap aktif, seat
+  // yang dilepas cuma 1, jumlah_jamaah & total_harga booking dihitung ulang
+  // otomatis di server (lihat setujuiPembatalan cabang jamaah_idx).
   async function batalkanBookingLangsung() {
-    if (!confirm(`Batalkan booking ${detailBooking.id} sekarang juga? Seat langsung dilepas & jamaah dikabari.`)) return;
+    const perJamaah = batalForm.jamaah_idx != null;
+    const namaTarget = perJamaah ? (detailBooking.jamaah_data?.[batalForm.jamaah_idx]?.nama || `jamaah ke-${batalForm.jamaah_idx + 1}`) : null;
+    if (!confirm(perJamaah
+      ? `Batalkan ${namaTarget} dari booking ${detailBooking.id}? Jamaah lain di booking ini tetap aktif. Seat langsung dilepas 1.`
+      : `Batalkan booking ${detailBooking.id} sekarang juga? Seat langsung dilepas & jamaah dikabari.`)) return;
     setBatalBusy(true);
     try {
       const res = await fetch('/api/pembatalan', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           booking_id: detailBooking.id, admin_langsung: true,
+          jamaah_idx: perJamaah ? batalForm.jamaah_idx : undefined,
           penyebab: batalForm.penyebab, refund_nominal: Number(batalForm.refund_nominal) || 0,
           catatan_admin: batalForm.catatan_admin,
         }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal membatalkan'); setBatalBusy(false); return; }
-      alert(`Booking dibatalkan. Refund Rp ${Number(d.refund_nominal || 0).toLocaleString('id-ID')}.`);
+      alert(`${perJamaah ? namaTarget + ' dibatalkan' : 'Booking dibatalkan'}. Refund Rp ${Number(d.refund_nominal || 0).toLocaleString('id-ID')}.`);
       setBatalForm(null);
       openBookingDetail(detailBooking.id);
       loadAll();
@@ -555,6 +692,34 @@ function AdminPageInner() {
     else alert(d.error || 'Gagal memproses');
   }
 
+  async function exportDokumenProgram(progId) {
+    setExporting('dokumen');
+    try {
+      await downloadDokumenZip(progId);
+    } catch (e) {
+      alert(e.message || 'Terjadi kesalahan saat export dokumen');
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function ajukanPenyesuaianHarga(bookingId, hargaLama) {
+    const hargaBaruStr = prompt(`Harga saat ini: Rp ${Number(hargaLama || 0).toLocaleString('id-ID')}\n\nMasukkan harga baru (Rp):`);
+    if (!hargaBaruStr) return;
+    const hargaBaru = Number(hargaBaruStr.replace(/[^0-9]/g, ''));
+    if (!hargaBaru || hargaBaru <= 0) { alert('Harga baru tidak valid'); return; }
+    const alasan = prompt('Alasan penyesuaian harga (kenaikan tiket, force majeure, dll):');
+    if (!alasan?.trim()) { alert('Alasan wajib diisi'); return; }
+
+    const res = await fetch(`/api/admin/bookings/${bookingId}/penyesuaian-harga`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ harga_baru: hargaBaru, alasan }),
+    });
+    const d = await res.json();
+    if (res.ok) { alert(d.message); if (openProgram) openProgramDetail(openProgram); loadAll(); }
+    else alert(d.error || 'Gagal mengajukan penyesuaian harga');
+  }
+
   if (!user || loading || !data) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
   const pending = data.pending || {};
@@ -566,8 +731,16 @@ function AdminPageInner() {
     {key:'custom_harga', label:'Pending Pengajuan Custom Harga', icon:'💰', color:'border-orange-200 bg-orange-50', items: pending.custom_harga||[]},
     {key:'pembayaran', label:'Pending Konfirmasi Pembayaran', icon:'💳', color:'border-red-200 bg-red-50', items: pending.pembayaran||[]},
     {key:'akun_jamaah', label:'Pending Pendaftaran Akun Jamaah', icon:'🧳', color:'border-green-200 bg-green-50', items: pending.akun_jamaah||[]},
-    {key:'akun_perwakilan', label:'Pending Pendaftaran Akun Perwakilan', icon:'🏢', color:'border-purple-200 bg-purple-50', items: pending.akun_perwakilan||[]},
+    // akun_perwakilan PINDAH ke section "🏢 Perwakilan" di bawah (dikonfirmasi
+    // user 2026-09-06, mirror kenapa Sahabat Baitullah gak lagi nyampah di
+    // cluster generik ini).
     {key:'perlengkapan', label:'Perlengkapan Perlu Dikirim', icon:'📦', color:'border-yellow-200 bg-yellow-50', items: pending.perlengkapan||[]},
+    {key:'kalkulator_lead', label:'Ajuan Budget Kalkulator', icon:'🧮', color:'border-teal-200 bg-teal-50', items: pending.kalkulator_lead||[]},
+    {key:'ttu_belum_dikirim', label:'Tanda Terima Uang Belum Dikirim', icon:'🧾', color:'border-pink-200 bg-pink-50', items: pending.ttu_belum_dikirim||[]},
+    {key:'perjanjian_belum_selesai', label:'Perjanjian Jamaah Belum Selesai', icon:'📜', color:'border-indigo-200 bg-indigo-50', items: pending.perjanjian_belum_selesai||[]},
+    {key:'penyesuaian_harga_pending', label:'Penyesuaian Harga Menunggu Persetujuan', icon:'💰', color:'border-orange-200 bg-orange-50', items: pending.penyesuaian_harga_pending||[]},
+    {key:'refund_belum_ditransfer', label:'Refund Belum Ditransfer', icon:'💸', color:'border-red-200 bg-red-50', items: pending.refund_belum_ditransfer||[]},
+    {key:'kalkulator_perwakilan_pending', label:'Ajuan Kalkulator Perwakilan', icon:'🧮', color:'border-teal-200 bg-teal-50', items: pending.kalkulator_perwakilan_pending||[]},
   ];
 
   return (
@@ -583,14 +756,24 @@ function AdminPageInner() {
       {activeTab === 'dashboard' && (
         <div className="space-y-6">
 
-          {/* Ringkasan — tiap kartu klik-able, ke halaman database masing-masing */}
+          {/* Ringkasan — tiap kartu klik-able, ke halaman database masing-masing.
+              Kartu Sahabat Baitullah pakai `path` eksplisit (bukan tipe generik)
+              karena database-nya ada di halaman terpisah /admin/sahabat/database,
+              bukan /admin/database/sahabat (dikonfirmasi user 2026-09-03 —
+              sebelumnya dashboard utama gak nyinggung Sahabat Baitullah sama sekali).
+              Urutan Jamaah → Sahabat Baitullah → Perwakilan → Program
+              (dikonfirmasi user 2026-09-06). Klik "Program Aktif" lari ke
+              Kelola Program (/admin/programs) — breakdown Aktif/Selesai/Draft
+              PINDAH jadi filter chip di sana (lihat page itu), bukan di kartu
+              ringkasan ini. */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              {label:'Jamaah', val:stat.jamaah||0, color:'text-green-700', bg:'bg-green-50', tipe:'jamaah'},
-              {label:'Perwakilan', val:stat.perwakilan||0, color:'text-purple-700', bg:'bg-purple-50', tipe:'perwakilan'},
-              {label:'Program Aktif', val:stat.program||0, color:'text-[#C9952A]', bg:'bg-[#FEF3DC]', tipe:'program'},
+              {label:'Jamaah', val:stat.jamaah||0, color:'text-green-700', bg:'bg-green-50', path:'/admin/database/jamaah'},
+              {label:'Jamaah Sahabat Baitullah', val:stat.sahabat||0, color:'text-amber-700', bg:'bg-amber-50', path:'/admin/sahabat/database'},
+              {label:'Perwakilan', val:stat.perwakilan||0, color:'text-purple-700', bg:'bg-purple-50', path:'/admin/perwakilan/database'},
+              {label:'Program Aktif', val:stat.program||0, color:'text-[#C9952A]', bg:'bg-[#FEF3DC]', path:'/admin/programs'},
             ].map(s => (
-              <div key={s.label} onClick={() => router.push(`/admin/database/${s.tipe}`)}
+              <div key={s.label} onClick={() => router.push(s.path)}
                 className={`${s.bg} rounded-xl p-4 cursor-pointer hover:shadow-md transition-shadow`}>
                 <div className="text-xs text-gray-400 mb-1">{s.label}</div>
                 <div className={`font-black text-xl ${s.color}`}>{s.val}</div>
@@ -616,12 +799,18 @@ function AdminPageInner() {
                     <div className="mt-2 space-y-1">
                       {tampil.map((it,idx) => (
                         <div key={idx}
-                          onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : undefined}
-                          className={`text-xs text-gray-500 bg-white/60 rounded px-2 py-1 ${c.key==='perlengkapan' ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
+                          onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : undefined}
+                          className={`text-xs text-gray-500 bg-white/60 rounded px-2 py-1 ${c.key==='perlengkapan' || c.key==='kalkulator_lead' || c.key==='ttu_belum_dikirim' || c.key==='perjanjian_belum_selesai' || c.key==='penyesuaian_harga_pending' || c.key==='refund_belum_ditransfer' || c.key==='kalkulator_perwakilan_pending' ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
                           {c.key==='pembayaran' ? `${it.nama||'User'} — ${it.booking_id} (${(it.type||'').toUpperCase()})`
                             : c.key==='program_umroh' ? `${it.pemesan||'User'} — ${it.prog_name} (${it.form_filled}/${it.form_total} form)`
                             : c.key==='custom_harga' ? `${it.pengaju_nama||'User'} — ${it.prog_name} (${rp(it.harga_diajukan)})`
                             : c.key==='perlengkapan' ? `${it.nama} — ${it.prog_name} (${it.status.replace('_',' ')})`
+                            : c.key==='kalkulator_lead' ? (it.tipe === 'custom' ? `${it.user_nama||'User'} — 🎨 Custom: ${(it.catatan_custom||'').slice(0,60)}` : `${it.user_nama||'User'} — ${it.template_nama} (${rp(it.harga_jual)})`)
+                            : c.key==='ttu_belum_dikirim' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id||'-'} (${rp(it.nominal)})`
+                            : c.key==='perjanjian_belum_selesai' ? `${it.nama||'User'} — ${it.prog_name||it.id} (${!it.setuju_pks ? 'belum setuju' : it.sig_metode==='fisik' ? 'menunggu scan fisik' : 'TTD digital belum selesai'})`
+                            : c.key==='penyesuaian_harga_pending' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.harga_lama)} → ${rp(it.harga_baru)})`
+                            : c.key==='refund_belum_ditransfer' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.refund_nominal)})`
+                            : c.key==='kalkulator_perwakilan_pending' ? `${it.perwakilan_nama||'Perwakilan'} — ${it.nama_quote||it.template_nama} (${rp(it.harga_jual_perwakilan)})`
                             : `${it.name} — ${it.email||it.wa||''}`}
                         </div>
                       ))}
@@ -636,6 +825,12 @@ function AdminPageInner() {
                         else if (c.key==='program_umroh') setActiveTab('programs');
                         else if (c.key==='custom_harga') setActiveTab('customharga');
                         else if (c.key==='perlengkapan' && c.items[0]) router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(c.items[0].prog_name)}`);
+                        else if (c.key==='kalkulator_lead') router.push('/admin/kalkulator-leads');
+                        else if (c.key==='ttu_belum_dikirim' && c.items[0]) router.push(`/admin/cetak-invoice/${c.items[0].id}`);
+                        else if (c.key==='perjanjian_belum_selesai' && c.items[0]) router.push(`/admin/cetak-perjanjian/${c.items[0].id}`);
+                        else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
+                        else if (c.key==='refund_belum_ditransfer' && c.items[0]) { setActiveTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
+                        else if (c.key==='kalkulator_perwakilan_pending') router.push('/admin/kalkulator-perwakilan');
                       }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
                     </div>
                   )}
@@ -643,6 +838,131 @@ function AdminPageInner() {
                 );
               })}
             </div>
+          </CollapsibleSection>
+
+          {/* Konsolidasi Sahabat Baitullah — pindahan dari /admin/sahabat
+              (dikonfirmasi user 2026-09-06). Pendaftaran di sana sekarang
+              murni funnel status; semua reminder lain (voucher/saldo/closing)
+              digabung di sini biar 1 pintu. */}
+          <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">🤝 Sahabat Baitullah</h3>} defaultOpen={false}>
+            {loadingSahabatDash ? (
+              <div className="text-center text-gray-400 py-6 text-sm">Memuat...</div>
+            ) : (
+              <div className="space-y-3">
+                {/* Voucher Menunggu ACC */}
+                <div className="border border-pink-200 bg-pink-50 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setOpenSahabatCluster(o => o === 'voucher' ? null : 'voucher')}>
+                    <div className="font-bold text-gray-700 text-sm">🎟️ Voucher Menunggu ACC</div>
+                    <span className={`text-xs font-black px-2 py-1 rounded-full ${sahabatVoucherPending.length > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{sahabatVoucherPending.length}</span>
+                  </div>
+                  {openSahabatCluster === 'voucher' && (
+                    <div className="px-4 pb-4 space-y-1.5">
+                      {sahabatVoucherPending.length === 0 ? (
+                        <div className="text-xs text-gray-400">Gak ada.</div>
+                      ) : sahabatVoucherPending.map(r => (
+                        <div key={r.id} className="flex items-center justify-between bg-white/70 rounded-lg px-3 py-2">
+                          <div className="text-xs font-bold text-[#0E2F6E] truncate">
+                            {r.nama} <span className="text-gray-400 font-normal">({r.kode_unik})</span>
+                            <div className="text-gray-400 font-normal">{r.voucher_kode}</div>
+                          </div>
+                          {user?.role === 'super_admin' ? (
+                            <button disabled={busySahabat} onClick={() => approveSahabatVoucher(r.voucher_id)}
+                              className="text-xs font-bold text-white bg-[#1A4FA0] px-3 py-1.5 rounded-full shrink-0 whitespace-nowrap disabled:opacity-50">✅ ACC</button>
+                          ) : <span className="text-xs text-gray-400 shrink-0">Menunggu super_admin</span>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Siap Berangkat / Di Bawah Progress */}
+                {[
+                  { key: 'siap', icon: '🎯', color: 'border-amber-200 bg-amber-50', label: 'Siap Berangkat (≥80%)', rows: sahabatSiapBerangkat },
+                  { key: 'bawah', icon: '⚠️', color: 'border-orange-200 bg-orange-50', label: 'Di Bawah Progress Tabungan', rows: sahabatDibawahProgress },
+                ].map(c => (
+                  <div key={c.key} className={`border ${c.color} rounded-xl overflow-hidden`}>
+                    <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setOpenSahabatCluster(o => o === c.key ? null : c.key)}>
+                      <div className="font-bold text-gray-700 text-sm">{c.icon} {c.label}</div>
+                      <span className={`text-xs font-black px-2 py-1 rounded-full ${c.rows.length > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.rows.length}</span>
+                    </div>
+                    {openSahabatCluster === c.key && (
+                      <div className="px-4 pb-4 space-y-1.5">
+                        {c.rows.length === 0 ? (
+                          <div className="text-xs text-gray-400">Gak ada.</div>
+                        ) : c.rows.map(r => (
+                          <button key={r.id} onClick={() => router.push('/admin/sahabat/database')}
+                            className="w-full flex items-center justify-between bg-white/70 hover:bg-white rounded-lg px-3 py-2 text-left transition-colors">
+                            <div className="text-xs font-bold text-[#0E2F6E] truncate">{r.nama} <span className="text-gray-400 font-normal">({r.kode_unik})</span></div>
+                            <span className="text-gray-300 text-xs shrink-0">Database →</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* Ujroh Pending Belum Diajukan */}
+                <div className="border border-cyan-200 bg-cyan-50 rounded-xl overflow-hidden">
+                  <button onClick={() => router.push('/admin/sahabat/pencairan')} className="w-full flex items-center justify-between p-4 text-left">
+                    <div className="font-bold text-gray-700 text-sm">🗓️ Ujroh Pending Belum Diajukan</div>
+                    <div className="flex items-center gap-2">
+                      {sahabatUjrohBelumDiajukan > 0 && <span className="text-xs text-gray-500">{rp(sahabatPencairan?.belum_diajukan_total)}</span>}
+                      <span className={`text-xs font-black px-2 py-1 rounded-full ${sahabatUjrohBelumDiajukan > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{sahabatUjrohBelumDiajukan}</span>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Closing Sahabat Baitullah & Closing Langsung PINDAH ke tab
+                    "Riwayat Closing" di /admin/sahabat/database (dikonfirmasi
+                    user 2026-09-06) — itu histori murni (gak butuh tindakan),
+                    lebih pas nempel di Database, bukan di Dashboard yang
+                    isinya hal-hal yang PERLU ditindaklanjuti. */}
+                <a href="/admin/sahabat/database" className="block text-center text-xs text-[#1A4FA0] font-semibold hover:underline">
+                  Lihat riwayat closing lengkap di Database Jamaah →
+                </a>
+              </div>
+            )}
+          </CollapsibleSection>
+
+          {/* Konsolidasi Perwakilan (dikonfirmasi user 2026-09-06, mirror
+              section Sahabat Baitullah di atas) — pending akun perwakilan
+              PINDAH kesini dari cluster "Perlu Perhatian" generik, + ujroh
+              perwakilan belum diajukan. */}
+          <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">🏢 Perwakilan</h3>} defaultOpen={false}>
+            {loadingPerwakilanDash ? (
+              <div className="text-center text-gray-400 py-6 text-sm">Memuat...</div>
+            ) : (
+              <div className="space-y-3">
+                {/* Pending Pendaftaran Akun Perwakilan */}
+                <div className="border border-purple-200 bg-purple-50 rounded-xl overflow-hidden">
+                  <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setOpenPerwakilanCluster(o => o === 'akun' ? null : 'akun')}>
+                    <div className="font-bold text-gray-700 text-sm">🏢 Pending Pendaftaran Akun</div>
+                    <span className={`text-xs font-black px-2 py-1 rounded-full ${(pending.akun_perwakilan||[]).length > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{(pending.akun_perwakilan||[]).length}</span>
+                  </div>
+                  {openPerwakilanCluster === 'akun' && (
+                    <div className="px-4 pb-4 space-y-1.5">
+                      {(pending.akun_perwakilan||[]).length === 0 ? (
+                        <div className="text-xs text-gray-400">Gak ada.</div>
+                      ) : (pending.akun_perwakilan||[]).map(u => (
+                        <div key={u.id} className="text-xs text-gray-500 bg-white/60 rounded px-2 py-1">{u.name} — {u.email||u.wa||''}</div>
+                      ))}
+                      <button onClick={() => { setActiveTab('users'); setFilterUserStatus('pending'); }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Ujroh Perwakilan Belum Diajukan */}
+                <div className="border border-cyan-200 bg-cyan-50 rounded-xl overflow-hidden">
+                  <button onClick={() => router.push('/admin/perwakilan/pencairan')} className="w-full flex items-center justify-between p-4 text-left">
+                    <div className="font-bold text-gray-700 text-sm">🗓️ Ujroh Belum Diajukan</div>
+                    <div className="flex items-center gap-2">
+                      {perwakilanUjrohBelumDiajukan > 0 && <span className="text-xs text-gray-500">{rp(perwakilanPencairan?.belum_diajukan_total)}</span>}
+                      <span className={`text-xs font-black px-2 py-1 rounded-full ${perwakilanUjrohBelumDiajukan > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{perwakilanUjrohBelumDiajukan}</span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
           </CollapsibleSection>
         </div>
       )}
@@ -832,6 +1152,91 @@ function AdminPageInner() {
         </div>
       )}
 
+      {/* ================= DAFTAR BOOKING TAB ================= */}
+      {/* Semua booking lintas program — cari/filter/sort di sini, klik
+          baris buka modal detail yang SAMA dipakai tab lain (openBookingDetail),
+          jadi edit paket/kamar/harga & "Batalkan Booking Langsung" udah
+          langsung kepakai tanpa nulis ulang. */}
+      {activeTab === 'bookings' && (
+        <div className="space-y-3">
+          <h3 className="font-bold text-[#0E2F6E] mb-1">📋 Daftar Booking</h3>
+          <p className="text-xs text-gray-400 mb-3">Semua booking lintas program. Klik baris buat lihat detail lengkap, ubah paket/kamar, atau batalkan.</p>
+
+          <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            <input value={searchBookings} onChange={e => setSearchBookings(e.target.value)}
+              placeholder="Cari booking ID, program, atau nama pemesan..."
+              className="flex-1 px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
+            <select value={filterBookingStatus} onChange={e => setFilterBookingStatus(e.target.value)}
+              className="px-3 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
+              <option value="">Semua status</option>
+              <option value="active">🟢 Active</option>
+              <option value="menunggu_batal">⏳ Menunggu Batal</option>
+              <option value="dibatalkan">🚫 Dibatalkan</option>
+              <option value="selesai">✅ Selesai</option>
+            </select>
+          </div>
+
+          {(() => {
+            const filtered = urutkan(
+              bookings
+                .filter(b => cocok(searchBookings, b.id, b.prog_name, b.pemesan_nama, b.pemesan_wa))
+                .filter(b => !filterBookingStatus || b.status === filterBookingStatus),
+              sortState.bookings.field, sortState.bookings.dir
+            );
+            if (filtered.length === 0) {
+              return <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">Tidak ada booking yang cocok.</div>;
+            }
+            return (
+              <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-[#0E2F6E] text-white text-xs">
+                      <SortTh field="id" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>Booking ID</SortTh>
+                      <SortTh field="prog_name" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>Program</SortTh>
+                      <SortTh field="pemesan_nama" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>Pemesan</SortTh>
+                      <SortTh field="paket" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>Paket/Kamar</SortTh>
+                      <SortTh field="jumlah_jamaah" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)} align="center">Jamaah</SortTh>
+                      <SortTh field="status" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>Status</SortTh>
+                      <SortTh field="dp_status" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>DP</SortTh>
+                      <SortTh field="pelunasan_status" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>Pelunasan</SortTh>
+                      <SortTh field="created_at" sort={sortState.bookings} onSort={f => toggleSort('bookings', f)}>Tanggal</SortTh>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(b => (
+                      <tr key={b.id} onClick={() => openBookingDetail(b.id)}
+                        className="border-t border-gray-100 hover:bg-[#E8F0FB] cursor-pointer transition-colors">
+                        <td className="px-4 py-2.5 font-semibold text-[#0E2F6E] whitespace-nowrap">{b.id}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{b.prog_name}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap">{b.pemesan_nama || '-'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap capitalize">{b.paket} / {b.kamar}</td>
+                        <td className="px-4 py-2.5 text-center">{b.jumlah_jamaah}</td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${
+                            b.status === 'active' ? 'bg-green-100 text-green-700'
+                            : b.status === 'menunggu_batal' ? 'bg-amber-100 text-amber-700'
+                            : b.status === 'dibatalkan' ? 'bg-red-100 text-red-600'
+                            : b.status === 'selesai' ? 'bg-blue-100 text-blue-700'
+                            : 'bg-gray-100 text-gray-500'
+                          }`}>{b.status}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${b.dp_status === 'confirmed' ? 'bg-green-100 text-green-700' : b.dp_status === 'rejected' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-700'}`}>{b.dp_status}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${b.pelunasan_status === 'paid' ? 'bg-green-100 text-green-700' : b.pelunasan_status === 'pending_confirm' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-500'}`}>{b.pelunasan_status}</span>
+                        </td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-gray-500">{tgl(b.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* ================= PEMBATALAN TAB ================= */}
       {activeTab === 'pembatalan' && (
         <div className="space-y-3">
@@ -905,72 +1310,20 @@ function AdminPageInner() {
                       {p.catatan_admin && (
                         <div className="flex justify-between"><span className="text-gray-400">Catatan Admin</span><span className="font-semibold text-right max-w-[60%]">{p.catatan_admin}</span></div>
                       )}
+                      {/* Bukti TF refund — begitu diunggah, refund_status
+                          jadi 'selesai' & cluster reminder "Refund Belum
+                          Ditransfer" ilang otomatis (lihat endpoint). */}
+                      {p.status === 'disetujui' && p.refund_nominal > 0 && (
+                        <UploadScanDokumen label="Bukti TF Refund" uploadUrl={`/api/admin/pembatalan/${p.id}/bukti-refund`}
+                          userId={p.id} path={p.bukti_refund_path} uploadedAt={p.bukti_refund_uploaded_at}
+                          onUploaded={() => loadAll()} />
+                      )}
                     </div>
                   )}
                 </div>
               )}
             </div>
           ))}
-        </div>
-      )}
-
-      {/* ================= PENDAFTARAN TAB =================
-          Khusus akun perwakilan yang masih pending — jamaah tidak
-          masuk sini krn di /api/auth/register jamaah langsung status
-          'active' (gak pernah pending), jadi gak ada yang perlu di-ACC
-          atau dicetakkan dokumen apa pun. */}
-      {activeTab === 'pendaftaran' && (
-        <div className="space-y-3">
-          <h3 className="font-bold text-[#0E2F6E] mb-1">🪪 Pendaftaran Perwakilan</h3>
-          <p className="text-xs text-gray-400 mb-3">ACC/Tolak pendaftaran, lalu cetak Perjanjian Kerjasama. SK BSI bisa dilihat setelah diunggah.</p>
-
-          {(() => {
-            const pendaftar = users.filter(u => u.role === 'perwakilan' && u.status === 'pending');
-            if (pendaftar.length === 0) {
-              return <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">Tidak ada pendaftaran yang menunggu.</div>;
-            }
-            return pendaftar.map(u => (
-              <div key={u.id} className="bg-white rounded-xl border border-[#e0e8f0] p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <div className="font-bold text-[#0E2F6E] text-sm">{u.name} <span className="text-gray-400 font-normal">— Perwakilan</span></div>
-                    <div className="text-xs text-gray-400">{u.email || u.wa}{u.perekrut_nama ? ` · Perekrut: ${u.perekrut_nama}` : ''}</div>
-                  </div>
-                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">⏳ Pending</span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-100 mt-2">
-                  {u.pendaftaran_id ? (
-                    <select value={u.pendaftaran_status || 'pending'}
-                      onChange={e => patchStatusPendaftaran(u.pendaftaran_id, e.target.value)}
-                      className="text-xs font-semibold border border-gray-200 rounded-full px-3 py-1.5 text-gray-600 bg-white">
-                      {REG_STAGES.filter(s => !s.jalur || s.jalur === (u.pendaftaran_metode === 'paket' ? 'paket' : 'kantor')).map(s => (
-                        <option key={s.key} value={s.key} disabled={s.key === 'sk_bsi_verified' && !u.sk_bsi_path}>
-                          {s.label}{s.key === 'sk_bsi_verified' && !u.sk_bsi_path ? ' (belum diunggah)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <>
-                      <button onClick={() => patchUser(u.id,'approve')} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1.5 rounded-full">✅ ACC</button>
-                      <button onClick={() => patchUser(u.id,'reject')} className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full">❌ Tolak</button>
-                    </>
-                  )}
-
-                  <button onClick={() => window.open(`/admin/cetak-pks-mitra/${u.id}`, '_blank')}
-                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-1.5 rounded-full">
-                    📜 Cetak Perjanjian Kerjasama
-                  </button>
-
-                  <button onClick={() => u.sk_bsi_path && window.open(u.sk_bsi_path, '_blank')} disabled={!u.sk_bsi_path}
-                    className="bg-gray-100 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed text-gray-700 text-xs font-bold px-3 py-1.5 rounded-full">
-                    📄 {u.sk_bsi_path ? 'Lihat SK BSI' : 'SK BSI belum diunggah'}
-                  </button>
-
-                </div>
-              </div>
-            ));
-          })()}
         </div>
       )}
 
@@ -1041,11 +1394,12 @@ function AdminPageInner() {
                           <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             {u.status==='pending' ? (
                               isMitra ? (
-                                // ACC/Tolak/SK BSI/cetak PKS perwakilan sekarang di tab Pendaftaran
-                                // (grup Approval) — biar gak ada dua tempat aksi buat data yang sama.
-                                <button onClick={() => router.push('/admin?tab=pendaftaran')}
+                                // ACC/Tolak/cetak PKS perwakilan sekarang di
+                                // /admin/perwakilan (grup Program Kemitraan) — biar
+                                // gak ada dua tempat aksi buat data yang sama.
+                                <button onClick={() => router.push('/admin/perwakilan')}
                                   className="text-xs font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">
-                                  ⏳ Lihat di tab Pendaftaran →
+                                  ⏳ Lihat di Pendaftaran Perwakilan →
                                 </button>
                               ) : (
                                 <div className="flex gap-2">
@@ -1083,42 +1437,71 @@ function AdminPageInner() {
       )}
 
       {/* ================= PROGRAMS TAB ================= */}
-      {activeTab === 'programs' && !openProgram && (
-        <CollapsibleSection
-          title={<h3 className="font-bold text-[#0E2F6E]">📦 Program</h3>}
-          badge={programs.length}
-          actions={
-            <div className="flex gap-2">
-              <button onClick={() => downloadExcel('programs')} disabled={exporting==='programs'}
-                className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-600 text-sm font-bold px-4 py-2 rounded-full">
-                {exporting==='programs' ? 'Menyiapkan...' : '⬇️ Export Program'}
-              </button>
-              <a href="/admin/programs" className="bg-[#1A4FA0] text-white text-sm font-bold px-4 py-2 rounded-full hover:bg-[#0E2F6E] transition-colors">⚙️ Kelola Program</a>
-            </div>
-          }
-        >
+      {activeTab === 'programs' && !openProgram && (() => {
+        // "📦 Program" pecah jadi 3 cluster (dikonfirmasi user 2026-09-06,
+        // mirror gaya cluster "Perlu Perhatian") — Draft belum diposting =
+        // active=0. Selesai = active=1 tapi tanggal_berangkat sudah lewat
+        // hari ini. Aktif = sisanya. Sama persis definisi di
+        // /api/admin/dashboard & filter status yang tadinya sempet ditaruh
+        // (salah tempat) di /admin/programs.
+        const hariIni = new Date(new Date().toDateString());
+        const klaster = [
+          { key: 'aktif', label: '📦 Program Aktif', defaultOpen: true,
+            match: p => p.active !== 0 && !(p.tanggal_berangkat && new Date(p.tanggal_berangkat) < hariIni) },
+          { key: 'selesai', label: '✅ Program Selesai', defaultOpen: false,
+            match: p => p.active !== 0 && p.tanggal_berangkat && new Date(p.tanggal_berangkat) < hariIni },
+          { key: 'draft', label: '📝 Program Draft Belum Diposting', defaultOpen: false,
+            match: p => p.active === 0 },
+        ];
+        return (
         <div className="space-y-4">
           <input value={searchPrograms} onChange={e => setSearchPrograms(e.target.value)}
             placeholder="Cari nama program..."
             className="w-full px-4 py-2.5 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {programs.filter(p => cocok(searchPrograms, p.name)).map(p => (
-              <div key={p.id} onClick={() => openProgramDetail(p)}
-                className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-md hover:border-[#1A4FA0] transition-all cursor-pointer">
-                <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] p-4 text-white">
-                  <div className="text-xs opacity-75">{p.type} · {p.durasi} Hari</div>
-                  <div className="font-bold mt-1">{p.name}</div>
-                </div>
-                <div className="p-4 text-sm flex justify-between items-center">
-                  <span className="text-gray-400">Seat {p.used_seat||0}/{p.total_seat}</span>
-                  <span className="text-xs font-bold text-[#1A4FA0]">Lihat Jamaah →</span>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Export Program DIHAPUS (dikonfirmasi user 2026-09-06) — selalu
+              nge-export SEMUA program tanpa peduli cluster/filter yang lagi
+              dibuka, gak kepakai. Export per-tipe yang beneran state-aware
+              tetap ada di /admin/database/program (exportType: 'programs'). */}
+          {user.role === 'super_admin' && (
+            <div>
+              {/* Create/edit program penuh khusus super_admin (lihat guard
+                  di src/app/admin/programs/page.jsx) — admin biasa cuma
+                  operasional per-program di sini (list & openProgram). */}
+              <a href="/admin/programs" className="bg-[#1A4FA0] text-white text-sm font-bold px-4 py-2 rounded-full hover:bg-[#0E2F6E] transition-colors">⚙️ Kelola Program</a>
+            </div>
+          )}
+
+          {klaster.map(cl => {
+            const rows = programs.filter(cl.match).filter(p => cocok(searchPrograms, p.name));
+            return (
+              <CollapsibleSection key={cl.key}
+                title={<h3 className="font-bold text-[#0E2F6E]">{cl.label}</h3>}
+                badge={rows.length} defaultOpen={cl.defaultOpen}>
+                {rows.length === 0 ? (
+                  <div className="text-sm text-gray-400">Gak ada.</div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {rows.map(p => (
+                      <div key={p.id} onClick={() => openProgramDetail(p)}
+                        className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-md hover:border-[#1A4FA0] transition-all cursor-pointer">
+                        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] p-4 text-white">
+                          <div className="text-xs opacity-75">{p.type} · {p.durasi} Hari</div>
+                          <div className="font-bold mt-1">{p.name}</div>
+                        </div>
+                        <div className="p-4 text-sm flex justify-between items-center">
+                          <span className="text-gray-400">Seat {p.used_seat||0}/{p.total_seat}</span>
+                          <span className="text-xs font-bold text-[#1A4FA0]">Lihat Jamaah →</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CollapsibleSection>
+            );
+          })}
         </div>
-        </CollapsibleSection>
-      )}
+        );
+      })()}
 
       {/* Program detail: daftar jamaah */}
       {activeTab === 'programs' && openProgram && (
@@ -1137,6 +1520,14 @@ function AdminPageInner() {
               <button onClick={() => downloadExcel('jamaah', { prog_id: openProgram.id })} disabled={exporting==='jamaah'}
                 className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-600 text-xs font-bold px-3 py-2 rounded-full whitespace-nowrap">
                 {exporting==='jamaah' ? 'Menyiapkan...' : '⬇️ Export Data Jamaah'}
+              </button>
+              {/* Bundel semua dokumen (identitas jamaah, bukti transfer,
+                  Perjanjian, Invoice/Kwitansi/TTU) program ini jadi 1 ZIP —
+                  buat diarsipkan manual (mis. dipindah ke Google Drive)
+                  begitu program selesai berangkat. Gak menghapus apapun. */}
+              <button onClick={() => exportDokumenProgram(openProgram.id)} disabled={exporting==='dokumen'}
+                className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-600 text-xs font-bold px-3 py-2 rounded-full whitespace-nowrap">
+                {exporting==='dokumen' ? 'Menyiapkan...' : '🗂️ Export Semua Dokumen (ZIP)'}
               </button>
             </div>
           </div>
@@ -1171,9 +1562,18 @@ function AdminPageInner() {
                       {b.jamaah && b.jamaah.length > 0 && (
                         <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-1 mb-2">
                           {b.jamaah.map((j,idx) => (
-                            <div key={idx} className="flex justify-between">
+                            <div key={idx} className="flex justify-between items-center gap-2">
                               <span className="text-gray-600">{idx+1}. {j.nama||'(belum diisi)'}</span>
-                              <span className="text-gray-400">{j.wa||''}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-gray-400">{j.wa||''}</span>
+                                {/* Reminder Manasik — sekadar info, gak ada
+                                    tracking konfirmasi kehadiran. Cuma muncul
+                                    kalau admin sudah isi jadwal di program ini. */}
+                                {openProgram?.manasik_tanggal && j.wa && (
+                                  <TombolWA nomor={j.wa} label="🕋 Manasik" className="text-[10px] font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] px-2 py-0.5 rounded-full whitespace-nowrap"
+                                    pesan={pesanReminderManasik({ namaJamaah: j.nama, progName: openProgram.name, tanggal: openProgram.manasik_tanggal, lokasi: openProgram.manasik_lokasi })} />
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -1181,6 +1581,15 @@ function AdminPageInner() {
 
                       <button onClick={() => openBookingDetail(b.id)} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold py-2 rounded-full">
                         🔍 Detail Lengkap Booking
+                      </button>
+
+                      {/* Jalan pintas ke halaman form-jamaah (sudah admin-
+                          accessible) — buat input dokumen (paspor/KTP/KK/
+                          vaksin/foto) yang diterima manual lewat WA, tanpa
+                          admin perlu tahu/ingat URL-nya sendiri. Selalu ada,
+                          gak cuma pas form belum lengkap. */}
+                      <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold py-2 rounded-full">
+                        📎 Input Dokumen (dari WA)
                       </button>
 
                       {/* Print hanya kalau form sudah lengkap */}
@@ -1205,6 +1614,15 @@ function AdminPageInner() {
                           {b.pelunasan_status === 'paid' && (
                             <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
                               🧾 Kwitansi Pembayaran
+                            </button>
+                          )}
+                          {/* Kenaikan harga tiket / force majeure — jamaah wajib
+                              setuju eksplisit dulu sebelum bisa lanjut pelunasan
+                              (lihat src/app/pelunasan/page.jsx). Gak relevan lagi
+                              begitu sudah lunas total. */}
+                          {b.pelunasan_status !== 'paid' && (
+                            <button onClick={() => ajukanPenyesuaianHarga(b.id, b.total_harga)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
+                              💰 Ajukan Penyesuaian Harga
                             </button>
                           )}
                         </div>
@@ -1473,7 +1891,10 @@ function AdminPageInner() {
             Diskon memotong ujroh pribadi perwakilan (bukan HPP).
           </p>
 
-          {/* Form buat voucher */}
+          {/* Form buat voucher — super_admin only (dikonfirmasi user
+              2026-08-21). Admin biasa cuma boleh lihat daftar di bawah,
+              gak bisa bikin/edit/nonaktifkan/hapus voucher sendiri. */}
+          {user.role === 'super_admin' && (
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 mb-6 space-y-3">
             <div className="font-bold text-[#0E2F6E] text-sm">+ Buat Voucher Baru</div>
             <div className="grid grid-cols-2 gap-3">
@@ -1576,6 +1997,7 @@ function AdminPageInner() {
               🎟️ Buat Voucher
             </button>
           </div>
+          )}
 
           {/* Daftar voucher */}
           <CollapsibleSection
@@ -1630,12 +2052,14 @@ function AdminPageInner() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <div className="flex gap-2">
-                            <button onClick={() => toggleVoucher(v)} className="text-xs font-bold text-[#1A4FA0] underline">
-                              {v.aktif?'Nonaktifkan':'Aktifkan'}
-                            </button>
-                            <button onClick={() => hapusVoucher(v)} className="text-xs font-bold text-red-500 underline">Hapus</button>
-                          </div>
+                          {user.role === 'super_admin' ? (
+                            <div className="flex gap-2">
+                              <button onClick={() => toggleVoucher(v)} className="text-xs font-bold text-[#1A4FA0] underline">
+                                {v.aktif?'Nonaktifkan':'Aktifkan'}
+                              </button>
+                              <button onClick={() => hapusVoucher(v)} className="text-xs font-bold text-red-500 underline">Hapus</button>
+                            </div>
+                          ) : <span className="text-xs text-gray-300">-</span>}
                         </td>
                       </tr>
                     ))}
@@ -1648,7 +2072,14 @@ function AdminPageInner() {
         </div>
       )}
 
-      {activeTab === 'auditlog' && (
+      {activeTab === 'auditlog' && user.role !== 'super_admin' && (
+        <div className="bg-white rounded-xl border border-[#e0e8f0] p-8 text-center">
+          <div className="text-3xl mb-2">🔒</div>
+          <div className="font-bold text-[#0E2F6E]">Khusus Super Admin</div>
+          <div className="text-sm text-gray-400 mt-1">Audit Trail tidak bisa diakses admin biasa.</div>
+        </div>
+      )}
+      {activeTab === 'auditlog' && user.role === 'super_admin' && (
         <div>
           <h3 className="font-bold text-[#0E2F6E] mb-1">🕵️ Audit Trail</h3>
           <p className="text-xs text-gray-400 mb-4">
@@ -1844,6 +2275,44 @@ function AdminPageInner() {
               <div className="text-center text-red-500 py-10">{detailBooking.error}</div>
             ) : (() => {
               const b = detailBooking;
+              const rpk = ringkasanPaketKamar(b); // { campuran, paket, kamar } — kombo booking-level, "Campuran" kalau jamaah beda-beda
+
+              // Isi form batal dipakai gantian buat batalkan seluruh booking
+              // (batalForm.jamaah_idx null, dipicu tombol di bawah field booking)
+              // atau 1 jamaah spesifik (jamaah_idx terisi, dipicu tombol di
+              // card jamaah masing-masing) — sama form-nya, cuma judul/notice beda.
+              const batalFormBody = batalForm && (
+                <div className="bg-red-50 rounded-lg p-3 space-y-2">
+                  <div className="font-bold text-xs text-red-700">
+                    {batalForm.jamaah_idx != null
+                      ? `Batalkan ${b.jamaah_data?.[batalForm.jamaah_idx]?.nama || `jamaah ke-${batalForm.jamaah_idx + 1}`}`
+                      : 'Batalkan Booking Langsung'}
+                  </div>
+                  <div className="text-[10px] text-gray-500">
+                    {batalForm.jamaah_idx != null && 'Jamaah lain di booking ini tetap aktif, seat yang dilepas cuma 1. '}
+                    DP: {rp(b.dp_amount)} ({b.dp_status}) · Total: {rp(b.total_harga)}. Nominal refund gak boleh lebih dari yang beneran udah dikonfirmasi dibayar.
+                  </div>
+                  <select value={batalForm.penyebab} onChange={e => setBatalForm({ ...batalForm, penyebab: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm">
+                    <option value="permintaan_jamaah">Permintaan Jamaah</option>
+                    <option value="kesalahan_jm_travel">Kesalahan JM Travel (refund 100%)</option>
+                    <option value="lainnya">Lainnya</option>
+                  </select>
+                  {batalForm.penyebab !== 'kesalahan_jm_travel' && (
+                    <input type="number" value={batalForm.refund_nominal} onChange={e => setBatalForm({ ...batalForm, refund_nominal: e.target.value })}
+                      placeholder="Nominal refund (0 kalau gak ada refund)"
+                      className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
+                  )}
+                  <textarea value={batalForm.catatan_admin} onChange={e => setBatalForm({ ...batalForm, catatan_admin: e.target.value })}
+                    placeholder="Catatan (opsional)" rows={2}
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
+                  <div className="flex gap-2">
+                    <button onClick={batalkanBookingLangsung} disabled={batalBusy} className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">{batalBusy ? 'Memproses...' : 'Ya, Batalkan Sekarang'}</button>
+                    <button onClick={() => setBatalForm(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Batal</button>
+                  </div>
+                </div>
+              );
+
               return (
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">
@@ -1857,8 +2326,8 @@ function AdminPageInner() {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <Field label="Pemesan" value={b.pemesan_nama} />
                     <Field label="Kontak Pemesan" value={b.pemesan_email || b.pemesan_wa} />
-                    <Field label="Paket" value={b.paket} />
-                    <Field label="Kamar" value={b.kamar} />
+                    <Field label="Paket" value={rpk.campuran ? 'Campuran' : rpk.paket} />
+                    <Field label="Kamar" value={rpk.campuran ? 'Campuran' : rpk.kamar} />
                     <Field label="Jumlah Jamaah" value={b.jumlah_jamaah} />
                     <Field label="Status Booking" value={b.status} />
                     <Field label="Total Harga" value={rp(b.total_harga)} />
@@ -1916,35 +2385,12 @@ function AdminPageInner() {
                       jamaah yang telepon/dateng minta batal, gak perlu suruh
                       login & ngajuin sendiri dulu. Refund diisi manual admin
                       (sama kayak alur pengajuan biasa), bukan hitungan otomatis. */}
-                  {BOOKING_BISA_DIUBAH(b.status) && (
+                  {BOOKING_BISA_DIUBAH(b.status) && (!batalForm || batalForm.jamaah_idx == null) && (
                     <div className="border-t border-gray-100 pt-3">
                       {!batalForm ? (
-                        <button onClick={() => setBatalForm({ penyebab: 'permintaan_jamaah', refund_nominal: '', catatan_admin: '' })}
+                        <button onClick={() => setBatalForm({ penyebab: 'permintaan_jamaah', refund_nominal: '', catatan_admin: '', jamaah_idx: null })}
                           className="text-xs font-bold text-red-500 hover:underline">🚫 Batalkan Booking Langsung</button>
-                      ) : (
-                        <div className="bg-red-50 rounded-lg p-3 space-y-2">
-                          <div className="font-bold text-xs text-red-700">Batalkan Booking Langsung</div>
-                          <div className="text-[10px] text-gray-500">DP: {rp(b.dp_amount)} ({b.dp_status}) · Total: {rp(b.total_harga)}. Nominal refund gak boleh lebih dari yang beneran udah dikonfirmasi dibayar.</div>
-                          <select value={batalForm.penyebab} onChange={e => setBatalForm({ ...batalForm, penyebab: e.target.value })}
-                            className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm">
-                            <option value="permintaan_jamaah">Permintaan Jamaah</option>
-                            <option value="kesalahan_jm_travel">Kesalahan JM Travel (refund 100%)</option>
-                            <option value="lainnya">Lainnya</option>
-                          </select>
-                          {batalForm.penyebab !== 'kesalahan_jm_travel' && (
-                            <input type="number" value={batalForm.refund_nominal} onChange={e => setBatalForm({ ...batalForm, refund_nominal: e.target.value })}
-                              placeholder="Nominal refund (0 kalau gak ada refund)"
-                              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
-                          )}
-                          <textarea value={batalForm.catatan_admin} onChange={e => setBatalForm({ ...batalForm, catatan_admin: e.target.value })}
-                            placeholder="Catatan (opsional)" rows={2}
-                            className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
-                          <div className="flex gap-2">
-                            <button onClick={batalkanBookingLangsung} disabled={batalBusy} className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">{batalBusy ? 'Memproses...' : 'Ya, Batalkan Sekarang'}</button>
-                            <button onClick={() => setBatalForm(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Batal</button>
-                          </div>
-                        </div>
-                      )}
+                      ) : batalFormBody}
                     </div>
                   )}
 
@@ -1954,29 +2400,137 @@ function AdminPageInner() {
                       <div className="space-y-3">
                         {b.jamaah_data.map((j, idx) => {
                           const isOpen = expandJamaahModal === idx;
+                          const pk = (b.perlengkapan_status || []).find(p => p.idx === idx);
+                          const jk = resolveJamaahHarga(b, j); // kombo paket/kamar orang ini (sendiri kalau pernah diedit per-orang, else ikut booking)
                           return (
                           <div key={idx} className="bg-gray-50 rounded-lg p-3">
-                            <div className="font-bold text-sm text-[#0E2F6E] mb-2 cursor-pointer flex items-center justify-between"
+                            <div className="font-bold text-sm text-[#0E2F6E] mb-2 cursor-pointer flex items-center justify-between gap-2"
                               onClick={() => setExpandJamaahModal(isOpen ? null : idx)}>
-                              <span>{idx+1}. {j.nama || '(belum diisi)'}</span>
+                              <span className="flex-1">{idx+1}. {j.nama || '(belum diisi)'}</span>
+                              {j.status_jamaah === 'dibatalkan' && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-red-100 text-red-600">🚫 Dibatalkan</span>
+                              )}
+                              {rpk.campuran && j.status_jamaah !== 'dibatalkan' && (
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-[#E8F0FB] text-[#1A4FA0]">
+                                  {PAKET_OPSI.find(p => p.value === jk.paket)?.label || jk.paket} · {jk.kamar}
+                                </span>
+                              )}
+                              {pk && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${PERLENGKAPAN_STATUS_WARNA[pk.status]}`}>
+                                  📦 {PERLENGKAPAN_STATUS_LABEL[pk.status]}
+                                </span>
+                              )}
                               <span className="text-xs text-gray-400 font-normal">{isOpen ? '▲' : '▼'}</span>
                             </div>
                             {isOpen && (
-                              <div className="grid grid-cols-2 gap-2 text-xs">
-                                <Field label="NIK" value={j.nik} />
-                                <Field label="Paspor" value={j.paspor} />
-                                <Field label="Masa Berlaku Paspor" value={j.exp_mulai && j.exp_paspor ? `${tgl(j.exp_mulai)} s/d ${tgl(j.exp_paspor)}` : '-'} full />
-                                <Field label="Tempat Keluar Paspor" value={j.tkp} />
-                                <Field label="Tempat/Tgl Lahir" value={j.tl ? `${j.tl}, ${tgl(j.ttl)}` : '-'} />
-                                <Field label="Jenis Kelamin" value={j.jk} />
-                                <Field label="Alamat" value={j.alamat} full />
-                                <Field label="WhatsApp" value={j.wa} />
-                                <Field label="Email" value={j.email} />
-                                <Field label="Pekerjaan" value={j.pkj} />
-                                <Field label="Riwayat Penyakit" value={j.penyakit} />
-                                <Field label="Mahram" value={j.mahram ? `${j.mahram} (${j.hub_mahram})` : '-'} full />
-                                <Field label="Kontak Darurat" value={j.kdnama ? `${j.kdnama} · ${j.kdwa} (${j.kdhub})` : '-'} full />
-                              </div>
+                              <>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <Field label="NIK" value={j.nik} />
+                                  <Field label="Paspor" value={j.paspor} />
+                                  <Field label="Masa Berlaku Paspor" value={j.exp_mulai && j.exp_paspor ? `${tgl(j.exp_mulai)} s/d ${tgl(j.exp_paspor)}` : '-'} full />
+                                  <Field label="Tempat Keluar Paspor" value={j.tkp} />
+                                  <Field label="Tempat/Tgl Lahir" value={j.tl ? `${j.tl}, ${tgl(j.ttl)}` : '-'} />
+                                  <Field label="Jenis Kelamin" value={j.jk} />
+                                  <Field label="Alamat" value={j.alamat} full />
+                                  <Field label="Alamat Kirim Perlengkapan" value={j.alamat_kirim} full />
+                                  <Field label="WhatsApp" value={j.wa} />
+                                  <Field label="Email" value={j.email} />
+                                  <Field label="Pekerjaan" value={j.pkj} />
+                                  <Field label="Riwayat Penyakit" value={j.penyakit} />
+                                  <Field label="Mahram" value={j.mahram ? `${j.mahram} (${j.hub_mahram})` : '-'} full />
+                                  <Field label="Kontak Darurat" value={j.kdnama ? `${j.kdnama} · ${j.kdwa} (${j.kdhub})` : '-'} full />
+                                </div>
+
+                                {/* Kartu status perlengkapan (WMS) — cuma muncul begitu DP
+                                    confirmed (lihat GET /api/bookings/[id]). Daftar item cuma
+                                    keisi kalau statusnya udah "dikirim"/"diterima" (dibaca dari
+                                    ledger, lihat ambilItemDikirimJamaah). */}
+                                {pk && (
+                                  <div className="border-t border-gray-200 mt-3 pt-3">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <div className="font-bold text-xs text-[#0E2F6E]">📦 Perlengkapan</div>
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PERLENGKAPAN_STATUS_WARNA[pk.status]}`}>{PERLENGKAPAN_STATUS_LABEL[pk.status]}</span>
+                                    </div>
+                                    {pk.items.length > 0 ? (
+                                      <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100 mb-2">
+                                        {pk.items.map((it, i) => (
+                                          <div key={i} className="flex justify-between px-3 py-1.5 text-xs">
+                                            <span className="text-gray-600">{it.nama}</span>
+                                            <span className="text-gray-400">×{it.qty}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-[11px] text-gray-400 mb-2">
+                                        {pk.status === 'belum_diproses' ? 'Belum ada item yang disiapkan.' : 'Belum ada item yang dikirim.'}
+                                      </div>
+                                    )}
+                                    <div className="flex items-center gap-3">
+                                      {(pk.status === 'dikirim' || pk.status === 'diterima') && (
+                                        <a href={`/admin/cetak-tanda-terima-perlengkapan/${encodeURIComponent(b.id)}/${idx}`} target="_blank" rel="noopener noreferrer"
+                                          className="text-[10px] font-bold text-[#1A4FA0] hover:underline">🖨️ Tanda Terima</a>
+                                      )}
+                                      <button onClick={() => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(b.prog_name)}`)}
+                                        className="text-[10px] font-bold text-gray-400 hover:text-[#1A4FA0]">Kelola status pengiriman →</button>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Edit paket/kamar 1 jamaah spesifik — beda dari "Edit
+                                    Paket/Kamar/Harga" booking-wide di atas, cuma ubah 1
+                                    orang. Server yang jaga invariant lewat lazy-backfill
+                                    (lihat PATCH /api/bookings/[id] branch jamaah_edit). */}
+                                {BOOKING_BISA_DIUBAH(b.status) && j.status_jamaah !== 'dibatalkan' && (
+                                  <div className="border-t border-gray-200 mt-3 pt-3">
+                                    {editJamaahForm?.idx === idx ? (
+                                      <div className="bg-[#E8F0FB] rounded-lg p-3 space-y-2">
+                                        <div className="font-bold text-xs text-[#0E2F6E]">Edit Paket/Kamar — {j.nama || `jamaah ke-${idx + 1}`}</div>
+                                        <div className="text-xs bg-white rounded-lg px-3 py-2 border border-[#1A4FA0]/20">
+                                          <span className="text-gray-400">Sekarang:</span>{' '}
+                                          <span className="font-bold text-[#0E2F6E]">
+                                            {PAKET_OPSI.find(p => p.value === jk.paket)?.label || jk.paket} / {jk.kamar} — {rp(jk.hargaJual)}
+                                          </span>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                          <select value={editJamaahForm.paket} onChange={e => setEditJamaahForm({ ...editJamaahForm, paket: e.target.value })}
+                                            className="px-3 py-2 rounded-lg border-2 border-gray-200 text-sm">
+                                            {PAKET_OPSI.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                                          </select>
+                                          <select value={editJamaahForm.kamar} onChange={e => setEditJamaahForm({ ...editJamaahForm, kamar: e.target.value })}
+                                            className="px-3 py-2 rounded-lg border-2 border-gray-200 text-sm">
+                                            {KAMAR_OPSI.map(k => <option key={k} value={k}>{k}</option>)}
+                                          </select>
+                                        </div>
+                                        <input type="number" value={editJamaahForm.harga_custom} onChange={e => setEditJamaahForm({ ...editJamaahForm, harga_custom: e.target.value })}
+                                          placeholder="Custom harga jamaah ini (kosongkan = ikut harga program)"
+                                          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
+                                        <div className="text-[10px] text-gray-400">Jamaah lain di booking ini gak kesentuh. Total harga booking dihitung ulang otomatis.</div>
+                                        <div className="flex gap-2">
+                                          <button onClick={simpanEditJamaah} disabled={editJamaahBusy} className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">{editJamaahBusy ? 'Menyimpan...' : 'Simpan Perubahan'}</button>
+                                          <button onClick={() => setEditJamaahForm(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Batal</button>
+                                        </div>
+                                      </div>
+                                    ) : (!batalForm && !editJamaahForm) && (
+                                      <button onClick={() => setEditJamaahForm({ idx, paket: jk.paket, kamar: jk.kamar, harga_custom: '' })}
+                                        className="text-xs font-bold text-[#1A4FA0] hover:underline">✏️ Edit Paket/Kamar jamaah ini</button>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Batalkan 1 jamaah spesifik — jamaah lain di booking
+                                    ini tetap aktif, beda dari "Batalkan Booking Langsung"
+                                    di atas yang membatalkan semuanya sekaligus. */}
+                                {BOOKING_BISA_DIUBAH(b.status) && j.status_jamaah !== 'dibatalkan' && (
+                                  <div className="border-t border-gray-200 mt-3 pt-3">
+                                    {(!batalForm || batalForm.jamaah_idx !== idx) ? (
+                                      (!batalForm && !editJamaahForm) && (
+                                        <button onClick={() => setBatalForm({ penyebab: 'permintaan_jamaah', refund_nominal: '', catatan_admin: '', jamaah_idx: idx })}
+                                          className="text-xs font-bold text-red-500 hover:underline">🚫 Batalkan jamaah ini</button>
+                                      )
+                                    ) : batalFormBody}
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                           );

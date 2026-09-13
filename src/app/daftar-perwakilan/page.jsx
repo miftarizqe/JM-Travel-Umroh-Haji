@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
+import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
 
 const emptyForm = () => ({
   nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
@@ -14,45 +16,8 @@ const emptyForm = () => ({
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
   wa:'', email:'', pkj:'',
   bank:'', norek:'', pemilik:'',
-  perekrut_id:'', jadwal:'', metode:'kantor',
+  perekrut_id:'',
 });
-
-// Dipakai 2x (KTP & domisili) — daripada duplikasi 10 input manual.
-function AddressFields({ form, setF, suffix, inp, lbl }) {
-  const k = (name) => `${name}${suffix}`;
-  return (
-    <>
-      <div><label className={lbl}>Nama Jalan *</label>
-        <input value={form[k('jalan')]} onChange={e=>setF(k('jalan'),e.target.value)} className={inp}/></div>
-      <div className="grid grid-cols-3 gap-3">
-        <div><label className={lbl}>No. Rumah</label>
-          <input value={form[k('norumah')]} onChange={e=>setF(k('norumah'),e.target.value)} className={inp}/></div>
-        <div><label className={lbl}>RT</label>
-          <input value={form[k('rt')]} onChange={e=>setF(k('rt'),e.target.value)} className={inp}/></div>
-        <div><label className={lbl}>RW</label>
-          <input value={form[k('rw')]} onChange={e=>setF(k('rw'),e.target.value)} className={inp}/></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className={lbl}>Kelurahan</label>
-          <input value={form[k('kel')]} onChange={e=>setF(k('kel'),e.target.value)} className={inp}/></div>
-        <div><label className={lbl}>Kecamatan</label>
-          <input value={form[k('kec')]} onChange={e=>setF(k('kec'),e.target.value)} className={inp}/></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className={lbl}>Kota/Kabupaten *</label>
-          <input value={form[k('kota')]} onChange={e=>setF(k('kota'),e.target.value)} className={inp}/></div>
-        <div><label className={lbl}>Provinsi</label>
-          <input value={form[k('provinsi')]} onChange={e=>setF(k('provinsi'),e.target.value)} className={inp}/></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div><label className={lbl}>Kode Pos</label>
-          <input value={form[k('kp')]} onChange={e=>setF(k('kp'),e.target.value)} className={inp}/></div>
-        <div><label className={lbl}>Negara</label>
-          <input value={form[k('negara')]} onChange={e=>setF(k('negara'),e.target.value)} className={inp}/></div>
-      </div>
-    </>
-  );
-}
 
 export default function DaftarPerwakilanPage() {
   const router = useRouter();
@@ -66,9 +31,12 @@ export default function DaftarPerwakilanPage() {
   const [loading, setLoading] = useState(false);
   const [cek, setCek] = useState(null); // prasyarat
   const [uploadingKtp, setUploadingKtp] = useState(false);
+  const [profil, setProfil] = useState(null);
 
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim() || !!form.pkj.trim();
   useUnsavedGuard(isDirty);
+
+  const setF = (k,v) => setForm(p => ({...p, [k]: v}));
 
   useEffect(() => {
     if (!user) return;
@@ -77,9 +45,28 @@ export default function DaftarPerwakilanPage() {
     fetch('/api/status-pendaftaran').then(r => r.json()).then(d => setCek(d)).catch(()=>{});
     // Perekrut boleh perwakilan aktif lain — sama seperti register/page.jsx
     fetch('/api/referral-list').then(r => r.json()).then(d => { setPerwList(d.perwakilan||[]); }).catch(()=>{});
+    // User yang daftar LANGSUNG sebagai perwakilan (role sudah 'perwakilan'
+    // sejak register/page.jsx, lihat upload-foto/page.jsx yang paksa mampir
+    // ke sini) SUDAH ditanya "siapa yang merekrut Anda" pas register — jangan
+    // tanya ulang di sini, tinggal tampilkan. User yang upgrade dari jamaah
+    // (lewat /upgrade-perwakilan) belum pernah ditanya sama sekali, tetap
+    // pakai dropdown biasa di bawah.
+    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => { if (d.user) setProfil(d.user); }).catch(()=>{});
   }, [user]);
 
-  const setF = (k,v) => setForm(p => ({...p, [k]: v}));
+  // Perekrut dari registrasi sudah final (role sudah 'perwakilan') — dipakai
+  // langsung dari `profil` pas submit, bukan disalin ke form.perekrut_id,
+  // biar gak ada setState nyinkron di useEffect buat state yang bisa
+  // diturunkan langsung (lihat submit() & ringkasan step 4). Upgrade dari
+  // jamaah yang PUNYA referral permanen (dikunci sejak registrasi jamaah,
+  // lihat users.perekrut_perwakilan_jamaah_id) WAJIB pakai itu juga, gak
+  // boleh pilih manual — baru jamaah TANPA referral permanen yang tetap
+  // pakai dropdown form.perekrut_id biasa.
+  const perekrutIdTerkirim = user?.role === 'perwakilan'
+    ? (profil?.perekrut_id || '')
+    : profil?.perekrut_perwakilan_jamaah_id
+      ? profil.perekrut_perwakilan_jamaah_id
+      : form.perekrut_id;
 
   async function pilihFotoKtp(file) {
     if (!file) return;
@@ -106,33 +93,44 @@ export default function DaftarPerwakilanPage() {
       if (!form.foto_ktp_path) return alert('Foto KTP wajib diunggah!') || false;
     }
     if (step === 2) {
-      if (!form.jalan.trim() || !form.kota.trim()) return alert('Alamat KTP & kota wajib diisi!') || false;
-      if (!form.sama_ktp && (!form.jalan_dom.trim() || !form.kota_dom.trim())) {
-        return alert('Alamat domisili & kota wajib diisi!') || false;
-      }
+      if (!alamatLengkap(form, ''))
+        return alert('Alamat KTP wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
+      if (!form.sama_ktp && !alamatLengkap(form, '_dom'))
+        return alert('Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
     }
     if (step === 3) {
       if (!form.bank.trim() || !form.norek.trim() || !form.pemilik.trim())
         return alert('Data rekening wajib diisi!') || false;
-      if (form.metode === 'kantor' && !form.jadwal)
-        return alert('Pilih jadwal kunjungan kantor!') || false;
     }
     return true;
   }
 
+  // Submit formulir -> langsung chain ke TTD digital (self-service, pola sama
+  // kayak simpanLaluTtdDigital jamaah di pks/page.jsx) -> /tanda-tangan/[id].
+  // Metode Pendaftaran & PKS dipindah ke langkah SETELAH ini (lihat
+  // /daftar-perwakilan/metode & /pks?jenis=perwakilan), gak lagi di sini.
   async function submit() {
     if (!validStep()) return;
     setLoading(true);
     try {
       const res = await fetch('/api/daftar-perwakilan', {
         method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(form)   // user_id diambil dari token, tidak dikirim
+        body: JSON.stringify({ ...form, perekrut_id: perekrutIdTerkirim })   // user_id diambil dari token, tidak dikirim
       });
       const d = await res.json();
-      if (res.ok) {
-        alert('Formulir kemitraan terkirim! Lanjut ke persetujuan PKS.');
-        router.push('/pks?jenis=perwakilan');
-      } else alert(d.error);
+      if (!res.ok) { alert(d.error); setLoading(false); return; }
+
+      const resSig = await fetch('/api/admin/dokumen-signature', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dokumen: 'formulir', ref_id: user.id, metode: 'digital' }),
+      });
+      const dSig = await resSig.json();
+      if (!resSig.ok) {
+        alert((dSig.error || 'Formulir tersimpan, tapi gagal menyiapkan TTD digital.') + ' Silakan lanjutkan dari halaman status.');
+        router.push('/status-pendaftaran');
+        return;
+      }
+      router.push(`/tanda-tangan/${dSig.id}`);
     } catch { alert('Terjadi kesalahan'); }
     setLoading(false);
   }
@@ -141,7 +139,7 @@ export default function DaftarPerwakilanPage() {
 
   // Blokir kalau prasyarat belum lengkap — mencegah step diloncati
   if (cek && !cek.prasyarat?.akun_terverifikasi) {
-    return <Layout title="📝 Formulir Kemitraan Perwakilan"><div className="max-w-md mx-auto">
+    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
         <div className="text-3xl mb-2">🔐</div>
         <h4 className="font-bold text-yellow-800 mb-1">Verifikasi Akun Dulu</h4>
@@ -151,7 +149,7 @@ export default function DaftarPerwakilanPage() {
       </div></div></Layout>;
   }
   if (cek && !cek.prasyarat?.foto_profil) {
-    return <Layout title="📝 Formulir Kemitraan Perwakilan"><div className="max-w-md mx-auto">
+    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
         <div className="text-3xl mb-2">📷</div>
         <h4 className="font-bold text-yellow-800 mb-1">Unggah Foto Profil Dulu</h4>
@@ -161,12 +159,21 @@ export default function DaftarPerwakilanPage() {
       </div></div></Layout>;
   }
   if (cek?.pendaftaran) {
-    return <Layout title="📝 Formulir Kemitraan Perwakilan"><div className="max-w-md mx-auto">
+    // Formulir udah pernah dikirim — arahkan ke langkah LANJUTAN yang belum
+    // selesai (TTD formulir/PKS/pilih metode), bukan selalu ke status
+    // tracker mentah, biar applicant yang keluar di tengah jalan gak nyangkut.
+    const langkah = langkahBerikutnyaPerwakilan(cek) || '/status-pendaftaran';
+    const sudahLengkap = langkah === '/status-pendaftaran';
+    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 text-center">
         <h4 className="font-bold text-blue-800 mb-1">Anda Sudah Mendaftar</h4>
-        <p className="text-sm text-blue-600 mb-3">Pantau progres pendaftaran Anda.</p>
-        <button onClick={() => router.push('/status-pendaftaran')}
-          className="bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">Lihat Status →</button>
+        <p className="text-sm text-blue-600 mb-3">
+          {sudahLengkap ? 'Pantau progres pendaftaran Anda.' : 'Lanjutkan langkah pendaftaran yang belum selesai.'}
+        </p>
+        <button onClick={() => router.push(langkah)}
+          className="bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">
+          {sudahLengkap ? 'Lihat Status →' : 'Lanjutkan Pendaftaran →'}
+        </button>
       </div></div></Layout>;
   }
 
@@ -207,7 +214,7 @@ export default function DaftarPerwakilanPage() {
               <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>Tanggal Lahir *</label>
-                <input type="date" value={form.tl} onChange={e=>setF('tl',e.target.value)} className={inp}/></div>
+                <input type="date" value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
               <div><label className={lbl}>Jenis Kelamin *</label>
                 <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={inp}>
                   <option>Laki-Laki</option><option>Perempuan</option></select></div>
@@ -274,38 +281,38 @@ export default function DaftarPerwakilanPage() {
 
             <div className="pt-2">
               <label className={lbl}>Siapa yang merekrut Anda?</label>
-              <select value={form.perekrut_id} onChange={e=>setF('perekrut_id',e.target.value)} className={inp}>
-                <option value="">-- Tidak ada / daftar mandiri --</option>
-                {perwList.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}{p.wilayah ? ` — ${p.wilayah}` : ''} ({p.kode_unik})</option>
-                ))}
-              </select>
-              <div className="text-[10px] text-gray-400 mt-1">
-                Hanya perwakilan aktif yang bisa dipilih. Perekrut mendapat komisi override dari closing Anda.
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <label className={lbl}>Metode Pendaftaran *</label>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  {v:'kantor', l:'Datang ke Kantor', d:'Jakarta & sekitarnya'},
-                  {v:'paket', l:'Kirim Paket', d:'Luar Jakarta'},
-                ].map(m => (
-                  <div key={m.v} onClick={()=>setF('metode',m.v)}
-                    className={`border-2 rounded-lg p-3 cursor-pointer text-center transition-all ${
-                      form.metode===m.v?'border-[#1A4FA0] bg-[#E8F0FB]':'border-gray-200'}`}>
-                    <div className="text-sm font-bold text-[#0E2F6E]">{m.l}</div>
-                    <div className="text-[10px] text-gray-400">{m.d}</div>
+              {user?.role === 'perwakilan' ? (
+                <>
+                  <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">
+                    {profil?.perekrut_nama || '-- Tidak ada / daftar mandiri --'}
                   </div>
-                ))}
-              </div>
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    Sudah dipilih waktu Anda mendaftar akun, tidak bisa diubah di sini.
+                  </div>
+                </>
+              ) : profil?.perekrut_perwakilan_jamaah_id ? (
+                <>
+                  <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">
+                    {profil.perekrut_perwakilan_jamaah_nama} ({profil.perekrut_perwakilan_jamaah_kode})
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    Terhubung otomatis dari referral saat Anda mendaftar sebagai jamaah — tidak bisa diubah.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <select value={form.perekrut_id} onChange={e=>setF('perekrut_id',e.target.value)} className={inp}>
+                    <option value="">-- Tidak ada / daftar mandiri --</option>
+                    {perwList.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}{p.wilayah ? ` — ${p.wilayah}` : ''} ({p.kode_unik})</option>
+                    ))}
+                  </select>
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    Hanya perwakilan aktif yang bisa dipilih. Perekrut mendapat komisi override dari closing Anda.
+                  </div>
+                </>
+              )}
             </div>
-
-            {form.metode === 'kantor' && (
-              <div><label className={lbl}>Jadwal Kunjungan Kantor *</label>
-                <input type="date" value={form.jadwal} onChange={e=>setF('jadwal',e.target.value)} className={inp}/></div>
-            )}
           </>)}
 
           {step === 4 && (<>
@@ -315,8 +322,11 @@ export default function DaftarPerwakilanPage() {
                 ['Nama', form.nama], ['NIK', form.nik], ['Tgl Lahir', form.tl],
                 ['WhatsApp', form.wa], ['Email', form.email],
                 ['Kota', form.kota], ['Bank', `${form.bank} - ${form.norek}`],
-                ['Perekrut', perekrutList.find(a=>a.id===form.perekrut_id)?.name || 'Tidak ada'],
-                ['Metode', form.metode==='kantor'?`Ke Kantor (${form.jadwal})`:'Kirim Paket'],
+                ['Perekrut', user?.role === 'perwakilan'
+                  ? (profil?.perekrut_nama || 'Tidak ada')
+                  : profil?.perekrut_perwakilan_jamaah_id
+                    ? profil.perekrut_perwakilan_jamaah_nama
+                    : (perekrutList.find(a=>String(a.id)===String(form.perekrut_id))?.name || 'Tidak ada')],
               ].map(([k,v]) => (
                 <div key={k} className="flex justify-between">
                   <span className="text-gray-400">{k}</span>
@@ -325,8 +335,9 @@ export default function DaftarPerwakilanPage() {
               ))}
             </div>
             <div className="bg-[#E8F0FB] rounded-lg p-3 text-xs text-[#1A4FA0]">
-              Setelah kirim, Anda akan diminta membaca & menyetujui
-              <b> Perjanjian Kerjasama Perwakilan</b>, lalu mengunggah SK BSI.
+              Setelah kirim, Anda akan diminta <b>TTD digital</b> formulir ini, lalu membaca &
+              menyetujui <b>Perjanjian Kerjasama Perwakilan</b>, lalu memilih metode pendaftaran
+              (datang ke kantor / kirim paket).
             </div>
           </>)}
 

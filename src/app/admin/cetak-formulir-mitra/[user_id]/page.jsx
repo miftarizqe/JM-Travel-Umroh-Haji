@@ -154,6 +154,7 @@ export default function CetakFormulirMitra() {
           body { background: #fff !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
         }
+        @page { size: A4; margin: 15mm; }
       `}</style>
     </div>
   );

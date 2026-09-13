@@ -85,6 +85,19 @@ export default function AturHargaPerwakilan() {
           )}
         </div>
 
+        {/* Kalkulator Perwakilan — pintu masuk dari sini (bukan bottom-nav
+            tersendiri, biar navbar mobile gak kepenuhan) karena tematiknya
+            sama-sama soal harga. Eksplorasi kombinasi hotel/rute/dll + margin
+            sendiri, beda dari harga flat per-program di atas. */}
+        <button onClick={() => router.push('/perwakilan/kalkulator')}
+          className="w-full flex items-center justify-between bg-white rounded-xl border-2 border-[#C9952A] p-4 mb-6 hover:bg-[#FEF3DC] transition-colors">
+          <div className="text-left">
+            <div className="font-bold text-[#0E2F6E]">🧮 Kalkulator Perwakilan</div>
+            <div className="text-xs text-gray-500 mt-0.5">Eksplorasi harga sendiri (hotel/rute/malam/dll), simpan buat quote ke jamaah, atau ajukan ke admin</div>
+          </div>
+          <span className="text-[#C9952A] text-xl">→</span>
+        </button>
+
         {/* Daftar program */}
         {!selected && (
           <div className="space-y-3">

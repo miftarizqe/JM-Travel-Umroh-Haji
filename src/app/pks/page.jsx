@@ -25,20 +25,23 @@ function PKSPageInner() {
   const [loadingDigital, setLoadingDigital] = useState(false);
   const [pksUser, setPksUser] = useState(null); // data sendiri (bank/rekening) buat isi pasal komisi
   const [pasal, setPasal] = useState(null);
+  const [userId, setUserId] = useState(null); // dipakai jadi ref_id buat dokumen ber-ref-user (sahabat/SPK-AK)
   const scrollRef = useRef(null);
 
   useUnsavedGuard(setuju);
 
-  // Perwakilan baca isi PASAL LENGKAP (sama persis kayak dokumen final
-  // yang dicetak admin) — butuh data bank/rekening sendiri buat pasal komisi.
+  // Perwakilan & sahabat baca isi PASAL LENGKAP (sama persis kayak dokumen
+  // final yang dicetak admin) — perwakilan butuh data bank/rekening sendiri
+  // buat pasal komisi, sahabat (SPK-AK) gak butuh merge field apa pun.
   // Jamaah tetap pakai ringkasan singkat (bukan bagian dari perjanjian resmi
   // bertanda tangan). Isi pasal dokumen legal ada di /admin/pasal.
-  const dokumenKey = jenis === 'perwakilan' ? 'spka_ins' : 'jamaah';
+  const dokumenKey = jenis === 'perwakilan' ? 'spka_ins' : jenis === 'sahabat_baitullah' ? 'spk_ak' : 'jamaah';
 
   useEffect(() => {
     const u = localStorage.getItem('user');
     if (!u) { router.push('/login'); return; }
-    if (jenis === 'perwakilan') {
+    try { setUserId(JSON.parse(u)?.id || null); } catch { /* abaikan */ }
+    if (jenis === 'perwakilan' || jenis === 'sahabat_baitullah') {
       fetch('/api/pks/data').then(r => r.json()).then(d => setPksUser(d.user || null)).catch(() => {});
     }
     fetch(`/api/pasal?dokumen=${dokumenKey}`).then(r => r.json()).then(d => setPasal(d.pasal || [])).catch(() => setPasal([]));
@@ -62,18 +65,22 @@ function PKSPageInner() {
       const d = await res.json();
       if (res.ok) {
         alert('Persetujuan tercatat!');
-        if (jenis === 'perwakilan') router.push('/status-pendaftaran');
+        if (jenis === 'perwakilan') router.push('/daftar-perwakilan/metode');
+        else if (jenis === 'sahabat_baitullah') router.push('/status-pendaftaran-sahabat');
         else router.push('/dashboard/jamaah');
       } else alert(d.error);
     } catch { alert('Terjadi kesalahan'); }
     setLoading(false);
   }
 
-  // Khusus jamaah: selain "setuju" (checkbox, tetap jadi gerbang pelunasan
-  // seperti sebelumnya — TIDAK diubah), sekarang ada opsi lanjut TTD digital
+  // Khusus jamaah & sahabat: selain "setuju" (checkbox, tetap jadi gerbang
+  // lanjut seperti sebelumnya — TIDAK diubah), ada opsi lanjut TTD digital
   // sungguhan (bikin PDF + sesi tanda tangan) alih-alih cuma checkbox.
+  // ref_id beda per jenis: jamaah -> booking, sahabat -> akun user sendiri.
   async function simpanLaluTtdDigital() {
     if (!setuju) { alert('Centang persetujuan terlebih dahulu!'); return; }
+    const refId = jenis === 'sahabat_baitullah' ? userId : bookingId;
+    if (!refId) { alert('Data belum siap, coba lagi.'); return; }
     setLoadingDigital(true);
     try {
       const resPks = await fetch('/api/pks', {
@@ -85,7 +92,7 @@ function PKSPageInner() {
 
       const resSig = await fetch('/api/admin/dokumen-signature', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dokumen: 'jamaah', ref_id: bookingId, metode: 'digital' }),
+        body: JSON.stringify({ dokumen: dokumenKey, ref_id: refId, metode: 'digital' }),
       });
       const dSig = await resSig.json();
       if (!resSig.ok) { alert(dSig.error || 'Gagal memulai TTD digital'); setLoadingDigital(false); return; }
@@ -94,10 +101,17 @@ function PKSPageInner() {
     setLoadingDigital(false);
   }
 
-  const pakaiPasalLengkap = jenis === 'perwakilan';
-  const judulLengkap = 'Surat Perjanjian Kerja Sama Perwakilan (SPKA-Ins)';
-  const judulRingkas = 'Perjanjian Keberangkatan Jamaah';
-  const mergeData = pksUser ? { bank_agen: pksUser.bank, rekening_agen: pksUser.no_rekening, nama_rekening_agen: pksUser.nama_pemilik_rekening } : null;
+  const pakaiPasalLengkap = jenis === 'perwakilan' || jenis === 'sahabat_baitullah';
+  const judulLengkap = 'Surat Perjanjian Kerja Sama Perwakilan (SPK-PWK)';
+  const judulSahabat = 'Surat Perjanjian Jamaah Umroh — Program Sahabat Baitullah';
+  const judulRingkas = 'Surat Perjanjian Jamaah Umroh';
+  const judul = jenis === 'perwakilan' ? judulLengkap : jenis === 'sahabat_baitullah' ? judulSahabat : judulRingkas;
+  const mergeData = pksUser ? {
+    bank_agen: pksUser.bank, rekening_agen: pksUser.no_rekening, nama_rekening_agen: pksUser.nama_pemilik_rekening,
+    target_minat: pksUser.target_minat || '(belum ditentukan)',
+    target_estimasi_harga: pksUser.target_estimasi_harga ? Number(pksUser.target_estimasi_harga).toLocaleString('id-ID') : '________',
+  } : null;
+  const menungguDataAwal = (jenis === 'perwakilan' || jenis === 'sahabat_baitullah') && !pksUser;
 
   return (
     <Layout title="📜 Perjanjian Kerjasama" showBack confirmLeave={setuju}
@@ -111,12 +125,12 @@ function PKSPageInner() {
           <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white p-4 text-center">
             <div className="text-lg font-bold">JM TRAVEL</div>
             <div className="text-xs opacity-85">PT. Alkhalid Jaya Megah Tours & Travel</div>
-            <div className="text-sm font-bold mt-2">{pakaiPasalLengkap ? judulLengkap : judulRingkas}</div>
+            <div className="text-sm font-bold mt-2">{judul}</div>
           </div>
 
           <div ref={scrollRef} onScroll={cekScroll}
             className="p-5 max-h-[400px] overflow-y-auto text-sm text-gray-600 space-y-4">
-            {!pasal || (pakaiPasalLengkap && !pksUser) ? (
+            {!pasal || menungguDataAwal ? (
               <div className="text-center text-gray-400 py-10">Memuat isi perjanjian...</div>
             ) : (
               pasal.map(p => (
@@ -144,11 +158,11 @@ function PKSPageInner() {
             onChange={e=>setSetuju(e.target.checked)}
             className="mt-0.5 w-4 h-4 accent-[#1A4FA0] flex-shrink-0"/>
           <span className="text-sm text-gray-600 leading-relaxed">
-            Saya telah membaca, memahami, dan menyetujui seluruh isi {pakaiPasalLengkap ? judulLengkap : judulRingkas} ini.
+            Saya telah membaca, memahami, dan menyetujui seluruh isi {judul} ini.
           </span>
         </label>
 
-        {jenis === 'jamaah' && bookingId ? (
+        {(jenis === 'jamaah' && bookingId) || (jenis === 'sahabat_baitullah' && userId) ? (
           <div className="mt-4 space-y-2">
             <button onClick={simpanLaluTtdDigital} disabled={!setuju || loading || loadingDigital}
               className="w-full bg-[#C9952A] hover:bg-yellow-600 text-white font-bold py-3 rounded-full disabled:opacity-40">

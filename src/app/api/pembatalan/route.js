@@ -54,22 +54,30 @@ export async function GET(request) {
   }
 }
 
-// POST /api/pembatalan   body: { booking_id, alasan, bukti_path? }
+// POST /api/pembatalan   body: { booking_id, alasan, bukti_path?, jamaah_idx? }
 // Admin/super_admin bisa langsung eksekusi pembatalan (bypass antrian
 // "menunggu" persetujuan) dengan kirim admin_langsung: true + penyebab/
 // refund_nominal/catatan_admin sekalian — dipakai buat jamaah yang telepon/
 // dateng langsung minta batal, staff kantor gak perlu suruh jamaahnya login
 // & ngajuin sendiri dulu (dikonfirmasi user 2026-07-28).
+//
+// jamaah_idx (opsional, ADMIN LANGSUNG SAJA) — batalkan SATU jamaah spesifik
+// di dalam booking (index array jamaah_data), bukan seluruh booking. Booking
+// bisa isi banyak orang, kadang cuma 1 yang batal (dikonfirmasi user
+// 2026-08-15). Kosong = perilaku lama, batalkan seluruh booking.
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
 
   try {
-    const { booking_id, alasan, bukti_path, admin_langsung, penyebab, refund_nominal, catatan_admin } = await request.json();
+    const { booking_id, alasan, bukti_path, admin_langsung, penyebab, refund_nominal, catatan_admin, jamaah_idx } = await request.json();
     const isAdmin = auth.user.role === 'admin' || auth.user.role === 'super_admin';
 
     if (!booking_id) {
       return Response.json({ error: 'booking_id wajib diisi' }, { status: 400 });
+    }
+    if (jamaah_idx != null && !(isAdmin && admin_langsung)) {
+      return Response.json({ error: 'Pembatalan per-jamaah cuma bisa dieksekusi langsung oleh admin.' }, { status: 400 });
     }
 
     // Jamaah cuma boleh batalin booking miliknya sendiri; admin boleh
@@ -93,7 +101,25 @@ export async function POST(request) {
       return Response.json({ error: 'Pengajuan pembatalan sedang diproses admin.' }, { status: 400 });
     }
 
-    // Total yang sudah benar-benar dibayar (pembayaran terkonfirmasi)
+    // Validasi jamaah_idx — harus nunjuk entry beneran di jamaah_data & belum
+    // dibatalkan sebelumnya.
+    if (jamaah_idx != null) {
+      let jd = b.jamaah_data;
+      if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+      const entries = Array.isArray(jd) ? jd : [];
+      const target = entries[jamaah_idx];
+      if (!target) {
+        return Response.json({ error: 'Jamaah tidak ditemukan pada booking ini' }, { status: 404 });
+      }
+      if (target.status_jamaah === 'dibatalkan') {
+        return Response.json({ error: 'Jamaah ini sudah dibatalkan sebelumnya.' }, { status: 400 });
+      }
+    }
+
+    // Total yang sudah benar-benar dibayar (pembayaran terkonfirmasi) — ini
+    // total BOOKING (belum dipecah per-jamaah, sistem gak nyimpen breakdown
+    // segitu detail), dipakai sebagai batas atas refund walau yang batal cuma
+    // 1 orang — admin yang menilai nominal refund wajarnya berapa.
     const [bayar] = await pool.query(
       "SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE booking_id = ? AND status = 'confirmed'",
       [booking_id]
@@ -115,10 +141,13 @@ export async function POST(request) {
       }
     }
 
-    // Cegah pengajuan ganda
+    // Cegah pengajuan ganda — buat pembatalan whole-booking (jamaah_idx
+    // NULL) cukup cek booking_id-nya aja; buat per-jamaah cek kombinasi
+    // booking_id+jamaah_idx-nya spesifik (null-safe pakai <=>, biar row
+    // whole-booking yang lain gak ikut keblokir).
     const [ada] = await pool.query(
-      "SELECT id FROM pembatalan WHERE booking_id = ? AND status = 'menunggu'",
-      [booking_id]
+      "SELECT id FROM pembatalan WHERE booking_id = ? AND jamaah_idx <=> ? AND status = 'menunggu'",
+      [booking_id, jamaah_idx ?? null]
     );
     if (ada.length > 0) {
       return Response.json({ error: 'Pengajuan pembatalan sedang diproses.' }, { status: 409 });
@@ -126,9 +155,9 @@ export async function POST(request) {
 
     const [insertResult] = await pool.query(
       `INSERT INTO pembatalan
-       (booking_id, user_id, alasan, bukti_path, dp_sudah_dibayar, total_sudah_dibayar, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'menunggu')`,
-      [booking_id, b.user_id, alasanFinal, bukti_path || null,
+       (booking_id, jamaah_idx, user_id, alasan, bukti_path, dp_sudah_dibayar, total_sudah_dibayar, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'menunggu')`,
+      [booking_id, jamaah_idx ?? null, b.user_id, alasanFinal, bukti_path || null,
        dpSudahDibayar ? 1 : 0, totalDibayar]
     );
     const pembatalanId = insertResult.insertId;
@@ -139,7 +168,7 @@ export async function POST(request) {
       const hasil = await setujuiPembatalan(pembatalanId, auth.user, { penyebab, refund_nominal, catatan_admin });
       if (hasil.error) return Response.json({ error: hasil.error }, { status: hasil.status });
       return Response.json({
-        message: 'Booking berhasil dibatalkan.',
+        message: jamaah_idx != null ? 'Jamaah berhasil dibatalkan.' : 'Booking berhasil dibatalkan.',
         langsung: true,
         ...hasil.data,
       }, { status: 201 });
@@ -196,6 +225,7 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
 
   const persen = totalDibayar > 0 ? Math.round((nominal / totalDibayar) * 100) : 0;
   let progIdSeatDibuka = null;
+  let namaJamaahDibatalkan = null; // cuma keisi kalau ini pembatalan per-jamaah
 
   const conn = await pool.getConnection();
   try {
@@ -208,16 +238,77 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
       [penyebab || 'lainnya', nominal, persen, catatan_admin || null, actorUser.id, id]
     );
 
-    await conn.query("UPDATE bookings SET status = 'dibatalkan' WHERE id = ?", [p.booking_id]);
+    const [bkRows] = await conn.query('SELECT * FROM bookings WHERE id = ? FOR UPDATE', [p.booking_id]);
+    const bk = bkRows[0];
 
-    // Kembalikan kuota seat
-    const [bk] = await conn.query('SELECT prog_id, jumlah_jamaah FROM bookings WHERE id = ?', [p.booking_id]);
-    if (bk.length) {
+    if (p.jamaah_idx == null) {
+      // ---- Batalkan SELURUH booking (perilaku lama, tidak berubah) ----
+      await conn.query("UPDATE bookings SET status = 'dibatalkan' WHERE id = ?", [p.booking_id]);
+      if (bk) {
+        await conn.query(
+          'UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?',
+          [bk.jumlah_jamaah || 1, bk.prog_id]
+        );
+        progIdSeatDibuka = bk.prog_id;
+      }
+    } else {
+      // ---- Batalkan SATU jamaah spesifik di dalam booking ----
+      // Entry-nya TETAP di array (bukan di-splice) — index dipakai di banyak
+      // tempat lain (perlengkapan_pengiriman, manifest, dst), splice bakal
+      // geser index semua orang sesudahnya & bikin referensi lama nyasar.
+      // Cukup ditandai status_jamaah='dibatalkan', tempat lain yang baca
+      // jamaah_data tinggal skip entry berstatus ini.
+      let jd = bk.jamaah_data;
+      if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+      const entriesAsli = Array.isArray(jd) ? jd : [];
+      const target = entriesAsli[p.jamaah_idx];
+      if (!target || target.status_jamaah === 'dibatalkan') {
+        throw Object.assign(new Error('Jamaah ini sudah dibatalkan atau tidak ditemukan.'), { status: 400 });
+      }
+      namaJamaahDibatalkan = target.nama || `Jamaah ke-${p.jamaah_idx + 1}`;
+
+      const entries = entriesAsli.map((e, i) => i === p.jamaah_idx
+        ? { ...e, status_jamaah: 'dibatalkan', dibatalkan_at: new Date().toISOString() }
+        : e);
+
+      const opsiTotal = Number(bk.opsi_tambahan_total) || 0;
+      const sisaAktif = entries.filter(e => e.status_jamaah !== 'dibatalkan').length;
+
+      // Booking yang PERNAH diedit per-orang (invariant all-or-nothing: kalau
+      // target-nya eksplisit, semua saudara aktifnya juga eksplisit, lihat
+      // src/lib/jamaahHarga.js) — jumlahkan harga_jual presisi tiap orang.
+      // harga_jual itu PRE-voucher (snapshot catalog price, sama kayak yang
+      // dipakai cetak-formulir), voucher dikurangi SEKALI di sini.
+      //
+      // Booking yang MASIH SERAGAM (belum pernah diedit per-orang) — pola
+      // LAMA dipertahankan PERSIS: rata-ratakan total_harga (udah termasuk
+      // potongan voucher) lalu susutkan proporsional sesuai sisa jamaah.
+      // SENGAJA tidak disatukan lewat resolveJamaahHarga (yang fallback-nya
+      // nambah voucher balik dulu sebelum dirata-rata) — itu bakal geser
+      // angka buat booking lama yang belum pernah kesentuh fitur ini, biar
+      // 0 regresi buat kasus paling umum.
+      const sudahDieditPerOrang = target.paket && target.kamar && target.harga_jual != null;
+      let totalHargaBaru;
+      if (sudahDieditPerOrang) {
+        const voucherNominal = Number(bk.voucher_nominal) || 0;
+        const jumlahHargaJual = entries.reduce((s, e) => s + (e.status_jamaah === 'dibatalkan' ? 0 : Number(e.harga_jual) || 0), 0);
+        totalHargaBaru = Math.max(0, Math.round(jumlahHargaJual + opsiTotal - voucherNominal));
+      } else {
+        const jumlahJamaahLama = Number(bk.jumlah_jamaah) || 1;
+        const hargaPerJamaahLama = jumlahJamaahLama > 0 ? (Number(bk.total_harga) - opsiTotal) / jumlahJamaahLama : 0;
+        totalHargaBaru = Math.round(hargaPerJamaahLama * sisaAktif + opsiTotal);
+      }
+
+      // Semua jamaah aktif udah dibatalkan satu-satu — statusnya jadi sama
+      // kayak booking dibatalkan utuh. Kalau masih ada sisa, booking TETAP
+      // aktif, cuma jumlah_jamaah & total_harga-nya nyusut.
       await conn.query(
-        'UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?',
-        [bk[0].jumlah_jamaah || 1, bk[0].prog_id]
+        `UPDATE bookings SET jamaah_data = ?, jumlah_jamaah = ?, total_harga = ?, status = ? WHERE id = ?`,
+        [JSON.stringify(entries), sisaAktif, totalHargaBaru, sisaAktif === 0 ? 'dibatalkan' : bk.status, p.booking_id]
       );
-      progIdSeatDibuka = bk[0].prog_id;
+
+      await conn.query('UPDATE programs SET used_seat = GREATEST(0, used_seat - 1) WHERE id = ?', [bk.prog_id]);
+      progIdSeatDibuka = bk.prog_id;
     }
 
     await conn.commit();
@@ -232,7 +323,9 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
     user_id: p.user_id,
     tipe: 'pembatalan_disetujui',
     judul: 'Pembatalan Disetujui',
-    pesan: `Pembatalan booking ${p.booking_id} disetujui. Refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%).`,
+    pesan: namaJamaahDibatalkan
+      ? `Pembatalan ${namaJamaahDibatalkan} pada booking ${p.booking_id} disetujui. Refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%).`
+      : `Pembatalan booking ${p.booking_id} disetujui. Refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%).`,
     link: '/dashboard/jamaah',
   });
 
@@ -262,7 +355,7 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
     aksi: 'approve_pembatalan',
     target_type: 'pembatalan',
     target_id: id,
-    keterangan: `Booking ${p.booking_id} — refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%)${catatan_admin ? ', catatan: ' + catatan_admin : ''}`,
+    keterangan: `Booking ${p.booking_id}${namaJamaahDibatalkan ? ` — jamaah: ${namaJamaahDibatalkan}` : ''} — refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%)${catatan_admin ? ', catatan: ' + catatan_admin : ''}`,
   });
 
   return {

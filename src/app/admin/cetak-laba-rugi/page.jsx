@@ -70,6 +70,11 @@ function CetakLabaRugiInner() {
           body { background: #fff !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
         }
+        /* Laporan tahunan (SheetTahunan) lebar 1000px (12 bulan + total) —
+           JANGAN dipaksa A4 portrait kayak halaman cetak lain, bakal
+           kepotong. Landscape A4 buat yang tahunan, portrait cukup buat
+           yang bulanan (SheetBulanan, lebar cuma 700px). */
+        @page { size: A4 ${tahun ? 'landscape' : 'portrait'}; margin: 15mm; }
       `}</style>
     </div>
   );

@@ -40,14 +40,14 @@ export async function POST(request) {
       return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
     }
 
-    const dir = path.join(process.cwd(), 'public', 'uploads', 'dokumen-pks-fisik');
+    const dir = path.join(process.cwd(), 'private-uploads', 'dokumen-pks-fisik');
     if (!existsSync(dir)) await mkdir(dir, { recursive: true });
 
     const ext = path.extname(file.name || '') || (file.type === 'application/pdf' ? '.pdf' : '.jpg');
     const nama = `pks_${userId}_${Date.now()}${ext}`;
     await writeFile(path.join(dir, nama), Buffer.from(await file.arrayBuffer()));
 
-    const publicPath = `/uploads/dokumen-pks-fisik/${nama}`;
+    const publicPath = `/api/dokumen/dokumen-pks-fisik/${nama}`;
     await pool.query(
       'UPDATE users SET dokumen_pks_fisik_path = ?, dokumen_pks_fisik_uploaded_at = NOW() WHERE id = ?',
       [publicPath, userId]

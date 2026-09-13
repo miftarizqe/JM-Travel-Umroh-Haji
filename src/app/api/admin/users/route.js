@@ -3,6 +3,8 @@ import db from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { kirimNotifikasi } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
+import { pastikanKodeInvitePerwakilan } from '@/lib/kodeInvitePerwakilan';
+import { pastikanKodeUnik } from '@/lib/kodeUnik';
 
 // GET — list users, filter opsional by role & status
 export async function GET(req) {
@@ -18,7 +20,7 @@ export async function GET(req) {
              u.wilayah, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama,
              u.reg_status, u.reg_metode, u.reg_jadwal, u.created_at,
              ap.id AS pendaftaran_id, ap.status AS pendaftaran_status,
-             ap.sk_bsi_path, ap.metode AS pendaftaran_metode
+             ap.metode AS pendaftaran_metode
       FROM users u
       LEFT JOIN users p ON p.id = u.perekrut_id
       LEFT JOIN agen_pendaftaran ap ON ap.id = (
@@ -27,6 +29,13 @@ export async function GET(req) {
       WHERE 1=1
     `;
     const params = [];
+    // Admin biasa gak boleh lihat akun staff (admin/super_admin) lain sama
+    // sekali — dipaksa di server, bukan cuma disembunyikan di UI, biar gak
+    // bisa ke-intip lewat DevTools/manipulasi ?role= (dikonfirmasi user
+    // 2026-08-21). super_admin tetap bisa lihat semua kayak sebelumnya.
+    if (auth.user.role !== 'super_admin') {
+      query += " AND u.role NOT IN ('admin','super_admin')";
+    }
     if (role) { query += ' AND u.role = ?'; params.push(role); }
     if (status) { query += ' AND u.status = ?'; params.push(status); }
     query += ' ORDER BY u.created_at DESC';
@@ -50,23 +59,39 @@ export async function PATCH(req) {
       return NextResponse.json({ error: 'user_id dan action wajib diisi' }, { status: 400 });
     }
 
-    const [rows] = await db.query('SELECT id, name, role, perekrut_id FROM users WHERE id = ?', [user_id]);
+    const [rows] = await db.query('SELECT id, name, role, role_kedua, status, perekrut_id FROM users WHERE id = ?', [user_id]);
     if (rows.length === 0) {
       return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 });
     }
     const target = rows[0];
-    const roleLabel = { perwakilan: 'Perwakilan', jamaah: 'Jamaah' }[target.role] || target.role;
+    // Defense-in-depth — admin biasa gak boleh ubah akun staff lain, walau
+    // id-nya ke-tebak/ke-leak dari tempat lain (lihat guard GET di atas).
+    if (['admin', 'super_admin'].includes(target.role) && auth.user.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Tidak berwenang mengubah akun staff.' }, { status: 403 });
+    }
+    const roleLabel = { perwakilan: 'Perwakilan', jamaah: 'Jamaah', sahabat: 'Jamaah Sahabat Baitullah' }[target.role] || target.role;
 
     switch (action) {
       case 'approve':
         await db.query("UPDATE users SET status = 'active', reg_status = 'active' WHERE id = ?", [user_id]);
+
+        // Kode undangan rekrut-perwakilan-baru — jalur approve kedua (di
+        // luar /api/status-pendaftaran), sama-sama harus generate biar
+        // gak ada perwakilan aktif yang kelewat gak punya kode.
+        if (target.role === 'perwakilan') {
+          await pastikanKodeInvitePerwakilan(db, target.id);
+        }
+        // Kode unik — baru dijatah SEKARANG, akun beneran aktif
+        // (dikonfirmasi user 2026-09-07), bukan pas daftar. No-op kalau
+        // udah punya (mis. jamaah yang emang udah aktif dari awal).
+        await pastikanKodeUnik(db, target.id, target.role);
 
         await kirimNotifikasi(db, {
           user_id: target.id,
           tipe: 'akun_aktif',
           judul: 'Akun Anda Aktif!',
           pesan: `Selamat, akun ${roleLabel} Anda sudah dikonfirmasi admin. Anda sekarang bisa order jamaah.`,
-          link: target.role === 'perwakilan' ? '/dashboard/perwakilan' : '/dashboard/jamaah',
+          link: target.role === 'perwakilan' ? '/dashboard/perwakilan' : target.role === 'sahabat_baitullah' ? '/dashboard/sahabat' : '/dashboard/jamaah',
         });
 
         if (target.perekrut_id) {
@@ -159,9 +184,13 @@ export async function PATCH(req) {
           if (String(input.perekrut_id) === String(user_id)) {
             return NextResponse.json({ error: 'Tidak bisa jadi perekrut diri sendiri' }, { status: 400 });
           }
+          // Perekrut wajib role SAMA dengan target (perwakilan direkrut
+          // perwakilan, sahabat direkrut sahabat) — dulu hardcode
+          // 'perwakilan' aja, akun sahabat gak bisa diedit perekrutnya
+          // lewat form ini.
           const [p] = await db.query(
-            "SELECT id FROM users WHERE id = ? AND role = 'perwakilan'",
-            [input.perekrut_id]
+            'SELECT id FROM users WHERE id = ? AND (role = ? OR role_kedua = ?)',
+            [input.perekrut_id, target.role, target.role]
           );
           if (p.length === 0) {
             return NextResponse.json({ error: 'Perekrut tidak ditemukan' }, { status: 400 });
@@ -181,6 +210,90 @@ export async function PATCH(req) {
         });
 
         return NextResponse.json({ message: 'Data berhasil diperbarui.' });
+      }
+
+      // Dual-role akun (Perwakilan + Sahabat Baitullah/sahabat) — KHUSUS buat
+      // orang yang direkrut LANGSUNG oleh manajemen (bukan via link
+      // referral), dikonfirmasi user 2026-09-06. Bikin baris pendaftaran
+      // baru dgn data disalin dari users (orang yang sama, gak perlu isi
+      // ulang KTP — itu justru sumber masalah "NIK gak boleh sama" yang
+      // memicu fitur ini), perekrut_id SENGAJA NULL (gak ada komisi
+      // upline), untuk_role_kedua=1 supaya langkah "advance ke active" di
+      // status-pendaftaran nulis ke role_kedua, bukan menimpa role utama.
+      // Tetap wajib lewat proses lengkap (BSI/SK-CIF/Surat Kuasa fisik utk
+      // sahabat, dst) — gak ada fast-track, cuma jalur masuknya beda.
+      case 'tambah_role_kedua': {
+        const roleKedua = body.role_kedua;
+        const metode = body.metode === 'paket' ? 'paket' : 'kantor';
+        if (!['perwakilan', 'sahabat_baitullah'].includes(roleKedua)) {
+          return NextResponse.json({ error: 'role_kedua harus perwakilan atau sahabat' }, { status: 400 });
+        }
+        if (target.status !== 'active') {
+          return NextResponse.json({ error: 'Akun harus aktif dulu sebelum diberi role kedua' }, { status: 400 });
+        }
+        const pasangan = { perwakilan: 'sahabat_baitullah', sahabat: 'perwakilan' };
+        if (target.role !== pasangan[roleKedua]) {
+          return NextResponse.json({ error: `Role kedua "${roleKedua}" cuma bisa ditambahkan ke akun dengan role utama "${pasangan[roleKedua]}".` }, { status: 400 });
+        }
+        if (target.role_kedua) {
+          return NextResponse.json({ error: 'Akun ini sudah punya role kedua' }, { status: 400 });
+        }
+
+        const [[u]] = await db.query(
+          `SELECT name, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu, alamat,
+                  alamat_ktp, alamat_domisili, alamat_kirim, kode_pos, wa, email, pekerjaan,
+                  bank, no_rekening, nama_pemilik_rekening, foto_ktp_path
+           FROM users WHERE id = ?`, [user_id]
+        );
+
+        if (roleKedua === 'sahabat_baitullah') {
+          await db.query(
+            `INSERT INTO sahabat_pendaftaran
+              (user_id, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu,
+               alamat, alamat_ktp, alamat_domisili, kode_pos, wa, email, pekerjaan,
+               bank, no_rekening, nama_pemilik_rekening, foto_ktp_path, perekrut_id,
+               status, untuk_role_kedua)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', 1)`,
+            [user_id, u.name, u.nik, u.tempat_lahir, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
+             u.alamat_ktp || u.alamat, u.alamat_ktp, u.alamat_domisili, u.kode_pos, u.wa, u.email, u.pekerjaan,
+             u.bank, u.no_rekening, u.nama_pemilik_rekening, u.foto_ktp_path]
+          );
+        } else {
+          await db.query(
+            `INSERT INTO agen_pendaftaran
+              (user_id, role_diajukan, nama, nik, tanggal_lahir, jenis_kelamin, nama_ibu,
+               alamat, kode_pos, wa, email, pekerjaan, bank, no_rekening, nama_pemilik_rekening,
+               perekrut_id, metode, status, alamat_ktp, alamat_domisili, alamat_kirim,
+               foto_ktp_path, tempat_lahir, untuk_role_kedua)
+             VALUES (?, 'perwakilan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'pending', ?, ?, ?, ?, ?, 1)`,
+            [user_id, u.name, u.nik, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
+             u.alamat_ktp || u.alamat, u.kode_pos, u.wa, u.email, u.pekerjaan, u.bank, u.no_rekening, u.nama_pemilik_rekening,
+             metode, u.alamat_ktp, u.alamat_domisili, u.alamat_kirim, u.foto_ktp_path, u.tempat_lahir]
+          );
+        }
+
+        await db.query(
+          'UPDATE users SET role_kedua = ?, role_kedua_ditambahkan_at = NOW() WHERE id = ?',
+          [roleKedua, user_id]
+        );
+
+        await kirimNotifikasi(db, {
+          user_id: target.id,
+          tipe: 'akun_aktif',
+          judul: 'Role Kedua Ditambahkan',
+          pesan: `Akun Anda sekarang juga terdaftar sebagai ${roleKedua === 'sahabat_baitullah' ? 'Jamaah Sahabat Baitullah' : 'Perwakilan'}. Lengkapi proses pendaftarannya di halaman Profil.`,
+          link: '/profil',
+        });
+
+        await catatAudit(db, {
+          actor: auth.user,
+          aksi: 'tambah_role_kedua',
+          target_type: 'user',
+          target_id: target.id,
+          keterangan: `${target.name}: role kedua ditambahkan -> ${roleKedua}`,
+        });
+
+        return NextResponse.json({ message: 'Role kedua berhasil ditambahkan.', role_kedua: roleKedua });
       }
 
       default:

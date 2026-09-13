@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { ringkasanPaketKamar } from '@/lib/jamaahHarga';
 
 // GET /api/admin/invoice-kwitansi/[id] — detail 1 dokumen buat halaman cetak.
 // Ikut sertakan data booking (kalau ada) buat konteks tambahan di cetakan
@@ -28,8 +29,9 @@ export async function GET(request, { params }) {
       const [[b]] = await pool.query(
         `SELECT b.id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.total_harga, b.dp_amount, b.jamaah_data,
                 b.opsi_tambahan_data, b.opsi_tambahan_total,
-                p.tanggal_berangkat
+                p.tanggal_berangkat, u.wa AS pemesan_wa
          FROM bookings b LEFT JOIN programs p ON p.id = b.prog_id
+                          LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
          WHERE b.id = ?`,
         [dokumen.booking_id]
       );
@@ -40,10 +42,19 @@ export async function GET(request, { params }) {
         // string, bukan array — itu penyebab nama jamaah kemarin gak muncul).
         // Tetap jaga2 kalau suatu saat driver balikin string juga.
         let jamaahNama = [];
+        let jamaahParsed = [];
         try {
-          const parsed = typeof b.jamaah_data === 'string' ? JSON.parse(b.jamaah_data || '[]') : b.jamaah_data;
-          jamaahNama = (Array.isArray(parsed) ? parsed : []).map(j => j.nama).filter(Boolean);
-        } catch { jamaahNama = []; }
+          jamaahParsed = typeof b.jamaah_data === 'string' ? JSON.parse(b.jamaah_data || '[]') : b.jamaah_data;
+          if (!Array.isArray(jamaahParsed)) jamaahParsed = [];
+          jamaahNama = jamaahParsed.map(j => j.nama).filter(Boolean);
+        } catch { jamaahNama = []; jamaahParsed = []; }
+
+        // Dokumen ini rangkuman BOOKING (bukan per-orang) — kalau jamaah di
+        // dalamnya sempat diedit sampai kamar/paket-nya beda-beda, label
+        // paket/kamar tunggal jadi gak akurat lagi. Tampilkan "Campuran"
+        // daripada nunjuk 1 kombo yang gak mewakili semua orang.
+        const rpk = ringkasanPaketKamar({ ...b, jamaah_data: jamaahParsed });
+        if (rpk.campuran) { b.paket = 'Campuran'; b.kamar = 'Campuran'; }
 
         // Opsi tambahan (addon di luar paket dasar) — kalau ada isinya,
         // dipakai sbg baris "item lain" tambahan di halaman cetak, format

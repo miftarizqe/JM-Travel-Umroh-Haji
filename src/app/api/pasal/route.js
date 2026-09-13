@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 
-const DOKUMEN_VALID = ['spka', 'spka_ins', 'spkl', 'jamaah'];
+const DOKUMEN_VALID = ['spka', 'spka_ins', 'spkl', 'jamaah', 'spk_ak', 'sk_cif'];
 
 // GET /api/pasal?dokumen=spka — PUBLIK. Dipakai /pks (baca sebelum setuju),
 // /admin/cetak-pks-mitra & /admin/cetak-perjanjian (cetak dokumen final).

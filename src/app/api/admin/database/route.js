@@ -123,36 +123,8 @@ export async function ambilJamaah() {
 // agen_pendaftaran dengan role_diajukan='perwakilan' — BUKAN ke tabel
 // perwakilan_pendaftaran (tabel itu ternyata gak pernah ditulisi siapa pun,
 // nama_lembaga/jenis_lembaga/nama_pj juga gak pernah dikumpulkan formnya).
-// Join ke agen_pendaftaran biar pendaftaran_id dkk beneran ketemu —
-// sebelumnya join ke tabel yang salah.
-async function ambilPerwakilan() {
-  const [rows] = await pool.query(
-    `SELECT u.id, u.role, u.name, u.kode_unik, u.nik, u.email, u.wa, u.status, u.wilayah,
-            u.bank, u.no_rekening, u.nama_pemilik_rekening, u.alamat, u.alamat_ktp, u.alamat_domisili,
-            u.foto_ktp_path, u.pekerjaan, u.tempat_lahir, u.nama_ibu,
-            u.tanggal_lahir, u.jenis_kelamin, u.kode_pos, u.no_perjanjian_kerjasama,
-            p.name AS perekrut_nama, u.created_at,
-            ap.id AS pendaftaran_id, ap.jadwal_kunjungan, ap.metode AS pendaftaran_metode
-     FROM users u
-     LEFT JOIN users p ON p.id = u.perekrut_id
-     LEFT JOIN agen_pendaftaran ap ON ap.id = (
-       SELECT id FROM agen_pendaftaran WHERE user_id = u.id AND role_diajukan = 'perwakilan' ORDER BY id DESC LIMIT 1
-     )
-     WHERE u.role = 'perwakilan' ORDER BY u.created_at DESC`
-  );
-  return rows.map(u => ({
-    ...u,
-    alamat_ktp: u.alamat_ktp || u.alamat,
-    alamat_domisili: u.alamat_domisili || u.alamat,
-    formulir: {
-      nama: u.name, nik: u.nik, tempat_lahir: u.tempat_lahir, tanggal_lahir: u.tanggal_lahir, jenis_kelamin: u.jenis_kelamin,
-      nama_ibu: u.nama_ibu, alamat_ktp: u.alamat_ktp || u.alamat, alamat_domisili: u.alamat_domisili || u.alamat,
-      kode_pos: u.kode_pos, wa: u.wa, email: u.email, pekerjaan: u.pekerjaan,
-      bank: u.bank, no_rekening: u.no_rekening, nama_pemilik_rekening: u.nama_pemilik_rekening,
-      jadwal_kunjungan: u.jadwal_kunjungan, metode: u.pendaftaran_metode,
-    },
-  }));
-}
+// 'perwakilan' PINDAH ke /api/admin/perwakilan/database (halaman sendiri,
+// setara Sahabat Baitullah) — dikonfirmasi user 2026-09-06.
 
 async function ambilProgram() {
   const [rows] = await pool.query(
@@ -163,7 +135,7 @@ async function ambilProgram() {
   return rows;
 }
 
-const AMBIL = { jamaah: ambilJamaah, perwakilan: ambilPerwakilan, program: ambilProgram };
+const AMBIL = { jamaah: ambilJamaah, program: ambilProgram };
 
 // GET /api/admin/database?tipe=jamaah|perwakilan|program
 // Dipakai halaman "database" (klik dari stat tile Dashboard admin) —
