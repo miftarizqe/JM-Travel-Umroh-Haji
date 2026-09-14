@@ -1,5 +1,5 @@
-import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { masterHotelService as service } from './service';
 
 // CRUD Master Hotel (kota + bintang + nama hotel) — super_admin only. Ini
 // ENTITAS INDUK, banyak periode-rate nempel di bawahnya (lihat
@@ -7,6 +7,16 @@ import { wajibRole } from '@/lib/auth';
 // flat, 1 baris = 1 hotel + 1 rate + 1 periode), sekarang 1 hotel bisa
 // punya banyak periode tanpa ngetik ulang nama hotelnya (dikonfirmasi user
 // 2026-08-18).
+//
+// File ini cuma "controller" (baca request, panggil service, bentuk
+// response HTTP) — logic bisnis ada di service.js, query SQL di
+// repository.js.
+
+function responsError(error) {
+  if (error.status) return Response.json({ error: error.message }, { status: error.status });
+  console.error(error);
+  return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+}
 
 // GET /api/admin/master-hotel                    -> semua (termasuk nonaktif), nested periode[]
 // GET /api/admin/master-hotel?kota=mekkah         -> filter kota, cuma aktif
@@ -15,25 +25,10 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
-    const kota = searchParams.get('kota');
-
-    let query = 'SELECT * FROM master_hotel WHERE 1=1';
-    const params = [];
-    if (kota) { query += ' AND kota = ? AND aktif = 1'; params.push(kota); }
-    query += ' ORDER BY kota ASC, bintang ASC, urutan ASC, nama_hotel ASC';
-
-    const [hotels] = await pool.query(query, params);
-    if (hotels.length > 0) {
-      const [periode] = await pool.query(
-        'SELECT * FROM master_hotel_periode WHERE master_hotel_id IN (?) ORDER BY periode_mulai ASC, urutan ASC',
-        [hotels.map(h => h.id)]
-      );
-      for (const h of hotels) h.periode = periode.filter(p => p.master_hotel_id === h.id);
-    }
-    return Response.json({ hotel: hotels });
+    const hotel = await service.daftar({ kota: searchParams.get('kota') });
+    return Response.json({ hotel });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }
 
@@ -43,18 +38,10 @@ export async function POST(request) {
   const auth = wajibRole(request, ['super_admin']);
   if (auth.error) return auth.error;
   try {
-    const { kota, bintang, nama_hotel, urutan } = await request.json();
-    if (!kota || !bintang || !nama_hotel?.trim()) {
-      return Response.json({ error: 'Kota, bintang, dan nama hotel wajib diisi' }, { status: 400 });
-    }
-    const [result] = await pool.query(
-      'INSERT INTO master_hotel (kota, bintang, nama_hotel, urutan) VALUES (?, ?, ?, ?)',
-      [kota, Number(bintang), nama_hotel.trim(), Number(urutan) || 0]
-    );
-    return Response.json({ message: 'Hotel tersimpan!', id: result.insertId }, { status: 201 });
+    const id = await service.tambah(await request.json());
+    return Response.json({ message: 'Hotel tersimpan!', id }, { status: 201 });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }
 
@@ -64,25 +51,11 @@ export async function PUT(request) {
   const auth = wajibRole(request, ['super_admin']);
   if (auth.error) return auth.error;
   try {
-    const { id, kota, bintang, nama_hotel, urutan, aktif } = await request.json();
-    if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
-
-    const set = [];
-    const params = [];
-    if (kota != null) { set.push('kota = ?'); params.push(kota); }
-    if (bintang != null) { set.push('bintang = ?'); params.push(Number(bintang)); }
-    if (nama_hotel != null) { set.push('nama_hotel = ?'); params.push(nama_hotel.trim()); }
-    if (urutan != null) { set.push('urutan = ?'); params.push(Number(urutan) || 0); }
-    if (aktif != null) { set.push('aktif = ?'); params.push(aktif ? 1 : 0); }
-    if (set.length === 0) return Response.json({ error: 'Tidak ada field yang diubah' }, { status: 400 });
-
-    params.push(id);
-    const [result] = await pool.query(`UPDATE master_hotel SET ${set.join(', ')} WHERE id = ?`, params);
-    if (result.affectedRows === 0) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
+    const { id, ...data } = await request.json();
+    await service.ubah(id, data);
     return Response.json({ message: 'Hotel diperbarui!' });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }
 
@@ -93,15 +66,9 @@ export async function DELETE(request) {
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
-
-    await pool.query('DELETE FROM master_hotel_periode WHERE master_hotel_id = ?', [id]);
-    const [result] = await pool.query('DELETE FROM master_hotel WHERE id = ?', [id]);
-    if (result.affectedRows === 0) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
+    await service.hapus(searchParams.get('id'));
     return Response.json({ message: 'Hotel dihapus!' });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }

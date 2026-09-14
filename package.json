@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "migrate": "node scripts/migrate.mjs",
+    "migrate:dry-run": "node scripts/migrate.mjs --dry-run"
   },
   "overrides": {
     "sharp": "$sharp"
