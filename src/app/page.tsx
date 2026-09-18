@@ -151,6 +151,7 @@ export default function Home() {
   const [perlengkapan, setPerlengkapan] = useState<PerlengkapanJamaah[]>([]);
   const [kalkulatorTemplate, setKalkulatorTemplate] = useState<KalkulatorTemplateCard[]>([]);
   const [kalkulatorBaseline, setKalkulatorBaseline] = useState<KalkulatorBaselineCard[]>([]);
+  const [mounted, setMounted] = useState(false);
   const [teks] = useLandingTeks();
   // Field "1 baris = 1 item" (lihat migration-landing-teks.sql) — parse
   // jadi array, buang baris kosong.
@@ -170,6 +171,7 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    setMounted(true);
     fetch('/api/programs')
       .then(r => r.json())
       .then(d => setPrograms(d.programs || []));
@@ -256,8 +258,9 @@ export default function Home() {
             <a href="#kontak" className="opacity-80 hover:opacity-100 transition-opacity">Kontak</a>
           </div>
 
-          <div className="flex items-center gap-2">
-            {user ? (
+        <div className="flex items-center gap-2 min-h-[32px]">
+          {mounted ? (
+            user ? (
               <>
                 <span className="hidden md:block text-xs opacity-80 bg-white/15 px-3 py-1 rounded-full">
                   👤 {user.name.split(' ')[0]}
@@ -279,8 +282,11 @@ export default function Home() {
                   Daftar
                 </button>
               </>
-            )}
-          </div>
+            )
+          ) : (
+            <div className="w-28 h-7" />
+          )}
+        </div>
         </div>
       </nav>
 
