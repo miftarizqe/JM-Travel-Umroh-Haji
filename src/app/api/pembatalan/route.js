@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { wajibLogin, wajibRole } from '@/lib/auth';
 import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
+import { lepasVoucher } from '@/lib/voucher';
 
 /**
  * Pembatalan Program
@@ -210,8 +211,21 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
   }
 
   const totalDibayar = Number(p.total_sudah_dibayar || 0);
+
+  // Program Sahabat Baitullah eksklusif (checkout mandiri, setoran 1jt) TIDAK
+  // PERNAH ada refund cash — setoran itu sudah berwujud voucher, dan kalau
+  // batal vouchernya dialihfungsikan ke jamaah lain (lepasVoucher di bawah),
+  // bukan ditransfer balik. Dikonfirmasi user 2026-09-18.
+  const [[progInfo]] = await pool.query(
+    `SELECT pr.publish_type FROM bookings b LEFT JOIN programs pr ON pr.id = b.prog_id WHERE b.id = ?`,
+    [p.booking_id]
+  );
+  const sahabatEksklusif = progInfo?.publish_type === 'sahabat_baitullah';
+
   let nominal;
-  if (penyebab === 'kesalahan_jm_travel') {
+  if (sahabatEksklusif) {
+    nominal = 0;
+  } else if (penyebab === 'kesalahan_jm_travel') {
     nominal = totalDibayar;
   } else {
     nominal = Number(refund_nominal || 0);
@@ -224,6 +238,10 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
   }
 
   const persen = totalDibayar > 0 ? Math.round((nominal / totalDibayar) * 100) : 0;
+  // Nominal 0 = tidak ada apa pun yang perlu ditransfer balik, jadi refund
+  // langsung 'selesai' (skip tahap upload bukti TF yang cuma relevan kalau
+  // beneran ada uang keluar).
+  const refundStatusAwal = nominal > 0 ? 'diproses' : 'selesai';
   let progIdSeatDibuka = null;
   let namaJamaahDibatalkan = null; // cuma keisi kalau ini pembatalan per-jamaah
 
@@ -234,8 +252,8 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
     await conn.query(
       `UPDATE pembatalan SET status='disetujui', penyebab=?, refund_nominal=?,
        refund_persen=?, catatan_admin=?, diproses_oleh=?, diproses_at=NOW(),
-       refund_status='diproses' WHERE id = ?`,
-      [penyebab || 'lainnya', nominal, persen, catatan_admin || null, actorUser.id, id]
+       refund_status=? WHERE id = ?`,
+      [penyebab || 'lainnya', nominal, persen, catatan_admin || null, actorUser.id, refundStatusAwal, id]
     );
 
     const [bkRows] = await conn.query('SELECT * FROM bookings WHERE id = ? FOR UPDATE', [p.booking_id]);
@@ -250,6 +268,9 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
           [bk.jumlah_jamaah || 1, bk.prog_id]
         );
         progIdSeatDibuka = bk.prog_id;
+        if (bk.voucher_kode) {
+          await lepasVoucher(conn, bk.voucher_kode, bk.jumlah_jamaah || 1);
+        }
       }
     } else {
       // ---- Batalkan SATU jamaah spesifik di dalam booking ----
@@ -309,6 +330,9 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
 
       await conn.query('UPDATE programs SET used_seat = GREATEST(0, used_seat - 1) WHERE id = ?', [bk.prog_id]);
       progIdSeatDibuka = bk.prog_id;
+      if (bk.voucher_kode) {
+        await lepasVoucher(conn, bk.voucher_kode, 1);
+      }
     }
 
     await conn.commit();
