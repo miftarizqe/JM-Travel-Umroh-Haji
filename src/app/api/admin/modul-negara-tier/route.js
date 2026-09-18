@@ -1,5 +1,14 @@
-import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { modulNegaraTierService as service } from './service';
+
+// File ini cuma "controller" — logic bisnis di service.js, query SQL di
+// repository.js.
+
+function responsError(error) {
+  if (error.status) return Response.json({ error: error.message }, { status: error.status });
+  console.error(error);
+  return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+}
 
 // GET /api/admin/modul-negara-tier?modul_negara_id=X — daftar baris tier 1 modul
 export async function GET(request) {
@@ -7,16 +16,10 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
-    const modulNegaraId = Number(searchParams.get('modul_negara_id'));
-    if (!modulNegaraId) return Response.json({ error: 'Parameter modul_negara_id wajib diisi' }, { status: 400 });
-    const [tiers] = await pool.query(
-      'SELECT * FROM modul_negara_tier WHERE modul_negara_id = ? ORDER BY urutan ASC, id ASC',
-      [modulNegaraId]
-    );
+    const tiers = await service.daftar(searchParams.get('modul_negara_id'));
     return Response.json({ tiers });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }
 
@@ -27,21 +30,9 @@ export async function PUT(request) {
   if (auth.error) return auth.error;
   try {
     const { modul_negara_id, tiers } = await request.json();
-    const modulNegaraId = Number(modul_negara_id);
-    if (!modulNegaraId) return Response.json({ error: 'Parameter modul_negara_id wajib diisi' }, { status: 400 });
-
-    await pool.query('DELETE FROM modul_negara_tier WHERE modul_negara_id = ?', [modulNegaraId]);
-    for (const [i, t] of (tiers || []).entries()) {
-      if (t.hari === '' || t.hari == null || t.pax_min === '' || t.pax_min == null || t.harga_per_pax === '' || t.harga_per_pax == null) continue;
-      await pool.query(
-        'INSERT INTO modul_negara_tier (modul_negara_id, periode_mulai, periode_selesai, berlaku_sampai, hotel_star, city_tour_opsi, hari, pax_min, pax_max, harga_per_pax, urutan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [modulNegaraId, t.periode_mulai || null, t.periode_selesai || null, t.berlaku_sampai || null, t.hotel_star || null, t.city_tour_opsi || null, Number(t.hari), Number(t.pax_min), t.pax_max === '' || t.pax_max == null ? null : Number(t.pax_max), Number(t.harga_per_pax), i]
-      );
-    }
-
+    await service.gantiSemua(modul_negara_id, tiers);
     return Response.json({ message: 'Tabel tier disimpan!' });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }

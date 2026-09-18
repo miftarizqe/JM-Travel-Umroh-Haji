@@ -118,3 +118,17 @@ export async function pakaiVoucher(conn, kode, jamaahCount) {
     [n, kode]
   );
 }
+
+// Kebalikan pakaiVoucher — lepas kuota yang sudah terpakai, dipanggil pas
+// booking yang pakai voucher ini dibatalkan (whole booking atau per-jamaah),
+// biar kuotanya bisa dipakai ulang jamaah lain. GREATEST(0, ...) jaga-jaga
+// booking lama yang dibatalkan sebelum fitur ini ada (jangan sampai minus).
+export async function lepasVoucher(conn, kode, jamaahCount) {
+  if (!kode) return;
+  const n = Number(jamaahCount || 0);
+  if (n <= 0) return;
+  await conn.query(
+    'UPDATE vouchers SET terpakai = GREATEST(0, terpakai - ?), used = IF(kuota IS NOT NULL AND terpakai >= kuota, 1, 0) WHERE kode = ?',
+    [n, kode]
+  );
+}

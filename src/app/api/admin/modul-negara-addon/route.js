@@ -1,5 +1,14 @@
-import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { modulNegaraAddonService as service } from './service';
+
+// File ini cuma "controller" — logic bisnis di service.js, query SQL di
+// repository.js.
+
+function responsError(error) {
+  if (error.status) return Response.json({ error: error.message }, { status: error.status });
+  console.error(error);
+  return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+}
 
 // GET /api/admin/modul-negara-addon?modul_negara_id=X — daftar addon 1 modul
 // (semua, aktif & nonaktif — filter aktif dilakukan di sisi kalkulator, bukan di sini)
@@ -8,16 +17,10 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
-    const modulNegaraId = Number(searchParams.get('modul_negara_id'));
-    if (!modulNegaraId) return Response.json({ error: 'Parameter modul_negara_id wajib diisi' }, { status: 400 });
-    const [addons] = await pool.query(
-      'SELECT * FROM modul_negara_addon WHERE modul_negara_id = ? ORDER BY urutan ASC, id ASC',
-      [modulNegaraId]
-    );
+    const addons = await service.daftar(searchParams.get('modul_negara_id'));
     return Response.json({ addons });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }
 
@@ -28,21 +31,9 @@ export async function PUT(request) {
   if (auth.error) return auth.error;
   try {
     const { modul_negara_id, addons } = await request.json();
-    const modulNegaraId = Number(modul_negara_id);
-    if (!modulNegaraId) return Response.json({ error: 'Parameter modul_negara_id wajib diisi' }, { status: 400 });
-
-    await pool.query('DELETE FROM modul_negara_addon WHERE modul_negara_id = ?', [modulNegaraId]);
-    for (const [i, a] of (addons || []).entries()) {
-      if (!a.nama?.trim()) continue;
-      await pool.query(
-        'INSERT INTO modul_negara_addon (modul_negara_id, nama, mata_uang, harga_per_unit, basis, sertakan_tl, urutan, aktif) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [modulNegaraId, a.nama.trim(), a.mata_uang || 'USD', Number(a.harga_per_unit) || 0, a.basis || 'per_pax', a.sertakan_tl === false ? 0 : 1, i, a.aktif ? 1 : 0]
-      );
-    }
-
+    await service.gantiSemua(modul_negara_id, addons);
     return Response.json({ message: 'Biaya tambahan disimpan!' });
   } catch (error) {
-    console.error(error);
-    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+    return responsError(error);
   }
 }
