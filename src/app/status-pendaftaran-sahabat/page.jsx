@@ -145,6 +145,22 @@ export default function StatusPendaftaranSahabatPage() {
     setLoadingPreview(false);
   }
 
+  // Auto-muat ulang SK-CIF & Surat Pemblokiran kalau jamaah udah pernah
+  // setuju SEBELUMNYA (bug ditemukan & diperbaiki 2026-09-20) — `skCif`/
+  // `suratPemblokiran` cuma keisi lewat state lokal pas klik tombol "Baca
+  // SK-CIF..." di step baca-&-setuju. Begitu udah setuju, tombol itu gak
+  // muncul lagi (step-nya udah lewat) — jadi kalau jamaah reload halaman
+  // atau balik lagi belakangan CUMA buat cetak+unggah scan, state-nya balik
+  // null lagi dan section "Cetak & Unggah Scan" tampil KOSONG (gak ada
+  // pemicu lain buat muat ulang). POST ke /api/admin/dokumen-signature di
+  // bukaPreviewGabungan idempotent, aman dipanggil ulang di sini.
+  useEffect(() => {
+    if (data?.prasyarat?.setuju_sk_cif_pemblokiran && !skCif && !suratPemblokiran && !loadingPreview) {
+      bukaPreviewGabungan();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   function cekScrollGabungan(e) {
     const el = e.target;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setSudahBacaGabungan(true);
