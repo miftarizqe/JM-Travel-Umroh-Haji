@@ -199,6 +199,7 @@ export default function StatusPendaftaranSahabatPage() {
   return (
     <Layout title="🤝 Status Pendaftaran Sahabat Baitullah" showBack>
       <div className="max-w-xl mx-auto space-y-3">
+        <div className="no-print space-y-3">
         <div className="bg-[#E8F0FB] rounded-xl p-3 text-xs text-[#1A4FA0]">
           Program Sahabat Baitullah — ikuti langkah di bawah sampai selesai untuk jadi Jamaah Sahabat Baitullah aktif.
         </div>
@@ -362,52 +363,66 @@ export default function StatusPendaftaranSahabatPage() {
         </Item>
 
         {prasyarat.setuju_sk_cif_pemblokiran && (
-          <Item done={prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai} label="Cetak & Unggah Scan (SK-CIF + Surat Pemblokiran)">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-700 mb-2">
-              Boleh dilewati dulu — tapi segera cetak, tanda tangani di atas materai asli, lalu kirim fisiknya ke kantor JM Travel Jakarta.
-            </div>
-            <div className="no-print text-right mb-2">
-              <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold text-sm">🖨️ Print Kedua Surat</button>
-            </div>
-            {skCif && (
-              <div className="sheet bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2 mb-3" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
-                <KopPasalDokumen pengaturan={pengaturan} />
-                <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA</div>
-                <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>KERJASAMA MULTI CIF</div>
-                <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>PADA LAYANAN BSI CASH MANAGEMENT</div>
-                <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
-                {(skCif.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
-                <SignatureBlokKuasa namaPemberi={u.name} namaPenerima={skCif.mergeData?.nama_wakil} jabatanPenerima={skCif.mergeData?.jabatan_wakil} />
-                <div className="no-print">
-                  <UploadScanDokumen label={`Scan SK-CIF (materai + TTD) ${u.dokumen_sk_cif_fisik_path ? '— ✅ terkirim' : '— ⏳ belum dikirim'}`}
-                    uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
-                    userId={user.id} path={u.dokumen_sk_cif_fisik_path} uploadedAt={null}
-                    extraFields={{ jenis: 'sk_cif' }} onUploaded={() => muat()} />
-                </div>
+          <div className={`flex items-start gap-3 p-3 rounded-xl border ${prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+            <div className="text-lg leading-none mt-0.5">{prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? '✅' : '⏳'}</div>
+            <div className="flex-1 min-w-0">
+              <div className={`text-sm font-bold ${prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? 'text-green-700' : 'text-gray-600'}`}>Cetak & Unggah Scan (SK-CIF + Surat Pemblokiran)</div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-700 mt-2">
+                Boleh dilewati dulu — tapi segera cetak, tanda tangani di atas materai asli, lalu kirim fisiknya ke kantor JM Travel Jakarta.
               </div>
-            )}
-            {suratPemblokiran && (
-              <div className="sheet bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
-                <div className="no-print text-right">
-                  <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold">🖨️ Print Surat Pemblokiran</button>
-                </div>
-                <KopPasalDokumen pengaturan={pengaturan} />
-                <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN</div>
-                <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
-                <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
-                {(suratPemblokiran.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
-                <SignatureBlokBank namaPemberi={u.name} />
-                <div className="no-print">
-                  <UploadScanDokumen label={`Scan Surat Pemblokiran (materai + TTD) ${u.dokumen_surat_pemblokiran_fisik_path ? '— ✅ terkirim' : '— ⏳ belum dikirim'}`}
-                    uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
-                    userId={user.id} path={u.dokumen_surat_pemblokiran_fisik_path} uploadedAt={null}
-                    extraFields={{ jenis: 'surat_pemblokiran' }} onUploaded={() => muat()} />
-                </div>
+              <div className="text-right mt-2">
+                <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold text-sm">🖨️ Print Kedua Surat</button>
               </div>
-            )}
-          </Item>
+            </div>
+          </div>
+        )}
+        </div>
+
+        {/* Sheet dicetak DI LUAR div .no-print di atas (dikonfirmasi user
+            2026-09-20) — .sheet gak boleh jadi keturunan elemen yang
+            di-display:none-kan pas print, soalnya display:none di leluhur
+            gak bisa "dibatalkan" lagi sama CSS keturunannya (beda dari
+            visibility). Tampilan on-screen tetap nyambung visual karena
+            masih di dalam wrapper max-w-xl yang sama, cuma gak lagi
+            senasib sama .no-print buat urusan print. */}
+        {prasyarat.setuju_sk_cif_pemblokiran && skCif && (
+          <div className="sheet sheet-break bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
+            <KopPasalDokumen pengaturan={pengaturan} />
+            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA</div>
+            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>KERJASAMA MULTI CIF</div>
+            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>PADA LAYANAN BSI CASH MANAGEMENT</div>
+            <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
+            {(skCif.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
+            <SignatureBlokKuasa namaPemberi={u.name} namaPenerima={skCif.mergeData?.nama_wakil} jabatanPenerima={skCif.mergeData?.jabatan_wakil} />
+            <div className="no-print">
+              <UploadScanDokumen label={`Scan SK-CIF (materai + TTD) ${u.dokumen_sk_cif_fisik_path ? '— ✅ terkirim' : '— ⏳ belum dikirim'}`}
+                uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
+                userId={user.id} path={u.dokumen_sk_cif_fisik_path} uploadedAt={null}
+                extraFields={{ jenis: 'sk_cif' }} onUploaded={() => muat()} />
+            </div>
+          </div>
+        )}
+        {prasyarat.setuju_sk_cif_pemblokiran && suratPemblokiran && (
+          <div className="sheet bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
+            <div className="no-print text-right">
+              <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold">🖨️ Print Surat Pemblokiran</button>
+            </div>
+            <KopPasalDokumen pengaturan={pengaturan} />
+            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN</div>
+            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
+            <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
+            {(suratPemblokiran.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
+            <SignatureBlokBank namaPemberi={u.name} />
+            <div className="no-print">
+              <UploadScanDokumen label={`Scan Surat Pemblokiran (materai + TTD) ${u.dokumen_surat_pemblokiran_fisik_path ? '— ✅ terkirim' : '— ⏳ belum dikirim'}`}
+                uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
+                userId={user.id} path={u.dokumen_surat_pemblokiran_fisik_path} uploadedAt={null}
+                extraFields={{ jenis: 'surat_pemblokiran' }} onUploaded={() => muat()} />
+            </div>
+          </div>
         )}
 
+        <div className="no-print space-y-3">
         {prasyarat.setuju_sk_cif_pemblokiran && pendaftaran.status !== 'active' && (
           <Item done={false} label="Menunggu ACC Admin">
             <div className="text-xs text-gray-400">Data Anda lagi direview admin. Gak perlu aksi apa-apa lagi di sini — kirim fisik SK-CIF & Surat Pemblokiran yang sudah TTD+materai ke kantor kalau belum, itu boleh menyusul.</div>
@@ -424,19 +439,34 @@ export default function StatusPendaftaranSahabatPage() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Halaman ini gabungan checklist + surat cetak SK-CIF/Surat Pemblokiran
           (bukan halaman cetak berdiri sendiri kayak cetak-perjanjian dkk) —
           tanpa isolasi ini, window.print() bakal nyetak SELURUH halaman
-          (nav, semua kartu checklist lain), bukan cuma suratnya. Sembunyikan
-          semuanya KECUALI .sheet yang lagi kebuka, paksa ukuran kertas A4
-          (dikonfirmasi user 2026-09-09 — semua halaman cetak harus A4). */}
+          (nav, semua kartu checklist lain), bukan cuma suratnya.
+
+          BUG ditemukan & diperbaiki (2026-09-20, laporan user "kok kena 3-4
+          halaman"): dulu pola-nya "body * {visibility:hidden}" + ".sheet
+          {visibility:visible}" — visibility:hidden TETAP nyisain ruang
+          layout (beda dari display:none), jadi kartu-kartu checklist yang
+          "disembunyikan" di atas .sheet tetap makan ruang kosong pas print,
+          dorong isi surat turun & meluber ke halaman ekstra. Sekarang
+          checklist yang gak perlu dicetak dibungkus .no-print (display:none,
+          BENERAN ilang dari layout) langsung di JSX-nya (lihat di atas),
+          .sheet gak lagi nyandar ke trik visibility apa pun.
+
+          page-break-after: always CUMA di sheet SK-CIF (biar Surat
+          Pemblokiran mulai halaman baru) — sheet TERAKHIR (Surat
+          Pemblokiran) SENGAJA gak dikasih forced break lagi (dulu semua
+          .sheet kena, bikin ada halaman kosong nyempil di ujung). Paksa
+          ukuran kertas A4 (dikonfirmasi user 2026-09-09 — semua halaman
+          cetak harus A4). */}
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          .sheet, .sheet * { visibility: visible; }
-          .sheet { position: relative; left: 0; width: 100%; box-shadow: none !important; border: none !important; border-radius: 0 !important; padding: 0 !important; page-break-after: always; }
+          .sheet { box-shadow: none !important; border: none !important; border-radius: 0 !important; padding: 0 !important; }
+          .sheet-break { page-break-after: always; }
           .no-print { display: none !important; }
         }
         @page { size: A4; margin: 15mm; }
