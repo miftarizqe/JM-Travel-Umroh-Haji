@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
+import { hargaTermurahProgram } from '@/lib/harga';
 
 const emptyForm = () => ({
   nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
@@ -12,6 +13,7 @@ const emptyForm = () => ({
   sama_ktp: true,
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
   wa:'', email:'', pkj:'',
+  target_program_id:'',
   // Paspor OPSIONAL (dikonfirmasi user 2026-09-20) — sekalian disimpen dari
   // awal kalau jamaah udah punya, biar gak perlu diminta ulang pas beneran
   // booking berangkat nanti.
@@ -26,6 +28,7 @@ export default function DaftarSahabatPage() {
   const [user] = useCurrentUser();
   const mounted = useMounted();
   const [sahabatList, setSahabatList] = useState([]);
+  const [programEksklusif, setProgramEksklusif] = useState([]);
   const [form, setForm] = useState(() => ({
     ...emptyForm(),
     nama: user?.name || '', nik: user?.nik || '', wa: user?.wa || '', email: user?.email || '',
@@ -48,6 +51,15 @@ export default function DaftarSahabatPage() {
     if (!user) return;
     fetch('/api/referral-list?role=sahabat_baitullah').then(r => r.json()).then(d => setSahabatList(d.perwakilan || [])).catch(()=>{});
     fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => { if (d.user) setProfil(d.user); }).catch(()=>{});
+    // Target Impian (step 3) dipilih dari Program Eksklusif yang admin
+    // tandai khusus Sahabat Baitullah (publish_type='sahabat_baitullah',
+    // dikonfirmasi user 2026-09-20) — bukan lagi teks bebas. /api/programs
+    // buat role ini juga ngembaliin publish_type='public' & 'private'
+    // whitelist, jadi difilter lagi di sini biar cuma yang eksklusif aja
+    // yang muncul di dropdown ini.
+    fetch('/api/programs').then(r => r.json()).then(d => {
+      setProgramEksklusif((d.programs || []).filter(p => p.publish_type === 'sahabat_baitullah'));
+    }).catch(()=>{});
     // Sudah pernah isi data diri? Kalau rekening tabungan umroh juga udah
     // keisi (mis. diisi lewat /status-pendaftaran-sahabat), gak ada lagi
     // yang perlu dikerjakan di wizard ini — lompat langsung ke perjanjian.
@@ -109,6 +121,9 @@ export default function DaftarSahabatPage() {
         return alert('Alamat KTP wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
       if (!form.sama_ktp && !alamatLengkap(form, '_dom'))
         return alert('Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
+    }
+    if (step === 3) {
+      if (!form.target_program_id) return alert('Target Impian (Program) wajib dipilih!') || false;
     }
     if (step === 4) {
       if (!norekUmroh.trim()) return alert('Nomor rekening tabungan umroh wajib diisi!') || false;
@@ -293,12 +308,34 @@ export default function DaftarSahabatPage() {
             </div>
 
             <div className="pt-2">
-              <div className="font-bold text-[#0E2F6E]">🎯 Target Impian (opsional)</div>
-              <div className="text-xs text-gray-400 -mt-1 mb-1">Bantu kami hitung progres tabungan Anda menuju keberangkatan — bisa diisi belakangan kalau belum yakin.</div>
+              <div className="font-bold text-[#0E2F6E]">🎯 Target Impian *</div>
+              <div className="text-xs text-gray-400 -mt-1 mb-1">Bantu kami hitung progres tabungan Anda menuju keberangkatan.</div>
               <label className={lbl}>Tujuan / Paket Incaran</label>
-              <input value={form.target_minat} onChange={e=>setF('target_minat',e.target.value)} placeholder="Contoh: Umroh 9 Hari" className={inp}/>
+              <select
+                value={form.target_program_id}
+                onChange={e => {
+                  const prog = programEksklusif.find(p => String(p.id) === e.target.value);
+                  setForm(p => ({
+                    ...p,
+                    target_program_id: e.target.value,
+                    target_minat: prog?.name || '',
+                    target_estimasi_harga: prog ? String(hargaTermurahProgram(prog)) : '',
+                  }));
+                }}
+                className={inp}
+              >
+                <option value="">— Pilih Program —</option>
+                {programEksklusif.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              {programEksklusif.length === 0 && (
+                <div className="text-[10px] text-gray-400 mt-1">Belum ada Program Eksklusif Sahabat Baitullah yang tersedia saat ini — hubungi admin.</div>
+              )}
               <label className={lbl}>Estimasi Harga (Rp)</label>
-              <input type="number" value={form.target_estimasi_harga} onChange={e=>setF('target_estimasi_harga',e.target.value)} placeholder="Contoh: 30000000" className={inp}/>
+              <div className={`${inp} bg-gray-50 text-gray-400`}>
+                {form.target_estimasi_harga ? `Rp ${Number(form.target_estimasi_harga).toLocaleString('id-ID')}` : '-'}
+              </div>
             </div>
           </>)}
 
