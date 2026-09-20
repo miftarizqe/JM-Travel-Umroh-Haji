@@ -187,43 +187,23 @@ export default function StatusPendaftaranSahabatPage() {
           Program Sahabat Baitullah — ikuti langkah di bawah sampai selesai untuk jadi Jamaah Sahabat Baitullah aktif.
         </div>
 
-        {/* Rekening Tabungan Umroh ditampilkan PALING AWAL — kronologisnya
-            memang paling duluan (diisi di wizard /daftar-sahabat step 4,
-            sebelum bukti TF/SPK-AK sama sekali), jadi biasanya udah ✅ dari
-            awal begitu halaman ini kebuka pertama kali. Dulu taruh di
-            tengah bikin urutan checklist keliatan "loncat" (item selesai
-            nyempil di antara item pending) — dikonfirmasi user 2026-09-20. */}
-        <Item done={prasyarat.rekening_umroh_terisi} label="Rekening Tabungan Umroh">
-          {prasyarat.rekening_umroh_terisi ? (
-            <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}</div>
-          ) : (
-            <div className="space-y-2">
-              {(pengaturan?.panduan_buka_rekening_bsi_path || pengaturan?.panduan_buka_tabungan_umroh_path) && (
-                <div className="flex gap-2">
-                  {pengaturan?.panduan_buka_rekening_bsi_path && (
-                    <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
-                      className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Rekening BSI</a>
-                  )}
-                  {pengaturan?.panduan_buka_tabungan_umroh_path && (
-                    <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
-                      className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Tabungan Umroh</a>
-                  )}
-                </div>
-              )}
-              <div className="flex gap-2">
-                <input value={rekUmrohInput} onChange={e => setRekUmrohInput(e.target.value)} placeholder="Nomor rekening tabungan umroh"
-                  className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
-                <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh)} disabled={savingRekUmroh}
-                  className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
-                  {savingRekUmroh ? '...' : 'Simpan'}
-                </button>
-              </div>
-            </div>
+        {/* Urutan FINAL (dikonfirmasi user 2026-09-20): SPK-AK -> Bukti TF ->
+            Rekening Tabungan Umroh -> CIF & Blokir. Rekening tabungan umroh
+            SENGAJA bukan lagi bagian wizard /daftar-sahabat (dulu ditaruh di
+            situ, sebelum SPK-AK — SALAH, sudah diperbaiki) — diisi di sini
+            setelah bukti TF diverifikasi. */}
+        <Item done={prasyarat.spk_ak_selesai} label="SPK-AK — Surat Perjanjian Jamaah Sahabat Baitullah">
+          {!prasyarat.spk_ak_selesai && (
+            <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
+              Lanjut TTD Digital →
+            </button>
           )}
+          {prasyarat.spk_ak_selesai && <div className="text-xs text-gray-500">Sudah ditandatangani secara digital.</div>}
         </Item>
 
         <Item done={prasyarat.bukti_tf_verified} label={prasyarat.bukti_tf_verified ? 'Bukti transfer terunggah' : 'Unggah bukti transfer Rp1.000.000'}>
-          {!prasyarat.bukti_tf_uploaded && (
+          {!prasyarat.spk_ak_selesai && <div className="text-xs text-gray-400">Selesaikan tanda tangan digital SPK-AK dulu.</div>}
+          {prasyarat.spk_ak_selesai && !prasyarat.bukti_tf_uploaded && (
             <div className="space-y-2">
               {rekeningSahabat.length > 0 && (
                 <div className="bg-[#E8F0FB] rounded-lg p-2 text-xs text-[#1A4FA0] space-y-1">
@@ -243,29 +223,42 @@ export default function StatusPendaftaranSahabatPage() {
           )}
         </Item>
 
-        <Item done={prasyarat.spk_ak_selesai} label="SPK-AK — Surat Perjanjian Jamaah Sahabat Baitullah">
+        <Item done={prasyarat.rekening_umroh_terisi} label="Rekening Tabungan Umroh">
           {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Menunggu verifikasi bukti transfer dulu.</div>}
-          {prasyarat.bukti_tf_verified && !prasyarat.spk_ak_selesai && (
-            <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
-              Lanjut TTD Digital →
-            </button>
+          {prasyarat.bukti_tf_verified && (
+            prasyarat.rekening_umroh_terisi ? (
+              <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}</div>
+            ) : (
+              <div className="space-y-2">
+                {(pengaturan?.panduan_buka_rekening_bsi_path || pengaturan?.panduan_buka_tabungan_umroh_path) && (
+                  <div className="flex gap-2">
+                    {pengaturan?.panduan_buka_rekening_bsi_path && (
+                      <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Rekening BSI</a>
+                    )}
+                    {pengaturan?.panduan_buka_tabungan_umroh_path && (
+                      <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Tabungan Umroh</a>
+                    )}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input value={rekUmrohInput} onChange={e => setRekUmrohInput(e.target.value)} placeholder="Nomor rekening tabungan umroh"
+                    className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+                  <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh)} disabled={savingRekUmroh}
+                    className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+                    {savingRekUmroh ? '...' : 'Simpan'}
+                  </button>
+                </div>
+              </div>
+            )
           )}
-          {prasyarat.spk_ak_selesai && <div className="text-xs text-gray-500">Sudah ditandatangani secara digital.</div>}
         </Item>
 
-        {/* Gate SPK-AK ditambahin di sini (dikonfirmasi user 2026-09-20) —
-            dulu step ini cuma nunggu bukti_tf_verified, jadi CIF & data
-            blokir bisa diisi SEBELUM SPK-AK ditandatangani walau nominal
-            blokirnya sendiri emang udah gak gantung ke SPK-AK (diambil dari
-            Target Impian). Tetap dikunci urut biar alurnya linear & gak
-            "loncat", konsisten sama gate spk_ak_selesai yang emang udah
-            wajib buat bisa advance ke 'active' (lihat
-            /api/status-pendaftaran-sahabat action=advance). */}
         <Item done={prasyarat.setuju_sk_cif_pemblokiran} label="Baca & Setuju — Surat Kuasa CIF & Blokir Rekening">
-          {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Menunggu verifikasi bukti transfer dulu.</div>}
-          {prasyarat.bukti_tf_verified && !prasyarat.spk_ak_selesai && <div className="text-xs text-gray-400">Selesaikan tanda tangan digital SPK-AK dulu.</div>}
+          {!prasyarat.rekening_umroh_terisi && <div className="text-xs text-gray-400">Isi dulu Rekening Tabungan Umroh di atas.</div>}
 
-          {prasyarat.bukti_tf_verified && prasyarat.spk_ak_selesai && !prasyarat.setuju_sk_cif_pemblokiran && !cifDanBlokirLengkap && (
+          {prasyarat.rekening_umroh_terisi && !prasyarat.setuju_sk_cif_pemblokiran && !cifDanBlokirLengkap && (
             <div className="space-y-3">
               {!prasyarat.cif_bsi_terisi ? (
                 <div className="flex gap-2">
@@ -305,7 +298,7 @@ export default function StatusPendaftaranSahabatPage() {
             </div>
           )}
 
-          {prasyarat.bukti_tf_verified && prasyarat.spk_ak_selesai && !prasyarat.setuju_sk_cif_pemblokiran && cifDanBlokirLengkap && (
+          {prasyarat.rekening_umroh_terisi && !prasyarat.setuju_sk_cif_pemblokiran && cifDanBlokirLengkap && (
             <div className="space-y-2">
               {!skCif || !suratPemblokiran ? (
                 <button onClick={bukaPreviewGabungan} disabled={loadingPreview}

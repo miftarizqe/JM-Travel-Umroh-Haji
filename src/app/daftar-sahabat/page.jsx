@@ -4,7 +4,6 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
-import { usePengaturan } from '@/lib/usePengaturan';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
 
@@ -28,21 +27,18 @@ export default function DaftarSahabatPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
   const mounted = useMounted();
-  const [pengaturan] = usePengaturan();
   const [sahabatList, setSahabatList] = useState([]);
   const [programEksklusif, setProgramEksklusif] = useState([]);
   const [form, setForm] = useState(() => ({
     ...emptyForm(),
     nama: user?.name || '', nik: user?.nik || '', wa: user?.wa || '', email: user?.email || '',
   }));
-  const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target, 4=rekening tabungan umroh
+  const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target (TERAKHIR — rekening tabungan umroh BUKAN bagian wizard ini lagi, lihat komentar di lanjutKePerjanjian)
   const [sudahKirim, setSudahKirim] = useState(false);
   const [uploadingKtp, setUploadingKtp] = useState(false);
   const [uploadingPaspor, setUploadingPaspor] = useState(false);
   const [profil, setProfil] = useState(null);
-  const [punyaRekening, setPunyaRekening] = useState('sudah'); // 'sudah' | 'belum' — cuma nentuin tampil-gaknya panduan Byond
-  const [norekUmroh, setNorekUmroh] = useState('');
-  const [savingRekening, setSavingRekening] = useState(false);
+  const [savingKirim, setSavingKirim] = useState(false);
 
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim();
   useUnsavedGuard(isDirty);
@@ -62,15 +58,16 @@ export default function DaftarSahabatPage() {
     fetch('/api/programs').then(r => r.json()).then(d => {
       setProgramEksklusif((d.programs || []).filter(p => p.publish_type === 'sahabat_baitullah'));
     }).catch(()=>{});
-    // Sudah pernah isi data diri? Kalau rekening tabungan umroh juga udah
-    // keisi (mis. diisi lewat /status-pendaftaran-sahabat), gak ada lagi
-    // yang perlu dikerjakan di wizard ini — lompat langsung ke perjanjian.
-    // Kalau belum, lompat ke step Rekening (step 4).
+    // Sudah pernah isi data diri? Wizard ini gak ada lagi yang perlu
+    // dikerjakan (rekening tabungan umroh BUKAN bagian wizard ini —
+    // dikonfirmasi user 2026-09-20, urutan sekarang: data diri -> SPK-AK ->
+    // bukti TF -> rekening tabungan umroh -> CIF & blokir, lihat
+    // /status-pendaftaran-sahabat) — lompat ke halaman status buat
+    // lanjutin step berikutnya.
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
       if (d.prasyarat?.data_diri_terkirim) {
         setSudahKirim(true);
-        if (d.prasyarat?.tabungan_haji_status) router.push('/pks?jenis=sahabat_baitullah');
-        else setStep(4);
+        router.push('/status-pendaftaran-sahabat');
       }
     }).catch(()=>{});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -127,19 +124,17 @@ export default function DaftarSahabatPage() {
     if (step === 3) {
       if (!form.target_program_id) return alert('Target Impian (Program) wajib dipilih!') || false;
     }
-    if (step === 4) {
-      if (!norekUmroh.trim()) return alert('Nomor rekening tabungan umroh wajib diisi!') || false;
-    }
     return true;
   }
 
-  // Data diri (step 1-3) disimpan sekali lewat POST /api/daftar-sahabat.
-  // Rekening tabungan umroh (step 4) disimpan terpisah lewat PATCH
-  // /api/sahabat/rekening-bsi (self-service, isi sekali) — dua endpoint
-  // beda tabel, jadi wajib dipanggil berurutan di sini.
+  // Data diri (step 1-3) disimpan lewat POST /api/daftar-sahabat, LALU
+  // langsung ke SPK-AK (dikonfirmasi user 2026-09-20 — urutan final: data
+  // diri -> SPK-AK -> bukti TF -> rekening tabungan umroh -> CIF & blokir).
+  // Rekening tabungan umroh SENGAJA BUKAN bagian wizard ini lagi — diisi
+  // belakangan di /status-pendaftaran-sahabat setelah bukti TF diverifikasi.
   async function lanjutKePerjanjian() {
     if (!validStep()) return;
-    setSavingRekening(true);
+    setSavingKirim(true);
     try {
       if (!sudahKirim) {
         const res = await fetch('/api/daftar-sahabat', {
@@ -147,18 +142,12 @@ export default function DaftarSahabatPage() {
           body: JSON.stringify({ ...form, perekrut_id: perekrutIdTerkirim })
         });
         const d = await res.json();
-        if (!res.ok) { alert(d.error); setSavingRekening(false); return; }
+        if (!res.ok) { alert(d.error); setSavingKirim(false); return; }
         setSudahKirim(true);
       }
-      const resRek = await fetch('/api/sahabat/rekening-bsi', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field: 'no_rekening_tabungan_umroh', no_rekening: norekUmroh.trim() }),
-      });
-      const dRek = await resRek.json();
-      if (!resRek.ok) { alert(dRek.error); setSavingRekening(false); return; }
       router.push('/pks?jenis=sahabat_baitullah');
     } catch { alert('Terjadi kesalahan'); }
-    setSavingRekening(false);
+    setSavingKirim(false);
   }
 
   if (!mounted || !user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
@@ -172,7 +161,7 @@ export default function DaftarSahabatPage() {
       <div className="max-w-2xl mx-auto">
 
         <div className="flex items-center mb-6">
-          {['Data Diri','Alamat','Perekrut','Rekening'].map((l,i) => (
+          {['Data Diri','Alamat','Perekrut'].map((l,i) => (
             <div key={l} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -181,7 +170,7 @@ export default function DaftarSahabatPage() {
                 </div>
                 <div className={`text-[9px] mt-1 ${i+1===step?'text-[#1A4FA0] font-bold':'text-gray-400'}`}>{l}</div>
               </div>
-              {i < 3 && <div className={`flex-1 h-0.5 mx-1 mb-4 ${i+1<step?'bg-[#C9952A]':'bg-gray-200'}`}></div>}
+              {i < 2 && <div className={`flex-1 h-0.5 mx-1 mb-4 ${i+1<step?'bg-[#C9952A]':'bg-gray-200'}`}></div>}
             </div>
           ))}
         </div>
@@ -341,55 +330,6 @@ export default function DaftarSahabatPage() {
             </div>
           </>)}
 
-          {step === 4 && (<>
-            <div className="font-bold text-[#0E2F6E]">🏦 Rekening Tabungan Umroh (BSI Byond)</div>
-            <div>
-              <label className={lbl}>Apakah Anda sudah punya rekening Tabungan Umroh BSI Byond?</label>
-              <div className="flex gap-2">
-                <button type="button" onClick={()=>setPunyaRekening('sudah')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold border-2 ${punyaRekening==='sudah' ? 'bg-[#1A4FA0] text-white border-[#1A4FA0]' : 'bg-white text-gray-500 border-gray-200'}`}>
-                  Sudah
-                </button>
-                <button type="button" onClick={()=>setPunyaRekening('belum')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold border-2 ${punyaRekening==='belum' ? 'bg-[#1A4FA0] text-white border-[#1A4FA0]' : 'bg-white text-gray-500 border-gray-200'}`}>
-                  Belum
-                </button>
-              </div>
-            </div>
-
-            {punyaRekening === 'belum' && (
-              <div className="bg-[#E8F0FB] rounded-lg p-3 text-xs text-[#1A4FA0] space-y-2">
-                <div>Silakan buka rekening Tabungan Umroh BSI Byond terlebih dahulu lewat aplikasi Byond, lalu isi nomor rekeningnya di bawah.</div>
-                <div className="flex gap-2">
-                  <a href="https://apps.apple.com/id/app/byond-by-bsi/id6444697752" target="_blank" rel="noopener noreferrer"
-                    className="flex-1 text-center bg-white hover:bg-gray-50 text-[#1A4FA0] font-bold py-2 rounded-lg border border-[#1A4FA0]">🍎 iOS</a>
-                  <a href="https://play.google.com/store/apps/details?id=co.id.bankbsi.superapp" target="_blank" rel="noopener noreferrer"
-                    className="flex-1 text-center bg-white hover:bg-gray-50 text-[#1A4FA0] font-bold py-2 rounded-lg border border-[#1A4FA0]">🤖 Android</a>
-                </div>
-                {/* Panduan step-by-step admin (opsional, dikonfirmasi user
-                    2026-09-20) — 2 file terpisah, cuma muncul kalau admin
-                    udah upload lewat /admin/pengaturan/dokumen. */}
-                {(pengaturan?.panduan_buka_rekening_bsi_path || pengaturan?.panduan_buka_tabungan_umroh_path) && (
-                  <div className="flex gap-2 pt-1">
-                    {pengaturan?.panduan_buka_rekening_bsi_path && (
-                      <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
-                        className="flex-1 text-center text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Rekening BSI</a>
-                    )}
-                    {pengaturan?.panduan_buka_tabungan_umroh_path && (
-                      <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
-                        className="flex-1 text-center text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Tabungan Umroh</a>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div>
-              <label className={lbl}>Nomor Rekening Tabungan Umroh *</label>
-              <input value={norekUmroh} onChange={e=>setNorekUmroh(e.target.value)} placeholder="Nomor rekening" className={inp}/>
-            </div>
-          </>)}
-
           <div className="flex gap-2 pt-2">
             {step > 1 && (
               <button onClick={()=>setStep(step-1)}
@@ -397,15 +337,15 @@ export default function DaftarSahabatPage() {
                 ← Kembali
               </button>
             )}
-            {step < 4 ? (
+            {step < 3 ? (
               <button onClick={()=>{ if(validStep()) setStep(step+1); }}
                 className="flex-[2] bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2.5 rounded-full text-sm">
                 Lanjut →
               </button>
             ) : (
-              <button onClick={lanjutKePerjanjian} disabled={savingRekening}
+              <button onClick={lanjutKePerjanjian} disabled={savingKirim}
                 className="flex-[2] bg-[#C9952A] hover:bg-yellow-600 text-white font-bold py-2.5 rounded-full text-sm disabled:opacity-50">
-                {savingRekening ? 'Menyimpan...' : 'Lanjut ke Perjanjian (SPK-AK) →'}
+                {savingKirim ? 'Menyimpan...' : 'Lanjut ke Perjanjian (SPK-AK) →'}
               </button>
             )}
           </div>
