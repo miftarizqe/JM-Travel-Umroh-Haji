@@ -204,6 +204,26 @@ export default function DaftarSahabatPage() {
             <div><label className={lbl}>Pekerjaan</label>
               <input value={form.pkj} onChange={e=>setF('pkj',e.target.value)} className={inp}/></div>
 
+            <div>
+              <label className={lbl}>Foto KTP *</label>
+              {form.foto_ktp_path ? (
+                <div className="border-2 border-green-200 bg-green-50 rounded-lg p-3 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-green-700">✅ Foto KTP terunggah</span>
+                  <label className="text-xs font-bold text-[#1A4FA0] cursor-pointer">
+                    Ganti
+                    <input type="file" accept="image/jpeg,image/png" className="hidden"
+                      onChange={e=>pilihFotoKtp(e.target.files?.[0])}/>
+                  </label>
+                </div>
+              ) : (
+                <label className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer ${uploadingKtp ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
+                  {uploadingKtp ? 'Mengunggah...' : '📷 Klik untuk unggah foto KTP (JPG/PNG, maks 3MB)'}
+                  <input type="file" accept="image/jpeg,image/png" className="hidden" disabled={uploadingKtp}
+                    onChange={e=>pilihFotoKtp(e.target.files?.[0])}/>
+                </label>
+              )}
+            </div>
+
             <div className="pt-2 border-t border-gray-100">
               <div className="font-bold text-[#0E2F6E]">🛂 Paspor (opsional)</div>
               <div className="text-[10px] text-gray-400 -mt-0.5 mb-1.5">Kalau udah punya paspor, boleh diisi sekalian — biar gak perlu diminta ulang pas beneran siap berangkat nanti.</div>
@@ -240,26 +260,6 @@ export default function DaftarSahabatPage() {
                 )}
               </div>
             </>)}
-
-            <div>
-              <label className={lbl}>Foto KTP *</label>
-              {form.foto_ktp_path ? (
-                <div className="border-2 border-green-200 bg-green-50 rounded-lg p-3 flex items-center justify-between">
-                  <span className="text-xs font-semibold text-green-700">✅ Foto KTP terunggah</span>
-                  <label className="text-xs font-bold text-[#1A4FA0] cursor-pointer">
-                    Ganti
-                    <input type="file" accept="image/jpeg,image/png" className="hidden"
-                      onChange={e=>pilihFotoKtp(e.target.files?.[0])}/>
-                  </label>
-                </div>
-              ) : (
-                <label className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer ${uploadingKtp ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
-                  {uploadingKtp ? 'Mengunggah...' : '📷 Klik untuk unggah foto KTP (JPG/PNG, maks 3MB)'}
-                  <input type="file" accept="image/jpeg,image/png" className="hidden" disabled={uploadingKtp}
-                    onChange={e=>pilihFotoKtp(e.target.files?.[0])}/>
-                </label>
-              )}
-            </div>
           </>)}
 
           {step === 2 && (<>
