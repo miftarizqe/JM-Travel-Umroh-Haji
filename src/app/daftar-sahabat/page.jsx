@@ -12,6 +12,10 @@ const emptyForm = () => ({
   sama_ktp: true,
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
   wa:'', email:'', pkj:'',
+  // Paspor OPSIONAL (dikonfirmasi user 2026-09-20) — sekalian disimpen dari
+  // awal kalau jamaah udah punya, biar gak perlu diminta ulang pas beneran
+  // booking berangkat nanti.
+  no_paspor:'', tempat_keluar_paspor:'', masa_berlaku_paspor_dari:'', masa_berlaku_paspor_sampai:'', foto_paspor_path:'',
   bank:'', norek:'', pemilik:'',
   perekrut_id:'',
   target_minat:'', target_estimasi_harga:'',
@@ -29,6 +33,7 @@ export default function DaftarSahabatPage() {
   const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target, 4=rekening tabungan umroh
   const [sudahKirim, setSudahKirim] = useState(false);
   const [uploadingKtp, setUploadingKtp] = useState(false);
+  const [uploadingPaspor, setUploadingPaspor] = useState(false);
   const [profil, setProfil] = useState(null);
   const [punyaRekening, setPunyaRekening] = useState('sudah'); // 'sudah' | 'belum' — cuma nentuin tampil-gaknya panduan Byond
   const [norekUmroh, setNorekUmroh] = useState('');
@@ -41,7 +46,7 @@ export default function DaftarSahabatPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch('/api/referral-list?role=sahabat').then(r => r.json()).then(d => setSahabatList(d.perwakilan || [])).catch(()=>{});
+    fetch('/api/referral-list?role=sahabat_baitullah').then(r => r.json()).then(d => setSahabatList(d.perwakilan || [])).catch(()=>{});
     fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => { if (d.user) setProfil(d.user); }).catch(()=>{});
     // Sudah pernah isi data diri? Kalau rekening tabungan umroh juga udah
     // keisi (mis. diisi lewat /status-pendaftaran-sahabat), gak ada lagi
@@ -50,7 +55,7 @@ export default function DaftarSahabatPage() {
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
       if (d.prasyarat?.data_diri_terkirim) {
         setSudahKirim(true);
-        if (d.prasyarat?.tabungan_haji_status) router.push('/pks?jenis=sahabat');
+        if (d.prasyarat?.tabungan_haji_status) router.push('/pks?jenis=sahabat_baitullah');
         else setStep(4);
       }
     }).catch(()=>{});
@@ -73,6 +78,20 @@ export default function DaftarSahabatPage() {
       else alert(d.error || 'Gagal mengunggah foto KTP');
     } catch { alert('Terjadi kesalahan saat mengunggah foto KTP'); }
     setUploadingKtp(false);
+  }
+
+  async function pilihFotoPaspor(file) {
+    if (!file) return;
+    setUploadingPaspor(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload-paspor', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (res.ok) setF('foto_paspor_path', d.path);
+      else alert(d.error || 'Gagal mengunggah foto paspor');
+    } catch { alert('Terjadi kesalahan saat mengunggah foto paspor'); }
+    setUploadingPaspor(false);
   }
 
   function validStep() {
@@ -120,7 +139,7 @@ export default function DaftarSahabatPage() {
       });
       const dRek = await resRek.json();
       if (!resRek.ok) { alert(dRek.error); setSavingRekening(false); return; }
-      router.push('/pks?jenis=sahabat');
+      router.push('/pks?jenis=sahabat_baitullah');
     } catch { alert('Terjadi kesalahan'); }
     setSavingRekening(false);
   }
@@ -156,8 +175,12 @@ export default function DaftarSahabatPage() {
             <div className="font-bold text-[#0E2F6E]">👤 Data Diri</div>
             <div><label className={lbl}>Nama Lengkap *</label>
               <input value={form.nama} onChange={e=>setF('nama',e.target.value)} className={inp}/></div>
+            {/* NIK/WA/Email dikunci begitu sampai sini (dikonfirmasi user
+                2026-09-20) — udah jadi data verifikasi awal pas akun
+                dibuat, gak boleh diubah sendiri lagi (cegah "cuci" identitas
+                lewat akun yang udah terverifikasi). Koreksi cuma lewat admin. */}
             <div><label className={lbl}>NIK (16 digit) *</label>
-              <input value={form.nik} onChange={e=>setF('nik',e.target.value.replace(/\D/g,'').slice(0,16))} inputMode="numeric" className={inp}/></div>
+              <div className={`${inp} bg-gray-50 text-gray-400`}>{form.nik || '-'}</div></div>
             <div><label className={lbl}>Tempat Lahir *</label>
               <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
@@ -171,12 +194,52 @@ export default function DaftarSahabatPage() {
               <input value={form.ibu} onChange={e=>setF('ibu',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. WhatsApp *</label>
-                <input value={form.wa} onChange={e=>setF('wa',e.target.value)} className={inp}/></div>
+                <div className={`${inp} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div></div>
               <div><label className={lbl}>Email</label>
-                <input value={form.email} onChange={e=>setF('email',e.target.value)} className={inp}/></div>
+                <div className={`${inp} bg-gray-50 text-gray-400`}>{form.email || '-'}</div></div>
             </div>
+            <div><label className={lbl}>Agama</label>
+              <div className={`${inp} bg-gray-50 text-gray-400`}>{user?.agama === 'non_islam' ? 'Non-Islam' : user?.agama === 'islam' ? 'Islam' : '-'}</div></div>
+            <div className="text-[10px] text-gray-400 -mt-1">NIK, No. WhatsApp, Email, dan Agama adalah data verifikasi awal — cuma bisa dikoreksi lewat admin.</div>
             <div><label className={lbl}>Pekerjaan</label>
               <input value={form.pkj} onChange={e=>setF('pkj',e.target.value)} className={inp}/></div>
+
+            <div className="pt-2 border-t border-gray-100">
+              <div className="font-bold text-[#0E2F6E]">🛂 Paspor (opsional)</div>
+              <div className="text-[10px] text-gray-400 -mt-0.5 mb-1.5">Kalau udah punya paspor, boleh diisi sekalian — biar gak perlu diminta ulang pas beneran siap berangkat nanti.</div>
+              <label className={lbl}>Nomor Paspor</label>
+              <input value={form.no_paspor} onChange={e=>setF('no_paspor',e.target.value.toUpperCase())} className={inp}/>
+            </div>
+
+            {form.no_paspor.trim() && (<>
+              <div><label className={lbl}>Tempat Keluar Paspor</label>
+                <input value={form.tempat_keluar_paspor} onChange={e=>setF('tempat_keluar_paspor',e.target.value)} className={inp}/></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className={lbl}>Masa Berlaku Dari</label>
+                  <input type="date" value={form.masa_berlaku_paspor_dari} onChange={e=>setF('masa_berlaku_paspor_dari',e.target.value)} className={inp}/></div>
+                <div><label className={lbl}>Masa Berlaku Sampai</label>
+                  <input type="date" value={form.masa_berlaku_paspor_sampai} onChange={e=>setF('masa_berlaku_paspor_sampai',e.target.value)} className={inp}/></div>
+              </div>
+              <div>
+                <label className={lbl}>Foto/Scan Paspor</label>
+                {form.foto_paspor_path ? (
+                  <div className="border-2 border-green-200 bg-green-50 rounded-lg p-3 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-green-700">✅ Foto paspor terunggah</span>
+                    <label className="text-xs font-bold text-[#1A4FA0] cursor-pointer">
+                      Ganti
+                      <input type="file" accept="image/jpeg,image/png" className="hidden"
+                        onChange={e=>pilihFotoPaspor(e.target.files?.[0])}/>
+                    </label>
+                  </div>
+                ) : (
+                  <label className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer ${uploadingPaspor ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
+                    {uploadingPaspor ? 'Mengunggah...' : '📷 Klik untuk unggah foto paspor (JPG/PNG, maks 3MB)'}
+                    <input type="file" accept="image/jpeg,image/png" className="hidden" disabled={uploadingPaspor}
+                      onChange={e=>pilihFotoPaspor(e.target.files?.[0])}/>
+                  </label>
+                )}
+              </div>
+            </>)}
 
             <div>
               <label className={lbl}>Foto KTP *</label>
