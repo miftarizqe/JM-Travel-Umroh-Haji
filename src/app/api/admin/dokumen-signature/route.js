@@ -2,7 +2,7 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasi } from '@/lib/notifikasi';
-import { apakahPerluMaterai, RANGKAP_SPKA_INS, RANGKAP_SPK_AK } from '@/lib/materaiRule';
+import { apakahPerluMaterai, RANGKAP_SPKA_INS, RANGKAP_SPK_AK, RANGKAP_SPK_AK_NONIS } from '@/lib/materaiRule';
 import { beliMaterai } from '@/lib/eMeterai';
 import { kirimUntukTtd, selesaikanTtd } from '@/lib/eSignature';
 import { renderSpkaInsPdf } from '@/lib/pdfDokumen/renderSpkaIns';
@@ -10,6 +10,7 @@ import { renderJamaahPdf } from '@/lib/pdfDokumen/renderJamaah';
 import { renderFormulirPdf } from '@/lib/pdfDokumen/renderFormulir';
 import { renderInvoicePdf } from '@/lib/pdfDokumen/renderInvoice';
 import { renderSpkAkPdf } from '@/lib/pdfDokumen/renderSpkAk';
+import { renderSpkAkNonisPdf } from '@/lib/pdfDokumen/renderSpkAkNonis';
 import { simpanPdfDokumenSignature, logoAbsolutePath } from '@/lib/pdfDokumen/simpanPdf';
 import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
@@ -20,7 +21,7 @@ import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
 // (Surat Kuasa Multi CIF BSI) SUDAH DIHAPUS TOTAL dari sistem (dikonfirmasi
 // user 2026-09-09) — cuma SK-CIF yang beneran dipakai buat CIF, bukan dua
 // dokumen kayak sebelumnya.
-const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'formulir', 'invoice', 'spk_ak', 'sk_cif', 'surat_pemblokiran'];
+const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'formulir', 'invoice', 'spk_ak', 'sk_cif', 'surat_pemblokiran', 'spk_ak_nonis'];
 
 async function ambilPengaturan() {
   const [[p]] = await pool.query('SELECT * FROM pengaturan WHERE id = 1');
@@ -145,14 +146,25 @@ async function siapkanData(dokumen, refId) {
     };
   }
 
-  if (dokumen === 'spk_ak') {
+  if (dokumen === 'spk_ak' || dokumen === 'spk_ak_nonis') {
     const [rows] = await pool.query(
-      'SELECT id, name, nik, wa, email, alamat, alamat_ktp, kode_unik, role, no_paspor, no_spk_ak, perekrut_id, bank, no_rekening, nama_pemilik_rekening, created_at FROM users WHERE id = ?',
+      'SELECT id, name, nik, wa, email, alamat, alamat_ktp, kode_unik, role, agama, no_paspor, no_spk_ak, no_spk_ak_nonis, perekrut_id, bank, no_rekening, nama_pemilik_rekening, created_at FROM users WHERE id = ?',
       [refId]
     );
     const user = rows[0];
     if (!user) throw Object.assign(new Error('Akun tidak ditemukan'), { status: 404 });
     if (user.role !== 'sahabat_baitullah') throw Object.assign(new Error('Dokumen ini hanya berlaku untuk Jamaah Sahabat Baitullah'), { status: 400 });
+    // spk_ak_nonis KHUSUS anggota non-Muslim (memberangkatkan orang lain,
+    // bukan berangkat sendiri) — spk_ak biasa KHUSUS anggota Muslim,
+    // dikonfirmasi user 2026-09-20. Dicek di server juga (bukan cuma
+    // dipilih di /pks), biar gak bisa disalahgunakan lewat panggilan API
+    // langsung.
+    if (dokumen === 'spk_ak_nonis' && user.agama !== 'non_islam') {
+      throw Object.assign(new Error('Surat Perjanjian Referral Non-Muslim cuma berlaku untuk anggota non-Muslim'), { status: 400 });
+    }
+    if (dokumen === 'spk_ak' && user.agama === 'non_islam') {
+      throw Object.assign(new Error('Anggota non-Muslim wajib pakai Surat Perjanjian Referral Non-Muslim'), { status: 400 });
+    }
     user.alamat = user.alamat_ktp || user.alamat;
 
     // PIHAK KETIGA — Head of Program (pengaturan.head_of_program_user_id),
@@ -165,15 +177,18 @@ async function siapkanData(dokumen, refId) {
       if (hop) hop.alamat = hop.alamat_ktp || hop.alamat;
     }
 
-    const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'JSB', 'no_spk_ak');
-    if (nomor) await pastikanSnapshot(pool, user.id, 'spk_ak');
-    const { pasal, signer } = await ambilPasalUntukCetak('spk_ak', user.id);
+    const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
+    const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
+    const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
+    if (nomor) await pastikanSnapshot(pool, user.id, dokumen);
+    const { pasal, signer } = await ambilPasalUntukCetak(dokumen, user.id);
     const [[target]] = await pool.query(
       'SELECT target_minat, target_estimasi_harga FROM sahabat_pendaftaran WHERE user_id = ?', [user.id]
     );
+    const generateFn = dokumen === 'spk_ak' ? renderSpkAkPdf : renderSpkAkNonisPdf;
     return {
       user, hop, jmSigner: signer,
-      generatePdf: (rangkapLabel) => renderSpkAkPdf({ user, hop, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel, target }),
+      generatePdf: (rangkapLabel) => generateFn({ user, hop, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel, target }),
       signer: { nama: user.name, email: user.email, wa: user.wa },
     };
   }
@@ -231,7 +246,7 @@ export async function POST(request) {
       // SPK-AK/SK-CIF/Surat Pemblokiran miliknya sendiri (alur self-service
       // funnel sahabat). Dokumen lain (spka_ins/invoice) tetap wajib admin
       // yang memicu.
-      if (['formulir', 'spk_ak', 'sk_cif', 'surat_pemblokiran'].includes(dokumen)) {
+      if (['formulir', 'spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'].includes(dokumen)) {
         if (String(ref_id) !== String(auth.user.id)) {
           return Response.json({ error: 'Anda tidak berwenang atas dokumen ini' }, { status: 403 });
         }
@@ -263,10 +278,10 @@ export async function POST(request) {
     // 2026-09-09, SPK-AK ikut skema SPKA-Ins persis) — signerPihak
     // 'eksternal' = pihak luar JM Travel yang TTD (Perwakilan buat
     // spka_ins, Jamaah Sahabat Baitullah buat spk_ak).
-    const RANGKAP_PER_DOKUMEN = { spka_ins: RANGKAP_SPKA_INS, spk_ak: RANGKAP_SPK_AK };
+    const RANGKAP_PER_DOKUMEN = { spka_ins: RANGKAP_SPKA_INS, spk_ak: RANGKAP_SPK_AK, spk_ak_nonis: RANGKAP_SPK_AK_NONIS };
     if (RANGKAP_PER_DOKUMEN[dokumen]) {
       const daftarRangkap = RANGKAP_PER_DOKUMEN[dokumen];
-      const labelDokumen = dokumen === 'spka_ins' ? 'SPKA-Ins' : 'SPK-AK';
+      const labelDokumen = dokumen === 'spka_ins' ? 'SPKA-Ins' : dokumen === 'spk_ak' ? 'SPK-AK' : 'Surat Perjanjian Referral Non-Muslim';
       const namaEksternal = dokumen === 'spka_ins' ? 'Perwakilan' : 'Jamaah Sahabat Baitullah';
 
       const hasil = [];
@@ -298,7 +313,14 @@ export async function POST(request) {
         });
       }
 
-      return Response.json({ message: `${labelDokumen} dikirim untuk TTD digital (2 rangkap).`, rangkap: hasil });
+      // `id` di top-level WAJIB ada (bug ditemukan & diperbaiki 2026-09-20)
+      // — caller self-service (mis. /pks/page.jsx buat SPK-AK/SPKA-Ins) cuma
+      // baca `dSig.id` buat redirect ke /tanda-tangan/[id], gak tau soal
+      // array `rangkap`. Tanpa ini redirect-nya jadi /tanda-tangan/undefined
+      // -> "Sesi tanda tangan tidak ditemukan". Yang dikirim rangkap
+      // 'travel' (pihak eksternal yang beneran perlu TTD, rangkap 'luar'
+      // udah auto-selesai duluan di atas).
+      return Response.json({ message: `${labelDokumen} dikirim untuk TTD digital (2 rangkap).`, rangkap: hasil, id: rangkapTravel?.id });
     }
 
     // Dokumen 1-rangkap (jamaah/formulir/invoice)

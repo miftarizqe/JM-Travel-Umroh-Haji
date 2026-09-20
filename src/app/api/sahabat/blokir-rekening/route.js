@@ -1,23 +1,27 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 
-// PATCH /api/sahabat/blokir-rekening  body: { nominal_blokir, jangka_waktu_hari, tanggal_mulai }
-// Self-service — anggota sahabat isi nominal/jangka waktu/tanggal mulai
-// blokir rekening tabungan umroh mereka sendiri, dipakai buat isi Surat
-// Pernyataan Kuasa Blokir Rekening (surat_pemblokiran). Cuma boleh diisi
-// SEKALI (WHERE nominal_blokir_tabungan IS NULL) — pola sama persis
-// /api/sahabat/cif-bsi, biar surat yang sudah dibekukan/ditandatangani
-// jangan sampai gak nyambung sama angka yang tercatat.
+// Jangka waktu blokir SELALU 90 hari (dikonfirmasi user 2026-09-20, sesuai
+// isi perjanjian SPK-AK) — bukan lagi input bebas, dihardcode di server
+// biar gak bisa dipalsuin lewat body request langsung.
+const JANGKA_WAKTU_BLOKIR_HARI = 90;
+
+// PATCH /api/sahabat/blokir-rekening  body: { tanggal_mulai }
+// Self-service — anggota sahabat cuma pilih tanggal mulai blokir; nominal
+// & jangka waktu SUDAH TIDAK diinput manual lagi (dikonfirmasi user
+// 2026-09-20) — nominal_blokir_tabungan diturunkan otomatis dari target
+// tabungan (sahabat_pendaftaran.target_estimasi_harga, sudah dikunci sejak
+// wizard daftar-sahabat) & jangka waktu tetap 90 hari sesuai perjanjian.
+// Dipakai buat isi Surat Pernyataan Kuasa Blokir Rekening (surat_pemblokiran).
+// Cuma boleh diisi SEKALI (WHERE nominal_blokir_tabungan IS NULL) — pola
+// sama persis /api/sahabat/cif-bsi, biar surat yang sudah
+// dibekukan/ditandatangani jangan sampai gak nyambung sama angka yang tercatat.
 export async function PATCH(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
 
   try {
-    const { nominal_blokir, jangka_waktu_hari, tanggal_mulai } = await request.json();
-    const nominal = Number(nominal_blokir);
-    const jangkaWaktu = Number(jangka_waktu_hari);
-    if (!nominal || nominal <= 0) return Response.json({ error: 'Nominal blokir wajib diisi' }, { status: 400 });
-    if (!jangkaWaktu || jangkaWaktu <= 0) return Response.json({ error: 'Jangka waktu blokir wajib diisi' }, { status: 400 });
+    const { tanggal_mulai } = await request.json();
     if (!tanggal_mulai) return Response.json({ error: 'Tanggal mulai blokir wajib diisi' }, { status: 400 });
 
     const [[user]] = await pool.query('SELECT role, nominal_blokir_tabungan FROM users WHERE id = ?', [auth.user.id]);
@@ -27,10 +31,19 @@ export async function PATCH(request) {
       return Response.json({ error: 'Data blokir sudah diisi sebelumnya. Hubungi admin kalau perlu diubah.' }, { status: 400 });
     }
 
+    const [[pendaftaran]] = await pool.query(
+      "SELECT target_estimasi_harga FROM sahabat_pendaftaran WHERE user_id = ? ORDER BY id DESC LIMIT 1",
+      [auth.user.id]
+    );
+    const nominal = Number(pendaftaran?.target_estimasi_harga || 0);
+    if (!nominal || nominal <= 0) {
+      return Response.json({ error: 'Target Impian belum diisi — lengkapi dulu data diri pendaftaran' }, { status: 400 });
+    }
+
     await pool.query(
       `UPDATE users SET nominal_blokir_tabungan = ?, jangka_waktu_blokir_hari = ?, tanggal_mulai_blokir = ?
        WHERE id = ? AND nominal_blokir_tabungan IS NULL`,
-      [nominal, jangkaWaktu, tanggal_mulai, auth.user.id]
+      [nominal, JANGKA_WAKTU_BLOKIR_HARI, tanggal_mulai, auth.user.id]
     );
     return Response.json({ message: 'Data blokir tersimpan.' });
   } catch (error) {
