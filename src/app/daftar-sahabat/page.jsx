@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
-import { useCurrentUser } from '@/lib/useCurrentUser';
+import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 
 const emptyForm = () => ({
@@ -20,6 +20,7 @@ const emptyForm = () => ({
 export default function DaftarSahabatPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
+  const mounted = useMounted();
   const [sahabatList, setSahabatList] = useState([]);
   const [form, setForm] = useState(() => ({
     ...emptyForm(),
@@ -124,7 +125,7 @@ export default function DaftarSahabatPage() {
     setSavingRekening(false);
   }
 
-  if (!user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
+  if (!mounted || !user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
   const inp = "w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
   const lbl = "block text-xs font-semibold text-[#0E2F6E] mb-1";

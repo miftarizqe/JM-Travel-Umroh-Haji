@@ -54,3 +54,19 @@ export function useCurrentUser() {
   }, [raw]);
   return [user];
 }
+
+// Pasangan `useCurrentUser` buat halaman yang render "Loading..." selagi
+// nunggu `user` (bukan buat guard redirect efek — itu tetap harus baca
+// `user`/`useCurrentUser()` langsung, lihat komentar di atas). Server SELALU
+// `false` di render pertama; client juga `false` di render pertama (baru
+// `true` sesudah effect mount jalan) — jadi cabang render yang gantungin ke
+// `mounted` (mis. `if (!mounted || !user) return <Loading/>`) otomatis
+// identik antara server & client, gak ada lagi hydration mismatch warning
+// kayak yang kejadian di Layout.jsx (fix yg sama, lihat komentar di sana
+// 2026-09-06) — `user` sendiri TETAP kebaca langsung dari mount pertama jadi
+// prefill form dsb yang butuh nilai asli dari awal tidak ikut ketunda.
+export function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  return mounted;
+}
