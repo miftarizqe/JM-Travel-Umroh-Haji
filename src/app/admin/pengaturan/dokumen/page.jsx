@@ -50,6 +50,7 @@ const DOKUMEN_LIST = [
   { key: 'spka_ins', label: 'SPK-PWK (Perwakilan)' },
   { key: 'jamaah', label: 'SPJ (Perjanjian Jamaah)' },
   { key: 'spk_ak', label: 'SPK-AK (Jamaah Sahabat Baitullah)' },
+  { key: 'spk_ak_nonis', label: 'Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
   { key: 'sk_cif', label: 'SK-CIF (Sahabat Baitullah)' },
   { key: 'surat_pemblokiran', label: 'Surat Pemblokiran Rekening (Sahabat Baitullah)' },
 ];
@@ -65,6 +66,7 @@ const DOKUMEN_JUDUL = {
   spka_ins: { judul: ['SURAT PERJANJIAN KERJA SAMA PERWAKILAN'], nomor: '09.0001/JMT.SPKA-Ins.IX/2026' },
   jamaah: { judul: ['SURAT PERJANJIAN JAMAAH UMROH'], nomor: 'BK-CONTOH' },
   spk_ak: { judul: ['SURAT PERJANJIAN JAMAAH UMROH', 'PROGRAM SAHABAT BAITULLAH'], nomor: '09.0001/JMT.JSB.IX/2026' },
+  spk_ak_nonis: { judul: ['SURAT PERJANJIAN REFERRAL NON-MUSLIM', 'PROGRAM SAHABAT BAITULLAH'], nomor: '09.0001/JMT.JSB-NM.IX/2026' },
   sk_cif: { judul: ['SURAT KUASA', 'KERJASAMA MULTI CIF', 'PADA LAYANAN BSI CASH MANAGEMENT'], nomor: '09.0001/JMT.SK-CIF.IX/2026' },
   surat_pemblokiran: { judul: ['SURAT PERNYATAAN', 'KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN'], nomor: '09.0001/JMT.SURAT-PEMBLOKIRAN.IX/2026' },
 };
@@ -108,6 +110,13 @@ const TTD_PREVIEW = {
   spk_ak: (p) => [
     { pihak: 'PIHAK PERTAMA', sub: 'PT. Alkhalid Jaya Megah', nama: p.nama_penandatangan_spk_ak || 'Ahmad Zaky Arief Bestary' },
     { pihak: 'PIHAK KEDUA', sub: 'Jamaah Sahabat Baitullah', nama: 'Nama Contoh' },
+    { pihak: 'PIHAK KETIGA', sub: 'Head of Program', nama: 'Nama Head of Program Contoh' },
+  ],
+  // spk_ak_nonis reuse penandatangan SPK-AK yang sama (lihat signerKolom.js)
+  // — pihak JM Travel-nya sama persis, cuma pihak keduanya beda kategori.
+  spk_ak_nonis: (p) => [
+    { pihak: 'PIHAK PERTAMA', sub: 'PT. Alkhalid Jaya Megah', nama: p.nama_penandatangan_spk_ak || 'Ahmad Zaky Arief Bestary' },
+    { pihak: 'PIHAK KEDUA', sub: 'Anggota Sahabat Baitullah', nama: 'Nama Contoh' },
     { pihak: 'PIHAK KETIGA', sub: 'Head of Program', nama: 'Nama Head of Program Contoh' },
   ],
 };
@@ -437,6 +446,8 @@ export default function AdminPengaturanDokumenPage() {
   const [signerSaved, setSignerSaved] = useState(false);
   const [uploadingTtd, setUploadingTtd] = useState(false);
   const [uploadingCap, setUploadingCap] = useState(false);
+  const [uploadingPanduanBsi, setUploadingPanduanBsi] = useState(false);
+  const [uploadingPanduanUmroh, setUploadingPanduanUmroh] = useState(false);
 
   // --- Isi Pasal ---
   const [dokumen, setDokumen] = useState('spka_ins');
@@ -626,7 +637,7 @@ export default function AdminPengaturanDokumenPage() {
 
         <div className="font-bold text-[#0E2F6E] mb-1">🤝 Penandatangan SPK-AK (Sahabat Baitullah)</div>
         <div className="text-xs text-gray-400 mb-3">
-          Pihak Management JM Travel (Pihak Pertama) di SPK-AK — Pihak Ketiga (Head of Program) diatur terpisah lewat halaman Pengaturan Komisi Sahabat.
+          Pihak Management JM Travel (Pihak Pertama) di SPK-AK maupun Surat Perjanjian Referral Non-Muslim (dipakai bersama, sama-sama Pihak Pertama) — Pihak Ketiga (Head of Program) diatur terpisah lewat halaman Pengaturan Komisi Sahabat.
         </div>
         <div className="grid sm:grid-cols-2 gap-3 mb-3">
           {SIGNER_SPK_AK_FIELDS.map(f => (
@@ -685,6 +696,41 @@ export default function AdminPengaturanDokumenPage() {
             {signerSaving ? 'Menyimpan...' : '💾 Simpan Penandatangan'}
           </button>
           {signerSaved && <span className="text-sm text-green-600 font-semibold">✅ Tersimpan!</span>}
+        </div>
+      </div>
+
+      {/* PANDUAN SAHABAT BAITULLAH — 2 file terpisah (dikonfirmasi user
+          2026-09-20): cara buka rekening BSI biasa & Tabungan Umroh Byond.
+          Ditampilkan ke jamaah di wizard daftar-sahabat step 4 & halaman
+          status-pendaftaran-sahabat begitu kolomnya keisi. */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
+        <div className="font-bold text-[#0E2F6E] mb-1">📘 Panduan Sahabat Baitullah</div>
+        <div className="text-xs text-gray-400 mb-3">
+          Panduan step-by-step (gambar atau PDF, maks 5MB) yang ditampilkan ke jamaah Sahabat Baitullah pas isi rekening — biar gak perlu ditanya manual satu-satu.
+        </div>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label className={lbl}>Cara Buka Rekening BSI (biasa)</label>
+            {signerForm.panduan_buka_rekening_bsi_path && (
+              <a href={signerForm.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
+                className="block text-xs font-semibold text-[#1A4FA0] hover:underline mb-2">📄 Lihat file yang sudah diunggah</a>
+            )}
+            <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={uploadingPanduanBsi}
+              onChange={e => { uploadGambarSigner('panduan_buka_rekening_bsi_path', e.target.files?.[0], setUploadingPanduanBsi); e.target.value = ''; }}
+              className="text-xs" />
+            {uploadingPanduanBsi && <div className="text-xs text-gray-400 mt-1">Mengunggah...</div>}
+          </div>
+          <div>
+            <label className={lbl}>Cara Buka Tabungan Umroh (BSI Byond)</label>
+            {signerForm.panduan_buka_tabungan_umroh_path && (
+              <a href={signerForm.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
+                className="block text-xs font-semibold text-[#1A4FA0] hover:underline mb-2">📄 Lihat file yang sudah diunggah</a>
+            )}
+            <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={uploadingPanduanUmroh}
+              onChange={e => { uploadGambarSigner('panduan_buka_tabungan_umroh_path', e.target.files?.[0], setUploadingPanduanUmroh); e.target.value = ''; }}
+              className="text-xs" />
+            {uploadingPanduanUmroh && <div className="text-xs text-gray-400 mt-1">Mengunggah...</div>}
+          </div>
         </div>
       </div>
 

@@ -8,7 +8,16 @@ const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
 const MAKS = 3 * 1024 * 1024; // 3MB
 // Whitelist kolom yang boleh diisi lewat endpoint ini — biar gak bisa
 // nimpa kolom sembarangan di tabel pengaturan cuma dari nama field kiriman.
-const KOLOM_OK = ['ttd_penandatangan_keuangan_path', 'cap_perusahaan_path'];
+const KOLOM_OK = [
+  'ttd_penandatangan_keuangan_path', 'cap_perusahaan_path',
+  'panduan_buka_rekening_bsi_path', 'panduan_buka_tabungan_umroh_path',
+];
+// Panduan step-by-step (dikonfirmasi user 2026-09-20) boleh PDF juga — beda
+// dari TTD/cap yang emang selalu gambar. Ukuran maks dilonggarin dikit
+// (5MB) karena panduan bergambar/scan biasanya lebih berat dari tanda tangan.
+const KOLOM_PANDUAN = ['panduan_buka_rekening_bsi_path', 'panduan_buka_tabungan_umroh_path'];
+const TIPE_OK_PANDUAN = [...TIPE_OK, 'application/pdf'];
+const MAKS_PANDUAN = 5 * 1024 * 1024;
 
 // POST /api/admin/pengaturan/upload-gambar (multipart: file, kolom)
 // Upload gambar TTD digital penandatangan keuangan ATAU cap perusahaan —
@@ -27,11 +36,14 @@ export async function POST(request) {
     if (!file || typeof file === 'string') {
       return Response.json({ error: 'File tidak ditemukan' }, { status: 400 });
     }
-    if (!TIPE_OK.includes(file.type)) {
-      return Response.json({ error: 'Gambar harus JPG atau PNG' }, { status: 400 });
+    const isPanduan = KOLOM_PANDUAN.includes(kolom);
+    const tipeOk = isPanduan ? TIPE_OK_PANDUAN : TIPE_OK;
+    const maks = isPanduan ? MAKS_PANDUAN : MAKS;
+    if (!tipeOk.includes(file.type)) {
+      return Response.json({ error: isPanduan ? 'File harus JPG, PNG, atau PDF' : 'Gambar harus JPG atau PNG' }, { status: 400 });
     }
-    if (file.size > MAKS) {
-      return Response.json({ error: 'Ukuran gambar maksimal 3MB' }, { status: 400 });
+    if (file.size > maks) {
+      return Response.json({ error: `Ukuran file maksimal ${maks / (1024 * 1024)}MB` }, { status: 400 });
     }
 
     const dir = path.join(process.cwd(), 'public', 'uploads', 'pengaturan');

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
+import { usePengaturan } from '@/lib/usePengaturan';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
 
@@ -27,6 +28,7 @@ export default function DaftarSahabatPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
   const mounted = useMounted();
+  const [pengaturan] = usePengaturan();
   const [sahabatList, setSahabatList] = useState([]);
   const [programEksklusif, setProgramEksklusif] = useState([]);
   const [form, setForm] = useState(() => ({
@@ -364,6 +366,21 @@ export default function DaftarSahabatPage() {
                   <a href="https://play.google.com/store/apps/details?id=co.id.bankbsi.superapp" target="_blank" rel="noopener noreferrer"
                     className="flex-1 text-center bg-white hover:bg-gray-50 text-[#1A4FA0] font-bold py-2 rounded-lg border border-[#1A4FA0]">🤖 Android</a>
                 </div>
+                {/* Panduan step-by-step admin (opsional, dikonfirmasi user
+                    2026-09-20) — 2 file terpisah, cuma muncul kalau admin
+                    udah upload lewat /admin/pengaturan/dokumen. */}
+                {(pengaturan?.panduan_buka_rekening_bsi_path || pengaturan?.panduan_buka_tabungan_umroh_path) && (
+                  <div className="flex gap-2 pt-1">
+                    {pengaturan?.panduan_buka_rekening_bsi_path && (
+                      <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 text-center text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Rekening BSI</a>
+                    )}
+                    {pengaturan?.panduan_buka_tabungan_umroh_path && (
+                      <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
+                        className="flex-1 text-center text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Tabungan Umroh</a>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

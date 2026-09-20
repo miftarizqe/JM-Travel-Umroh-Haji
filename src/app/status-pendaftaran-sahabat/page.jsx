@@ -197,13 +197,27 @@ export default function StatusPendaftaranSahabatPage() {
           {prasyarat.rekening_umroh_terisi ? (
             <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}</div>
           ) : (
-            <div className="flex gap-2">
-              <input value={rekUmrohInput} onChange={e => setRekUmrohInput(e.target.value)} placeholder="Nomor rekening tabungan umroh"
-                className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
-              <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh)} disabled={savingRekUmroh}
-                className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
-                {savingRekUmroh ? '...' : 'Simpan'}
-              </button>
+            <div className="space-y-2">
+              {(pengaturan?.panduan_buka_rekening_bsi_path || pengaturan?.panduan_buka_tabungan_umroh_path) && (
+                <div className="flex gap-2">
+                  {pengaturan?.panduan_buka_rekening_bsi_path && (
+                    <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Rekening BSI</a>
+                  )}
+                  {pengaturan?.panduan_buka_tabungan_umroh_path && (
+                    <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Tabungan Umroh</a>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input value={rekUmrohInput} onChange={e => setRekUmrohInput(e.target.value)} placeholder="Nomor rekening tabungan umroh"
+                  className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+                <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh)} disabled={savingRekUmroh}
+                  className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+                  {savingRekUmroh ? '...' : 'Simpan'}
+                </button>
+              </div>
             </div>
           )}
         </Item>
