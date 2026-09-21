@@ -48,7 +48,7 @@ export async function POST(request) {
       // pemakaian_saldo_sahabat biar pemakaian booking sebelumnya udah kepotong.
       const [saldoRows] = await conn.query(
         `SELECT nominal FROM komisi_ledger WHERE penerima_id = ? AND dikonfirmasi_at IS NOT NULL
-         AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat')`,
+         AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','koreksi_saldo_sahabat')`,
         [auth.user.id]
       );
       const saldoTersedia = Math.max(0, saldoRows.reduce((s, r) => s + Number(r.nominal || 0), 0));

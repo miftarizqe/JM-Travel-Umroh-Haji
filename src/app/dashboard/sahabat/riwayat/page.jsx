@@ -26,6 +26,7 @@ const KATEGORI_LABEL = {
   pemakaian_saldo_sahabat: { label: 'Pemakaian Saldo', warna: 'bg-red-50 text-red-700' },
   setoran_mandiri_sahabat: { label: 'Setoran Mandiri', warna: 'bg-emerald-50 text-emerald-700' },
   referral_closing_reguler_sahabat: { label: 'Referral Closing Reguler', warna: 'bg-indigo-50 text-indigo-700' },
+  koreksi_saldo_sahabat: { label: 'Koreksi Saldo (Admin)', warna: 'bg-red-50 text-red-700' },
 };
 
 // Halaman "Riwayat Tabungan Umroh" bergaya rekening koran — dituju dari klik

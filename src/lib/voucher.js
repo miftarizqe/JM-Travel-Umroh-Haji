@@ -67,6 +67,18 @@ export async function cariVoucherValid(conn, kode, progId, userInfo, totalJamaah
   if (v.akses_role === 'akun' && v.for_user !== userInfo.id) {
     throw errStatus('Voucher ini khusus untuk akun lain.', 400);
   }
+  // Voucher welcome Rp1jt pendaftaran Sahabat Baitullah ('SAHABAT-<id>') gak
+  // berlaku buat akun Head of Program — jalur HOP disamakan manajemen, dia
+  // checkout kayak biasa pakai voucher yang berlaku buat dia (kalau ada),
+  // BUKAN potongan pendaftaran jamaah Sahabat Baitullah sendiri (dikonfirmasi
+  // user 2026-09-21). Dicek di titik redemption (bukan cuma saat terbit) biar
+  // tetap kena walau akun itu jadi HOP belakangan, sesudah vouchernya lahir.
+  if (v.akses_role === 'akun' && kodeUp.startsWith('SAHABAT-')) {
+    const [[pengHop]] = await conn.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
+    if (pengHop?.head_of_program_user_id && String(pengHop.head_of_program_user_id) === String(userInfo.id)) {
+      throw errStatus('Voucher pendaftaran Sahabat Baitullah tidak berlaku untuk akun Head of Program.', 400);
+    }
+  }
   if (v.akses_role === 'perwakilan' && userInfo.role !== 'perwakilan') {
     throw errStatus('Voucher ini khusus untuk perwakilan.', 400);
   }

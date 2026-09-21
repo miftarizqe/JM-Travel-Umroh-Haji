@@ -42,6 +42,28 @@ export async function GET(request) {
   }
 }
 
+// Kode akun Head of Program SENGAJA beda format dari jamaah Sahabat
+// Baitullah biasa (SBJM####) — dikonfirmasi user 2026-09-21, akun HOP
+// didedikasikan buat 1 orang & jalurnya disamakan manajemen, bukan jamaah.
+const HOP_KODE_PREFIX = 'HOP';
+
+async function kodeHopBerikutnya(conn) {
+  const [[row]] = await conn.query(
+    `SELECT MAX(CAST(SUBSTRING(kode_unik, ?) AS UNSIGNED)) AS maxNomor
+     FROM users WHERE kode_unik REGEXP ?`,
+    [HOP_KODE_PREFIX.length + 1, `^${HOP_KODE_PREFIX}[0-9]+$`]
+  );
+  return HOP_KODE_PREFIX + String((row.maxNomor || 0) + 1).padStart(4, '0');
+}
+
+async function kodeSahabatBerikutnya(conn) {
+  const [[row]] = await conn.query(
+    `SELECT MAX(CAST(SUBSTRING(kode_unik, 5) AS UNSIGNED)) AS maxNomor
+     FROM users WHERE role = 'sahabat_baitullah' AND kode_unik REGEXP '^SBJM[0-9]+$'`
+  );
+  return 'SBJM' + String((row.maxNomor || 0) + 1).padStart(4, '0');
+}
+
 // PUT /api/admin/pengaturan — update baris tunggal (id=1). Partial update:
 // cuma kolom yang beneran ada di body yang di-SET, biar halaman Pengaturan
 // Umum & Pengaturan Dokumen bisa save independen tanpa saling nge-null-kan
@@ -60,6 +82,26 @@ export async function PUT(request) {
     if (adaFieldSensitif && auth.user.role !== 'super_admin') {
       return Response.json({ error: 'Ubah nominal komisi Sahabat Baitullah cuma bisa dilakukan super_admin.' }, { status: 403 });
     }
+
+    // Ganti akun Head of Program — kode_unik-nya ikut berpindah format:
+    // akun lama (kalau ada) balik jadi kode SBJM biasa, akun baru dijatah
+    // kode HOP#### yang gak akan pernah kepakai jamaah biasa.
+    if (kolomDikirim.includes('head_of_program_user_id')) {
+      const [[current]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
+      const oldHopId = current?.head_of_program_user_id || null;
+      const newHopId = body.head_of_program_user_id || null;
+      if (String(oldHopId || '') !== String(newHopId || '')) {
+        if (oldHopId) {
+          const kodeBaru = await kodeSahabatBerikutnya(pool);
+          await pool.query('UPDATE users SET kode_unik = ? WHERE id = ? AND role = ?', [kodeBaru, oldHopId, 'sahabat_baitullah']);
+        }
+        if (newHopId) {
+          const kodeHop = await kodeHopBerikutnya(pool);
+          await pool.query('UPDATE users SET kode_unik = ? WHERE id = ?', [kodeHop, newHopId]);
+        }
+      }
+    }
+
     const setClause = [...kolomDikirim, ...kolomAngkaDikirim].map(k => `${k} = ?`).join(', ');
     // `Number(v) || null` SALAH buat kolom NOT NULL kalau nilainya legitimate
     // 0 (mis. matiin persentase closing langsung) — 0 falsy di JS jadi ketimpa

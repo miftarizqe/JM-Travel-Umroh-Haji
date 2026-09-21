@@ -28,6 +28,43 @@ const PENDAFTARAN_STATUS_WARNA = {
   menunggu_sk_cif: 'bg-purple-100 text-purple-700', active: 'bg-green-100 text-green-700', ditolak: 'bg-red-100 text-red-700',
 };
 
+const TEKS_KONFIRMASI_KOREKSI = 'KURANGI SALDO';
+
+// Modal konfirmasi ketik-ulang buat Koreksi Saldo (dikonfirmasi user
+// 2026-09-21) — "angka fatal" karena ngurangin duit member, sama level
+// proteksi kayak ubah nominal komisi di Pengaturan Komisi. Ditulis inline di
+// sini (bukan komponen shared) karena cuma dipakai 1 halaman ini.
+function ModalKoreksiSaldo({ nama, saldoSaatIni, nominal, keterangan, onBatal, onKonfirmasi, saving }) {
+  const [teks, setTeks] = useState('');
+  const cocok = teks.trim() === TEKS_KONFIRMASI_KOREKSI;
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onBatal}>
+      <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+        <div className="font-bold text-lg text-red-600 mb-1">⚠️ Konfirmasi Koreksi Saldo</div>
+        <div className="text-sm text-gray-500 mb-4">Tindakan ini MENGURANGI saldo tabungan umroh {nama} secara permanen. Riwayat tetap tercatat (append-only), tapi saldo yang tampil ke member langsung berubah.</div>
+        <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 mb-4 space-y-1">
+          <div>Saldo saat ini: <b>{fmtRp(saldoSaatIni)}</b></div>
+          <div>Dikurangi: <b className="text-red-600">−{fmtRp(nominal)}</b></div>
+          <div>Saldo setelah: <b>{fmtRp(Math.max(0, saldoSaatIni - nominal))}</b></div>
+          <div className="pt-1 border-t border-gray-200 mt-1">Alasan: <b>{keterangan}</b></div>
+        </div>
+        <div className="text-xs text-gray-500 mb-1.5">
+          Ketik <b className="text-red-600">{TEKS_KONFIRMASI_KOREKSI}</b> buat lanjut:
+        </div>
+        <input value={teks} onChange={e => setTeks(e.target.value)} autoFocus
+          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-red-400 focus:outline-none text-sm mb-4" />
+        <div className="flex gap-2">
+          <button onClick={onBatal} className="flex-1 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl">Batal</button>
+          <button onClick={onKonfirmasi} disabled={!cocok || saving}
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl">
+            {saving ? 'Menyimpan...' : 'Konfirmasi & Kurangi'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Status AKUN (u.status) — dipakai buat tab filter utama & badge di baris
 // list, mirror PERSIS Database Perwakilan (Aktif/Pending/Ditolak/Nonaktif).
 const STATUS_LABEL = { active: 'Aktif', pending: 'Pending', rejected: 'Ditolak', nonaktif: 'Nonaktif' };
@@ -45,7 +82,7 @@ const JENIS_SALDO_LABEL = {
   komisi_sahabat: 'Komisi Rekrutan (5 Generasi)', closing_langsung_sahabat: 'Closing Langsung',
   referral_closing_reguler_sahabat: 'Referral Closing Reguler', tabungan_awal_sahabat: 'Tabungan Awal',
   head_of_program_registrasi: 'Head of Program (Registrasi)', pemakaian_saldo_sahabat: 'Pemakaian Saldo',
-  setoran_mandiri_sahabat: 'Setoran Mandiri',
+  setoran_mandiri_sahabat: 'Setoran Mandiri', koreksi_saldo_sahabat: 'Koreksi Saldo (Admin)',
 };
 const BULAN_LABEL = ['', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const TAHUN_SEKARANG = new Date().getFullYear();
@@ -100,6 +137,9 @@ export default function DatabaseJamaahPage() {
   const [downloadingRekap, setDownloadingRekap] = useState(false);
   const [setoranForm, setSetoranForm] = useState({}); // { [user_id]: { nominal, keterangan } }
   const [savingSetoran, setSavingSetoran] = useState(null); // user_id lagi disubmit
+  const [koreksiForm, setKoreksiForm] = useState({}); // { [user_id]: { nominal, keterangan } }
+  const [koreksiModalFor, setKoreksiModalFor] = useState(null); // user_id yang lagi nunjukin modal konfirmasi
+  const [savingKoreksi, setSavingKoreksi] = useState(null); // user_id lagi disubmit
   const isSuperAdmin = user?.role === 'super_admin';
   // Tab "Hirarki Pohon" — digabung ke sini 2026-08-30 (sebelumnya halaman
   // /admin/sahabat/hirarki berdiri sendiri), REUSE API /api/admin/sahabat/
@@ -247,6 +287,37 @@ export default function DatabaseJamaahPage() {
       muat();
     } catch { alert('Terjadi kesalahan'); }
     setSavingSetoran(null);
+  }
+
+  // Koreksi Saldo (kurangi manual) — super_admin only, "angka fatal" sama
+  // level Pengaturan Komisi (dikonfirmasi user 2026-09-21). Validasi
+  // client-side di sini cuma buat UX cepat, guard beneran TETAP di server
+  // (nominal gak boleh melebihi saldo, keterangan wajib).
+  function bukaKoreksiModal(userId) {
+    const f = koreksiForm[userId] || {};
+    const nominal = Number(f.nominal);
+    if (!nominal || nominal <= 0) { alert('Nominal harus lebih dari 0'); return; }
+    if (!f.keterangan || !f.keterangan.trim()) { alert('Alasan koreksi wajib diisi'); return; }
+    setKoreksiModalFor(userId);
+  }
+
+  async function konfirmasiKoreksi(userId) {
+    const f = koreksiForm[userId] || {};
+    const nominal = Number(f.nominal);
+    setSavingKoreksi(userId);
+    try {
+      const res = await fetch('/api/admin/sahabat/koreksi-saldo', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, nominal, keterangan: f.keterangan }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSavingKoreksi(null); return; }
+      setKoreksiForm(prev => ({ ...prev, [userId]: { nominal: '', keterangan: '' } }));
+      setKoreksiModalFor(null);
+      muatKomisi(userId);
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setSavingKoreksi(null);
   }
 
   async function aksi(body) {
@@ -775,6 +846,40 @@ export default function DatabaseJamaahPage() {
                               {savingSetoran === j.user_id ? '...' : 'Catat'}
                             </button>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Koreksi Saldo (kurangi manual) — super_admin only,
+                          "angka fatal" (dikonfirmasi user 2026-09-21). Beda
+                          dari Setoran Mandiri: keterangan WAJIB, dan wajib
+                          lewat modal konfirmasi ketik-ulang sebelum tersimpan
+                          (lihat bukaKoreksiModal/konfirmasiKoreksi di atas). */}
+                      {isSuperAdmin && (
+                        <div className="mt-2 pt-2 border-t border-gray-100">
+                          <div className="text-[10px] text-red-500 mb-1">➖ Koreksi saldo (kurangi manual) — alasan wajib diisi</div>
+                          <div className="flex gap-1.5">
+                            <input type="number" placeholder="Nominal" value={koreksiForm[j.user_id]?.nominal || ''}
+                              onChange={e => setKoreksiForm(prev => ({ ...prev, [j.user_id]: { ...prev[j.user_id], nominal: e.target.value } }))}
+                              className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-[10px]" />
+                            <input type="text" placeholder="Alasan koreksi (wajib)" value={koreksiForm[j.user_id]?.keterangan || ''}
+                              onChange={e => setKoreksiForm(prev => ({ ...prev, [j.user_id]: { ...prev[j.user_id], keterangan: e.target.value } }))}
+                              className="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-[10px]" />
+                            <button disabled={savingKoreksi === j.user_id} onClick={() => bukaKoreksiModal(j.user_id)}
+                              className="text-[10px] font-bold text-white bg-red-600 px-2.5 py-1 rounded-lg shrink-0 disabled:opacity-50">
+                              Kurangi
+                            </button>
+                          </div>
+                          {koreksiModalFor === j.user_id && (
+                            <ModalKoreksiSaldo
+                              nama={j.nama}
+                              saldoSaatIni={j.saldo_tabungan_umroh}
+                              nominal={Number(koreksiForm[j.user_id]?.nominal || 0)}
+                              keterangan={koreksiForm[j.user_id]?.keterangan || ''}
+                              saving={savingKoreksi === j.user_id}
+                              onBatal={() => setKoreksiModalFor(null)}
+                              onKonfirmasi={() => konfirmasiKoreksi(j.user_id)}
+                            />
+                          )}
                         </div>
                       )}
                     </div>

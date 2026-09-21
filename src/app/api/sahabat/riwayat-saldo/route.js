@@ -17,7 +17,7 @@ export async function GET(request) {
     const [rows] = await pool.query(
       `SELECT id, jenis, ref_id, nominal, keterangan, dikonfirmasi_at, bukti_tf_admin_path, created_at
        FROM komisi_ledger
-       WHERE penerima_id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat')
+       WHERE penerima_id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')
        ORDER BY created_at ASC`,
       [sahabatId]
     );

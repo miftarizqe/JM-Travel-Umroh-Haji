@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
 
-const JENIS_SALDO = ['komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat', 'tabungan_awal_sahabat', 'head_of_program_registrasi', 'pemakaian_saldo_sahabat', 'setoran_mandiri_sahabat'];
+const JENIS_SALDO = ['komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat', 'tabungan_awal_sahabat', 'head_of_program_registrasi', 'pemakaian_saldo_sahabat', 'setoran_mandiri_sahabat', 'koreksi_saldo_sahabat'];
 
 // GET /api/admin/sahabat/komisi?user_id=xxx — riwayat earning sahabat
 // (komisi rekrutan flat + closing langsung) buat 1 anggota, admin biasa

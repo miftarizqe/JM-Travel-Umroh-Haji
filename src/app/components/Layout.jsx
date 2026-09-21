@@ -540,6 +540,9 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat' },
       { icon: '🕌', label: 'Program', path: '/programs' },
       { icon: '➕', label: 'Order (Closing Langsung)', path: '/order-jamaah' },
+      { icon: '🌳', label: 'Team', path: '/dashboard/sahabat/team' },
+      { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/sahabat/riwayat-closing' },
+      { icon: '🧾', label: 'Riwayat Pencairan', path: '/dashboard/sahabat/riwayat' },
       { icon: '🎞️', label: 'Materi Presentasi', path: '/dashboard/sahabat/materi' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },
@@ -547,10 +550,25 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   };
 
   // super_admin superset dari admin — pakai sidebar yang sama (grup2 di atas
-  // udah nambahin item super_admin-only sendiri).
-  const navRole = user?.role === 'super_admin' ? 'admin' : user?.role;
+  // udah nambahin item super_admin-only sendiri). role DB-nya 'sahabat_baitullah'
+  // tapi key di navItems di bawah 'sahabat' (lebih pendek) — WAJIB dipetakan di
+  // sini, kalau enggak navItems[navRole] selalu undefined buat akun ini (bug
+  // ditemukan & diperbaiki 2026-09-21 — akibatnya sidebar sahabat kosong total,
+  // jatuh ke fallback dashboardItem admin yang nunjuk ke /admin?tab=dashboard).
+  const navRole = user?.role === 'super_admin' ? 'admin' : user?.role === 'sahabat_baitullah' ? 'sahabat' : user?.role;
   const isAdminNav = navRole === 'admin';
   const items = (user && navItems[navRole]) ? navItems[navRole] : [];
+
+  // Sidebar sekarang juga dipakai jamaah/perwakilan/sahabat_baitullah (dulu
+  // navbar pill horizontal + tab bawah mobile) — dikonfirmasi user
+  // 2026-09-21, biar konsisten sama admin & gak kepepet nabrak logo kalau
+  // item nav nambah (kayak "Team" yang baru ditambahin ke sahabat). Item
+  // pertama ("Beranda") jadi dashboardItem yang dipin di atas divider, sisanya
+  // dibungkus jadi "grup 1-anak" biar SidebarNav render flat (bukan accordion)
+  // — reuse persis komponen yang sama, gak bikin komponen sidebar baru.
+  const useSidebar = isAdminNav || ['jamaah', 'perwakilan', 'sahabat'].includes(navRole);
+  const sidebarDashboardItem = isAdminNav ? dashboardItem : (items[0] || dashboardItem);
+  const sidebarGroups = isAdminNav ? adminGroups : items.slice(1).map(it => ({ icon: it.icon, label: it.label, children: it.children || [it] }));
 
   const logo = (
     <div className="flex items-center gap-2 cursor-pointer" onClick={() => guardedNavigate(() => router.push('/'))}>
@@ -585,7 +603,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   // grup udah kepepet nabrak logo). Sidebar tetap ("Program & Pricing",
   // "Finance", dst) di kiri layar desktop, jadi drawer slide-in di mobile
   // (tombol ☰ di top bar).
-  if (isAdminNav) {
+  if (useSidebar) {
     return (
       <div className="min-h-screen bg-[#eef1f8]">
         <aside className={`no-print fixed top-0 left-0 h-screen w-64 bg-[#0E2F6E] text-white z-50 flex flex-col shadow-xl transform transition-transform duration-200 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} ${sidebarCollapsed ? 'md:-translate-x-full' : 'md:translate-x-0'}`}>
@@ -596,7 +614,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
               className="hidden md:flex ml-auto w-7 h-7 items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 text-sm leading-none">«</button>
           </div>
           <Suspense fallback={<div className="flex-1" />}>
-            <SidebarNav dashboardItem={dashboardItem} groups={adminGroups} pathname={pathname} guardedNavigate={guardedNavigate} onNavigate={() => setSidebarOpen(false)} />
+            <SidebarNav dashboardItem={sidebarDashboardItem} groups={sidebarGroups} pathname={pathname} guardedNavigate={guardedNavigate} onNavigate={() => setSidebarOpen(false)} />
           </Suspense>
           {user && (
             <div className="border-t border-white/10 p-3 shrink-0 space-y-2">

@@ -6,7 +6,7 @@ import { persenKesiapan } from '@/lib/kesiapanTabungan';
 // Jenis komisi yang masuk hitungan "saldo tabungan umroh" — 1 sumber
 // dipakai di 2 tempat query di bawah (saldo per-baris & ringkasan), jangan
 // sampai kedua tempat itu diam-diam beda daftar jenis.
-const JENIS_SALDO = "'komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat'";
+const JENIS_SALDO = "'komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat'";
 
 const SORT_KOLOM = {
   kode: 'u.kode_unik',

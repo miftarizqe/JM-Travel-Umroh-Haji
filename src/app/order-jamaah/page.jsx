@@ -171,7 +171,17 @@ function OrderJamaahPageInner() {
         {/* STEP 1 */}
         {step === 1 && programs.length === 0 && (
           <div className="text-center text-gray-400 py-16">
-            Belum ada program aktif yang bisa di-order. Buka <b>Kelola Program</b> buat bikin/aktifin program dulu.
+            {(user.role === 'admin' || user.role === 'super_admin') ? (
+              <>Belum ada program aktif yang bisa di-order. Buka <b>Kelola Program</b> buat bikin/aktifin program dulu.</>
+            ) : (
+              // Perwakilan/sahabat gak bisa buka Kelola Program (admin-only)
+              // — teks lama nyuruh mereka buka halaman yang gak bisa mereka
+              // akses (dikonfirmasi user 2026-09-21). Program yang kelihatan
+              // di sini juga udah difilter per-role (publik + yang di-dedicate
+              // buat role/akun ini, lihat /api/programs), jadi kalau kosong
+              // beneran gak ada yang bisa dia order, bukan soal akses.
+              <>Belum ada program yang bisa di-order saat ini. Hubungi admin JM Travel untuk info program terbaru.</>
+            )}
           </div>
         )}
         {step === 1 && programs.length > 0 && (

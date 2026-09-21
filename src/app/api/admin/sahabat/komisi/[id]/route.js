@@ -29,7 +29,7 @@ export async function PATCH(request, { params }) {
 
     const [rows] = await pool.query(
       `SELECT id, jenis, nominal, booking_id, dikonfirmasi_at, pengajuan_ujroh_id FROM komisi_ledger
-       WHERE id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat')`,
+       WHERE id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
       [id]
     );
     if (rows.length === 0) {
@@ -52,11 +52,12 @@ export async function PATCH(request, { params }) {
     // pemakaian_saldo_sahabat itu penyesuaian internal (saldo dipakai buat
     // booking sendiri), bukan transfer masuk — gak ada bukti TF eksternal
     // yang perlu diunggah, beda dari jenis lain di endpoint ini.
-    // setoran_mandiri_sahabat juga dikecualikan — itu lahir langsung
-    // dikonfirmasi_at terisi dari POST .../setoran-mandiri (gak ada tahap
-    // pending di sini sama sekali), baris ini cuma kepakai kalau super_admin
-    // sempat "Batalkan" lalu confirm ulang.
-    const butuhBukti = confirmed && !sudahConfirmed && !['pemakaian_saldo_sahabat', 'setoran_mandiri_sahabat'].includes(rows[0].jenis);
+    // setoran_mandiri_sahabat & koreksi_saldo_sahabat juga dikecualikan —
+    // dua-duanya lahir langsung dikonfirmasi_at terisi (dari POST
+    // .../setoran-mandiri & .../koreksi-saldo), gak ada tahap pending di
+    // sini sama sekali, baris ini cuma kepakai kalau super_admin sempat
+    // "Batalkan" lalu confirm ulang.
+    const butuhBukti = confirmed && !sudahConfirmed && !['pemakaian_saldo_sahabat', 'setoran_mandiri_sahabat', 'koreksi_saldo_sahabat'].includes(rows[0].jenis);
 
     let buktiPath = null;
     if (butuhBukti) {
