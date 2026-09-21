@@ -22,6 +22,12 @@ export async function GET(request, { params }) {
     const { id, slideId } = await params;
 
     const isAdmin = auth.user.role === 'admin' || auth.user.role === 'super_admin';
+    // Sama kayak /api/sahabat/materi — status di JWT bisa basi, cek ulang
+    // ke DB (dikonfirmasi user 2026-09-19).
+    if (!isAdmin) {
+      const [[me]] = await pool.query('SELECT status FROM users WHERE id = ?', [auth.user.id]);
+      if (me?.status !== 'active') return Response.json({ error: 'Akun belum aktif' }, { status: 403 });
+    }
     const [[materi]] = await pool.query('SELECT id, aktif FROM materi_sahabat WHERE id = ?', [id]);
     if (!materi) return Response.json({ error: 'Materi tidak ditemukan' }, { status: 404 });
     if (!isAdmin && !materi.aktif) return Response.json({ error: 'Materi ini belum dipublish' }, { status: 403 });

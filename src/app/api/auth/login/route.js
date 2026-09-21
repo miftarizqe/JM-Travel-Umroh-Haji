@@ -55,6 +55,7 @@ export async function POST(request) {
       email: user.email,
       wa: user.wa,
       nik: user.nik,
+      agama: user.agama || null,
       role: user.role,
       role_kedua: user.role_kedua || null,
       kode_unik: user.kode_unik,

@@ -16,20 +16,47 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const {
-      nama, nik, tempat_lahir, tl, jk, ibu, foto_ktp_path,
+      nama, tempat_lahir, tl, jk, ibu, foto_ktp_path,
       jalan, norumah, rt, rw, kp, kel, kec, kota, provinsi, negara,
       sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
-      wa, email, pkj,
+      pkj,
+      no_paspor, tempat_keluar_paspor, masa_berlaku_paspor_dari, masa_berlaku_paspor_sampai, foto_paspor_path,
       bank, norek, pemilik,
       perekrut_id,
-      target_minat, target_estimasi_harga,
+      target_minat, target_estimasi_harga, target_program_id,
     } = body;
+
+    // NIK/WA/Email SENGAJA gak diambil dari body sama sekali (dikonfirmasi
+    // user 2026-09-20) — itu data verifikasi awal yang udah dikunci sejak
+    // registrasi/koreksi admin, form wizard ini cuma nampilin read-only,
+    // gak boleh nyelundup ganti lewat body request langsung juga. Sumber
+    // kebenarannya SELALU dari users, bukan input jamaah lagi.
+    const [[userSaatIni0]] = await db.query('SELECT nik, wa, email, perekrut_id FROM users WHERE id = ?', [user_id]);
+    const nik = userSaatIni0?.nik;
+    const wa = userSaatIni0?.wa;
+    const email = userSaatIni0?.email;
 
     if (!nama || !nik || !wa) {
       return NextResponse.json({ error: 'Data wajib belum lengkap' }, { status: 400 });
     }
     if (!/^\d{16}$/.test(String(nik).trim())) {
       return NextResponse.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
+    }
+    // Target wajib diisi (dikonfirmasi user 2026-09-19), dan sejak
+    // 2026-09-20 wajib pilih Program Eksklusif Sahabat Baitullah yang
+    // beneran ada (publish_type='sahabat_baitullah'), bukan teks bebas lagi
+    // — target_minat/target_estimasi_harga sekarang diturunkan dari program
+    // itu di frontend, target_program_id di sini cuma divalidasi ada &
+    // valid publish_type-nya biar gak dipalsuin lewat body request langsung.
+    if (!target_program_id || !String(target_minat || '').trim() || !target_estimasi_harga) {
+      return NextResponse.json({ error: 'Target impian (Program Eksklusif) wajib dipilih' }, { status: 400 });
+    }
+    const [[programTarget]] = await db.query(
+      "SELECT id FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1",
+      [target_program_id]
+    );
+    if (!programTarget) {
+      return NextResponse.json({ error: 'Program target tidak valid' }, { status: 400 });
     }
 
     const alamatOk = (j, nr, r, rw_, kl, kc, kt, p, n) =>
@@ -51,12 +78,11 @@ export async function POST(req) {
     // disubmit SEKALI (lihat guard `existing` di atas), jadi kalau body
     // kosong ke-terima mentah2 di sini, relasi referral bisa ke-NULL-in
     // permanen padahal user daftar pake link referral yang valid.
-    const [[userSaatIni]] = await db.query('SELECT perekrut_id FROM users WHERE id = ?', [user_id]);
-    const perekrutIdFinal = perekrut_id || userSaatIni?.perekrut_id || null;
+    const perekrutIdFinal = perekrut_id || userSaatIni0?.perekrut_id || null;
 
     if (perekrutIdFinal) {
       const [p] = await db.query(
-        "SELECT id FROM users WHERE id = ? AND (role = 'sahabat_baitullah' OR role_kedua = 'sahabat_baitullah') AND status = 'active'",
+        "SELECT id FROM users WHERE id = ? AND (role IN ('sahabat_baitullah','admin','super_admin') OR role_kedua = 'sahabat_baitullah') AND status = 'active'",
         [perekrutIdFinal]
       );
       if (p.length === 0) {
@@ -76,28 +102,35 @@ export async function POST(req) {
       `INSERT INTO sahabat_pendaftaran
         (user_id, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu,
          alamat, alamat_ktp, alamat_domisili, kode_pos, wa, email, pekerjaan,
+         no_paspor, tempat_keluar_paspor, masa_berlaku_paspor_dari, masa_berlaku_paspor_sampai, foto_paspor_path,
          bank, no_rekening, nama_pemilik_rekening, foto_ktp_path, perekrut_id,
-         target_minat, target_estimasi_harga, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+         target_minat, target_estimasi_harga, program_id, status, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
       [
         user_id, nama, String(nik).trim(), tempat_lahir || null, tl || null, jk || null, ibu || null,
         alamatKtp, alamatKtp, alamatDomisili, kp || null, wa, email || null, pkj || null,
+        no_paspor?.trim() || null, tempat_keluar_paspor || null, masa_berlaku_paspor_dari || null, masa_berlaku_paspor_sampai || null, foto_paspor_path || null,
         bank || null, norek || null, pemilik || null, foto_ktp_path || null, perekrutIdFinal,
-        target_minat || null, target_estimasi_harga ? Number(target_estimasi_harga) : null,
+        target_minat || null, target_estimasi_harga ? Number(target_estimasi_harga) : null, target_program_id,
       ]
     );
 
     // Sync ke users — pola sama dgn daftar-perwakilan: siapkanData('spk_ak', ...)
     // & halaman lain baca langsung dari users, bukan sahabat_pendaftaran.
+    // NIK SENGAJA gak diikutkan di sini lagi (2026-09-20) — udah dikunci,
+    // nilainya emang persis sama kayak yang udah ada di users (lihat
+    // userSaatIni0 di atas), gak perlu ditulis ulang.
     await db.query(
-      `UPDATE users SET perekrut_id = ?, nik = ?, tempat_lahir = ?, tanggal_lahir = ?,
+      `UPDATE users SET perekrut_id = ?, tempat_lahir = ?, tanggal_lahir = ?,
               jenis_kelamin = ?, nama_ibu = ?, alamat_ktp = ?, alamat_domisili = ?, kode_pos = ?,
-              pekerjaan = ?, bank = ?, no_rekening = ?, nama_pemilik_rekening = ?
+              pekerjaan = ?, bank = ?, no_rekening = ?, nama_pemilik_rekening = ?,
+              no_paspor = ?, tempat_keluar_paspor = ?, masa_berlaku_paspor_dari = ?, masa_berlaku_paspor_sampai = ?, foto_paspor_path = ?
        WHERE id = ?`,
       [
-        perekrutIdFinal, String(nik).trim(), tempat_lahir || null, tl || null,
+        perekrutIdFinal, tempat_lahir || null, tl || null,
         jk || null, ibu || null, alamatKtp, alamatDomisili, kp || null,
         pkj || null, bank || null, norek || null, pemilik || null,
+        no_paspor?.trim() || null, tempat_keluar_paspor || null, masa_berlaku_paspor_dari || null, masa_berlaku_paspor_sampai || null, foto_paspor_path || null,
         user_id,
       ]
     );

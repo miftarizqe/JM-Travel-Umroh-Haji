@@ -33,6 +33,10 @@ function RegisterPageInner() {
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     name:'', nik:'', wa:'', email:'', password:'', confirmPassword:'',
+    // Agama (Islam/Non-Islam) — dikonfirmasi user 2026-09-20, berlaku SEMUA
+    // role, dipakai buat nentuin dokumen perjanjian mana yang dipakai kalau
+    // akhirnya daftar Sahabat Baitullah (referral non-Muslim).
+    agama:'',
     role: roleValid ? roleAwal : '',
     perekrut_id:'',
   });
@@ -45,6 +49,15 @@ function RegisterPageInner() {
   const [perwList, setPerwList] = useState([]);
   const [sahabatList, setSahabatList] = useState([]);
   const [refNotFound, setRefNotFound] = useState(false);
+  // Info perekrut yang udah TERKUNCI dari link invite (kode_invite_perwakilan/
+  // kode_invite_sahabat) — disimpan LANGSUNG dari respons verify-invite
+  // (bukan dicocokkan lagi ke perwList/sahabatList), karena pengundangnya
+  // bisa jadi admin/super_admin (fitur link referral admin, 2026-09-19) yang
+  // gak akan pernah muncul di perwList/sahabatList (list itu cuma isi
+  // role='perwakilan'/'sahabat_baitullah'). Kalau ini keisi, box "terkunci"
+  // langsung tampil, gak ada lagi kotak minta isi kode manual.
+  const [perekrutTerkunciPerwakilan, setPerekrutTerkunciPerwakilan] = useState(null);
+  const [perekrutTerkunciSahabat, setPerekrutTerkunciSahabat] = useState(null);
   // Referral permanen buat registrasi role='jamaah' — TERPISAH dari
   // form.perekrut_id (yang khusus rantai perwakilan-rekrut-perwakilan/
   // sahabat-rekrut-sahabat). Independen dari roleAwal/form.role biar gak
@@ -119,7 +132,7 @@ function RegisterPageInner() {
         }
       })
       .catch(() => {});
-    fetch('/api/referral-list?role=sahabat')
+    fetch('/api/referral-list?role=sahabat_baitullah')
       .then(r => r.json())
       .then(d => {
         const list = d.perwakilan || [];
@@ -168,8 +181,10 @@ function RegisterPageInner() {
     })
       .then(r => r.json())
       .then(d => {
-        if (d.valid) setForm(f => ({ ...f, perekrut_id: d.id }));
-        else setRefNotFound(true);
+        if (d.valid) {
+          setForm(f => ({ ...f, perekrut_id: d.id }));
+          setPerekrutTerkunciPerwakilan({ id: d.id, name: d.name, kode_unik: d.kode_unik });
+        } else setRefNotFound(true);
       })
       .catch(() => {});
   }, [refCode, roleAwal]);
@@ -192,6 +207,7 @@ function RegisterPageInner() {
           setKodeInviteSahabatDariLink(true);
           setTampilkanPilihan(false);
           setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: d.id }));
+          setPerekrutTerkunciSahabat({ id: d.id, name: d.name, kode_unik: d.kode_unik });
         }
       })
       .catch(() => {});
@@ -259,7 +275,7 @@ function RegisterPageInner() {
   function nextStep() {
     setError('');
     if (step === 1) {
-      if (!form.name || !form.nik || !form.wa || !form.email || !form.password || !form.confirmPassword) {
+      if (!form.name || !form.nik || !form.wa || !form.email || !form.agama || !form.password || !form.confirmPassword) {
         setError('Semua field wajib diisi'); return;
       }
       if (form.nik.length !== 16) { setError('NIK harus 16 digit'); return; }
@@ -408,6 +424,18 @@ function RegisterPageInner() {
                 </div>
               ))}
               <div>
+                <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">Agama *</label>
+                <select
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm transition-colors bg-white"
+                  value={form.agama}
+                  onChange={e => setForm({...form, agama: e.target.value})}
+                >
+                  <option value="">— Pilih —</option>
+                  <option value="islam">Islam</option>
+                  <option value="non_islam">Non-Islam</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">Password *</label>
                 <PasswordInput
                   className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm transition-colors"
@@ -502,7 +530,7 @@ function RegisterPageInner() {
               )}
 
               {form.role === 'perwakilan' && (() => {
-                const terkunci = perwList.find(p => p.id === form.perekrut_id);
+                const terkunci = perekrutTerkunciPerwakilan || perwList.find(p => p.id === form.perekrut_id);
                 return (
                   <div>
                     <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">
@@ -548,7 +576,7 @@ function RegisterPageInner() {
               })()}
 
               {form.role === 'sahabat_baitullah' && (() => {
-                const terkunci = sahabatList.find(k => k.id === form.perekrut_id);
+                const terkunci = perekrutTerkunciSahabat || sahabatList.find(k => k.id === form.perekrut_id);
                 return (
                   <div>
                     <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">

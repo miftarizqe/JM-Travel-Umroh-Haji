@@ -118,6 +118,36 @@ export default function ProgramsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fromLeadId, user]);
 
+  // Entry point dari tombol "Buat Program Eksklusif dari Target Ini" di
+  // Database Jamaah Sahabat Baitullah (?from_sahabat=<user_id>) — mirror
+  // fromLeadId di atas, bedanya sahabat_pendaftaran gak punya snapshot
+  // HPP/margin (target cuma perkiraan bebas), jadi harga TETAP diisi
+  // manual oleh admin, cuma nama/publish_type/whitelist yang diprefill
+  // (dikonfirmasi user 2026-09-19). Otorisasi checkout tetap lewat
+  // program_private_akun di server begitu program ini disimpan.
+  const [fromSahabatId, setFromSahabatId] = useState(null);
+  useEffect(() => {
+    const qp = new URLSearchParams(window.location.search).get('from_sahabat');
+    if (qp) setFromSahabatId(qp);
+  }, []);
+  useEffect(() => {
+    if (!fromSahabatId || !user) return;
+    fetch(`/api/admin/sahabat/database?user_id=${fromSahabatId}`).then(r => r.json()).then(d => {
+      const jamaah = (d.jamaah || [])[0];
+      if (!jamaah) { alert('Data jamaah tidak ditemukan.'); return; }
+      const base = emptyProgram();
+      base.name = jamaah.target_minat || `Program Eksklusif — ${jamaah.nama}`;
+      base.publish_type = 'private';
+      base.private_ids = [fromSahabatId];
+      base.from_sahabat_id = fromSahabatId;
+      setEditing(base);
+      setHargaDataMap({}); perwFetchedRef.current = new Set(); fetchPerwList();
+      resetKalkulator();
+      setTabProgram('detail');
+    }).catch(() => alert('Gagal memuat data jamaah.'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromSahabatId, user]);
+
   // Harga reseller perwakilan — OTOMATIS dimuat buat SEMUA perwakilan yang
   // dicentang di "Perwakilan yang Diotorisasi" (bukan pilih 1 dari dropdown
   // lagi), upline (kalau ada) sudah ketauan begitu data dimuat. Semua keyed
@@ -399,8 +429,13 @@ export default function ProgramsPage() {
   }
 
   function fetchPrivateJamaahList() {
-    fetch('/api/admin/users?role=jamaah&status=active')
-      .then(r => r.json()).then(d => setPrivateJamaahList(d.users || [])).catch(() => {});
+    // Gabung role=jamaah + role=sahabat_baitullah (2026-09-19) — Program
+    // Eksklusif Sahabat Baitullah reuse mekanisme 'private' yang sama,
+    // jadi picker-nya juga perlu nampilin akun sahabat, gak cuma jamaah biasa.
+    Promise.all([
+      fetch('/api/admin/users?role=jamaah&status=active').then(r => r.json()).catch(() => ({ users: [] })),
+      fetch('/api/admin/users?role=sahabat_baitullah&status=active').then(r => r.json()).catch(() => ({ users: [] })),
+    ]).then(([a, b]) => setPrivateJamaahList([...(a.users || []), ...(b.users || [])]));
   }
 
   // Draft dibungkus { editing, formsMap, opsiTambahanBaru } — dulu cuma

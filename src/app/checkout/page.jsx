@@ -108,7 +108,7 @@ function CheckoutPageInner() {
         }
       })
       .catch(() => {});
-    fetch('/api/referral-list?role=sahabat')
+    fetch('/api/referral-list?role=sahabat_baitullah')
       .then(r => r.json())
       .then(d => { setSahabatList(d.perwakilan || []); })
       .catch(() => {});

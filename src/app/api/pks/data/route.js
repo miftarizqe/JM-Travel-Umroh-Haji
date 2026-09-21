@@ -12,7 +12,7 @@ export async function GET(request) {
 
   try {
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.nik, u.wa, u.role, u.bank, u.no_rekening, u.nama_pemilik_rekening,
+      `SELECT u.id, u.name, u.nik, u.wa, u.role, u.agama, u.bank, u.no_rekening, u.nama_pemilik_rekening,
               sp.target_minat, sp.target_estimasi_harga
        FROM users u
        LEFT JOIN sahabat_pendaftaran sp ON sp.user_id = u.id

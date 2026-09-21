@@ -208,8 +208,11 @@ export default function DaftarPerwakilanPage() {
             <div className="font-bold text-[#0E2F6E]">👤 Data Diri</div>
             <div><label className={lbl}>Nama Lengkap *</label>
               <input value={form.nama} onChange={e=>setF('nama',e.target.value)} className={inp}/></div>
+            {/* NIK/WA/Email dikunci begitu sampai sini (dikonfirmasi user
+                2026-09-20) — udah jadi data verifikasi awal pas akun
+                dibuat, gak boleh diubah sendiri lagi. Koreksi cuma lewat admin. */}
             <div><label className={lbl}>NIK (16 digit) *</label>
-              <input value={form.nik} onChange={e=>setF('nik',e.target.value.replace(/\D/g,'').slice(0,16))} inputMode="numeric" className={inp}/></div>
+              <div className={`${inp} bg-gray-50 text-gray-400`}>{form.nik || '-'}</div></div>
             <div><label className={lbl}>Tempat Lahir *</label>
               <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
@@ -223,10 +226,11 @@ export default function DaftarPerwakilanPage() {
               <input value={form.ibu} onChange={e=>setF('ibu',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. WhatsApp *</label>
-                <input value={form.wa} onChange={e=>setF('wa',e.target.value)} className={inp}/></div>
+                <div className={`${inp} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div></div>
               <div><label className={lbl}>Email *</label>
-                <input value={form.email} onChange={e=>setF('email',e.target.value)} className={inp}/></div>
+                <div className={`${inp} bg-gray-50 text-gray-400`}>{form.email || '-'}</div></div>
             </div>
+            <div className="text-[10px] text-gray-400 -mt-1">NIK, No. WhatsApp, dan Email adalah data verifikasi awal — cuma bisa dikoreksi lewat admin.</div>
             <div><label className={lbl}>Pekerjaan</label>
               <input value={form.pkj} onChange={e=>setF('pkj',e.target.value)} className={inp}/></div>
 

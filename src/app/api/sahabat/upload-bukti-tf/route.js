@@ -16,12 +16,15 @@ const MAKS = 10 * 1024 * 1024;
 // Sahabat Baitullah CUMA bisa daftar via referral (bukan publik random),
 // jadi TF gak lagi butuh verifikasi admin sebelum lanjut (dikonfirmasi
 // user 2026-09-02) — begitu file keupload, langsung dianggap terverifikasi
-// & status auto-maju ke 'menunggu_bsi'. Gate kepercayaan dipindah ke 2
-// titik lain: ACC voucher (disetujui_at, lihat
+// & status auto-maju ke 'menunggu_sk_cif' (step 'menunggu_bsi' DIHAPUS
+// 2026-09-19 — gerbang toggle admin akun_bsi_status/tabungan_haji_status
+// sebelum jamaah bisa isi CIF dicabut, langsung lompat ke sini). Gate
+// kepercayaan dipindah ke 2 titik lain: ACC voucher (disetujui_at, lihat
 // project_voucher_sejuta_auto_generate) dan aktivasi akun (advance ke
-// 'active', tetap wajib CIF+SK-CIF+Surat Kuasa lengkap + aksi admin).
-// Admin masih bisa 'reject' pendaftaran kapan saja kalau ternyata bukti
-// TF-nya bermasalah — itu jaring pengamannya sekarang, bukan gate di muka.
+// 'active', tetap wajib CIF+baca-setuju SK-CIF/Surat Kuasa Blokir + aksi
+// admin). Admin masih bisa 'reject' pendaftaran kapan saja kalau ternyata
+// bukti TF-nya bermasalah — itu jaring pengamannya sekarang, bukan gate
+// di muka.
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -63,12 +66,12 @@ export async function POST(request) {
     const publicPath = `/api/dokumen/bukti-tf-koperasi/${nama}`;
     await pool.query(
       `UPDATE sahabat_pendaftaran
-       SET bukti_tf_path = ?, bukti_tf_uploaded_at = NOW(), bukti_tf_verified_at = NOW(), status = 'menunggu_bsi'
+       SET bukti_tf_path = ?, bukti_tf_uploaded_at = NOW(), bukti_tf_verified_at = NOW(), status = 'menunggu_sk_cif'
        WHERE user_id = ?`,
       [publicPath, auth.user.id]
     );
     await pool.query(
-      "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, 'menunggu_bsi', 'Bukti transfer diunggah — auto-lanjut (referral, tanpa gate admin)')",
+      "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, 'menunggu_sk_cif', 'Bukti transfer diunggah — auto-lanjut (referral, tanpa gate admin)')",
       [auth.user.id]
     );
 
@@ -82,7 +85,7 @@ export async function POST(request) {
       keterangan: `Setoran pendaftaran Rp1.000.000 — ${auth.user.name || auth.user.id}`,
     });
 
-    return Response.json({ message: 'Bukti transfer berhasil diunggah, lanjut ke tahap akun BSI!', path: publicPath });
+    return Response.json({ message: 'Bukti transfer berhasil diunggah, lanjut isi CIF BSI & data blokir rekening!', path: publicPath });
   } catch (error) {
     console.error('Upload bukti TF sahabat gagal:', error);
     return Response.json({ error: 'Gagal mengunggah bukti transfer' }, { status: 500 });

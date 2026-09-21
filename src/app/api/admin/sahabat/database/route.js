@@ -52,6 +52,7 @@ export async function GET(request) {
     const perPage = Math.min(Math.max(Number(searchParams.get('per_page')) || 25, 1), 200);
     const page = Math.max(Number(pageParam) || 1, 1);
     const q = (searchParams.get('q') || '').trim();
+    const userId = searchParams.get('user_id') || '';
     const status = searchParams.get('status') || 'semua';
     // Filter tambahan (dikonfirmasi user 2026-09-07) — independen dari
     // status akun, buat kartu ringkasan "≥80% Siap Berangkat" biar bisa
@@ -65,6 +66,7 @@ export async function GET(request) {
 
     const where = [];
     const params = [];
+    if (userId) { where.push('kp.user_id = ?'); params.push(userId); }
     if (status !== 'semua') { where.push('u.status = ?'); params.push(status); }
     if (siapBerangkat) { where.push('kp.target_estimasi_harga > 0 AND COALESCE(sl.saldo_tabungan_umroh, 0) >= kp.target_estimasi_harga * 0.8'); }
     if (q) {
@@ -93,8 +95,8 @@ export async function GET(request) {
     `;
     const selectCols = `
        kp.*, u.kode_unik, u.role, u.role_kedua, u.status AS user_status, u.email AS user_email, u.wa AS user_wa,
-       u.cif_bsi, u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh,
-       u.akun_bsi_status, u.tabungan_haji_status, u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
+       u.cif_bsi, u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
+       u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
        u.dokumen_surat_pemblokiran_fisik_path,
        perekrut.name AS perekrut_nama,
        v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,

@@ -2,7 +2,7 @@ import pool from '@/lib/db';
 
 const KOLOM_PER_TIPE = {
   perwakilan: 'kode_invite_perwakilan',
-  sahabat: 'kode_invite_sahabat',
+  sahabat_baitullah: 'kode_invite_sahabat',
 };
 
 /**
@@ -28,9 +28,13 @@ export async function POST(request) {
     const role = tipe === 'sahabat_baitullah' ? 'sahabat_baitullah' : 'perwakilan';
     const kolom = KOLOM_PER_TIPE[role];
 
+    // admin/super_admin JUGA boleh punya kode invite sendiri (dikonfirmasi
+    // user 2026-09-19) — buat kantor langsung ngerekrut jamaah/perwakilan
+    // baru pakai link, tanpa lewat anggota aktif. Kode-nya sama kolom yang
+    // sama, cuma pemiliknya role admin/super_admin, bukan role/kolom ini.
     const [rows] = await pool.query(
       `SELECT id, name, kode_unik FROM users
-       WHERE role = ? AND status = 'active' AND ${kolom} = ?`,
+       WHERE role IN (?, 'admin', 'super_admin') AND status = 'active' AND ${kolom} = ?`,
       [role, kodeTrim]
     );
     if (rows.length === 0) {

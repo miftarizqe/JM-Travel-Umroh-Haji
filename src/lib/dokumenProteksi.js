@@ -25,7 +25,7 @@ export function absolutePathDariUrl(publicPath) {
 // `<prefix>_<userId>_<timestamp>.<ext>`, prefix & userId dijamin gak
 // mengandung underscore — lihat komentar di tiap route upload terkait):
 const USER_ID_DI_NAMA_FILE = new Set([
-  'ktp', 'foto', 'dokumen-jamaah', 'formulir-fisik', 'dokumen-pks-fisik',
+  'ktp', 'paspor', 'foto', 'dokumen-jamaah', 'formulir-fisik', 'dokumen-pks-fisik',
   'dokumen-koperasi-fisik', 'bukti-tf-koperasi',
 ]);
 
@@ -92,7 +92,7 @@ const ADMIN_ONLY = new Set(['bukti-ttd-ujroh', 'bukti-ttd-ujroh-perwakilan']);
 // salah-cocokin ke prefix lain yang lebih pendek). `refId` dijamin gak
 // pernah mengandung underscore (booking id pola "JMT-XXXXXX", user id UUID,
 // invoice id angka — semua pakai dash atau polos, bukan underscore).
-const DOKUMEN_SIGNATURE_PREFIX = ['spka_ins', 'spk_ak', 'formulir', 'jamaah', 'invoice']
+const DOKUMEN_SIGNATURE_PREFIX = ['spka_ins', 'spk_ak', 'spk_ak_nonis', 'formulir', 'jamaah', 'invoice']
   .sort((a, b) => b.length - a.length);
 
 async function resolveDokumenSignature(filename) {
@@ -130,7 +130,7 @@ export async function resolveOwnerId(category, filename, urlPath) {
 }
 
 export const KATEGORI_TERPROTEKSI = new Set([
-  'ktp', 'foto', 'dokumen-jamaah', 'formulir-fisik', 'dokumen-pks-fisik',
+  'ktp', 'paspor', 'foto', 'dokumen-jamaah', 'formulir-fisik', 'dokumen-pks-fisik',
   'dokumen-koperasi-fisik', 'bukti-tf-koperasi',
   'perjanjian-jamaah-scan', 'invoice-kwitansi-scan', 'bukti-refund',
   'bukti', 'bukti-tf-komisi', 'bukti-ttd-ujroh', 'bukti-ttd-ujroh-perwakilan',

@@ -59,6 +59,11 @@ export default function AdminPerwakilanPage() {
   const [busy, setBusy] = useState(false);
   const [openCluster, setOpenCluster] = useState(null);
   const [detailUserId, setDetailUserId] = useState(null);
+  // Link referral admin/super_admin sendiri — mirror /admin/sahabat/page.jsx
+  // (dikonfirmasi user 2026-09-19), buat ngerekrut Perwakilan baru langsung
+  // dari panel tanpa lewat link anggota aktif.
+  const [kodeInvite, setKodeInvite] = useState('');
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   function muat() {
     fetch('/api/admin/perwakilan').then(r => r.json()).then(d => {
@@ -71,8 +76,16 @@ export default function AdminPerwakilanPage() {
     if (!user) return;
     if (!['admin', 'super_admin'].includes(user.role)) { router.replace('/login'); return; }
     muat();
+    fetch('/api/admin/kode-invite?tipe=perwakilan').then(r => r.json())
+      .then(d => setKodeInvite(d.kode || '')).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  const linkInvite = (typeof window !== 'undefined' && kodeInvite)
+    ? `${window.location.origin}/register?role=perwakilan&ref=${kodeInvite}` : '';
+  function salinLinkInvite() {
+    navigator.clipboard.writeText(linkInvite).then(() => { setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 2000); });
+  }
 
   async function aksiPendaftaran(pendaftaranId, statusBaru) {
     setBusy(true);
@@ -169,6 +182,17 @@ export default function AdminPerwakilanPage() {
         Reminder per tahap proses pendaftaran kemitraan Perwakilan, sampai aktif. Klik nama buat buka detail &amp; aksi. Profil lengkap (read-only) ada di{' '}
         <a href="/admin/perwakilan/database" className="text-[#1A4FA0] font-semibold hover:underline">Database Perwakilan</a>, pencairan ujroh ada di{' '}
         <a href="/admin/perwakilan/pencairan" className="text-[#1A4FA0] font-semibold hover:underline">Pencairan Komisi</a>.
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">
+        <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🔗 Link Referral — Rekrut Perwakilan</div>
+        <div className="text-xs text-gray-400 mb-2">Bagikan link ini ke calon perwakilan yang mau daftar langsung dari kantor, tanpa lewat link anggota aktif.</div>
+        <div className="flex gap-2">
+          <input readOnly value={linkInvite} placeholder="Memuat..." className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-xs text-gray-500" />
+          <button onClick={salinLinkInvite} disabled={!linkInvite} className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+            {copiedInvite ? '✓' : 'Salin'}
+          </button>
+        </div>
       </div>
 
       {loading ? (

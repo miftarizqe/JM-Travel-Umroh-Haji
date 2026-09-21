@@ -231,6 +231,7 @@ export default function Home() {
 
   function getDashPath(role: string) {
     if (role === 'admin' || role === 'super_admin') return '/admin';
+    if (role === 'sahabat_baitullah') return '/dashboard/sahabat';
     return `/dashboard/${role}`;
   }
 

@@ -13,15 +13,18 @@ import { catatRekening } from '@/lib/rekeningLedger';
 //
 // Step 'pending' TIDAK LAGI butuh admin verify_tf (2026-09-02) — Sahabat
 // Baitullah cuma bisa daftar via referral, jadi TF auto-verified &
-// auto-maju ke 'menunggu_bsi' begitu diunggah (lihat
-// /api/sahabat/upload-bukti-tf). Gate kepercayaan sekarang ada di 2
+// auto-maju ke 'menunggu_sk_cif' begitu diunggah (lihat
+// /api/sahabat/upload-bukti-tf). Step 'menunggu_bsi' DIHAPUS (2026-09-19)
+// — gerbang toggle admin akun_bsi_status/tabungan_haji_status sebelum
+// jamaah bisa isi CIF dicabut, jamaah langsung isi CIF + data blokir
+// begitu bukti TF terverifikasi. Gate kepercayaan sekarang ada di 2
 // titik: ACC voucher (vouchers.disetujui_at) dan advance ke 'active'
-// (masih wajib CIF+SK-CIF+Surat Kuasa + aksi admin eksplisit).
+// (masih wajib CIF + baca-setuju SK-CIF/Surat Kuasa Blokir + aksi admin
+// eksplisit — scan fisik BUKAN lagi syarat ACC, boleh nyusul).
 export const STEP_PENDAFTARAN_SAHABAT = [
   { key: 'pending', label: 'Upload Bukti Transfer', urut: 1 },
-  { key: 'menunggu_bsi', label: 'Menunggu Akun BSI & Tabungan Haji', urut: 2 },
-  { key: 'menunggu_sk_cif', label: 'Menunggu SK-CIF', urut: 3 },
-  { key: 'active', label: 'Jamaah Sahabat Baitullah Aktif', urut: 4 },
+  { key: 'menunggu_sk_cif', label: 'Menunggu ACC Admin', urut: 2 },
+  { key: 'active', label: 'Jamaah Sahabat Baitullah Aktif', urut: 3 },
 ];
 
 // GET /api/status-pendaftaran-sahabat — status pendaftaran milik user login
@@ -31,9 +34,8 @@ export async function GET(request) {
 
   try {
     const [users] = await pool.query(
-      `SELECT id, name, role, status, terverifikasi, foto_path, setuju_pks,
-              cif_bsi, no_rekening_bsi_biasa, no_rekening_tabungan_umroh,
-              akun_bsi_status, tabungan_haji_status,
+      `SELECT id, name, role, status, terverifikasi, foto_path, setuju_pks, agama,
+              cif_bsi, no_rekening_tabungan_umroh, setuju_sk_cif_pemblokiran_at,
               dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path,
               dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir
        FROM users WHERE id = ?`, [auth.user.id]
@@ -47,11 +49,15 @@ export async function GET(request) {
     );
     const pendaftaran = kp[0] || null;
 
-    const [sigRows] = await pool.query(
-      `SELECT dokumen, fase FROM dokumen_signature WHERE dokumen IN ('spk_ak','sk_cif') AND ref_id = ?`,
-      [auth.user.id]
+    // Dokumen SPK-AK-nya beda buat anggota non-Muslim (spk_ak_nonis,
+    // dikonfirmasi user 2026-09-20) — rangkap='travel' WAJIB di dua-duanya
+    // (rangkap yang beneran ditandatangani JAMAAH, rangkap 'luar' internal
+    // JM Travel auto-selesai begitu sesi dibuat, bukan sinyal jamaah udah TTD).
+    const dokumenSpkAk = u.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
+    const [[sigSpkAk]] = await pool.query(
+      `SELECT id, fase FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
+      [dokumenSpkAk, auth.user.id]
     );
-    const sigSpkAk = sigRows.find(s => s.dokumen === 'spk_ak') || null;
 
     const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_path;
     const skCifSelesai = !!u.dokumen_sk_cif_fisik_path;
@@ -64,11 +70,11 @@ export async function GET(request) {
       bukti_tf_uploaded: !!pendaftaran?.bukti_tf_path,
       bukti_tf_verified: !!pendaftaran?.bukti_tf_verified_at,
       spk_ak_selesai: spkAkSelesai,
-      akun_bsi_status: !!u.akun_bsi_status,
-      tabungan_haji_status: !!u.tabungan_haji_status,
+      rekening_umroh_terisi: !!u.no_rekening_tabungan_umroh,
       cif_bsi_terisi: !!u.cif_bsi,
-      sk_cif_selesai: skCifSelesai,
       blokir_data_terisi: !!(u.nominal_blokir_tabungan && u.jangka_waktu_blokir_hari && u.tanggal_mulai_blokir),
+      setuju_sk_cif_pemblokiran: !!u.setuju_sk_cif_pemblokiran_at,
+      sk_cif_selesai: skCifSelesai,
       surat_pemblokiran_selesai: suratPemblokiranSelesai,
     };
 
@@ -85,8 +91,8 @@ export async function GET(request) {
       user: {
         id: u.id, name: u.name, role: u.role, status: u.status,
         terverifikasi: !!u.terverifikasi, foto_path: u.foto_path, setuju_pks: !!u.setuju_pks,
-        cif_bsi: u.cif_bsi, no_rekening_bsi_biasa: u.no_rekening_bsi_biasa, no_rekening_tabungan_umroh: u.no_rekening_tabungan_umroh,
-        akun_bsi_status: !!u.akun_bsi_status, tabungan_haji_status: !!u.tabungan_haji_status,
+        cif_bsi: u.cif_bsi, no_rekening_tabungan_umroh: u.no_rekening_tabungan_umroh,
+        setuju_sk_cif_pemblokiran_at: u.setuju_sk_cif_pemblokiran_at,
         dokumen_spk_ak_fisik_path: u.dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path: u.dokumen_sk_cif_fisik_path,
         dokumen_surat_pemblokiran_fisik_path: u.dokumen_surat_pemblokiran_fisik_path,
         nominal_blokir_tabungan: u.nominal_blokir_tabungan, jangka_waktu_blokir_hari: u.jangka_waktu_blokir_hari,
@@ -106,7 +112,7 @@ export async function GET(request) {
 }
 
 // PATCH /api/status-pendaftaran-sahabat — aksi admin, body: { action, user_id, ... }
-// action: 'verify_tf' | 'toggle_bsi' | 'advance' | 'reject'
+// action: 'verify_tf' | 'advance' | 'reject'
 export async function PATCH(request) {
   const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
@@ -140,27 +146,14 @@ export async function PATCH(request) {
       if (!p.bukti_tf_path) return Response.json({ error: 'Bukti transfer belum diunggah' }, { status: 400 });
       if (p.status !== 'pending') return Response.json({ error: 'Bukti transfer sudah diverifikasi.' }, { status: 400 });
       await pool.query(
-        "UPDATE sahabat_pendaftaran SET bukti_tf_verified_at = NOW(), status = 'menunggu_bsi' WHERE user_id = ?",
+        "UPDATE sahabat_pendaftaran SET bukti_tf_verified_at = NOW(), status = 'menunggu_sk_cif' WHERE user_id = ?",
         [user_id]
       );
       await pool.query(
-        "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru) VALUES ('sahabat_baitullah', ?, 'menunggu_bsi')",
+        "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru) VALUES ('sahabat_baitullah', ?, 'menunggu_sk_cif')",
         [user_id]
       );
-      return Response.json({ message: 'Bukti transfer diverifikasi, lanjut ke tahap akun BSI.' });
-    }
-
-    if (action === 'toggle_bsi') {
-      const { field, value } = body;
-      if (!['akun_bsi_status', 'tabungan_haji_status'].includes(field)) {
-        return Response.json({ error: 'Field tidak valid' }, { status: 400 });
-      }
-      const kolomWaktu = field === 'akun_bsi_status' ? 'akun_bsi_updated_at' : 'tabungan_haji_updated_at';
-      await pool.query(
-        `UPDATE users SET ${field} = ?, ${kolomWaktu} = NOW() WHERE id = ?`,
-        [value ? 1 : 0, user_id]
-      );
-      return Response.json({ message: 'Status diperbarui.' });
+      return Response.json({ message: 'Bukti transfer diverifikasi, lanjut isi CIF BSI & data blokir rekening.' });
     }
 
     if (action === 'toggle_cif_fisik') {
@@ -189,27 +182,39 @@ export async function PATCH(request) {
       }
 
       // Validasi prasyarat SPESIFIK per transisi target (bukan cuma urutan).
+      // 'menunggu_sk_cif' sendiri sudah gak dicapai lewat action ini lagi
+      // (auto-set langsung di /api/sahabat/upload-bukti-tf begitu bukti TF
+      // terverifikasi) — satu-satunya transisi admin yang tersisa di sini
+      // adalah ke 'active'.
       const [[u]] = await pool.query(
-        `SELECT kode_unik, cif_bsi, akun_bsi_status, tabungan_haji_status, dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path,
-                dokumen_surat_pemblokiran_fisik_path
+        `SELECT kode_unik, cif_bsi, agama, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
          FROM users WHERE id = ?`, [user_id]
       );
-      const [sigRows] = await pool.query(
-        `SELECT fase FROM dokumen_signature WHERE dokumen = 'spk_ak' AND ref_id = ?`, [user_id]
+      // rangkap='travel' WAJIB (bug ditemukan & diperbaiki 2026-09-19) —
+      // tanpa ini query bisa kejebak baris rangkap 'luar' (internal JM
+      // Travel, auto-selesai duluan) dan salah nolak ACC padahal jamaah
+      // udah beneran TTD rangkap miliknya sendiri. Dokumen SPK-AK-nya beda
+      // buat anggota non-Muslim (spk_ak_nonis, dikonfirmasi user 2026-09-20).
+      const dokumenSpkAk = u.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
+      const [[sigSpkAk]] = await pool.query(
+        `SELECT fase FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`, [dokumenSpkAk, user_id]
       );
-      const spkAkSelesai = (sigRows[0]?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_path;
+      const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_path;
 
-      if (status_baru === 'menunggu_sk_cif') {
-        if (!spkAkSelesai) return Response.json({ error: 'SPK-AK belum selesai ditandatangani' }, { status: 400 });
-        // Rekening BSI Biasa dihapus dari syarat (dikonfirmasi user
-        // 2026-09-03) — Sahabat Baitullah cuma punya 1 rekening (Tabungan
-        // Umroh), akun_bsi_status gak dipakai lagi sebagai gate.
-        if (!u.tabungan_haji_status) return Response.json({ error: 'Rekening tabungan umroh belum diisi' }, { status: 400 });
-      }
       if (status_baru === 'active') {
+        // Urutan wajib linear (dikonfirmasi user 2026-09-20): SPK-AK -> bukti
+        // TF -> rekening tabungan umroh -> CIF & blokir. Dipaksa juga di sini
+        // (bukan cuma gate UI di status-pendaftaran-sahabat/page.jsx) biar
+        // gak bisa dilewatin lewat panggilan API admin langsung.
+        if (!spkAkSelesai) return Response.json({ error: 'SPK-AK belum selesai ditandatangani' }, { status: 400 });
+        if (!p.bukti_tf_verified_at) return Response.json({ error: 'Bukti transfer belum diverifikasi' }, { status: 400 });
+        if (!u.no_rekening_tabungan_umroh) return Response.json({ error: 'Rekening Tabungan Umroh belum diisi' }, { status: 400 });
         if (!u.cif_bsi) return Response.json({ error: 'Nomor CIF BSI belum diisi' }, { status: 400 });
-        if (!u.dokumen_sk_cif_fisik_path) return Response.json({ error: 'Scan SK-CIF belum diunggah' }, { status: 400 });
-        if (!u.dokumen_surat_pemblokiran_fisik_path) return Response.json({ error: 'Scan Surat Pernyataan Kuasa Blokir Rekening belum diunggah' }, { status: 400 });
+        // Scan fisik SK-CIF/Surat Pemblokiran SENGAJA BUKAN lagi syarat ACC
+        // (dikonfirmasi user 2026-09-19) — boleh nyusul dikirim setelah
+        // akun aktif. Yang wajib cuma persetujuan baca "SK-CIF & Surat
+        // Kuasa Blokir Rekening" ini sendiri.
+        if (!u.setuju_sk_cif_pemblokiran_at) return Response.json({ error: 'Jamaah belum menyetujui SK-CIF & Surat Kuasa Blokir Rekening' }, { status: 400 });
       }
 
       await pool.query('UPDATE sahabat_pendaftaran SET status = ?, catatan_admin = ? WHERE user_id = ?', [status_baru, body.catatan_admin || null, user_id]);
@@ -257,15 +262,23 @@ export async function PATCH(request) {
           // apakahDalamJaringan di src/lib/jaringan.js yang jalan ke atas
           // buat VALIDASI — di sini beneran buat NGUMPULIN daftar ancestor).
           //
-          // 2 kasus jatah gen JANGAN dibayar ke ancestor, dialihkan ke
-          // operasional_sahabat (dikonfirmasi user 2026-09-06):
+          // 3 kasus jatah gen JANGAN dibayar ke ancestor, dialihkan ke
+          // operasional_sahabat:
           //  1. Rantai abis sebelum 5 hop (gak ada lagi perekrut di atas) —
           //     dulu jatah gen yang gak kebagian ini SAMA SEKALI gak
           //     tercatat kemana pun, sekarang wajib balik ke operasional,
-          //     bukan hilang.
+          //     bukan hilang (dikonfirmasi user 2026-09-06).
           //  2. Ancestor di posisi itu kebetulan Head of Program — HOP
           //     SELALU cuma dapet flat Rp100rb (jatah registrasi di bawah)
-          //     gak peduli posisinya di rantai, biar gak dibayar dobel.
+          //     gak peduli posisinya di rantai, biar gak dibayar dobel
+          //     (dikonfirmasi user 2026-09-06).
+          //  3. Ancestor-nya admin/super_admin — akun ini direkrut LANGSUNG
+          //     manajemen JM Travel lewat link referral admin (lihat
+          //     /api/admin/kode-invite), bukan rantai member-ke-member,
+          //     jadi gak ada ujroh yang dibagi-bagi ke "atasan" (admin
+          //     bukan penerima ujroh) — SELURUH rantai di atas titik ini pun
+          //     ikut mati (chain-nya emang berhenti di situ, admin gak
+          //     punya perekrut_id sendiri) — dikonfirmasi user 2026-09-19.
           const hopUserId = pengaturan?.head_of_program_user_id || null;
           let operasionalTambahan = 0;
           let current = p.perekrut_id;
@@ -274,14 +287,15 @@ export async function PATCH(request) {
             const nominal = Number(genNominal[gen] || 0);
             let ancestor = null;
             if (!rantaiAbis && current) {
-              const [[found]] = await pool.query('SELECT id, name, perekrut_id FROM users WHERE id = ?', [current]);
+              const [[found]] = await pool.query('SELECT id, name, role, perekrut_id FROM users WHERE id = ?', [current]);
               if (found) { ancestor = found; current = found.perekrut_id; }
               else rantaiAbis = true;
             } else {
               rantaiAbis = true;
             }
+            const ancestorManajemen = ancestor && ['admin', 'super_admin'].includes(ancestor.role);
             if (nominal > 0) {
-              if (ancestor && !(hopUserId && ancestor.id === hopUserId)) {
+              if (ancestor && !ancestorManajemen && !(hopUserId && ancestor.id === hopUserId)) {
                 await pool.query(
                   `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
                    VALUES (NULL, ?, ?, ?, 'komisi_sahabat', 1, ?, ?)`,
@@ -291,6 +305,7 @@ export async function PATCH(request) {
                 operasionalTambahan += nominal;
               }
             }
+            if (ancestorManajemen) { current = null; rantaiAbis = true; }
           }
 
           // Tabungan awal jemaah baru itu sendiri.

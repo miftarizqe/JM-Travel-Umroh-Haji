@@ -2,7 +2,7 @@ import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
 
-const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'sk_cif', 'surat_pemblokiran'];
+const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'sk_cif', 'surat_pemblokiran', 'spk_ak_nonis'];
 // surat_pemblokiran cuma 1 pihak yang TTD (si member) — gak ada blok
 // "PIHAK PERTAMA JM Travel", jadi gak perlu signer institusi. sk_cif
 // 2-pihak (Pemberi Kuasa/jamaah vs Penerima Kuasa, penandatangan sendiri

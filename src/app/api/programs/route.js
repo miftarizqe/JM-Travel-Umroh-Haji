@@ -60,8 +60,19 @@ export async function GET(request) {
     // guard-nya di src/lib/booking.js, bukan di sini). Role lain TIDAK
     // PERNAH liat publish_type='sahabat_baitullah' sama sekali, apapun kondisinya.
     if (user?.role === 'sahabat_baitullah') {
+      // Program Eksklusif per-akun (dikonfirmasi user 2026-09-19, mirror
+      // pola Program Eksklusif Perwakilan) dibuat admin lewat
+      // publish_type='private' + whitelist program_private_akun — SAMA
+      // mekanisme dengan jamaah biasa, ditambah publish_type='sahabat_baitullah'
+      // yang sifatnya blanket (semua anggota sahabat, gak per-akun).
       const [programs] = await pool.query(
-        `SELECT * FROM programs WHERE active = 1 AND publish_type IN ('public', 'sahabat_baitullah') ORDER BY created_at DESC`
+        `SELECT p.* FROM programs p WHERE p.active = 1 AND (
+           p.publish_type IN ('public', 'sahabat_baitullah')
+           OR (p.publish_type = 'private' AND EXISTS (
+             SELECT 1 FROM program_private_akun ppa WHERE ppa.program_id = p.id AND ppa.user_id = ?
+           ))
+         ) ORDER BY p.created_at DESC`,
+        [user.id]
       );
       return Response.json({ programs: stripProgramsUntukPublik(programs) });
     }

@@ -9,6 +9,14 @@ import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 // dikonfirmasi user) karena terlalu sensitif buat self-service walau
 // diaudit. `alamat` TETAP self-service (gak termasuk daftar ini).
 const FIELD_ADMIN_ONLY = ['nik', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh'];
+// email & wa — SAMA alasannya kayak NIK, ditambahin 2026-09-20 (dikonfirmasi
+// user, berlaku SEMUA role): begitu keisi pas registrasi/verifikasi awal,
+// gak boleh diganti sendiri lagi — nyegah orang "cuci" identitas lewat akun
+// yang udah keburu keverifikasi/terpercaya. BEDA dari FIELD_ADMIN_ONLY di
+// atas (yang field-nya OPSIONAL, boleh gak dikirim body sama sekali) — email
+// & wa WAJIB ada di tiap body (dipakai validasi lain di bawah), jadi
+// gerbangnya bandingin ke nilai LAMA, bukan cuma "field ini ada di body atau
+// enggak".
 // Field umum (semua role, self-service) + field khusus role sahabat
 // (admin-only, lihat FIELD_ADMIN_ONLY) — TIDAK termasuk nama/email/wa
 // (itu tetap lewat jalur wajib di bawah, sudah ada).
@@ -111,6 +119,17 @@ export async function PATCH(request) {
       return Response.json({ error: 'NIK dan data rekening cuma bisa diubah admin. Hubungi admin JM Travel.' }, { status: 403 });
     }
 
+    const [[sebelum]] = await pool.query('SELECT role, email, wa, ' + [...FIELD_UMUM, ...FIELD_SAHABAT].join(', ') + ' FROM users WHERE id = ?', [user_id]);
+    if (!sebelum) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
+
+    if (!isAdmin) {
+      const emailBerubah = String(email || '').trim() !== String(sebelum.email || '').trim();
+      const waBerubah = String(wa).trim() !== String(sebelum.wa || '').trim();
+      if (emailBerubah || waBerubah) {
+        return Response.json({ error: 'Email dan No. WhatsApp adalah data verifikasi awal, cuma bisa diubah admin. Hubungi admin JM Travel.' }, { status: 403 });
+      }
+    }
+
     // Email & WA harus unik (kecuali milik sendiri)
     const [dupe] = await pool.query(
       'SELECT id FROM users WHERE (wa = ? OR (email = ? AND email IS NOT NULL)) AND id <> ?',
@@ -119,9 +138,6 @@ export async function PATCH(request) {
     if (dupe.length > 0) {
       return Response.json({ error: 'Email atau No. WhatsApp sudah dipakai akun lain' }, { status: 400 });
     }
-
-    const [[sebelum]] = await pool.query('SELECT role, ' + [...FIELD_UMUM, ...FIELD_SAHABAT].join(', ') + ' FROM users WHERE id = ?', [user_id]);
-    if (!sebelum) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
 
     const fieldBoleh = sebelum.role === 'sahabat_baitullah' ? [...FIELD_UMUM, ...FIELD_SAHABAT] : FIELD_UMUM;
     const setKolom = ['name = ?', 'email = ?', 'wa = ?'];

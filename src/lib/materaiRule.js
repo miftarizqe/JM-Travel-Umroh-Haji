@@ -22,12 +22,16 @@
 // buat CIF), dikonfirmasi user 2026-09-09.
 export const BATAS_MATERAI = 5_000_000;
 
+// spk_ak_nonis (Surat Perjanjian Referral Non-Muslim) — dokumen legal baru
+// buat anggota Sahabat Baitullah non-Muslim yang memberangkatkan orang lain
+// (dikonfirmasi user 2026-09-20), mirror PERSIS aturan spk_ak: wajib
+// bermaterai, 2 rangkap.
 /**
- * @param {'spka_ins'|'jamaah'|'formulir'|'invoice'|'spk_ak'|'sk_cif'|'surat_pemblokiran'} dokumen
+ * @param {'spka_ins'|'jamaah'|'formulir'|'invoice'|'spk_ak'|'sk_cif'|'surat_pemblokiran'|'spk_ak_nonis'} dokumen
  * @param {{ nominal?: number, jenis?: string, status?: string }} [ctx] - dipakai khusus utk 'invoice'
  */
 export function apakahPerluMaterai(dokumen, ctx = {}) {
-  if (dokumen === 'spka_ins' || dokumen === 'jamaah' || dokumen === 'spk_ak' || dokumen === 'sk_cif' || dokumen === 'surat_pemblokiran') return true;
+  if (dokumen === 'spka_ins' || dokumen === 'jamaah' || dokumen === 'spk_ak' || dokumen === 'sk_cif' || dokumen === 'surat_pemblokiran' || dokumen === 'spk_ak_nonis') return true;
   if (dokumen === 'invoice') {
     const berfungsiTandaTerima = ctx.jenis === 'kwitansi' || ctx.status === 'paid';
     return berfungsiTandaTerima && Number(ctx.nominal || 0) >= BATAS_MATERAI;
@@ -57,6 +61,13 @@ export const RANGKAP_SPKA_INS = [
 // dicetak sebagai identitas pihak, gak perlu TTD digital terpisah, sama
 // kayak Perekrut di SPKA-Ins yang juga gak ikut sesi TTD digital.
 export const RANGKAP_SPK_AK = [
+  { rangkap: 'travel', label: 'Rangkap 1 — Untuk JM Travel', signerPihak: 'eksternal' },
+  { rangkap: 'luar', label: 'Rangkap 2 — Untuk Jamaah Sahabat Baitullah', signerPihak: 'jm' },
+];
+
+// spk_ak_nonis — struktur rangkap sama persis SPK-AK, signer eksternal-nya
+// jamaah non-Muslim yang bersangkutan (dikonfirmasi user 2026-09-20).
+export const RANGKAP_SPK_AK_NONIS = [
   { rangkap: 'travel', label: 'Rangkap 1 — Untuk JM Travel', signerPihak: 'eksternal' },
   { rangkap: 'luar', label: 'Rangkap 2 — Untuk Jamaah Sahabat Baitullah', signerPihak: 'jm' },
 ];

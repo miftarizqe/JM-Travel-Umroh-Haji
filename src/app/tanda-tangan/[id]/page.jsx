@@ -11,6 +11,7 @@ const DOKUMEN_LABEL = {
   formulir: 'Formulir Pendaftaran Perwakilan',
   invoice: 'Invoice/Kwitansi',
   spk_ak: 'Surat Perjanjian Jamaah Umroh — Program Sahabat Baitullah',
+  spk_ak_nonis: 'Surat Perjanjian Referral Non-Muslim — Program Sahabat Baitullah',
   sk_cif: 'SK-CIF — Surat Keterangan CIF',
   surat_pemblokiran: 'Surat Pernyataan Kuasa Blokir Rekening & Instruksi Pemindahbukuan',
 };
@@ -88,7 +89,7 @@ export default function TandaTanganPage() {
                   Lanjutkan ke Persetujuan Kerjasama →
                 </button>
               )}
-              {sig.dokumen === 'spk_ak' && (
+              {(sig.dokumen === 'spk_ak' || sig.dokumen === 'spk_ak_nonis') && (
                 <button onClick={() => router.push('/status-pendaftaran-sahabat')}
                   className="mt-3 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-5 py-2.5 rounded-full text-sm">
                   Lanjutkan Pendaftaran Sahabat Baitullah →

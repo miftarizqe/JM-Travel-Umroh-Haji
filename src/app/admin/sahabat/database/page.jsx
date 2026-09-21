@@ -498,6 +498,15 @@ export default function DatabaseJamaahPage() {
                           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                             <div className={`h-full ${warnaProgress(persen)}`} style={{ width: `${persen}%` }} />
                           </div>
+                          {!isHop && !j.program_id && (
+                            <button onClick={() => router.push(`/admin/programs?from_sahabat=${j.user_id}`)}
+                              className="mt-1.5 text-[10px] font-bold text-[#C9952A] bg-[#FFF6E5] px-2.5 py-1 rounded-full">
+                              🎯 Buat Program Eksklusif dari Target Ini →
+                            </button>
+                          )}
+                          {j.program_id && (
+                            <div className="mt-1.5 text-[10px] text-green-600 font-bold">✅ Sudah dibuatkan Program Eksklusif</div>
+                          )}
                         </>
                       ) : (
                         <div className="text-[10px] text-gray-400">Belum ada target program.</div>
@@ -652,16 +661,16 @@ export default function DatabaseJamaahPage() {
                     </div>
 
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
-                      <span>Rekening BSI Biasa</span>
-                      {j.akun_bsi_status ? (
-                        <span className="text-green-600 font-bold">✅ {j.no_rekening_bsi_biasa}</span>
+                      <span>Rekening Tabungan Umroh</span>
+                      {j.no_rekening_tabungan_umroh ? (
+                        <span className="text-green-600 font-bold">✅ {j.no_rekening_tabungan_umroh}</span>
                       ) : <span className="text-gray-400">⏳ Belum diisi jamaah</span>}
                     </div>
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
-                      <span>Rekening Tabungan Umroh</span>
-                      {j.tabungan_haji_status ? (
-                        <span className="text-green-600 font-bold">✅ {j.no_rekening_tabungan_umroh}</span>
-                      ) : <span className="text-gray-400">⏳ Belum diisi jamaah</span>}
+                      <span>Baca & Setuju SK-CIF/Surat Kuasa Blokir</span>
+                      {j.setuju_sk_cif_pemblokiran_at ? (
+                        <span className="text-green-600 font-bold">✅ Ya</span>
+                      ) : <span className="text-gray-400">⏳ Belum</span>}
                     </div>
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Dokumen CIF Fisik Diterima di Kantor</span>

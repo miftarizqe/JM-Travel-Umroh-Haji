@@ -35,7 +35,12 @@ function PKSPageInner() {
   // buat pasal komisi, sahabat (SPK-AK) gak butuh merge field apa pun.
   // Jamaah tetap pakai ringkasan singkat (bukan bagian dari perjanjian resmi
   // bertanda tangan). Isi pasal dokumen legal ada di /admin/pasal.
-  const dokumenKey = jenis === 'perwakilan' ? 'spka_ins' : jenis === 'sahabat_baitullah' ? 'spk_ak' : 'jamaah';
+  // sahabat_baitullah KHUSUS: anggota non-Muslim (memberangkatkan orang
+  // lain, bukan berangkat sendiri) pakai dokumen TERPISAH spk_ak_nonis
+  // (dikonfirmasi user 2026-09-20) — butuh pksUser?.agama dulu buat nentuin.
+  const dokumenKey = jenis === 'perwakilan' ? 'spka_ins'
+    : jenis === 'sahabat_baitullah' ? (pksUser?.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak')
+    : 'jamaah';
 
   useEffect(() => {
     const u = localStorage.getItem('user');
@@ -44,8 +49,20 @@ function PKSPageInner() {
     if (jenis === 'perwakilan' || jenis === 'sahabat_baitullah') {
       fetch('/api/pks/data').then(r => r.json()).then(d => setPksUser(d.user || null)).catch(() => {});
     }
-    fetch(`/api/pasal?dokumen=${dokumenKey}`).then(r => r.json()).then(d => setPasal(d.pasal || [])).catch(() => setPasal([]));
+    // sahabat_baitullah nunggu pksUser kelar dimuat dulu (effect di bawah)
+    // — dokumenKey-nya baru pasti begitu `agama` kebaca, jangan sampai
+    // sempat fetch pasal 'spk_ak' duluan padahal anggotanya non-Muslim.
+    if (jenis !== 'sahabat_baitullah') {
+      fetch(`/api/pasal?dokumen=${dokumenKey}`).then(r => r.json()).then(d => setPasal(d.pasal || [])).catch(() => setPasal([]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (jenis !== 'sahabat_baitullah' || !pksUser) return;
+    fetch(`/api/pasal?dokumen=${dokumenKey}`).then(r => r.json()).then(d => setPasal(d.pasal || [])).catch(() => setPasal([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pksUser]);
 
   // Wajib scroll sampai bawah sebelum bisa centang
   function cekScroll() {
@@ -103,7 +120,9 @@ function PKSPageInner() {
 
   const pakaiPasalLengkap = jenis === 'perwakilan' || jenis === 'sahabat_baitullah';
   const judulLengkap = 'Surat Perjanjian Kerja Sama Perwakilan (SPK-PWK)';
-  const judulSahabat = 'Surat Perjanjian Jamaah Umroh — Program Sahabat Baitullah';
+  const judulSahabat = pksUser?.agama === 'non_islam'
+    ? 'Surat Perjanjian Referral Non-Muslim — Program Sahabat Baitullah'
+    : 'Surat Perjanjian Jamaah Umroh — Program Sahabat Baitullah';
   const judulRingkas = 'Surat Perjanjian Jamaah Umroh';
   const judul = jenis === 'perwakilan' ? judulLengkap : jenis === 'sahabat_baitullah' ? judulSahabat : judulRingkas;
   const mergeData = pksUser ? {
@@ -168,10 +187,15 @@ function PKSPageInner() {
               className="w-full bg-[#C9952A] hover:bg-yellow-600 text-white font-bold py-3 rounded-full disabled:opacity-40">
               {loadingDigital ? 'Memproses...' : '✍️ Setujui & Tanda Tangan Digital'}
             </button>
-            <button onClick={simpan} disabled={!setuju || loading || loadingDigital}
-              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full disabled:opacity-40 text-sm">
-              {loading ? 'Menyimpan...' : '📝 Setujui — TTD Fisik Nanti'}
-            </button>
+            {/* SPK-AK Sahabat Baitullah wajib TTD digital + e-materai
+                (dikonfirmasi user 2026-09-19) — opsi fisik dihapus khusus
+                jenis ini, jamaah/perwakilan tetap punya dua opsi. */}
+            {jenis !== 'sahabat_baitullah' && (
+              <button onClick={simpan} disabled={!setuju || loading || loadingDigital}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full disabled:opacity-40 text-sm">
+                {loading ? 'Menyimpan...' : '📝 Setujui — TTD Fisik Nanti'}
+              </button>
+            )}
           </div>
         ) : (
           <button onClick={simpan} disabled={!setuju || loading}

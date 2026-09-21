@@ -278,12 +278,23 @@ export default function ProfilPage() {
               </div>
               <div>
                 <label className={lbl}>Email</label>
-                <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className={inp}/>
+                {isAdminSelf ? (
+                  <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className={inp}/>
+                ) : (
+                  <div className={`${inp} bg-gray-50 text-gray-400`}>{form.email || '-'}</div>
+                )}
               </div>
               <div>
                 <label className={lbl}>No. WhatsApp *</label>
-                <input value={form.wa} onChange={e => setForm({...form, wa: e.target.value})} className={inp}/>
+                {isAdminSelf ? (
+                  <input value={form.wa} onChange={e => setForm({...form, wa: e.target.value})} className={inp}/>
+                ) : (
+                  <div className={`${inp} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div>
+                )}
               </div>
+              {!isAdminSelf && (
+                <div className="text-[10px] text-gray-400 -mt-1">Email &amp; No. WhatsApp adalah data verifikasi awal, cuma bisa diubah admin. Hubungi admin JM Travel kalau ada yang perlu dikoreksi.</div>
+              )}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => { setEditing(false); setForm({name:user.name||'', email:user.email||'', wa:user.wa||''}); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">

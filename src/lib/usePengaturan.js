@@ -8,6 +8,7 @@ const DEFAULT = {
   nama_perusahaan: '', telepon_kantor: '', email_kantor: '',
   nama_penandatangan_keuangan: '', jabatan_penandatangan_keuangan: '',
   ttd_penandatangan_keuangan_path: '', cap_perusahaan_path: '',
+  panduan_buka_rekening_bsi_path: '', panduan_buka_tabungan_umroh_path: '',
 };
 
 // Cache sederhana di module scope — banyak komponen di halaman yang sama

@@ -10,6 +10,13 @@ export async function GET(request) {
   const auth = wajibRole(request, ['sahabat_baitullah', 'admin', 'super_admin']);
   if (auth.error) return auth.error;
   try {
+    // Materi cuma buat anggota sahabat yang UDAH ACC admin (status='active')
+    // — status di JWT bisa basi, jadi dicek ulang ke DB di sini (bukan cuma
+    // di frontend), dikonfirmasi user 2026-09-19.
+    if (auth.user.role === 'sahabat_baitullah') {
+      const [[me]] = await pool.query('SELECT status FROM users WHERE id = ?', [auth.user.id]);
+      if (me?.status !== 'active') return Response.json({ error: 'Akun belum aktif' }, { status: 403 });
+    }
     const [materi] = await pool.query(
       `SELECT id, judul, deskripsi, urutan FROM materi_sahabat WHERE aktif = 1 ORDER BY urutan ASC, created_at DESC`
     );

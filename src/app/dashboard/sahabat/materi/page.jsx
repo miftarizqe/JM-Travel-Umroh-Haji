@@ -15,6 +15,7 @@ export default function MateriSahabatPage() {
   useEffect(() => {
     if (!user) return;
     if (user.role !== 'sahabat_baitullah') { router.push('/dashboard/jamaah'); return; }
+    if (user.status !== 'active') { router.push('/status-pendaftaran-sahabat'); return; }
     fetch('/api/sahabat/materi').then(r => r.json())
       .then(d => { setMateri(d.materi || []); setLoading(false); })
       .catch(() => setLoading(false));

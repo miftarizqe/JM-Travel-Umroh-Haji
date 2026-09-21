@@ -13,6 +13,10 @@
 const KOLOM_SIGNER = {
   jamaah: { nama: 'nama_penandatangan_jamaah', jabatan: 'jabatan_penandatangan_jamaah' },
   spk_ak: { nama: 'nama_penandatangan_spk_ak', jabatan: 'jabatan_penandatangan_spk_ak' },
+  // spk_ak_nonis (Surat Perjanjian Referral Non-Muslim, 2026-09-20) —
+  // pihak JM Travel-nya SAMA persis spk_ak, reuse kolom yang sama, bukan
+  // penandatangan terpisah.
+  spk_ak_nonis: { nama: 'nama_penandatangan_spk_ak', jabatan: 'jabatan_penandatangan_spk_ak' },
 };
 
 const DEFAULT_KOLOM = { nama: 'nama_penandatangan', jabatan: 'jabatan_penandatangan' };

@@ -8,6 +8,10 @@ export async function POST(request) {
     const email = String(body.email||'').trim();
     const wa = String(body.wa||'').trim();
     const nik = String(body.nik||'').trim();
+    // Agama (Islam/Non-Islam) — dikonfirmasi user 2026-09-20, berlaku SEMUA
+    // role, dipakai nentuin dokumen perjanjian yang dipakai kalau akhirnya
+    // daftar Sahabat Baitullah (skema referral non-Muslim).
+    const agama = ['islam', 'non_islam'].includes(body.agama) ? body.agama : null;
     const password = String(body.password||'').trim();
     const role = body.role || 'jamaah';
     // perekrut_id CUMA berlaku utk role perwakilan/sahabat (rantai
@@ -19,7 +23,7 @@ export async function POST(request) {
       ? String(body.perekrut_id).trim() : null;
 
     // Validasi field wajib
-    if (!name || !email || !wa || !nik || !password || !role) {
+    if (!name || !email || !wa || !nik || !agama || !password || !role) {
       return Response.json({ error: 'Semua field wajib diisi' }, { status: 400 });
     }
 
@@ -34,9 +38,14 @@ export async function POST(request) {
     // Aturan: perwakilan hanya bisa direkrut perwakilan lain, sahabat hanya
     // bisa direkrut anggota sahabat lain (komisi flat sekali per rekrutan,
     // bukan rantai override berjenjang kayak perwakilan).
+    // admin/super_admin JUGA valid jadi perekrut (dikonfirmasi user
+    // 2026-09-19) — link referral admin (lihat /api/admin/kode-invite)
+    // dianggap "direkrut langsung manajemen JM Travel", BUKAN rantai
+    // member-ke-member — konsekuensinya di cascade ujroh registrasi, bukan
+    // di sini (lihat status-pendaftaran-sahabat/route.js & status-pendaftaran/route.js).
     if (perekrutId && role === 'perwakilan') {
       const [p] = await pool.query(
-        `SELECT id FROM users WHERE id = ? AND (role = 'perwakilan' OR role_kedua = 'perwakilan') AND status = 'active'`,
+        `SELECT id FROM users WHERE id = ? AND (role IN ('perwakilan','admin','super_admin') OR role_kedua = 'perwakilan') AND status = 'active'`,
         [perekrutId]
       );
       if (p.length === 0) {
@@ -45,7 +54,7 @@ export async function POST(request) {
     }
     if (perekrutId && role === 'sahabat_baitullah') {
       const [p] = await pool.query(
-        `SELECT id FROM users WHERE id = ? AND (role = 'sahabat_baitullah' OR role_kedua = 'sahabat_baitullah') AND status = 'active'`,
+        `SELECT id FROM users WHERE id = ? AND (role IN ('sahabat_baitullah','admin','super_admin') OR role_kedua = 'sahabat_baitullah') AND status = 'active'`,
         [perekrutId]
       );
       if (p.length === 0) {
@@ -117,9 +126,9 @@ export async function POST(request) {
     }
     await pool.query(
       // terverifikasi = 0: akun baru WAJIB verifikasi WA/Email dulu
-      `INSERT INTO users (name, email, wa, nik, password, role, kode_unik, status, terverifikasi, perekrut_id,
-        perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id) VALUES (?,?,?,?,?,?,?,?,0,?,?,?)`,
-      [name, email, wa, nik, hashedPassword, role, kodeUnik, status, perekrutId,
+      `INSERT INTO users (name, email, wa, nik, agama, password, role, kode_unik, status, terverifikasi, perekrut_id,
+        perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?)`,
+      [name, email, wa, nik, agama, hashedPassword, role, kodeUnik, status, perekrutId,
         perekrutPerwJamaahId, perekrutKopJamaahId]
     );
 

@@ -12,35 +12,31 @@ import { useIsHop } from '@/lib/useIsHop';
 // step ini — ditampilkan sebagai chip "Menunggu: ..." biar admin gak baru
 // tau blocker-nya setelah klik & kena error.
 //
-// Halaman ini SENGAJA cuma 3 tahap funnel (pending/menunggu_bsi/menunggu_sk_cif)
-// — 'active'/'ditolak' dkk (Riwayat, Closing Langsung, Closing Referral, Siap
-// Berangkat, Voucher ACC, Ujroh Belum Diajukan) SEMUA PINDAH ke dashboard
-// admin utama /admin (dikonfirmasi user 2026-09-06): "Pendaftaran" cuma buat
-// akun yang BELUM aktif & butuh tindak lanjut, sisanya digabung 1 tempat di
-// dashboard biar gak perlu cek satu-satu section.
+// Halaman ini SENGAJA cuma 2 tahap funnel (pending/menunggu_sk_cif) — step
+// 'menunggu_bsi' DIHAPUS (2026-09-19, gerbang toggle admin akun_bsi_status/
+// tabungan_haji_status dicabut, jamaah langsung isi CIF+data blokir begitu
+// TF terverifikasi). 'active'/'ditolak' dkk (Riwayat, Closing Langsung,
+// Closing Referral, Siap Berangkat, Voucher ACC, Ujroh Belum Diajukan)
+// SEMUA PINDAH ke dashboard admin utama /admin (dikonfirmasi user
+// 2026-09-06): "Pendaftaran" cuma buat akun yang BELUM aktif & butuh
+// tindak lanjut, sisanya digabung 1 tempat di dashboard biar gak perlu cek
+// satu-satu section.
 const PROSES = [
   // 'pending' BUKAN LAGI perlu-tindakan-admin (2026-09-02) — TF auto-verify
   // begitu jamaah upload (referral-only = lebih dipercaya, lihat
   // upload-bukti-tf/route.js), jadi orang di tahap ini murni nunggu
   // JAMAAH sendiri unggah, bukan nunggu admin klik apa pun.
   { key: 'pending', icon: '📝', color: 'border-gray-200 bg-gray-50', label: 'Menunggu Upload Bukti TF' },
-  { key: 'menunggu_bsi', icon: '🏦', color: 'border-blue-200 bg-blue-50', label: 'Menunggu Rekening Tabungan Umroh' },
-  { key: 'menunggu_sk_cif', icon: '📜', color: 'border-purple-200 bg-purple-50', label: 'Menunggu SK-CIF' },
+  { key: 'menunggu_sk_cif', icon: '📜', color: 'border-purple-200 bg-purple-50', label: 'Menunggu ACC Admin' },
 ];
 
 function syaratBelum(p) {
   // Sinkron sama validasi PATCH /api/status-pendaftaran-sahabat action=advance.
-  if (p.status === 'menunggu_bsi') {
-    return [
-      !p.spk_ak_selesai && 'SPK-AK',
-      !p.tabungan_haji_status && 'Rekening Tabungan Umroh',
-    ].filter(Boolean);
-  }
   if (p.status === 'menunggu_sk_cif') {
     return [
+      !p.spk_ak_selesai && 'SPK-AK',
       !p.cif_bsi && 'Nomor CIF',
-      !p.dokumen_sk_cif_fisik_path && 'Scan SK-CIF',
-      !p.dokumen_surat_pemblokiran_fisik_path && 'Scan Surat Pemblokiran',
+      !p.setuju_sk_cif_pemblokiran_at && 'Baca & Setuju SK-CIF/Surat Blokir',
     ].filter(Boolean);
   }
   if (p.status === 'pending') {
@@ -65,6 +61,11 @@ export default function AdminSahabatPage() {
   const [busy, setBusy] = useState(false);
   const [openCluster, setOpenCluster] = useState(null);
   const [detailUserId, setDetailUserId] = useState(null);
+  // Link referral admin/super_admin sendiri — buat ngerekrut jamaah jadi
+  // Sahabat Baitullah baru langsung dari panel, tanpa lewat link anggota
+  // aktif (dikonfirmasi user 2026-09-19, mirror punya perwakilan/anggota).
+  const [kodeInvite, setKodeInvite] = useState('');
+  const [copiedInvite, setCopiedInvite] = useState(false);
 
   function muat() {
     fetch('/api/admin/sahabat').then(r => r.json()).then(d => {
@@ -77,8 +78,18 @@ export default function AdminSahabatPage() {
     if (!user || !hopChecked) return;
     if (!isAdminOrHop) { router.replace('/login'); return; }
     muat();
+    if (user.role === 'admin' || user.role === 'super_admin') {
+      fetch('/api/admin/kode-invite?tipe=sahabat_baitullah').then(r => r.json())
+        .then(d => setKodeInvite(d.kode || '')).catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, hopChecked, isAdminOrHop]);
+
+  const linkInvite = (typeof window !== 'undefined' && kodeInvite)
+    ? `${window.location.origin}/register?role=sahabat_baitullah&ref=${kodeInvite}` : '';
+  function salinLinkInvite() {
+    navigator.clipboard.writeText(linkInvite).then(() => { setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 2000); });
+  }
 
   async function aksi(body) {
     setBusy(true);
@@ -153,6 +164,19 @@ export default function AdminSahabatPage() {
         <a href="/admin?tab=dashboard" className="text-[#1A4FA0] font-semibold hover:underline">Dashboard Admin</a>.
       </div>
 
+      {(user.role === 'admin' || user.role === 'super_admin') && (
+        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">
+          <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🔗 Link Referral — Rekrut Jamaah Sahabat Baitullah</div>
+          <div className="text-xs text-gray-400 mb-2">Bagikan link ini ke jamaah yang mau daftar jadi Sahabat Baitullah langsung dari kantor, tanpa lewat link anggota aktif.</div>
+          <div className="flex gap-2">
+            <input readOnly value={linkInvite} placeholder="Memuat..." className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-xs text-gray-500" />
+            <button onClick={salinLinkInvite} disabled={!linkInvite} className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+              {copiedInvite ? '✓' : 'Salin'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="text-center text-gray-400 py-10">Memuat...</div>
       ) : totalButuhTindakan === 0 ? (
@@ -177,32 +201,40 @@ export default function AdminSahabatPage() {
             </div>
 
             <div className="space-y-2 text-xs">
+              {/* Cuma 1 baris (dulu 2: "diunggah" + "diverifikasi" terpisah)
+                  — sejak 2026-09-02 upload = otomatis langsung terverifikasi
+                  (referral-only, gak ada gate admin di titik ini lagi, lihat
+                  catatan di upload-bukti-tf/route.js), jadi "diverifikasi"
+                  terpisah cuma bikin bingung (dikonfirmasi user 2026-09-19).
+                  Tombol Verifikasi manual DIBIARKAN buat fallback baris lama
+                  yang somehow masih nyangkut (lihat action 'verify_tf'). */}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Bukti Transfer Rp1jt diunggah</span>
+                <span>Bukti Transfer Rp1jt</span>
                 {detail.bukti_tf_path ? (
-                  <a href={detail.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
-                ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
+                  <div className="flex items-center gap-2">
+                    <a href={detail.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
+                    {!detail.bukti_tf_verified_at && detail.status === 'pending' && !isHop && (
+                      <button disabled={busy} onClick={() => aksi({ action: 'verify_tf', user_id: detail.user_id })}
+                        className="text-[10px] font-bold text-white bg-green-600 px-3 py-1.5 rounded-full disabled:opacity-50">
+                        Verifikasi
+                      </button>
+                    )}
+                  </div>
+                ) : <span className="text-red-500 font-bold">⏳ Belum diunggah</span>}
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Bukti Transfer diverifikasi</span>
-                {detail.bukti_tf_verified_at ? (
-                  <span className="text-green-600 font-bold">✅ Ya</span>
-                ) : detail.bukti_tf_path && detail.status === 'pending' && !isHop ? (
-                  <button disabled={busy} onClick={() => aksi({ action: 'verify_tf', user_id: detail.user_id })}
-                    className="text-[10px] font-bold text-white bg-green-600 px-3 py-1.5 rounded-full disabled:opacity-50">
-                    Verifikasi
-                  </button>
+                <span>{detail.agama === 'non_islam' ? 'Surat Perjanjian Referral Non-Muslim' : 'SPK-AK'} selesai ditandatangani</span>
+                {detail.spk_ak_selesai ? (
+                  detail.spk_ak_doc_path ? (
+                    <a href={detail.spk_ak_doc_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
+                  ) : <span className="text-green-600 font-bold">✅ Ya</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
-              </div>
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>SPK-AK selesai ditandatangani</span>
-                {detail.spk_ak_selesai ? <span className="text-green-600 font-bold">✅ Ya</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}
               </div>
               {/* Rekening BSI Biasa dihapus (dikonfirmasi user 2026-09-03) —
                   Sahabat Baitullah cuma punya 1 rekening: Tabungan Umroh. */}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Rekening Tabungan Umroh</span>
-                {detail.tabungan_haji_status ? (
+                {detail.no_rekening_tabungan_umroh ? (
                   <span className="text-green-600 font-bold">✅ {detail.no_rekening_tabungan_umroh}</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diisi jamaah</span>}
               </div>
@@ -211,13 +243,19 @@ export default function AdminSahabatPage() {
                 <span className={detail.cif_bsi ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>{detail.cif_bsi || '⏳ Belum diisi'}</span>
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Scan SK-CIF (fisik + materai)</span>
+                <span>Baca & Setuju SK-CIF/Surat Kuasa Blokir</span>
+                {detail.setuju_sk_cif_pemblokiran_at ? (
+                  <span className="text-green-600 font-bold">✅ Ya</span>
+                ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
+              </div>
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                <span>Scan SK-CIF (fisik + materai) <span className="text-gray-400 font-normal">— opsional, boleh nyusul</span></span>
                 {detail.dokumen_sk_cif_fisik_path ? (
                   <a href={detail.dokumen_sk_cif_fisik_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
                 ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Scan Surat Pernyataan Kuasa Blokir Rekening (fisik + materai)</span>
+                <span>Scan Surat Pernyataan Kuasa Blokir Rekening (fisik + materai) <span className="text-gray-400 font-normal">— opsional, boleh nyusul</span></span>
                 {detail.dokumen_surat_pemblokiran_fisik_path ? (
                   <a href={detail.dokumen_surat_pemblokiran_fisik_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
                 ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
@@ -241,16 +279,10 @@ export default function AdminSahabatPage() {
 
             {!isHop && (
               <div className="flex gap-2 pt-4">
-                {detail.status === 'menunggu_bsi' && (
-                  <button disabled={busy} onClick={() => aksi({ action: 'advance', user_id: detail.user_id, status_baru: 'menunggu_sk_cif' })}
-                    className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    Lanjut ke Menunggu SK-CIF →
-                  </button>
-                )}
                 {detail.status === 'menunggu_sk_cif' && (
                   <button disabled={busy} onClick={() => aksi({ action: 'advance', user_id: detail.user_id, status_baru: 'active' })}
                     className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    Aktifkan Jamaah Sahabat Baitullah →
+                    ACC & Aktifkan Jamaah Sahabat Baitullah →
                   </button>
                 )}
                 {detail.status !== 'active' && detail.status !== 'ditolak' && (

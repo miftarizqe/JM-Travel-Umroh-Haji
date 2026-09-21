@@ -168,6 +168,17 @@ export async function POST(request) {
     if (body.from_lead_id) {
       await pool.query('UPDATE kalkulator_perwakilan_lead SET program_id = ? WHERE id = ?', [id, body.from_lead_id]);
     }
+    // Link-back sama persis, tapi buat tombol "Buat Program Eksklusif dari
+    // Target Ini" di Database Jamaah Sahabat Baitullah (2026-09-19) — murni
+    // penanda administratif (gak mempengaruhi otorisasi, itu sudah beres
+    // lewat sinkronPrivateIds di atas berdasarkan body.private_ids apa
+    // adanya). Update baris pendaftaran TERBARU milik user itu.
+    if (body.from_sahabat_id) {
+      await pool.query(
+        'UPDATE sahabat_pendaftaran SET program_id = ? WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+        [id, body.from_sahabat_id]
+      );
+    }
 
     return Response.json({ message: 'Program berhasil dibuat!', id }, { status: 201 });
   } catch (error) {

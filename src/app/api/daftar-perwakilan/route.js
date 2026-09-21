@@ -14,13 +14,24 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const {
-      nama, nik, tempat_lahir, tl, jk, ibu, foto_ktp_path,
+      nama, tempat_lahir, tl, jk, ibu, foto_ktp_path,
       jalan, norumah, rt, rw, kp, kel, kec, kota, provinsi, negara,
       sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
-      wa, email, pkj,
+      pkj,
       bank, norek, pemilik,
       perekrut_id,
     } = body;
+
+    // NIK/WA/Email SENGAJA gak diambil dari body (dikonfirmasi user
+    // 2026-09-20) — data verifikasi awal yang udah dikunci sejak registrasi/
+    // koreksi admin, form wizard ini cuma nampilin read-only. Sumber
+    // kebenarannya SELALU dari users.
+    const [[userAwal]] = await db.query(
+      'SELECT role, nik, wa, email, perekrut_id, perekrut_perwakilan_jamaah_id FROM users WHERE id = ?', [user_id]
+    );
+    const nik = userAwal?.nik;
+    const wa = userAwal?.wa;
+    const email = userAwal?.email;
 
     if (!nama || !nik || !wa || !email) {
       return NextResponse.json({ error: 'Data wajib belum lengkap' }, { status: 400 });
@@ -67,16 +78,13 @@ export async function POST(req) {
     // form ini nge-UPDATE users.perekrut_id langsung, jadi kalau body kosong
     // ke-terima mentah2, relasi referral yang udah valid bisa ke-NULL-in
     // permanen padahal user daftar pake link referral.
-    const [[userSaatIni]] = await db.query(
-      'SELECT role, perekrut_id, perekrut_perwakilan_jamaah_id FROM users WHERE id = ?', [user_id]
-    );
-    const perekrutIdFinal = userSaatIni?.role === 'jamaah' && userSaatIni?.perekrut_perwakilan_jamaah_id
-      ? userSaatIni.perekrut_perwakilan_jamaah_id
-      : (perekrut_id || userSaatIni?.perekrut_id || null);
+    const perekrutIdFinal = userAwal?.role === 'jamaah' && userAwal?.perekrut_perwakilan_jamaah_id
+      ? userAwal.perekrut_perwakilan_jamaah_id
+      : (perekrut_id || userAwal?.perekrut_id || null);
 
     if (perekrutIdFinal) {
       const [p] = await db.query(
-        "SELECT id FROM users WHERE id = ? AND (role = 'perwakilan' OR role_kedua = 'perwakilan') AND status = 'active'",
+        "SELECT id FROM users WHERE id = ? AND (role IN ('perwakilan','admin','super_admin') OR role_kedua = 'perwakilan') AND status = 'active'",
         [perekrutIdFinal]
       );
       if (p.length === 0) {
@@ -127,16 +135,19 @@ export async function POST(req) {
     // onboarding (langsung daftar perwakilan ATAU upgrade dari jamaah) —
     // dibutuhkan supaya cek role di siapkanData() lolos utk jalur upgrade,
     // sekalian menyatukan perilaku dua jalur itu (dikonfirmasi via plan).
+    // NIK SENGAJA gak diikutkan di sini lagi (2026-09-20) — udah dikunci,
+    // nilainya emang persis sama kayak yang udah ada di users (lihat
+    // userAwal di atas), gak perlu ditulis ulang.
     await db.query(
       `UPDATE users SET role = 'perwakilan', status = 'pending', reg_status = 'pending',
               reg_metode = NULL, reg_jadwal = NULL, perekrut_id = ?,
-              nik = ?, tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?,
+              tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?,
               alamat_ktp = ?, alamat_domisili = ?, kode_pos = ?, pekerjaan = ?,
               bank = ?, no_rekening = ?, nama_pemilik_rekening = ?, foto_ktp_path = ?
        WHERE id = ?`,
       [
         perekrutIdFinal,
-        String(nik).trim(), tempat_lahir || null, tl, jk, ibu,
+        tempat_lahir || null, tl, jk, ibu,
         alamatKtp, alamatDomisili, kp || null, pkj || null,
         bank, norek, pemilik, foto_ktp_path,
         user_id,

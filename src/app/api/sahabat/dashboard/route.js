@@ -16,7 +16,7 @@ export async function GET(request) {
     if (auth.error) return auth.error;
 
     const [rows] = await pool.query(
-      `SELECT id, name, kode_unik, kode_invite_sahabat, status, cif_bsi, akun_bsi_status, tabungan_haji_status
+      `SELECT id, name, kode_unik, kode_invite_sahabat, status, cif_bsi, agama, akun_bsi_status, tabungan_haji_status
        FROM users WHERE id = ? AND role = ?`,
       [sahabatId, 'sahabat_baitullah']
     );
@@ -36,17 +36,23 @@ export async function GET(request) {
     const voucher = voucherRows[0] || null;
 
     // Dokumen yang sudah beres — link download PDF final (digital) atau
-    // scan fisik, dokumen mana pun yang lebih dulu ketemu.
-    const [sigRows] = await pool.query(
-      `SELECT dokumen, fase, pdf_final_path FROM dokumen_signature WHERE dokumen IN ('spk_ak','sk_cif') AND ref_id = ?`,
-      [sahabatId]
+    // scan fisik, dokumen mana pun yang lebih dulu ketemu. rangkap='travel'
+    // WAJIB buat spk_ak (bug ditemukan & diperbaiki 2026-09-19) — itu
+    // rangkap yang beneran ditandatangani jamaah sendiri, rangkap 'luar'
+    // cuma tanda tangan internal JM Travel yang auto-selesai duluan.
+    // Dokumen SPK-AK-nya beda buat anggota non-Muslim (spk_ak_nonis,
+    // dikonfirmasi user 2026-09-20).
+    const dokumenSpkAk = akun.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
+    const [[sigSpkAk]] = await pool.query(
+      `SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
+      [dokumenSpkAk, sahabatId]
     );
     const [[dokUser]] = await pool.query(
       'SELECT dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path FROM users WHERE id = ?',
       [sahabatId]
     );
     const dokumen = {
-      spk_ak: sigRows.find(s => s.dokumen === 'spk_ak')?.pdf_final_path || dokUser.dokumen_spk_ak_fisik_path || null,
+      spk_ak: sigSpkAk?.pdf_final_path || dokUser.dokumen_spk_ak_fisik_path || null,
       sk_cif: dokUser.dokumen_sk_cif_fisik_path || null,
     };
 
