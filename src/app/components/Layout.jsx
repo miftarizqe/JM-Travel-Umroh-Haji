@@ -542,7 +542,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '➕', label: 'Order (Closing Langsung)', path: '/order-jamaah' },
       { icon: '🌳', label: 'Team', path: '/dashboard/sahabat/team' },
       { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/sahabat/riwayat-closing' },
-      { icon: '🧾', label: 'Riwayat Pencairan', path: '/dashboard/sahabat/riwayat' },
+      { icon: '🧾', label: 'Riwayat Tabungan Umroh', path: '/dashboard/sahabat/riwayat' },
       { icon: '🎞️', label: 'Materi Presentasi', path: '/dashboard/sahabat/materi' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },

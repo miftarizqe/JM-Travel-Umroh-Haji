@@ -6,6 +6,8 @@ import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
 import StatusPendaftaranModal from '@/app/components/StatusPendaftaranModal';
 
+function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
+
 // Label ringkas buat baris "Status Pendaftaran" — salinan kecil dari
 // STEP_PENDAFTARAN/STEP_PENDAFTARAN_SAHABAT di masing-masing route.js,
 // sama seperti yang dipakai StatusPendaftaranModal.
@@ -228,6 +230,59 @@ export default function ProfilPage() {
           <div className="bg-[#E8F0FB] rounded-xl p-4 mb-6 text-sm flex justify-between items-center">
             <span className="text-gray-500">Direkrut oleh</span>
             <span className="font-bold text-[#0E2F6E]">{user.perekrut_nama}</span>
+          </div>
+        )}
+
+        {/* Status Keanggotaan Sahabat Baitullah — dipindah dari Beranda ke
+            sini (dikonfirmasi user 2026-09-22, biar Beranda fokus ke
+            ujroh/aktivitas, bukan status akun). */}
+        {user.role === 'sahabat_baitullah' && (
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 mb-4">
+            <div className="font-bold text-[#0E2F6E] mb-3">📋 Status Keanggotaan</div>
+            <div className="grid grid-cols-2 gap-2 text-center mb-3">
+              <div className="bg-gray-50 rounded-lg p-2">
+                <div className="text-lg">{user.tabungan_haji_status ? '✅' : '⏳'}</div>
+                <div className="text-[10px] text-gray-500 mt-0.5">Tabungan Umroh</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-2">
+                <div className="text-lg">{user.cif_bsi ? '✅' : '⏳'}</div>
+                <div className="text-[10px] text-gray-500 mt-0.5">CIF BSI</div>
+              </div>
+            </div>
+            {user.cif_bsi && <div className="text-xs text-gray-400 mb-3">Nomor CIF: <b className="text-gray-600">{user.cif_bsi}</b></div>}
+            <div className="flex flex-wrap gap-2">
+              {user.dokumen?.spk_ak && (
+                <a href={user.dokumen.spk_ak} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">📄 SPK-AK</a>
+              )}
+              {user.dokumen?.sk_cif && (
+                <a href={user.dokumen.sk_cif} target="_blank" rel="noopener noreferrer"
+                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">📄 SK-CIF</a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Voucher Pendaftaran Rp1jt — ikut dipindah dari Beranda (dikonfirmasi
+            user 2026-09-22). */}
+        {user.role === 'sahabat_baitullah' && (
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 mb-4">
+            <div className="font-bold text-[#0E2F6E] mb-2">🎟️ Voucher Pendaftaran</div>
+            {user.voucher_pendaftaran ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-bold text-[#0E2F6E]">{user.voucher_pendaftaran.kode} — {fmtRp(user.voucher_pendaftaran.potongan)}</div>
+                  <div className="text-[10px] text-gray-400">
+                    {user.voucher_pendaftaran.valid_until ? `Berlaku sampai ${new Date(user.voucher_pendaftaran.valid_until).toLocaleDateString('id-ID')}` : 'Tanpa batas waktu'}
+                  </div>
+                </div>
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${user.voucher_pendaftaran.blocked_hop ? 'bg-gray-100 text-gray-500' : user.voucher_pendaftaran.used ? 'bg-gray-100 text-gray-500' : user.voucher_pendaftaran.aktif ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                  {user.voucher_pendaftaran.blocked_hop ? 'Tidak berlaku (Head of Program)' : user.voucher_pendaftaran.used ? 'Sudah dipakai' : user.voucher_pendaftaran.aktif ? 'Siap dipakai' : 'Nonaktif'}
+                </span>
+              </div>
+            ) : (
+              <div className="text-center text-gray-400 text-sm py-4">Voucher belum diterbitkan admin.</div>
+            )}
           </div>
         )}
 

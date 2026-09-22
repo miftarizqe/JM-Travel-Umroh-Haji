@@ -29,9 +29,16 @@ const KATEGORI_LABEL = {
   koreksi_saldo_sahabat: { label: 'Koreksi Saldo (Admin)', warna: 'bg-red-50 text-red-700' },
 };
 
-// Halaman "Riwayat Tabungan Umroh" bergaya rekening koran — dituju dari klik
-// "Saldo Tabungan Umroh" di /dashboard/sahabat. Beda dari halaman Team:
-// di sini urusannya duit masuk, bukan jaringan rekrutan.
+// Halaman "Riwayat Tabungan Umroh" — dituju dari klik "Total Ujroh
+// Terkonfirmasi"/"Ujroh Pending" di /dashboard/sahabat. Restrukturisasi
+// 2026-09-22 (dikonfirmasi user, awalnya kebalik):
+//  - "Riwayat Pencairan" = per BATCH pencairan yang beneran kejadian (data
+//    payslip/pengajuan_ujroh) — kalau sebulan cuma cair 2x, ya cuma ada 2
+//    baris di sini, expand buat lihat rincian item per batch. TIDAK PERNAH
+//    ada yang "pending" di sini by design (payslip cuma lahir dari batch
+//    yang udah disetujui/dicairkan).
+//  - "Cashflow Tabungan" = SEMUA mutasi individual, duit masuk & keluar,
+//    confirmed maupun pending, satu list kronologis (rekening koran).
 export default function RiwayatSaldoPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>}>
@@ -47,12 +54,10 @@ function RiwayatSaldoContent() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [targetInfo, setTargetInfo] = useState(null);
-  const [tab, setTab] = useState('riwayat'); // 'riwayat' | 'payslip'
+  const [tab, setTab] = useState(searchParams.get('section') === 'pending' ? 'cashflow' : 'pencairan');
   const [payslip, setPayslip] = useState(null);
   const [expandPeriode, setExpandPeriode] = useState(null);
 
-  // Admin/super_admin boleh buka riwayat siapa pun lewat ?sahabat_id=,
-  // pola sama persis /dashboard/sahabat/team.
   const paramId = searchParams.get('sahabat_id');
   const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
   const targetId = (paramId && isAdmin) ? paramId : user?.id;
@@ -91,17 +96,61 @@ function RiwayatSaldoContent() {
       )}
 
       <div className="flex gap-2 mb-4">
-        <button onClick={() => setTab('riwayat')}
-          className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'riwayat' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
-          📜 Riwayat
+        <button onClick={() => setTab('pencairan')}
+          className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'pencairan' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
+          📜 Riwayat Pencairan
         </button>
-        <button onClick={() => setTab('payslip')}
-          className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'payslip' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
-          🧾 Payslip per Periode
+        <button onClick={() => setTab('cashflow')}
+          className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'cashflow' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
+          🧾 Cashflow Tabungan
         </button>
       </div>
 
-      {tab === 'riwayat' && (<>
+      {tab === 'pencairan' && (
+        payslip === null ? (
+          <div className="text-center text-gray-400 py-10">Memuat...</div>
+        ) : payslip.length === 0 ? (
+          <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
+            Belum ada pencairan — muncul begitu ujroh Anda dikonfirmasi lewat pengajuan mingguan.
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {payslip.map(p => {
+              const isOpen = expandPeriode === p.pengajuan_id;
+              return (
+                <div key={p.pengajuan_id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
+                  <button onClick={() => setExpandPeriode(isOpen ? null : p.pengajuan_id)}
+                    className="w-full flex items-center justify-between p-3 text-left">
+                    <div>
+                      <div className="text-sm font-bold text-[#0E2F6E]">{fmtTanggal(p.periode_mulai)} – {fmtTanggal(p.periode_selesai)}</div>
+                      <div className="text-[10px] text-gray-400">Pengajuan #{p.pengajuan_id} · {p.items.length} item</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-green-600">{fmtRp(p.total)}</div>
+                      <div className="text-[10px] text-gray-300">{isOpen ? '▲' : '▼'}</div>
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-gray-50 p-3 space-y-1.5">
+                      {p.items.map(it => (
+                        <div key={it.id} className="flex justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
+                          <div>
+                            <span className="text-[10px] font-bold text-[#1A4FA0]">{it.kategori_label}</span>
+                            <div className="text-gray-600">{it.keterangan}</div>
+                          </div>
+                          <div className="font-bold text-[#0E2F6E] shrink-0">{fmtRp(it.nominal)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {tab === 'cashflow' && (<>
       <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] rounded-xl p-4 text-white flex items-center justify-between mb-4">
         <div>
           <div className="text-[10px] opacity-70">Saldo Awal</div>
@@ -147,7 +196,7 @@ function RiwayatSaldoContent() {
                       📎 Lihat Bukti TF
                     </a>
                   ) : (
-                    <span className="text-gray-300">Belum ada lampiran</span>
+                    <span className="text-gray-400">Belum ada lampiran</span>
                   )}
                 </div>
               </div>
@@ -156,50 +205,6 @@ function RiwayatSaldoContent() {
         </div>
       )}
       </>)}
-
-      {tab === 'payslip' && (
-        payslip === null ? (
-          <div className="text-center text-gray-400 py-10">Memuat...</div>
-        ) : payslip.length === 0 ? (
-          <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
-            Belum ada payslip — muncul begitu ujroh Anda dikonfirmasi lewat pengajuan mingguan.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {payslip.map(p => {
-              const isOpen = expandPeriode === p.pengajuan_id;
-              return (
-                <div key={p.pengajuan_id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-                  <button onClick={() => setExpandPeriode(isOpen ? null : p.pengajuan_id)}
-                    className="w-full flex items-center justify-between p-3 text-left">
-                    <div>
-                      <div className="text-sm font-bold text-[#0E2F6E]">{fmtTanggal(p.periode_mulai)} – {fmtTanggal(p.periode_selesai)}</div>
-                      <div className="text-[10px] text-gray-400">Pengajuan #{p.pengajuan_id} · {p.items.length} item</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-green-600">{fmtRp(p.total)}</div>
-                      <div className="text-[10px] text-gray-300">{isOpen ? '▲' : '▼'}</div>
-                    </div>
-                  </button>
-                  {isOpen && (
-                    <div className="border-t border-gray-50 p-3 space-y-1.5">
-                      {p.items.map(it => (
-                        <div key={it.id} className="flex justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
-                          <div>
-                            <span className="text-[10px] font-bold text-[#1A4FA0]">{it.kategori_label}</span>
-                            <div className="text-gray-600">{it.keterangan}</div>
-                          </div>
-                          <div className="font-bold text-[#0E2F6E] shrink-0">{fmtRp(it.nominal)}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )
-      )}
     </Layout>
   );
 }

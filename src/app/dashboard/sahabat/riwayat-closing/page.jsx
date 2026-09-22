@@ -10,8 +10,15 @@ function fmtTanggal(iso) {
   return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
+
 const STATUS_BOOKING_LABEL = {
   active: 'Berjalan', selesai: 'Selesai', dibatalkan: 'Dibatalkan', menunggu_batal: 'Proses Batal',
+};
+
+const FUNNEL_LABEL = {
+  pending: 'Upload Bukti TF', menunggu_bsi: 'Menunggu BSI', menunggu_sk_cif: 'Menunggu SK-CIF',
+  active: 'Aktif', ditolak: 'Ditolak',
 };
 
 // Riwayat Closing — versi jaringan sendiri dari /admin/sahabat/riwayat-closing
@@ -33,8 +40,9 @@ function RiwayatClosingContent() {
   const searchParams = useSearchParams();
   const [user] = useCurrentUser();
   const [data, setData] = useState(null);
+  const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState('referral');
+  const [tab, setTab] = useState(searchParams.get('tab') === 'forecast' ? 'forecast' : 'referral');
   const [dari, setDari] = useState('');
   const [sampai, setSampai] = useState('');
 
@@ -61,6 +69,16 @@ function RiwayatClosingContent() {
     if (!user) return;
     if (!['sahabat_baitullah', 'admin', 'super_admin'].includes(user.role)) { router.push('/dashboard/jamaah'); return; }
     muat();
+    // Forecast — reuse data yang sama dipakai kartu "Forecast" di Beranda
+    // (/api/sahabat/dashboard), biar gak duplikat logic BFS+gen nominal di
+    // sini (dikonfirmasi user 2026-09-22, dipindah jadi tab sendiri di sini,
+    // Beranda cuma nampilin ringkasan angka + link keluar ke sini).
+    if (targetId) {
+      fetch(`/api/sahabat/dashboard?sahabat_id=${targetId}`)
+        .then(r => r.json())
+        .then(d => setForecast(d.forecast || { calon_ujroh: [], potensi_total: 0 }))
+        .catch(() => {});
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, targetId]);
 
@@ -124,6 +142,10 @@ function RiwayatClosingContent() {
           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${tab === 'langsung' ? 'bg-white text-[#0E2F6E] shadow-sm' : 'text-gray-500'}`}>
           💳 Closing Jamaah
         </button>
+        <button onClick={() => setTab('forecast')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${tab === 'forecast' ? 'bg-white text-[#0E2F6E] shadow-sm' : 'text-gray-500'}`}>
+          📊 Forecast
+        </button>
       </div>
 
       {tab === 'referral' && (
@@ -178,6 +200,32 @@ function RiwayatClosingContent() {
                   <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 shrink-0">
                     {STATUS_BOOKING_LABEL[b.status] || b.status}
                   </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {tab === 'forecast' && (
+        !forecast ? (
+          <div className="text-center text-gray-400 py-10">Memuat...</div>
+        ) : forecast.calon_ujroh.length === 0 ? (
+          <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">Semua downline dalam 5 generasi sudah aktif, atau belum ada downline sama sekali.</div>
+        ) : (
+          <div className="space-y-2">
+            <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-xl p-4 mb-2">
+              <div className="text-[10px] opacity-75 uppercase tracking-wider">Total Potensi Ujroh</div>
+              <div className="text-2xl font-black text-[#C9952A]">{fmtRp(forecast.potensi_total)}</div>
+            </div>
+            {forecast.calon_ujroh.map(c => (
+              <div key={c.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-bold text-[#0E2F6E] text-sm truncate">{c.name} <span className="text-gray-400 font-normal">({c.kode_unik})</span></div>
+                    <div className="text-[10px] text-gray-400">Gen{c.level} · {FUNNEL_LABEL[c.funnel_status] || 'Menunggu'}</div>
+                  </div>
+                  <div className="font-bold text-[#C9952A] shrink-0">{fmtRp(c.potensi_nominal)}</div>
                 </div>
               </div>
             ))}

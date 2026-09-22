@@ -40,7 +40,8 @@ export async function GET(request) {
               u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
-              u.kode_invite_perwakilan
+              u.kode_invite_perwakilan, u.tabungan_haji_status, u.cif_bsi, u.agama,
+              u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path
        FROM users u
        LEFT JOIN users p ON p.id = u.perekrut_id
        LEFT JOIN users rp ON rp.id = u.perekrut_perwakilan_jamaah_id
@@ -87,6 +88,42 @@ export async function GET(request) {
     );
     user.sedang_daftar_sahabat = kp.length > 0 && kp[0].status !== 'ditolak';
     user.pendaftaran_status_sahabat = kp[0]?.status || null;
+
+    // Dokumen SPK-AK/SK-CIF — dipindah dari /dashboard/sahabat ke sini
+    // (dikonfirmasi user 2026-09-22, "Status Keanggotaan" sekarang di
+    // Profil, bukan Beranda). Logic SAMA PERSIS /api/sahabat/dashboard:
+    // digital (dokumen_signature rangkap='travel') diprioritaskan, fallback
+    // scan fisik. SPK-AK beda dokumen buat anggota non-Muslim.
+    if (user.role === 'sahabat_baitullah') {
+      const dokumenSpkAk = user.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
+      const [[sigSpkAk]] = await pool.query(
+        `SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
+        [dokumenSpkAk, userId]
+      );
+      user.dokumen = {
+        spk_ak: sigSpkAk?.pdf_final_path || user.dokumen_spk_ak_fisik_path || null,
+        sk_cif: user.dokumen_sk_cif_fisik_path || null,
+      };
+
+      // Voucher welcome Rp1jt — ikut dipindah dari Beranda ke Profil
+      // (dikonfirmasi user 2026-09-22). `tampil=0` SENGAJA (voucher ini gak
+      // pernah nongol di listing /voucher biasa, lihat komentar di
+      // /api/vouchers/saya) — dashboard/profil adalah SATU-SATUNYA tempat
+      // member bisa lihat status voucher ini, jangan sampai hilang total.
+      const [voucherRows] = await pool.query(
+        `SELECT kode, potongan, valid_until, used, aktif, created_at
+         FROM vouchers WHERE for_user = ? AND akses_role = 'akun'
+         ORDER BY created_at DESC LIMIT 1`,
+        [userId]
+      );
+      if (voucherRows[0]) {
+        const [[pengHop]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
+        const isHop = pengHop?.head_of_program_user_id && String(pengHop.head_of_program_user_id) === String(userId);
+        user.voucher_pendaftaran = { ...voucherRows[0], blocked_hop: !!isHop };
+      } else {
+        user.voucher_pendaftaran = null;
+      }
+    }
 
     return Response.json({ user });
   } catch (error) {
