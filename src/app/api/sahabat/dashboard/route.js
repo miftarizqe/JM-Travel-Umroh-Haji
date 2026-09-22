@@ -61,8 +61,13 @@ export async function GET(request) {
     // gabung status funnel dari sahabat_pendaftaran kalau dia sendiri juga
     // sahabat (rekrutan yang cuma "nabung" tanpa jadi recruiter gak punya
     // baris sahabat_pendaftaran, itu wajar — bukan diarahkan buat kejar rekrut).
+    // `wa` diikutkan (dikonfirmasi user 2026-09-22) — CUMA buat rekrutan
+    // LANGSUNG di sini, biar bisa di-follow-up manual sama perekrutnya
+    // sendiri. Jaringan lebih dalam (Team, downline-nya-downline) SENGAJA
+    // gak dapat ini — orang yang gak dia rekrut sendiri gak ada hubungan
+    // langsung yang jadi dasar wajar buat lihat kontaknya.
     const [rekrutan] = await pool.query(
-      `SELECT u.id, u.name, u.role, u.kode_unik, u.status, u.created_at,
+      `SELECT u.id, u.name, u.wa, u.role, u.kode_unik, u.status, u.created_at,
               kp.status AS funnel_status
        FROM users u
        LEFT JOIN sahabat_pendaftaran kp ON kp.user_id = u.id

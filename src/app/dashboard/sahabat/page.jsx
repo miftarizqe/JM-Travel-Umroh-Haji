@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
+import TombolWA from '@/app/components/TombolWA';
 
 const FUNNEL_LABEL = {
   pending: 'Upload Bukti TF', menunggu_bsi: 'Menunggu BSI', menunggu_sk_cif: 'Menunggu SK-CIF',
@@ -193,8 +194,13 @@ export default function DashboardSahabatPage() {
                   <div className="space-y-1">
                     {perluPerhatian[c.key].slice(0, 5).map(r => (
                       <div key={r.id} onClick={() => setDrillDownId(r.id)}
-                        className="text-xs text-gray-600 bg-white/60 hover:bg-white rounded px-2 py-1 cursor-pointer">
-                        {r.name} · {r.kode_unik}
+                        className="flex items-center justify-between gap-2 text-xs text-gray-600 bg-white/60 hover:bg-white rounded px-2 py-1 cursor-pointer">
+                        <span className="truncate">{r.name} · {r.kode_unik}</span>
+                        {r.wa && (
+                          <div onClick={e => e.stopPropagation()} className="shrink-0">
+                            <TombolWA nomor={r.wa} label="WA" className="inline-flex items-center gap-1 bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap" />
+                          </div>
+                        )}
                       </div>
                     ))}
                     {perluPerhatian[c.key].length > 5 && <div className="text-[10px] text-gray-400 pl-2">+{perluPerhatian[c.key].length - 5} lainnya...</div>}
@@ -326,14 +332,24 @@ export default function DashboardSahabatPage() {
             <div className="space-y-2">
               {data.rekrutan.map(r => (
                 <div key={r.id} onClick={() => setDrillDownId(r.id)}
-                  className="flex items-center justify-between p-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
-                  <div>
-                    <div className="font-semibold text-[#0E2F6E]">{r.name}</div>
+                  className="flex items-center justify-between gap-2 p-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[#0E2F6E] truncate">{r.name}</div>
                     <div className="text-[10px] text-gray-400">{r.kode_unik}</div>
                   </div>
-                  <span className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2.5 py-1 rounded-full">
-                    {r.funnel_status ? (FUNNEL_LABEL[r.funnel_status] || r.funnel_status) : (r.status === 'active' ? 'Aktif' : 'Menunggu')}
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {/* Follow-up WA — cuma rekrutan LANGSUNG (dikonfirmasi
+                        user 2026-09-22), bukan seluruh jaringan/Team. stopPropagation
+                        biar klik tombol WA gak ikut buka modal drill-down. */}
+                    {r.wa && (
+                      <div onClick={e => e.stopPropagation()}>
+                        <TombolWA nomor={r.wa} label="WA" className="inline-flex items-center gap-1 bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap" />
+                      </div>
+                    )}
+                    <span className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2.5 py-1 rounded-full whitespace-nowrap">
+                      {r.funnel_status ? (FUNNEL_LABEL[r.funnel_status] || r.funnel_status) : (r.status === 'active' ? 'Aktif' : 'Menunggu')}
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>

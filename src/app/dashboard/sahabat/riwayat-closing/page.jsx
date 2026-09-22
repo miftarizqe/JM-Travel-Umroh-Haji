@@ -111,7 +111,7 @@ function RiwayatClosingContent() {
         </div>
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-3 text-center">
           <div className="text-xl font-black text-[#1A4FA0]">{r.total_closing_langsung || 0}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Closing Langsung</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Closing Jamaah</div>
         </div>
       </div>
 
@@ -122,7 +122,7 @@ function RiwayatClosingContent() {
         </button>
         <button onClick={() => setTab('langsung')}
           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${tab === 'langsung' ? 'bg-white text-[#0E2F6E] shadow-sm' : 'text-gray-500'}`}>
-          💳 Closing Langsung
+          💳 Closing Jamaah
         </button>
       </div>
 
@@ -164,7 +164,7 @@ function RiwayatClosingContent() {
 
       {tab === 'langsung' && (
         closingLangsung.length === 0 ? (
-          <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">Belum ada closing langsung di jaringan Anda.</div>
+          <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">Belum ada closing jamaah di jaringan Anda.</div>
         ) : (
           <div className="space-y-2">
             {closingLangsung.map(b => (
