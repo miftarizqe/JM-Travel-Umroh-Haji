@@ -1,0 +1,15 @@
+# TAHAP 1 (tampilkan website dulu): semuanya ke Next.js. Tambahkan ke Caddyfile di VPS.
+# Caddy container sudah memegang port 80/443, jadi jangan pasang nginx.
+jmtourtravel.com, www.jmtourtravel.com {
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy web:3000
+}
+
+# TAHAP 2 (nanti, setelah DB & JWT_SECRET disatukan): endpoint yang sudah di-port ke Go
+# dikirim ke api:8080, sisanya tetap ke web:3000. Contoh:
+#   @go path /healthz /api/auth/login /api/auth/register /api/auth/logout ...
+#   handle @go { reverse_proxy api:8080 }
+#   handle     { reverse_proxy web:3000 }
+# (/api/programs baru GET yang ada di Go — POST masih di Next.js.)

@@ -1,0 +1,32 @@
+# Tambahkan service "web" ini ke docker-compose.yml di VPS (jaringan yang sama dengan
+# caddy, api, db). Dengan begitu Next.js bisa memanggil MariaDB lewat host "db" dan
+# Caddy bisa meneruskan ke "web:3000" tanpa membuka port 3000 ke publik.
+services:
+  web:
+    build: /path/ke/JM-Travel-Umroh-Haji   # ganti dengan lokasi clone repo ini di VPS
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_USER: ${WEB_DB_USER}
+      DB_PASSWORD: ${WEB_DB_PASSWORD}
+      DB_NAME: ${WEB_DB_NAME}
+      JWT_SECRET: ${JWT_SECRET}      # HARUS sama dengan JWT_SECRET service api
+      # Kode verifikasi (email) — pakai var SMTP_* yang sama dengan service
+      # api (deploy/docker-compose.yml), biar satu kredensial SMTP dipakai
+      # bareng. Belum diisi = kode verifikasi TIDAK terkirim di production.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
+    volumes:
+      - web_private_uploads:/app/private-uploads
+      - web_public_uploads:/app/public/uploads
+    depends_on:
+      - db
+
+volumes:
+  web_private_uploads:
+  web_public_uploads:

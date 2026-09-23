@@ -1,0 +1,9 @@
+node_modules
+.next
+.git
+.env*
+.vscode
+private-uploads
+public/uploads
+*.pdf
+jm-travel-dokumentasi-sistem.html

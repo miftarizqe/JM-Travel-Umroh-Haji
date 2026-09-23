@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { kirimEmail } from '@/lib/mailer';
 
 // Kode 6 digit
 function buatKode() {
@@ -7,8 +8,8 @@ function buatKode() {
 }
 
 // POST /api/verifikasi/kirim  body: { metode: 'whatsapp'|'email' }
-// Membuat kode & menyimpannya. Pengiriman nyata ke WA/email
-// dilakukan lewat penyedia (Twilio/Fonnte/SMTP) — lihat CATATAN di bawah.
+// Membuat kode & menyimpannya. Email dikirim lewat SMTP (src/lib/mailer.js).
+// WhatsApp belum ada penyedia (Fonnte/Twilio) — ditolak di production.
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -44,11 +45,36 @@ export async function POST(request) {
       ? String(u.wa).replace(/(\d{4})\d+(\d{3})/, '$1****$2')
       : String(u.email).replace(/(.{2}).*(@.*)/, '$1***$2');
 
-    // CATATAN PENTING:
-    // Pengiriman nyata butuh penyedia (Fonnte/Twilio untuk WA, SMTP untuk email).
-    // Selama kredensial belum diisi di .env.local, kode dikembalikan di response
-    // HANYA saat mode development, supaya alur tetap bisa diuji.
+    // dev: kalau pengiriman gagal/belum dikonfigurasi, kode tetap dikembalikan
+    // di response (kode_dev) supaya alur tetap bisa diuji tanpa SMTP/WA asli.
     const dev = process.env.NODE_ENV !== 'production';
+
+    if (metode === 'email') {
+      try {
+        await kirimEmail(
+          u.email,
+          'Kode verifikasi JM Travel',
+          `Kode verifikasi akun Anda: ${kode}\n\nBerlaku 10 menit. Jangan bagikan kode ini ke siapa pun.`
+        );
+      } catch (err) {
+        console.error('[verifikasi] gagal kirim email:', err.message);
+        // Produksi: jangan bilang "terkirim" padahal enggak — SMTP belum
+        // dikonfigurasi atau server SMTP menolak.
+        if (!dev) {
+          return Response.json(
+            { error: 'Gagal mengirim email verifikasi. Coba lagi nanti atau hubungi admin.' },
+            { status: 502 }
+          );
+        }
+      }
+    } else if (metode === 'whatsapp' && !dev) {
+      // Belum ada penyedia WA (Fonnte/Twilio) terpasang — di produksi jangan
+      // pura-pura terkirim, kodenya memang tidak sampai ke mana pun.
+      return Response.json(
+        { error: 'Verifikasi via WhatsApp belum tersedia. Gunakan email dulu.' },
+        { status: 503 }
+      );
+    }
 
     return Response.json({
       message: `Kode verifikasi dikirim via ${metode} ke ${tujuan}`,
