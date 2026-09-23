@@ -18,6 +18,11 @@ function fmtTanggal(iso) {
   return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+const FUNNEL_LABEL = {
+  pending: 'Upload Bukti TF', menunggu_bsi: 'Menunggu BSI', menunggu_sk_cif: 'Menunggu SK-CIF',
+  active: 'Aktif', ditolak: 'Ditolak',
+};
+
 const KATEGORI_LABEL = {
   komisi_sahabat: { label: 'Ujroh Rekrutan', warna: 'bg-purple-50 text-purple-700' },
   closing_langsung_sahabat: { label: 'Closing Jamaah', warna: 'bg-blue-50 text-blue-700' },
@@ -30,8 +35,8 @@ const KATEGORI_LABEL = {
 };
 
 // Halaman "Riwayat Tabungan Umroh" — dituju dari klik "Total Ujroh
-// Terkonfirmasi"/"Ujroh Pending" di /dashboard/sahabat. Restrukturisasi
-// 2026-09-22 (dikonfirmasi user, awalnya kebalik):
+// Terkonfirmasi"/"Ujroh Pending"/"Forecast" di /dashboard/sahabat.
+// Restrukturisasi 2026-09-22/23 (dikonfirmasi user, awalnya kebalik):
 //  - "Riwayat Pencairan" = per BATCH pencairan yang beneran kejadian (data
 //    payslip/pengajuan_ujroh) — kalau sebulan cuma cair 2x, ya cuma ada 2
 //    baris di sini, expand buat lihat rincian item per batch. TIDAK PERNAH
@@ -39,6 +44,13 @@ const KATEGORI_LABEL = {
 //    yang udah disetujui/dicairkan).
 //  - "Cashflow Tabungan" = SEMUA mutasi individual, duit masuk & keluar,
 //    confirmed maupun pending, satu list kronologis (rekening koran).
+//  - "Forecast" = proyeksi duit yang BELUM kejadian sama sekali (beda dari
+//    2 tab di atas yang isinya kejadian nyata) — 2 sumber: ujroh 5-generasi
+//    dari downline yang masih di funnel, DAN ujroh closing_langsung/referral
+//    reguler dari booking jamaah yang masih berjalan (belum 'selesai').
+//    Sengaja pindah kesini dari Riwayat Closing Jaringan (dikonfirmasi user
+//    2026-09-23) — itu nyangkut nominal, gak cocok di halaman yang sengaja
+//    qty-only.
 export default function RiwayatSaldoPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>}>
@@ -54,9 +66,14 @@ function RiwayatSaldoContent() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [targetInfo, setTargetInfo] = useState(null);
-  const [tab, setTab] = useState(searchParams.get('section') === 'pending' ? 'cashflow' : 'pencairan');
+  const [tab, setTab] = useState(() => {
+    if (searchParams.get('tab') === 'forecast') return 'forecast';
+    if (searchParams.get('section') === 'pending') return 'cashflow';
+    return 'pencairan';
+  });
   const [payslip, setPayslip] = useState(null);
   const [expandPeriode, setExpandPeriode] = useState(null);
+  const [forecast, setForecast] = useState(null);
 
   const paramId = searchParams.get('sahabat_id');
   const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
@@ -74,6 +91,10 @@ function RiwayatSaldoContent() {
     fetch(`/api/sahabat/payslip?sahabat_id=${targetId}`)
       .then(r => r.json())
       .then(d => setPayslip(d.periode || []))
+      .catch(() => {});
+    fetch(`/api/sahabat/dashboard?sahabat_id=${targetId}`)
+      .then(r => r.json())
+      .then(d => setForecast(d.forecast || null))
       .catch(() => {});
     if (lihatOrangLain) {
       fetch(`/api/sahabat/downline/${targetId}`)
@@ -103,6 +124,10 @@ function RiwayatSaldoContent() {
         <button onClick={() => setTab('cashflow')}
           className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'cashflow' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
           🧾 Cashflow Tabungan
+        </button>
+        <button onClick={() => setTab('forecast')}
+          className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'forecast' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
+          📊 Forecast
         </button>
       </div>
 
@@ -205,6 +230,68 @@ function RiwayatSaldoContent() {
         </div>
       )}
       </>)}
+
+      {tab === 'forecast' && (
+        !forecast ? (
+          <div className="text-center text-gray-400 py-10">Memuat...</div>
+        ) : (
+          <div className="space-y-5">
+            <div>
+              <div className="font-bold text-[#0E2F6E] text-sm mb-2">🌳 Ujroh 5-Generasi — Rekrutan dalam Funnel</div>
+              <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-xl p-4 mb-2">
+                <div className="text-[10px] opacity-75 uppercase tracking-wider">Total Potensi</div>
+                <div className="text-2xl font-black text-[#C9952A]">{fmtRp(forecast.potensi_total)}</div>
+              </div>
+              {forecast.calon_ujroh.length === 0 ? (
+                <div className="bg-[#E8F0FB] rounded-xl p-4 text-center text-sm text-[#1A4FA0]">Semua downline dalam 5 generasi sudah aktif, atau belum ada downline sama sekali.</div>
+              ) : (
+                <div className="space-y-2">
+                  {forecast.calon_ujroh.map(c => (
+                    <div key={c.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-bold text-[#0E2F6E] text-sm truncate">{c.name} <span className="text-gray-400 font-normal">({c.kode_unik})</span></div>
+                          <div className="text-[10px] text-gray-400">Gen{c.level} · {FUNNEL_LABEL[c.funnel_status] || 'Menunggu'}</div>
+                        </div>
+                        <div className="font-bold text-[#C9952A] shrink-0">{fmtRp(c.potensi_nominal)}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div className="font-bold text-[#0E2F6E] text-sm mb-2">💳 Closing Jamaah Umroh Biasa — Booking Berjalan</div>
+              <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-xl p-4 mb-2">
+                <div className="text-[10px] opacity-75 uppercase tracking-wider">Total Potensi</div>
+                <div className="text-2xl font-black text-[#C9952A]">{fmtRp(forecast.closing_jamaah_total)}</div>
+              </div>
+              {(forecast.closing_jamaah || []).length === 0 ? (
+                <div className="bg-[#E8F0FB] rounded-xl p-4 text-center text-sm text-[#1A4FA0]">Belum ada booking berjalan yang bakal ngasih ujroh closing.</div>
+              ) : (
+                <div className="space-y-2">
+                  {forecast.closing_jamaah.map(c => {
+                    const kat = KATEGORI_LABEL[c.jenis] || { label: c.jenis, warna: 'bg-gray-100 text-gray-600' };
+                    return (
+                      <div key={`${c.jenis}-${c.id}`} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${kat.warna}`}>{kat.label}</span>
+                            <div className="text-sm text-gray-700 mt-1 truncate">{c.prog_name}</div>
+                            <div className="text-[10px] text-gray-400">{c.jumlah_jamaah} jamaah · {c.pemesan_nama || '-'}{c.via ? ` · Via: ${c.via}` : ''}</div>
+                          </div>
+                          <div className="font-bold text-[#C9952A] shrink-0">{fmtRp(c.potensi_nominal)}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      )}
     </Layout>
   );
 }

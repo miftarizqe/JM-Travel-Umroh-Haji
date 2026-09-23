@@ -56,7 +56,7 @@ export async function GET(request) {
     // sendiri, dia gak bisa jadi rekrutannya sendiri) yang beneran udah
     // aktif, plus target tabungan masing2 buat dihitung persen kesiapan.
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.kode_unik, u.status, u.created_at,
+      `SELECT u.id, u.name, u.wa, u.kode_unik, u.status, u.created_at, u.perekrut_id,
               kp.status AS funnel_status, kp.target_estimasi_harga, kp.target_minat,
               perekrut.name AS perekrut_nama, perekrut.kode_unik AS perekrut_kode_unik,
               (SELECT created_at FROM pendaftaran_status_log
@@ -84,11 +84,16 @@ export async function GET(request) {
       saldoMap = Object.fromEntries(saldoRows.map(r => [r.penerima_id, Number(r.saldo || 0)]));
     }
 
+    // `wa` cuma diikutkan buat rekrutan LANGSUNG si pemilik jaringan (biar
+    // bisa di-follow-up manual, dikonfirmasi user 2026-09-23) — bukan
+    // seluruh downline yang ditampilin di sini (Gen2 ke atas gak direkrut
+    // langsung sama akun ini, gak ada dasar wajar buat lihat kontaknya).
     let closingReferral = rows.map(r => ({
       id: r.id, name: r.name, kode_unik: r.kode_unik, status: r.status,
       funnel_status: r.funnel_status, tanggal_aktif: r.tanggal_aktif,
       perekrut_nama: r.perekrut_nama, perekrut_kode_unik: r.perekrut_kode_unik,
       target_minat: r.target_minat,
+      wa: String(r.perekrut_id) === String(sahabatId) ? r.wa : null,
       persen_kesiapan: persenKesiapan(saldoMap[r.id] || 0, r.target_estimasi_harga),
     }));
 

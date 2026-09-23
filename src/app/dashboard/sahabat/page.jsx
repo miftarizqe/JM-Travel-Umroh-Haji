@@ -127,10 +127,11 @@ export default function DashboardSahabatPage() {
             dalam jaringan (sampai gen5) yang masih dalam funnel pendaftaran.
             Otomatis hilang begitu downline-nya aktif (masuk hitungan Ujroh
             Terkonfirmasi/Pending di atas, bukan di sini lagi). Klik keluar
-            ke tab Forecast di Riwayat Closing Jaringan (dikonfirmasi user
-            2026-09-22, rincian lengkapnya di sana — di sini cuma ringkasan
-            angka yang emang belum ACC). */}
-        <div onClick={() => router.push('/dashboard/sahabat/riwayat-closing?tab=forecast')}
+            ke tab Forecast di Riwayat Tabungan Umroh (dikonfirmasi user
+            2026-09-23 — ini nyangkut nominal, jadi tempatnya di situ, bukan
+            di Riwayat Closing Jaringan yang sengaja qty-only). Di sana juga
+            digabung sama forecast closing jamaah umroh biasa. */}
+        <div onClick={() => router.push('/dashboard/sahabat/riwayat?tab=forecast')}
           className="bg-white rounded-xl border-2 border-[#e0e8f0] hover:border-[#C9952A] p-4 cursor-pointer transition-all">
           <div className="text-xs text-gray-400 mb-1">📊 Forecast — Calon Ujroh dari Jaringan</div>
           <div className="font-black text-[#C9952A] text-lg">{fmtRp(forecast.potensi_total)}</div>

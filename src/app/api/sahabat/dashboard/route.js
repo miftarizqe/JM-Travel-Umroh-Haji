@@ -180,6 +180,74 @@ export async function GET(request) {
     }
     const potensiUjrohTotal = calonUjroh.reduce((s, c) => s + c.potensi_nominal, 0);
 
+    // Forecast Closing Jamaah Umroh Biasa (dikonfirmasi user 2026-09-23) —
+    // booking yang MASIH AKTIF (belum 'selesai') yang bakal ngasih ujroh
+    // closing_langsung_sahabat / referral_closing_reguler_sahabat begitu
+    // bookingnya kelar. Estimasi nominal SAMA PERSIS logic asli di
+    // prosesBookingSelesai (src/lib/closing.js) — cuma gak nyatet apa-apa,
+    // murni proyeksi read-only.
+    const isSelfCheckoutHop = isHop; // akun ini sendiri HOP = closing self-checkout siapa pun teratribusi ke dia
+    const [bookingLangsungAktif] = await pool.query(
+      `SELECT b.id, b.prog_name, b.jumlah_jamaah, b.total_harga, b.status, b.referral_sahabat_id,
+              p.sahabat_closing_nominal_closer, u.name AS pemesan_nama
+       FROM bookings b
+       LEFT JOIN programs p ON p.id = b.prog_id
+       LEFT JOIN users u ON u.id = b.user_id
+       WHERE b.referral_sahabat_id = ? AND b.status IN ('active','menunggu_batal')`,
+      [sahabatId]
+    );
+    const forecastClosingLangsung = bookingLangsungAktif.map(b => {
+      const potensi = isSelfCheckoutHop
+        ? Math.round((b.total_harga || 0) * Number(pengaturan?.komisi_sahabat_closing_persen || 0) / 100)
+        : Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
+      return { id: b.id, prog_name: b.prog_name, jumlah_jamaah: b.jumlah_jamaah, pemesan_nama: b.pemesan_nama, status: b.status, jenis: 'closing_langsung_sahabat', potensi_nominal: potensi };
+    });
+
+    // Referral permanen reguler (perekrut_sahabat_jamaah_id) — TERPISAH,
+    // digate publish_type != 'sahabat_baitullah' sama persis kode asli.
+    const [bookingReferralAktif] = await pool.query(
+      `SELECT b.id, b.prog_name, b.jumlah_jamaah, b.status, u.name AS pemesan_nama
+       FROM bookings b
+       LEFT JOIN programs p ON p.id = b.prog_id
+       LEFT JOIN users u ON u.id = b.user_id
+       WHERE u.perekrut_sahabat_jamaah_id = ? AND u.role = 'jamaah'
+         AND b.status IN ('active','menunggu_batal') AND (p.publish_type IS NULL OR p.publish_type != 'sahabat_baitullah')`,
+      [sahabatId]
+    );
+    const forecastReferralReguler = bookingReferralAktif.map(b => ({
+      id: b.id, prog_name: b.prog_name, jumlah_jamaah: b.jumlah_jamaah, pemesan_nama: b.pemesan_nama, status: b.status,
+      jenis: 'referral_closing_reguler_sahabat', potensi_nominal: 1_000_000,
+    }));
+
+    // Bagian HOP dari closing jamaah lain (dikonfirmasi user 2026-09-23) —
+    // KALAU akun ini HOP, dia JUGA dapat porsi dari booking yang di-closing-in
+    // anggota LAIN (bukan booking dia sendiri, yang udah kehitung di atas
+    // lewat referral_sahabat_id = sahabatId). Sama persis cabang "else" di
+    // closing.js (closer & HOP dua-duanya dapat, independen).
+    let forecastHopDariOrangLain = [];
+    if (isHop) {
+      const [bookingOrangLainAktif] = await pool.query(
+        `SELECT b.id, b.prog_name, b.jumlah_jamaah, b.status, b.referral_sahabat_id,
+                p.sahabat_closing_langsung_hop_nominal, k.name AS closer_nama, u.name AS pemesan_nama
+         FROM bookings b
+         LEFT JOIN programs p ON p.id = b.prog_id
+         LEFT JOIN users u ON u.id = b.user_id
+         LEFT JOIN users k ON k.id = b.referral_sahabat_id
+         WHERE b.referral_sahabat_id IS NOT NULL AND b.referral_sahabat_id != ?
+           AND b.status IN ('active','menunggu_batal')`,
+        [sahabatId]
+      );
+      forecastHopDariOrangLain = bookingOrangLainAktif.map(b => ({
+        id: b.id, prog_name: b.prog_name, jumlah_jamaah: b.jumlah_jamaah, pemesan_nama: b.pemesan_nama, status: b.status,
+        jenis: 'closing_langsung_sahabat',
+        potensi_nominal: Number(b.sahabat_closing_langsung_hop_nominal ?? pengaturan?.sahabat_closing_langsung_hop_nominal ?? 0),
+        via: b.closer_nama || null,
+      }));
+    }
+
+    const forecastClosingJamaah = [...forecastClosingLangsung, ...forecastReferralReguler, ...forecastHopDariOrangLain];
+    const forecastClosingJamaahTotal = forecastClosingJamaah.reduce((s, c) => s + c.potensi_nominal, 0);
+
     // Perlu Perhatian — rekrutan LANGSUNG yang masih nyangkut di funnel
     // (bukan cuma "nabung" tanpa sahabat_pendaftaran, itu status normal,
     // bukan sesuatu yang perlu ditindaklanjuti).
@@ -226,6 +294,8 @@ export async function GET(request) {
       forecast: {
         calon_ujroh: calonUjroh,
         potensi_total: potensiUjrohTotal,
+        closing_jamaah: forecastClosingJamaah,
+        closing_jamaah_total: forecastClosingJamaahTotal,
       },
       perlu_perhatian: perluPerhatian,
       closing_langsung: {
