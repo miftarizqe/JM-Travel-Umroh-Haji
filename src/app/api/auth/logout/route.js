@@ -4,9 +4,9 @@
  * Diperlukan karena cookie token sekarang httpOnly — frontend TIDAK BISA
  * menghapusnya lewat JavaScript. Server yang harus menghapusnya.
  */
-export async function POST() {
-  const secure = process.env.NODE_ENV === 'production' ? ' Secure;' : '';
+import { headerCookieToken } from '@/lib/auth';
 
+export async function POST() {
   return new Response(
     JSON.stringify({ message: 'Logout berhasil.' }),
     {
@@ -14,7 +14,7 @@ export async function POST() {
       headers: {
         'Content-Type': 'application/json',
         // Max-Age=0 -> browser langsung menghapus cookie
-        'Set-Cookie': `token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax;${secure}`,
+        'Set-Cookie': headerCookieToken('', 0),
       },
     }
   );

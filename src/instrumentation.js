@@ -4,6 +4,12 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return;
 
+  // Tanpa JWT_SECRET login selalu 500 — teriak sejak server nyala, jangan
+  // nunggu ada user yang nyoba login dulu.
+  if (!process.env.JWT_SECRET?.trim()) {
+    console.error('[config] JWT_SECRET kosong: login & semua API yang butuh sesi akan gagal. Set JWT_SECRET di environment.');
+  }
+
   const { jalankanClosingOtomatis } = await import('@/lib/closing-otomatis');
   const jalan = () => jalankanClosingOtomatis().catch(e => console.error('[closing-otomatis]', e));
 

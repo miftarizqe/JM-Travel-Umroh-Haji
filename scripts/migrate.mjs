@@ -8,12 +8,22 @@ const rootDir = path.resolve(import.meta.dirname, '..');
 const migrationsDir = path.join(rootDir, 'migrations');
 const dryRun = process.argv.includes('--dry-run');
 
+// Urutan sama seperti Next.js: .env, lalu .env.local menimpa, lalu environment
+// proses menimpa keduanya. Di container Docker tidak ada file .env* (di-
+// .dockerignore), jadi DB_* dari compose yang dipakai:
+//   docker compose exec web npm run migrate
 function loadEnv() {
-  const envPath = path.join(rootDir, '.env.local');
   const env = {};
-  for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
-    const m = line.match(/^([A-Z_]+)=(.*)$/);
-    if (m) env[m[1]] = m[2];
+  for (const nama of ['.env', '.env.local']) {
+    const envPath = path.join(rootDir, nama);
+    if (!fs.existsSync(envPath)) continue;
+    for (const line of fs.readFileSync(envPath, 'utf8').split('\n')) {
+      const m = line.match(/^([A-Z_]+)=(.*)$/);
+      if (m) env[m[1]] = m[2].trim();
+    }
+  }
+  for (const k of ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME']) {
+    if (process.env[k] !== undefined) env[k] = process.env[k];
   }
   return env;
 }

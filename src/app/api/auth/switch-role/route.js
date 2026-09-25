@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import jwt from 'jsonwebtoken';
-import { wajibLogin } from '@/lib/auth';
+import { wajibLogin, ambilJwtSecret, headerCookieToken } from '@/lib/auth';
 
 // Ganti "mode" sesi aktif buat akun dual-role (perwakilan + sahabat) —
 // JWT/session tetap cuma bawa SATU role aktif, ditukar di sini. Selalu
@@ -38,7 +38,7 @@ export async function POST(request) {
 
     const token = jwt.sign(
       { id: user.id, role: roleBaru, role_kedua: roleKeduaBaru, name: user.name },
-      process.env.JWT_SECRET,
+      ambilJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -59,7 +59,6 @@ export async function POST(request) {
     };
 
     const maxAge = 7 * 24 * 60 * 60;
-    const secure = process.env.NODE_ENV === 'production' ? ' Secure;' : '';
 
     return new Response(
       JSON.stringify({ message: 'Mode berhasil diganti.', user: dataUser }),
@@ -67,7 +66,7 @@ export async function POST(request) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Set-Cookie': `token=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax;${secure}`,
+          'Set-Cookie': headerCookieToken(token, maxAge),
         },
       }
     );

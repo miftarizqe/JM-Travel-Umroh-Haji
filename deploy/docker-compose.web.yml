@@ -10,7 +10,11 @@ services:
       DB_USER: ${WEB_DB_USER}
       DB_PASSWORD: ${WEB_DB_PASSWORD}
       DB_NAME: ${WEB_DB_NAME}
-      JWT_SECRET: ${JWT_SECRET}      # HARUS sama dengan JWT_SECRET service api
+      # Wajib; compose menolak start kalau kosong (tanpa ini login selalu 500).
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET wajib diisi}   # HARUS sama dengan JWT_SECRET service api
+      # Cookie login ber-flag Secure di production = situs WAJIB HTTPS. Isi
+      # COOKIE_SECURE=false HANYA untuk uji sementara lewat http://IP-VPS.
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
       # Kode verifikasi (email) — pakai var SMTP_* yang sama dengan service
       # api (deploy/docker-compose.yml), biar satu kredensial SMTP dipakai
       # bareng. Belum diisi = kode verifikasi TIDAK terkirim di production.
