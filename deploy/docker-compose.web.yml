@@ -15,6 +15,8 @@ services:
       # Cookie login ber-flag Secure di production = situs WAJIB HTTPS. Isi
       # COOKIE_SECURE=false HANYA untuk uji sementara lewat http://IP-VPS.
       COOKIE_SECURE: ${COOKIE_SECURE:-}
+      # Alamat publik situs, dipakai untuk link di ID card (default-nya localhost).
+      APP_URL: ${APP_URL:-https://jmtourtravel.com}
     volumes:
       - web_private_uploads:/app/private-uploads
       - web_public_uploads:/app/public/uploads
