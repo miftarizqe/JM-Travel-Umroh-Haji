@@ -27,8 +27,16 @@ export async function POST(req) {
     // koreksi admin, form wizard ini cuma nampilin read-only. Sumber
     // kebenarannya SELALU dari users.
     const [[userAwal]] = await db.query(
-      'SELECT role, nik, wa, email, perekrut_id, perekrut_perwakilan_jamaah_id FROM users WHERE id = ?', [user_id]
+      'SELECT role, nik, wa, email, perekrut_id, perekrut_perwakilan_jamaah_id, terverifikasi, foto_path FROM users WHERE id = ?', [user_id]
     );
+    // Prasyarat dicek di server juga — gate di /daftar-perwakilan (frontend)
+    // cuma tampilan, bisa dilewati dengan POST langsung ke endpoint ini.
+    if (!userAwal?.terverifikasi) {
+      return NextResponse.json({ error: 'Akun Anda masih menunggu verifikasi admin.' }, { status: 403 });
+    }
+    if (!userAwal.foto_path) {
+      return NextResponse.json({ error: 'Unggah foto profil terlebih dahulu.' }, { status: 400 });
+    }
     const nik = userAwal?.nik;
     const wa = userAwal?.wa;
     const email = userAwal?.email;

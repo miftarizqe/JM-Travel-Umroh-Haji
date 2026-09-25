@@ -15,16 +15,6 @@ services:
       # Cookie login ber-flag Secure di production = situs WAJIB HTTPS. Isi
       # COOKIE_SECURE=false HANYA untuk uji sementara lewat http://IP-VPS.
       COOKIE_SECURE: ${COOKIE_SECURE:-}
-      # Kode verifikasi (email) — pakai var SMTP_* yang sama dengan service
-      # api (deploy/docker-compose.yml), biar satu kredensial SMTP dipakai
-      # bareng. Belum diisi = kode verifikasi TIDAK terkirim di production.
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-}
-      SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-}
-      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-}
     volumes:
       - web_private_uploads:/app/private-uploads
       - web_public_uploads:/app/public/uploads

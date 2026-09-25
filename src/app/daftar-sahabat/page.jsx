@@ -35,6 +35,7 @@ export default function DaftarSahabatPage() {
   }));
   const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target (TERAKHIR — rekening tabungan umroh BUKAN bagian wizard ini lagi, lihat komentar di lanjutKePerjanjian)
   const [sudahKirim, setSudahKirim] = useState(false);
+  const [belumVerifikasi, setBelumVerifikasi] = useState(false);
   const [uploadingKtp, setUploadingKtp] = useState(false);
   const [uploadingPaspor, setUploadingPaspor] = useState(false);
   const [profil, setProfil] = useState(null);
@@ -65,6 +66,8 @@ export default function DaftarSahabatPage() {
     // /status-pendaftaran-sahabat) — lompat ke halaman status buat
     // lanjutin step berikutnya.
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
+      // Cuma tampilan — penolakan sebenarnya ada di POST /api/daftar-sahabat.
+      if (d.prasyarat && !d.prasyarat.akun_terverifikasi) setBelumVerifikasi(true);
       if (d.prasyarat?.data_diri_terkirim) {
         setSudahKirim(true);
         router.push('/status-pendaftaran-sahabat');
@@ -154,6 +157,15 @@ export default function DaftarSahabatPage() {
 
   const inp = "w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
   const lbl = "block text-xs font-semibold text-[#0E2F6E] mb-1";
+
+  if (belumVerifikasi) {
+    return <Layout title="🤝 Pendaftaran Sahabat Baitullah" showBack><div className="max-w-md mx-auto">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
+        <div className="text-3xl mb-2">⏳</div>
+        <h4 className="font-bold text-yellow-800 mb-1">Menunggu Verifikasi Admin</h4>
+        <p className="text-sm text-yellow-700">Akun Anda belum diverifikasi admin. Silakan tunggu, atau hubungi admin JM Travel.</p>
+      </div></div></Layout>;
+  }
 
   return (
     <Layout title="🤝 Pendaftaran Sahabat Baitullah" showBack confirmLeave={isDirty && !sudahKirim}

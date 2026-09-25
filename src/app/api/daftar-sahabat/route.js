@@ -31,7 +31,12 @@ export async function POST(req) {
     // registrasi/koreksi admin, form wizard ini cuma nampilin read-only,
     // gak boleh nyelundup ganti lewat body request langsung juga. Sumber
     // kebenarannya SELALU dari users, bukan input jamaah lagi.
-    const [[userSaatIni0]] = await db.query('SELECT nik, wa, email, perekrut_id FROM users WHERE id = ?', [user_id]);
+    const [[userSaatIni0]] = await db.query('SELECT nik, wa, email, perekrut_id, terverifikasi FROM users WHERE id = ?', [user_id]);
+    // Akun baru wajib diverifikasi admin dulu (pengganti OTP registrasi) —
+    // dicek di server, bukan cuma disembunyikan di frontend.
+    if (!userSaatIni0?.terverifikasi) {
+      return NextResponse.json({ error: 'Akun Anda masih menunggu verifikasi admin.' }, { status: 403 });
+    }
     const nik = userSaatIni0?.nik;
     const wa = userSaatIni0?.wa;
     const email = userSaatIni0?.email;

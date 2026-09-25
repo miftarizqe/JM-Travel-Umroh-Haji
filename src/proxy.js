@@ -9,7 +9,6 @@ const protectedRoutes = [
   '/admin',
   '/order-jamaah',
   '/upgrade-paket',
-  '/verifikasi',
   '/upload-foto',
   '/pks',
   '/daftar-agen',

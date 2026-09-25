@@ -22,7 +22,6 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.22.5",
     "next": "16.2.10",
-    "nodemailer": "^10.0.10",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "qrcode": "^1.5.4",

@@ -18,7 +18,7 @@ export async function GET(req) {
     let query = `
       SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status,
              u.wilayah, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama,
-             u.reg_status, u.reg_metode, u.reg_jadwal, u.created_at,
+             u.reg_status, u.reg_metode, u.reg_jadwal, u.terverifikasi, u.created_at,
              ap.id AS pendaftaran_id, ap.status AS pendaftaran_status,
              ap.metode AS pendaftaran_metode
       FROM users u
@@ -59,7 +59,7 @@ export async function PATCH(req) {
       return NextResponse.json({ error: 'user_id dan action wajib diisi' }, { status: 400 });
     }
 
-    const [rows] = await db.query('SELECT id, name, role, role_kedua, status, perekrut_id FROM users WHERE id = ?', [user_id]);
+    const [rows] = await db.query('SELECT id, name, role, role_kedua, status, terverifikasi, perekrut_id FROM users WHERE id = ?', [user_id]);
     if (rows.length === 0) {
       return NextResponse.json({ error: 'User tidak ditemukan' }, { status: 404 });
     }
@@ -69,7 +69,7 @@ export async function PATCH(req) {
     if (['admin', 'super_admin'].includes(target.role) && auth.user.role !== 'super_admin') {
       return NextResponse.json({ error: 'Tidak berwenang mengubah akun staff.' }, { status: 403 });
     }
-    const roleLabel = { perwakilan: 'Perwakilan', jamaah: 'Jamaah', sahabat: 'Jamaah Sahabat Baitullah' }[target.role] || target.role;
+    const roleLabel = { perwakilan: 'Perwakilan', jamaah: 'Jamaah', sahabat_baitullah: 'Jamaah Sahabat Baitullah' }[target.role] || target.role;
 
     switch (action) {
       case 'approve':
@@ -134,6 +134,60 @@ export async function PATCH(req) {
         });
 
         return NextResponse.json({ message: 'User ditolak.', reason: reject_reason || null });
+
+      // Verifikasi akun baru — pengganti OTP registrasi (2026-09-25).
+      // Register sekarang nyimpan terverifikasi = 0; akun belum bisa order
+      // atau lanjut daftar perwakilan sampai admin memverifikasi di sini.
+      case 'verifikasi_akun': {
+        if (target.terverifikasi) {
+          return NextResponse.json({ error: 'Akun sudah terverifikasi' }, { status: 400 });
+        }
+        await db.query('UPDATE users SET terverifikasi = 1 WHERE id = ?', [user_id]);
+
+        await kirimNotifikasi(db, {
+          user_id: target.id,
+          tipe: 'akun_terverifikasi',
+          judul: 'Akun Anda Terverifikasi',
+          pesan: 'Akun Anda sudah diverifikasi admin. Sekarang Anda bisa melanjutkan pendaftaran dan order.',
+          link: '/profil',
+        });
+
+        await catatAudit(db, {
+          actor: auth.user,
+          aksi: 'verifikasi_akun',
+          target_type: 'user',
+          target_id: target.id,
+          keterangan: `${target.name} (${roleLabel})`,
+        });
+
+        return NextResponse.json({ message: 'Akun berhasil diverifikasi.' });
+      }
+
+      case 'tolak_verifikasi': {
+        if (target.terverifikasi) {
+          return NextResponse.json({ error: 'Akun sudah terverifikasi' }, { status: 400 });
+        }
+        // status 'rejected' = login ditolak (lihat /api/auth/login).
+        await db.query("UPDATE users SET status = 'rejected' WHERE id = ?", [user_id]);
+
+        await kirimNotifikasi(db, {
+          user_id: target.id,
+          tipe: 'akun_ditolak',
+          judul: 'Verifikasi Akun Ditolak',
+          pesan: `Verifikasi akun Anda ditolak.${reject_reason ? ' Alasan: ' + reject_reason : ''}`,
+          link: '/profil',
+        });
+
+        await catatAudit(db, {
+          actor: auth.user,
+          aksi: 'tolak_verifikasi_akun',
+          target_type: 'user',
+          target_id: target.id,
+          keterangan: `${target.name} (${roleLabel})${reject_reason ? ': ' + reject_reason : ''}`,
+        });
+
+        return NextResponse.json({ message: 'Verifikasi akun ditolak.' });
+      }
 
       case 'update_reg_status':
         if (!reg_status) return NextResponse.json({ error: 'reg_status wajib diisi' }, { status: 400 });

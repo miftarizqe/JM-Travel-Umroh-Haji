@@ -1,12 +1,23 @@
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { nomorKodeUnikBerikutnya } from '@/lib/kodeUnik';
+import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
+import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
+import { emailValid, nikValid, normalisasiWA, varianWA } from '@/lib/validasiAkun';
+
+// Cegah spam pembuatan akun: 10 registrasi per IP per jam.
+const limitIP = buatLimiter(10, 60 * 60 * 1000);
+const MAX_RETRY_KODE = 5;
 
 export async function POST(request) {
   try {
+    const r = limitIP.cek(ipKlien(request));
+    if (!r.boleh) return responsTerlaluBanyak(r.sisaDetik);
+
     const body = await request.json();
     const name = String(body.name||'').trim();
-    const email = String(body.email||'').trim();
-    const wa = String(body.wa||'').trim();
+    const email = String(body.email||'').trim().toLowerCase();
+    const waInput = String(body.wa||'').trim();
     const nik = String(body.nik||'').trim();
     // Agama (Islam/Non-Islam) — dikonfirmasi user 2026-09-20, berlaku SEMUA
     // role, dipakai nentuin dokumen perjanjian yang dipakai kalau akhirnya
@@ -23,8 +34,25 @@ export async function POST(request) {
       ? String(body.perekrut_id).trim() : null;
 
     // Validasi field wajib
-    if (!name || !email || !wa || !nik || !agama || !password || !role) {
+    if (!name || !email || !waInput || !nik || !agama || !password || !role) {
       return Response.json({ error: 'Semua field wajib diisi' }, { status: 400 });
+    }
+    if (name.length > 100) {
+      return Response.json({ error: 'Nama maksimal 100 karakter' }, { status: 400 });
+    }
+    if (!nikValid(nik)) {
+      return Response.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
+    }
+    if (!emailValid(email)) {
+      return Response.json({ error: 'Format email tidak valid' }, { status: 400 });
+    }
+    // Disimpan seragam "08…" biar login via WA & cek duplikat konsisten.
+    const wa = normalisasiWA(waInput);
+    if (!wa) {
+      return Response.json({ error: 'Nomor WhatsApp tidak valid (contoh: 081234567890)' }, { status: 400 });
+    }
+    if (password.length < 8) {
+      return Response.json({ error: 'Password minimal 8 karakter' }, { status: 400 });
     }
 
     // Role "agen" sudah dihapus dari sistem — tolak eksplisit dengan pesan
@@ -88,8 +116,8 @@ export async function POST(request) {
 
     // Cek duplikat
     const [existing] = await pool.query(
-      'SELECT id FROM users WHERE email=? OR wa=? OR nik=?',
-      [email, wa, nik]
+      'SELECT id FROM users WHERE email=? OR wa IN (?) OR nik=?',
+      [email, varianWA(wa), nik]
     );
     if (existing.length > 0) {
       return Response.json({ error: 'Email, WA, atau NIK sudah terdaftar' }, { status: 400 });
@@ -111,28 +139,47 @@ export async function POST(request) {
     // digenerate pastikanKodeUnik() pas status beneran jadi 'active' (lihat
     // /api/status-pendaftaran & /api/status-pendaftaran-sahabat) — biar akun
     // yang ujung-ujungnya ditolak gak "makan jatah" nomor urut kode.
-    // 'jamaah' langsung aktif jadi tetap generate di sini juga, pakai MAX
-    // nomor urut yang ada (bukan COUNT(*), soalnya COUNT bisa collide kalau
-    // ada gap di sequence — ketemu bug nyata pas testing 2026-09-03).
+    // 'jamaah' langsung aktif jadi tetap generate di sini juga.
+    // kode_unik UNIQUE: dua registrasi bersamaan bisa dapat nomor sama →
+    // INSERT kedua ditolak DB (ER_DUP_ENTRY) lalu dicoba ulang dengan nomor
+    // baru. Duplikat di kolom lain (email/WA/NIK, lolos cek di atas karena
+    // race) dibalas 400, bukan 500.
+    const prefix = role === 'perwakilan' ? 'PJM' : role === 'sahabat_baitullah' ? 'SBJM' : 'JUJM';
     let kodeUnik = null;
-    if (status === 'active') {
-      const prefix = role === 'perwakilan' ? 'PJM' : role === 'sahabat_baitullah' ? 'SBJM' : 'JUJM';
-      const [maxRows] = await pool.query(
-        `SELECT MAX(CAST(SUBSTRING(kode_unik, ?) AS UNSIGNED)) AS maxNomor
-         FROM users WHERE role=? AND kode_unik REGEXP ?`,
-        [prefix.length + 1, role, `^${prefix}[0-9]+$`]
-      );
-      kodeUnik = prefix + String((maxRows[0].maxNomor || 0) + 1).padStart(4, '0');
+    for (let percobaan = 1; ; percobaan++) {
+      kodeUnik = status === 'active' ? await nomorKodeUnikBerikutnya(pool, prefix) : null;
+      try {
+        await pool.query(
+          // terverifikasi = 0: akun baru menunggu verifikasi admin (pengganti
+          // OTP WA/Email, 2026-09-25) — di-ACC lewat Admin > Pengguna
+          // (action 'verifikasi_akun' di /api/admin/users). Sebelum itu
+          // cekPemesanBolehOrder & prasyarat daftar-perwakilan menahan akun.
+          `INSERT INTO users (name, email, wa, nik, agama, password, role, kode_unik, status, terverifikasi, perekrut_id,
+            perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?)`,
+          [name, email, wa, nik, agama, hashedPassword, role, kodeUnik, status, perekrutId,
+            perekrutPerwJamaahId, perekrutKopJamaahId]
+        );
+        break;
+      } catch (e) {
+        if (e.code !== 'ER_DUP_ENTRY') throw e;
+        if (String(e.message).includes('kode_unik')) {
+          if (percobaan < MAX_RETRY_KODE) continue;
+          throw e;
+        }
+        return Response.json({ error: 'Email, WA, atau NIK sudah terdaftar' }, { status: 400 });
+      }
     }
-    await pool.query(
-      // terverifikasi = 0: akun baru WAJIB verifikasi WA/Email dulu
-      `INSERT INTO users (name, email, wa, nik, agama, password, role, kode_unik, status, terverifikasi, perekrut_id,
-        perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?)`,
-      [name, email, wa, nik, agama, hashedPassword, role, kodeUnik, status, perekrutId,
-        perekrutPerwJamaahId, perekrutKopJamaahId]
-    );
 
-    return Response.json({ message: 'Registrasi berhasil!', kodeUnik }, { status: 201 });
+    // Gagal kirim notif jangan bikin registrasi yang udah tersimpan jadi 500.
+    const roleLabel = { perwakilan: 'Perwakilan', sahabat_baitullah: 'Jamaah Sahabat Baitullah' }[role] || 'Jamaah';
+    await kirimNotifikasiAdmin(pool, {
+      tipe: 'akun_perlu_verifikasi',
+      judul: 'Akun Baru Menunggu Verifikasi',
+      pesan: `${name} (${roleLabel}) baru mendaftar dan menunggu verifikasi akun.`,
+      link: '/admin?tab=users',
+    }).catch(e => console.error('Gagal kirim notifikasi admin:', e));
+
+    return Response.json({ message: 'Registrasi berhasil! Akun Anda menunggu verifikasi admin.', kodeUnik }, { status: 201 });
 
   } catch (error) {
     console.error(error);

@@ -489,6 +489,17 @@ function AdminPageInner() {
     loadAll();
   }
 
+  async function verifikasiAkun(u) {
+    if (!confirm(`Verifikasi akun ${u.name}?`)) return;
+    await patchUser(u.id, 'verifikasi_akun');
+  }
+
+  async function tolakVerifikasi(u) {
+    const alasan = prompt(`Tolak verifikasi akun ${u.name}? Akun tidak akan bisa login lagi.\n\nAlasan (opsional):`);
+    if (alasan === null) return;
+    await patchUser(u.id, 'tolak_verifikasi', { reject_reason: alasan.trim() || undefined });
+  }
+
   async function toggleUser(u) {
     const to = u.status === 'active' ? 'nonaktif' : 'active';
     if (!confirm(`${to==='active'?'Aktifkan':'Nonaktifkan'} ${u.name}?`)) return;
@@ -730,6 +741,7 @@ function AdminPageInner() {
     {key:'program_umroh', label:'Pending Pendaftaran Program Umroh', icon:'🕌', color:'border-blue-200 bg-blue-50', items: pending.program_umroh||[]},
     {key:'custom_harga', label:'Pending Pengajuan Custom Harga', icon:'💰', color:'border-orange-200 bg-orange-50', items: pending.custom_harga||[]},
     {key:'pembayaran', label:'Pending Konfirmasi Pembayaran', icon:'💳', color:'border-red-200 bg-red-50', items: pending.pembayaran||[]},
+    {key:'akun_verifikasi', label:'Akun Baru Menunggu Verifikasi', icon:'🔐', color:'border-amber-200 bg-amber-50', items: pending.akun_verifikasi||[]},
     {key:'akun_jamaah', label:'Pending Pendaftaran Akun Jamaah', icon:'🧳', color:'border-green-200 bg-green-50', items: pending.akun_jamaah||[]},
     // akun_perwakilan PINDAH ke section "🏢 Perwakilan" di bawah (dikonfirmasi
     // user 2026-09-06, mirror kenapa Sahabat Baitullah gak lagi nyampah di
@@ -821,6 +833,7 @@ function AdminPageInner() {
                       )}
                       <button onClick={() => {
                         if (c.key==='pembayaran') setActiveTab('payments');
+                        else if (c.key==='akun_verifikasi') { setActiveTab('users'); setFilterUserStatus(''); }
                         else if (c.key.startsWith('akun_')) { setActiveTab('users'); setFilterUserStatus('pending'); }
                         else if (c.key==='program_umroh') setActiveTab('programs');
                         else if (c.key==='custom_harga') setActiveTab('customharga');
@@ -1351,6 +1364,49 @@ function AdminPageInner() {
               {exporting==='komisi' ? 'Menyiapkan...' : '⬇️ Export Komisi'}
             </button>
           </div>
+          {/* Verifikasi akun baru — pengganti OTP registrasi (2026-09-25).
+              Semua role non-staff yang terverifikasi = 0 dan belum ditolak. */}
+          {(() => {
+            const roleLabelV = { perwakilan: 'Perwakilan', jamaah: 'Jamaah', sahabat_baitullah: 'Sahabat Baitullah' };
+            const belumVerifikasi = users
+              .filter(u => !u.terverifikasi && u.status !== 'rejected' && !['admin','super_admin'].includes(u.role))
+              .filter(u => cocok(searchUsers, u.name, u.email, u.wa, u.nik));
+            return (
+              <CollapsibleSection title={<h3 className="font-bold text-amber-700">🔐 Menunggu Verifikasi Akun</h3>} badge={belumVerifikasi.length}>
+                <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-amber-600 text-white text-xs">
+                      <th className="px-4 py-3 text-left">Nama</th>
+                      <th className="px-4 py-3 text-left">Role</th>
+                      <th className="px-4 py-3 text-left">Kontak</th>
+                      <th className="px-4 py-3 text-left">NIK</th>
+                      <th className="px-4 py-3 text-left">Daftar</th>
+                      <th className="px-4 py-3 text-left">Aksi</th>
+                    </tr></thead>
+                    <tbody>
+                      {belumVerifikasi.map((u,i) => (
+                        <tr key={u.id} onClick={() => openUserDetail(u)}
+                          className={`cursor-pointer hover:bg-amber-50 ${i%2===0?'bg-white':'bg-gray-50'}`}>
+                          <td className="px-4 py-3 font-semibold text-[#0E2F6E]">{u.name}</td>
+                          <td className="px-4 py-3 text-gray-500">{roleLabelV[u.role] || u.role}</td>
+                          <td className="px-4 py-3 text-gray-500">{u.email||'-'}<div className="text-[10px]">{u.wa||''}</div></td>
+                          <td className="px-4 py-3 text-gray-500">{u.nik||'-'}</td>
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID') : '-'}</td>
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                            <div className="flex gap-2">
+                              <button onClick={() => verifikasiAkun(u)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">✅ Verifikasi</button>
+                              <button onClick={() => tolakVerifikasi(u)} className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">❌ Tolak</button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {belumVerifikasi.length===0 && <tr><td colSpan={6} className="px-4 py-6 text-center text-gray-400">Tidak ada akun yang menunggu verifikasi.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </CollapsibleSection>
+            );
+          })()}
           {['perwakilan','jamaah'].map(role => {
             const roleUsers = urutkan(
               users
