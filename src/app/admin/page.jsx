@@ -1436,9 +1436,16 @@ function AdminPageInner() {
                           <td className="px-4 py-3 font-semibold text-[#0E2F6E]">{u.name}<div className="text-[10px] text-gray-400 font-normal">{u.kode_unik||''}</div></td>
                           <td className="px-4 py-3 text-gray-500">{u.email||u.wa||'-'}</td>
                           <td className="px-4 py-3">
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                              u.status==='active'?'bg-green-100 text-green-700':u.status==='nonaktif'?'bg-gray-200 text-gray-500':u.status==='pending'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-600'
-                            }`}>{u.status}</span>
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                                u.status==='active'?'bg-green-100 text-green-700':u.status==='nonaktif'?'bg-gray-200 text-gray-500':u.status==='pending'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-600'
+                              }`}>{u.status}</span>
+                              {/* active tapi belum di-ACC admin (terverifikasi = 0) — belum bisa order.
+                                  ACC-nya di bagian "Menunggu Verifikasi" di atas. */}
+                              {u.status==='active' && !u.terverifikasi && (
+                                <span className="text-xs font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 whitespace-nowrap">Belum diverifikasi</span>
+                              )}
+                            </div>
                           </td>
                           {isMitra && (
                             <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
