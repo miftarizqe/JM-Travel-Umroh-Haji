@@ -152,3 +152,34 @@ export function wajibPemilikAtauAdmin(request, pemilikId) {
   }
   return { user };
 }
+
+/**
+ * JWT_SECRET wajib ada. Tanpa ini jwt.sign melempar error generik dan login
+ * selalu 500 tanpa petunjuk; di sini error-nya menyebut penyebab aslinya.
+ */
+export function ambilJwtSecret() {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || !secret.trim()) {
+    throw new Error('JWT_SECRET belum diset di environment server');
+  }
+  return secret;
+}
+
+/**
+ * Flag Secure pada cookie token. Default: aktif di production (wajib HTTPS).
+ * COOKIE_SECURE=false mematikannya untuk uji lewat HTTP (mis. akses via IP
+ * VPS sebelum domain + SSL siap). Tanpa itu, di HTTP browser membuang cookie
+ * dan user dilempar balik ke /login setelah "login berhasil".
+ */
+function cookieSecure() {
+  const v = String(process.env.COOKIE_SECURE || '').trim().toLowerCase();
+  if (v === 'true' || v === '1') return true;
+  if (v === 'false' || v === '0') return false;
+  return process.env.NODE_ENV === 'production';
+}
+
+/** Nilai header Set-Cookie untuk token sesi (maxAge 0 = hapus cookie). */
+export function headerCookieToken(token, maxAge) {
+  const secure = cookieSecure() ? ' Secure;' : '';
+  return `token=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax;${secure}`;
+}

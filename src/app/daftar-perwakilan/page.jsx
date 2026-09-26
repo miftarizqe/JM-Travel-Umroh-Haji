@@ -141,11 +141,9 @@ export default function DaftarPerwakilanPage() {
   if (cek && !cek.prasyarat?.akun_terverifikasi) {
     return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
-        <div className="text-3xl mb-2">🔐</div>
-        <h4 className="font-bold text-yellow-800 mb-1">Verifikasi Akun Dulu</h4>
-        <p className="text-sm text-yellow-700 mb-3">Akun Anda belum terverifikasi.</p>
-        <button onClick={() => router.push('/verifikasi')}
-          className="bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">Verifikasi Sekarang →</button>
+        <div className="text-3xl mb-2">⏳</div>
+        <h4 className="font-bold text-yellow-800 mb-1">Menunggu Verifikasi Admin</h4>
+        <p className="text-sm text-yellow-700">Akun Anda belum diverifikasi admin. Silakan tunggu, atau hubungi admin JM Travel.</p>
       </div></div></Layout>;
   }
   if (cek && !cek.prasyarat?.foto_profil) {

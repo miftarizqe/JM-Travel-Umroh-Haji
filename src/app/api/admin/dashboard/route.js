@@ -13,7 +13,7 @@ export async function GET(request) {
   try {
     // Semua user
     const [users] = await pool.query(
-      `SELECT id, name, email, wa, role, status, kode_unik, wilayah, reg_status, created_at
+      `SELECT id, name, email, wa, role, status, kode_unik, wilayah, reg_status, terverifikasi, created_at
        FROM users ORDER BY created_at DESC`
     );
 
@@ -66,6 +66,11 @@ export async function GET(request) {
     // 4/5. Pending pendaftaran akun (jamaah / perwakilan)
     const pendingAkunJamaah = users.filter(u => u.role === 'jamaah' && u.status === 'pending');
     const pendingAkunPerw = users.filter(u => u.role === 'perwakilan' && u.status === 'pending');
+    // Akun baru (semua role non-staff) yang belum diverifikasi admin —
+    // pengganti OTP registrasi. Yang sudah ditolak gak ikut.
+    const pendingVerifikasi = users.filter(u =>
+      !u.terverifikasi && !['admin', 'super_admin'].includes(u.role) && u.status !== 'rejected'
+    );
 
     // 6. Perlengkapan yang belum dikirim (DP confirmed, status belum
     // dikirim/diterima) — lihat src/lib/perlengkapan.js.
@@ -118,6 +123,7 @@ export async function GET(request) {
         program_umroh: pendingProgram,
         custom_harga: pendingCustomHarga,
         pembayaran: pendingPayment,
+        akun_verifikasi: pendingVerifikasi,
         akun_jamaah: pendingAkunJamaah,
         akun_perwakilan: pendingAkunPerw,
         perlengkapan: pendingPerlengkapan,

@@ -340,9 +340,9 @@ function RegisterPageInner() {
 
       localStorage.setItem('user', JSON.stringify(loginData.user));
 
-      // Akun baru wajib verifikasi dulu (WA atau Email) — pilihan metode
-      // dilakukan di sana, bukan di sini, supaya tidak dobel tanya.
-      router.push(redirect ? `/verifikasi?redirect=${encodeURIComponent(redirect)}` : '/verifikasi');
+      // OTP dihapus (2026-09-23) — langsung ke upload-foto (langkah wajib
+      // berikutnya yang dulu dituju /verifikasi setelah kode benar).
+      router.push(redirect ? `/upload-foto?redirect=${encodeURIComponent(redirect)}` : '/upload-foto');
     } catch (e) {
       setError('Terjadi kesalahan, coba lagi.');
     } finally {

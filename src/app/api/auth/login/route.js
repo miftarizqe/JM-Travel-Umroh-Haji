@@ -1,6 +1,14 @@
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { ambilJwtSecret, headerCookieToken } from '@/lib/auth';
+import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
+import { varianWA } from '@/lib/validasiAkun';
+
+// Per IP: menghitung SEMUA percobaan (sukses pun), biar penyerang tidak bisa
+// memulihkan jatah pakai akun sendiri. Per akun: direset saat login berhasil.
+const limitIP = buatLimiter(30, 15 * 60 * 1000);
+const limitAkun = buatLimiter(10, 15 * 60 * 1000);
 
 export async function POST(request) {
   try {
@@ -12,22 +20,31 @@ export async function POST(request) {
 
     // Bersihkan spasi yang sering ikut saat copy-paste
     const login = String(email).trim();
+    const kunciAkun = login.toLowerCase().slice(0, 128);
 
+    const rIP = limitIP.cek(ipKlien(request));
+    if (!rIP.boleh) return responsTerlaluBanyak(rIP.sisaDetik);
+    const rAkun = limitAkun.cek(kunciAkun);
+    if (!rAkun.boleh) return responsTerlaluBanyak(rAkun.sisaDetik);
+
+    // Login via WA: cocokkan semua format (08…/628…/+628…) karena data lama
+    // tersimpan campur. Input berisi '@' dianggap email saja.
+    const wa = login.includes('@') ? [] : varianWA(login);
     const [users] = await pool.query(
-      'SELECT * FROM users WHERE email=? OR wa=?',
-      [login, login]
+      `SELECT * FROM users WHERE email = ? OR wa IN (?)`,
+      [login, wa.length ? wa : [login]]
     );
 
-    if (users.length === 0) {
+    // Varian WA bisa cocok ke >1 akun lama (mis. 08… dan 628… terdaftar
+    // terpisah) — pilih yang password-nya cocok.
+    let user = null;
+    for (const u of users) {
+      if (await bcrypt.compare(String(password).trim(), u.password)) { user = u; break; }
+    }
+    if (!user) {
       return Response.json({ error: 'Email/WA atau password salah' }, { status: 401 });
     }
-
-    const user = users[0];
-
-    const valid = await bcrypt.compare(String(password).trim(), user.password);
-    if (!valid) {
-      return Response.json({ error: 'Email/WA atau password salah' }, { status: 401 });
-    }
+    limitAkun.reset(kunciAkun);
 
     // Blokir akun yang dinonaktifkan / ditolak admin
     if (user.status === 'nonaktif') {
@@ -45,7 +62,7 @@ export async function POST(request) {
 
     const token = jwt.sign(
       { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name },
-      process.env.JWT_SECRET,
+      ambilJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -69,7 +86,6 @@ export async function POST(request) {
     // Cookie di-set oleh SERVER dengan httpOnly:
     // token tidak bisa dibaca/dicuri lewat JavaScript di browser.
     const maxAge = 7 * 24 * 60 * 60; // 7 hari
-    const secure = process.env.NODE_ENV === 'production' ? ' Secure;' : '';
 
     return new Response(
       JSON.stringify({ message: 'Login berhasil!', user: dataUser }),
@@ -77,7 +93,7 @@ export async function POST(request) {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Set-Cookie': `token=${token}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax;${secure}`,
+          'Set-Cookie': headerCookieToken(token, maxAge),
         },
       }
     );

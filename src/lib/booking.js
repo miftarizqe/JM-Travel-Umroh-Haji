@@ -23,8 +23,8 @@ export async function cekPemesanBolehOrder(conn, userId) {
     throw errStatus('User tidak ditemukan', 404);
   }
   const me = pemesan[0];
-  if (me.terverifikasi === 0) {
-    throw errStatus('Verifikasi akun Anda terlebih dahulu.', 403);
+  if (!me.terverifikasi) {
+    throw errStatus('Akun Anda masih menunggu verifikasi admin. Anda belum bisa melakukan order.', 403);
   }
   if (['perwakilan', 'sahabat_baitullah'].includes(me.role) && me.status !== 'active') {
     throw errStatus('Akun Anda belum dikonfirmasi admin. Anda belum bisa melakukan order jamaah.', 403);
