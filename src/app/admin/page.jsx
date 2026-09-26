@@ -22,6 +22,15 @@ function parseJamaahData(raw) {
   return Array.isArray(raw) ? raw : [];
 }
 
+// Badge kolom Status tabel Jamaah/Perwakilan, per nilai status_akun dari /api/admin/users.
+const BADGE_STATUS_AKUN = {
+  aktif: { label: 'active', cls: 'bg-green-100 text-green-700' },
+  belum_diverifikasi: { label: 'Belum diverifikasi', cls: 'bg-yellow-100 text-yellow-700' },
+  pending: { label: 'pending', cls: 'bg-yellow-100 text-yellow-700' },
+  ditolak: { label: 'rejected', cls: 'bg-red-100 text-red-600' },
+  nonaktif: { label: 'nonaktif', cls: 'bg-gray-200 text-gray-500' },
+};
+
 const PAKET_OPSI = [
   { value: 'deluxe', label: 'Deluxe' },
   { value: 'eksekutif', label: 'Eksekutif' },
@@ -1436,16 +1445,13 @@ function AdminPageInner() {
                           <td className="px-4 py-3 font-semibold text-[#0E2F6E]">{u.name}<div className="text-[10px] text-gray-400 font-normal">{u.kode_unik||''}</div></td>
                           <td className="px-4 py-3 text-gray-500">{u.email||u.wa||'-'}</td>
                           <td className="px-4 py-3">
-                            {/* active tapi belum di-ACC admin (terverifikasi = 0) — belum bisa order —
-                                ditampilkan sebagai satu badge kuning, bukan badge "active".
-                                ACC-nya di bagian "Menunggu Verifikasi" di atas. */}
-                            {u.status==='active' && !u.terverifikasi ? (
-                              <span className="text-xs font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 whitespace-nowrap">Belum diverifikasi</span>
-                            ) : (
-                              <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                                u.status==='active'?'bg-green-100 text-green-700':u.status==='nonaktif'?'bg-gray-200 text-gray-500':u.status==='pending'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-600'
-                              }`}>{u.status}</span>
-                            )}
+                            {/* status_akun dihitung API (src/lib/statusAkun.js): belum_diverifikasi =
+                                active tapi belum di-ACC admin, belum bisa order — ACC-nya di bagian
+                                "Menunggu Verifikasi" di atas. */}
+                            {(() => {
+                              const b = BADGE_STATUS_AKUN[u.status_akun] || { label: u.status, cls: 'bg-red-100 text-red-600' };
+                              return <span className={`text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap ${b.cls}`}>{b.label}</span>;
+                            })()}
                           </td>
                           {isMitra && (
                             <td className="px-4 py-3" onClick={e => e.stopPropagation()}>

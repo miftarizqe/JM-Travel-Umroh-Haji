@@ -5,6 +5,7 @@ import { kirimNotifikasi } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { pastikanKodeInvitePerwakilan } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
+import { statusAkun } from '@/lib/statusAkun';
 
 // GET — list users, filter opsional by role & status
 export async function GET(req) {
@@ -41,6 +42,7 @@ export async function GET(req) {
     query += ' ORDER BY u.created_at DESC';
 
     const [users] = await db.query(query, params);
+    for (const u of users) u.status_akun = statusAkun(u);
     return NextResponse.json({ users });
   } catch (err) {
     console.error('Error fetch users:', err);

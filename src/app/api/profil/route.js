@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { wajibPemilikAtauAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
+import { statusAkun } from '@/lib/statusAkun';
 
 // NIK & seluruh data rekening (identitas + tujuan transfer duit, "ngaruh
 // kemana2") — SEMULA dibuka self-service dengan pengaman audit+notifikasi
@@ -41,7 +42,7 @@ export async function GET(request) {
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
               u.kode_invite_perwakilan, u.tabungan_haji_status, u.cif_bsi, u.agama,
-              u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path
+              u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.terverifikasi
        FROM users u
        LEFT JOIN users p ON p.id = u.perekrut_id
        LEFT JOIN users rp ON rp.id = u.perekrut_perwakilan_jamaah_id
@@ -51,6 +52,9 @@ export async function GET(request) {
     if (rows.length === 0) return Response.json({ error: 'User tidak ditemukan' }, { status: 404 });
 
     const user = rows[0];
+    // Badge siap-tampil (lihat src/lib/statusAkun.js); kolom mentah terverifikasi gak ikut dikirim.
+    user.status_akun = statusAkun(user);
+    delete user.terverifikasi;
 
     // Cek apakah sudah pernah umroh (punya booking selesai) -> syarat upgrade perwakilan
     const [sel] = await pool.query(
