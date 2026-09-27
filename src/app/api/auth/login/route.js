@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { ambilJwtSecret, headerCookieToken } from '@/lib/auth';
 import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
 import { varianWA } from '@/lib/validasiAkun';
+import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 // Per IP: menghitung SEMUA percobaan (sukses pun), biar penyerang tidak bisa
 // memulihkan jatah pakai akun sendiri. Per akun: direset saat login berhasil.
@@ -58,6 +59,12 @@ export async function POST(request) {
         { error: 'Pendaftaran Anda ditolak. Hubungi admin JM Travel.' },
         { status: 403 }
       );
+    }
+    // Program Perwakilan lagi di-pause sementara (dikonfirmasi user
+    // 2026-09-27) — akun yang UDAH aktif pun ikut ditahan dulu, bukan
+    // cuma pendaftaran baru. Lihat src/lib/fiturSementara.js.
+    if (user.role === 'perwakilan' && PERWAKILAN_COMING_SOON) {
+      return Response.json({ error: PESAN_PERWAKILAN_COMING_SOON }, { status: 403 });
     }
 
     const token = jwt.sign(

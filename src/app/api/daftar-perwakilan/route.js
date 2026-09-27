@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 // Formulir pendaftaran kemitraan perwakilan (role_diajukan='perwakilan' —
 // satu-satunya nilai yang masih ada sejak role agen dihapus). Perekrut
@@ -9,6 +10,9 @@ import { wajibLogin } from '@/lib/auth';
 export async function POST(req) {
   const auth = wajibLogin(req);
   if (auth.error) return auth.error;
+  if (PERWAKILAN_COMING_SOON) {
+    return NextResponse.json({ error: PESAN_PERWAKILAN_COMING_SOON }, { status: 403 });
+  }
   const user_id = auth.user.id;
 
   try {

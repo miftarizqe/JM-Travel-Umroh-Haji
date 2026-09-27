@@ -6,6 +6,8 @@ import PasswordInput from '@/app/components/PasswordInput';
 import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
 import RecaptchaCheckbox from '@/app/components/RecaptchaCheckbox';
 import { tangkapRefPerwakilan, ambilRefPerwakilan } from '@/lib/referralCapture';
+import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
+import { usePengaturan, waLink } from '@/lib/usePengaturan';
 
 export default function RegisterPage() {
   return (
@@ -21,7 +23,10 @@ function RegisterPageInner() {
   // Dari modal kemitraan di landing page (lihat page.tsx) — biar gak disuruh
   // milih ulang tipe akun di step 2 padahal udah milih dari kartu kemitraan.
   const roleAwal = searchParams.get('role');
-  const roleValid = ['perwakilan', 'sahabat_baitullah'].includes(roleAwal);
+  // Perwakilan sementara di-pause (dikonfirmasi user 2026-09-27) — link lama
+  // yang bawa ?role=perwakilan gak lagi auto-lock, balik ke kartu pilihan
+  // biasa (yang di situ juga udah nampilin "Segera Hadir", disabled).
+  const roleValid = (roleAwal === 'perwakilan' && !PERWAKILAN_COMING_SOON) || roleAwal === 'sahabat_baitullah';
   // Kode referral di URL (dibagikan lewat link pribadi perekrut/anggota
   // sahabat) — kalau match akun aktif, perekrut_id di-lock otomatis, gak
   // perlu pilih manual dari dropdown lagi.
@@ -32,6 +37,7 @@ function RegisterPageInner() {
   // dengan pilihan yang udah diisi sebelumnya (lihat kalkulator/[template_id]).
   const redirect = searchParams.get('redirect');
   const loginUrl = redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : '/login';
+  const [pengaturan] = usePengaturan();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
     name:'', nik:'', wa:'', email:'', password:'', confirmPassword:'',
@@ -498,6 +504,13 @@ function RegisterPageInner() {
                 Sudah punya akun?{' '}
                 <span className="text-[#1A4FA0] font-semibold cursor-pointer hover:underline" onClick={() => keluar(loginUrl)}>Masuk</span>
               </p>
+              <p className="text-center text-xs text-gray-400">
+                Lupa password?{' '}
+                <a href={waLink(pengaturan.wa_kantor, 'Assalamu\'alaikum JM Travel, saya lupa password akun saya. Mohon bantuannya untuk reset password.') || '#'}
+                  target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-semibold hover:underline">
+                  Hubungi Admin →
+                </a>
+              </p>
             </div>
           )}
 
@@ -535,7 +548,11 @@ function RegisterPageInner() {
                     // tapi di kolom kode referral wajib pas dipilih (lihat
                     // blok form.role==='perwakilan' di bawah, dikonfirmasi
                     // user 2026-09-03).
-                    {value:'perwakilan', icon:'🏢', title:'Perwakilan', desc:'Kelola program di wilayah Anda'},
+                    // Sementara di-pause (dikonfirmasi user 2026-09-27) — cuma
+                    // program Sahabat Baitullah dulu yang launch. Kartu tetap
+                    // kelihatan (orang tau programnya ada) tapi disabled +
+                    // "Segera Hadir", lihat render di bawah (r.disabled).
+                    {value:'perwakilan', icon:'🏢', title:'Perwakilan', desc:'Kelola program di wilayah Anda', disabled: PERWAKILAN_COMING_SOON},
                     // Sahabat Baitullah cuma ditawarkan kalau kode referral di
                     // URL beneran match anggota sahabat aktif — bukan
                     // pilihan self-service terbuka (dikonfirmasi user
@@ -548,18 +565,22 @@ function RegisterPageInner() {
                     ...((refSahabatJamaahId || kodeInviteSahabatDariLink) ? [{value:'sahabat_baitullah', icon:'🤝', title:'Sahabat Baitullah', desc:'Program tabungan umroh bersama JM Travel & BSI'}] : []),
                   ].map(r => (
                     <div key={r.value}
-                      onClick={() => setForm({...form, role: r.value})}
-                      className={`flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        form.role === r.value
-                          ? 'border-[#1A4FA0] bg-[#E8F0FB]'
-                          : 'border-gray-200 hover:border-gray-300'
+                      onClick={() => !r.disabled && setForm({...form, role: r.value})}
+                      className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                        r.disabled
+                          ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed'
+                          : form.role === r.value
+                            ? 'border-[#1A4FA0] bg-[#E8F0FB] cursor-pointer'
+                            : 'border-gray-200 hover:border-gray-300 cursor-pointer'
                       }`}>
                       <div className="text-2xl">{r.icon}</div>
                       <div>
                         <div className="font-bold text-[#0E2F6E] text-sm">{r.title}</div>
                         <div className="text-xs text-gray-400">{r.desc}</div>
                       </div>
-                      {form.role === r.value && <div className="ml-auto text-[#1A4FA0] font-bold">✓</div>}
+                      {r.disabled ? (
+                        <div className="ml-auto text-[10px] font-bold text-[#C9952A] bg-[#FEF3DC] px-2 py-1 rounded-full whitespace-nowrap">Segera Hadir</div>
+                      ) : form.role === r.value && <div className="ml-auto text-[#1A4FA0] font-bold">✓</div>}
                     </div>
                   ))}
                 </div>

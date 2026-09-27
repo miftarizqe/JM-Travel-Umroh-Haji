@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 export default function UpgradePerwakilanPage() {
   const router = useRouter();
@@ -21,6 +22,24 @@ export default function UpgradePerwakilanPage() {
 
   if (loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
   if (!user) return <Layout><div className="text-center py-20 text-gray-400">Data tidak ditemukan.</div></Layout>;
+
+  if (PERWAKILAN_COMING_SOON) {
+    return (
+      <Layout title="⬆️ Upgrade ke Perwakilan">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
+            <div className="text-3xl mb-2">🚧</div>
+            <h4 className="font-bold text-yellow-800 mb-1">Segera Hadir</h4>
+            <p className="text-sm text-yellow-700">{PESAN_PERWAKILAN_COMING_SOON}</p>
+          </div>
+          <button onClick={() => router.back()}
+            className="w-full mt-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full">
+            ← Kembali
+          </button>
+        </div>
+      </Layout>
+    );
+  }
 
   // Sudah jadi perwakilan (atau role lain non-jamaah)?
   if (user.role !== 'jamaah') {

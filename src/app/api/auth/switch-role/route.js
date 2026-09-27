@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import jwt from 'jsonwebtoken';
 import { wajibLogin, ambilJwtSecret, headerCookieToken } from '@/lib/auth';
+import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 // Ganti "mode" sesi aktif buat akun dual-role (perwakilan + sahabat) —
 // JWT/session tetap cuma bawa SATU role aktif, ditukar di sini. Selalu
@@ -14,6 +15,9 @@ export async function POST(request) {
     const { ke } = await request.json();
     if (!['perwakilan', 'sahabat_baitullah'].includes(ke)) {
       return Response.json({ error: 'Tujuan role tidak valid' }, { status: 400 });
+    }
+    if (ke === 'perwakilan' && PERWAKILAN_COMING_SOON) {
+      return Response.json({ error: PESAN_PERWAKILAN_COMING_SOON }, { status: 403 });
     }
 
     const [rows] = await pool.query(

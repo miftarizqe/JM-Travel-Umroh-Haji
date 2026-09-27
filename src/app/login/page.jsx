@@ -2,6 +2,7 @@
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PasswordInput from '@/app/components/PasswordInput';
+import { usePengaturan, waLink } from '@/lib/usePengaturan';
 
 export default function LoginPage() {
   return (
@@ -14,6 +15,7 @@ export default function LoginPage() {
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [pengaturan] = usePengaturan();
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -103,6 +105,13 @@ function LoginPageInner() {
                 onChange={e => setForm({...form, password: e.target.value})}
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
               />
+              <div className="text-right mt-1.5">
+                <a href={waLink(pengaturan.wa_kantor, 'Assalamu\'alaikum JM Travel, saya lupa password akun saya. Mohon bantuannya untuk reset password.') || '#'}
+                  target="_blank" rel="noopener noreferrer"
+                  className="text-xs text-[#1A4FA0] hover:underline">
+                  Lupa password? Hubungi Admin →
+                </a>
+              </div>
             </div>
 
             {error && (

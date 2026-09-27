@@ -6,6 +6,7 @@ import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
+import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 const emptyForm = () => ({
   nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
@@ -136,6 +137,15 @@ export default function DaftarPerwakilanPage() {
   }
 
   if (!user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
+
+  if (PERWAKILAN_COMING_SOON) {
+    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
+        <div className="text-3xl mb-2">🚧</div>
+        <h4 className="font-bold text-yellow-800 mb-1">Segera Hadir</h4>
+        <p className="text-sm text-yellow-700">{PESAN_PERWAKILAN_COMING_SOON}</p>
+      </div></div></Layout>;
+  }
 
   // Blokir kalau prasyarat belum lengkap — mencegah step diloncati
   if (cek && !cek.prasyarat?.akun_terverifikasi) {

@@ -7,6 +7,7 @@ import { usePengaturan, waLink, waDisplay } from '@/lib/usePengaturan';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { useLandingTeks } from '@/lib/useLandingTeks';
 import Slideshow from '@/app/components/Slideshow';
+import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 interface Program {
   id: string;
@@ -530,17 +531,26 @@ export default function Home() {
             {[
               {key:'perwakilan' as const, icon:'🏢', title: teks.kemitraan_perwakilan_judul || 'Perwakilan Resmi', hook: teks.kemitraan_perwakilan_hook || 'Punya jaringan sendiri? Tentukan harga, ambil selisih, bangun brand-mu.', items: parseBaris(teks.kemitraan_perwakilan_items).length > 0 ? parseBaris(teks.kemitraan_perwakilan_items) : ['Tentukan harga sendiri','Ujroh = selisih HPP','Branding resmi','Dashboard closing','ID Card resmi Perwakilan JM Travel'], color:'bg-[#C9952A]'},
             ].map(k => (
-              <div key={k.title} className="bg-white rounded-2xl border border-[#e0e8f0] p-6 hover:shadow-lg transition-all text-left flex flex-col">
+              <div key={k.title} className={`bg-white rounded-2xl border border-[#e0e8f0] p-6 transition-all text-left flex flex-col relative ${PERWAKILAN_COMING_SOON ? 'opacity-70' : 'hover:shadow-lg'}`}>
+                {PERWAKILAN_COMING_SOON && (
+                  <div className="absolute top-4 right-4 text-[10px] font-bold text-[#C9952A] bg-[#FEF3DC] px-2.5 py-1 rounded-full">Segera Hadir</div>
+                )}
                 <div className="text-3xl mb-3">{k.icon}</div>
                 <h3 className="text-lg font-bold text-[#0E2F6E] mb-2">{k.title}</h3>
                 <p className="text-sm text-gray-500 mb-4 italic">&quot;{k.hook}&quot;</p>
                 <ul className="text-sm text-gray-500 space-y-1 mb-5">
                   {k.items.map(i => <li key={i}>✔ {i}</li>)}
                 </ul>
-                <button onClick={() => setModal(k.key)}
-                  className={`w-full mt-auto ${k.color} text-white font-bold py-2.5 rounded-full hover:opacity-90 transition-opacity`}>
-                  Lihat Lebih Detail →
-                </button>
+                {PERWAKILAN_COMING_SOON ? (
+                  <button disabled className="w-full mt-auto bg-gray-200 text-gray-400 font-bold py-2.5 rounded-full cursor-not-allowed">
+                    Segera Hadir
+                  </button>
+                ) : (
+                  <button onClick={() => setModal(k.key)}
+                    className={`w-full mt-auto ${k.color} text-white font-bold py-2.5 rounded-full hover:opacity-90 transition-opacity`}>
+                    Lihat Lebih Detail →
+                  </button>
+                )}
               </div>
             ))}
           </div>

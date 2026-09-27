@@ -5,6 +5,7 @@ import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
 import { verifikasiRecaptcha } from '@/lib/recaptcha';
 import { emailValid, nikValid, normalisasiWA, varianWA } from '@/lib/validasiAkun';
+import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 // Cegah spam pembuatan akun: 10 registrasi per IP per jam.
 const limitIP = buatLimiter(10, 60 * 60 * 1000);
@@ -68,6 +69,9 @@ export async function POST(request) {
     // enum users.role di DB sudah tidak punya 'agen' lagi).
     if (role === 'agen') {
       return Response.json({ error: 'Role "agen" sudah tidak tersedia. Gunakan role "perwakilan".' }, { status: 400 });
+    }
+    if (role === 'perwakilan' && PERWAKILAN_COMING_SOON) {
+      return Response.json({ error: PESAN_PERWAKILAN_COMING_SOON }, { status: 400 });
     }
 
     // Perekrut (kalau dipilih) menentukan rantai komisi override.
@@ -153,6 +157,14 @@ export async function POST(request) {
     // baru. Duplikat di kolom lain (email/WA/NIK, lolos cek di atas karena
     // race) dibalas 400, bukan 500.
     const prefix = role === 'perwakilan' ? 'PJM' : role === 'sahabat_baitullah' ? 'SBJM' : 'JUJM';
+    // Sahabat Baitullah auto-terverifikasi pas daftar (dikonfirmasi user
+    // 2026-09-27) — gerbang "verifikasi akun" terpisah gak ada gunanya buat
+    // role ini: mau di-ACC apa enggak, akunnya tetep gak bisa ngapa-ngapain
+    // sampai funnel /daftar-sahabat (data diri, SPK-AK, TF, CIF) selesai, dan
+    // admin TETAP wajib review manual di titik "Aktifkan" di ujung funnel
+    // (lihat /api/status-pendaftaran-sahabat). Jamaah/perwakilan TIDAK ikut
+    // berubah, tetap 0 nunggu verifikasi admin manual.
+    const terverifikasi = role === 'sahabat_baitullah' ? 1 : 0;
     let kodeUnik = null;
     for (let percobaan = 1; ; percobaan++) {
       kodeUnik = status === 'active' ? await nomorKodeUnikBerikutnya(pool, prefix) : null;
@@ -163,8 +175,8 @@ export async function POST(request) {
           // (action 'verifikasi_akun' di /api/admin/users). Sebelum itu
           // cekPemesanBolehOrder & prasyarat daftar-perwakilan menahan akun.
           `INSERT INTO users (name, email, wa, nik, agama, password, role, kode_unik, status, terverifikasi, perekrut_id,
-            perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id) VALUES (?,?,?,?,?,?,?,?,?,0,?,?,?)`,
-          [name, email, wa, nik, agama, hashedPassword, role, kodeUnik, status, perekrutId,
+            perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [name, email, wa, nik, agama, hashedPassword, role, kodeUnik, status, terverifikasi, perekrutId,
             perekrutPerwJamaahId, perekrutKopJamaahId]
         );
         break;
@@ -180,14 +192,24 @@ export async function POST(request) {
 
     // Gagal kirim notif jangan bikin registrasi yang udah tersimpan jadi 500.
     const roleLabel = { perwakilan: 'Perwakilan', sahabat_baitullah: 'Jamaah Sahabat Baitullah' }[role] || 'Jamaah';
-    await kirimNotifikasiAdmin(pool, {
-      tipe: 'akun_perlu_verifikasi',
-      judul: 'Akun Baru Menunggu Verifikasi',
-      pesan: `${name} (${roleLabel}) baru mendaftar dan menunggu verifikasi akun.`,
-      link: '/admin?tab=users',
-    }).catch(e => console.error('Gagal kirim notifikasi admin:', e));
+    // Sahabat Baitullah auto-terverifikasi (lihat komentar `terverifikasi` di
+    // atas) — notif "menunggu verifikasi" jadi gak akurat buat role ini
+    // (gak ada apa-apa buat admin verifikasi di /admin?tab=users, malah
+    // bikin bingung). Admin tetap dapet titik review manual pas "Aktifkan"
+    // di ujung funnel (lihat /api/status-pendaftaran-sahabat).
+    if (role !== 'sahabat_baitullah') {
+      await kirimNotifikasiAdmin(pool, {
+        tipe: 'akun_perlu_verifikasi',
+        judul: 'Akun Baru Menunggu Verifikasi',
+        pesan: `${name} (${roleLabel}) baru mendaftar dan menunggu verifikasi akun.`,
+        link: '/admin?tab=users',
+      }).catch(e => console.error('Gagal kirim notifikasi admin:', e));
+    }
 
-    return Response.json({ message: 'Registrasi berhasil! Akun Anda menunggu verifikasi admin.', kodeUnik }, { status: 201 });
+    const pesanSukses = role === 'sahabat_baitullah'
+      ? 'Registrasi berhasil! Lanjutkan isi data diri untuk melanjutkan pendaftaran Sahabat Baitullah.'
+      : 'Registrasi berhasil! Akun Anda menunggu verifikasi admin.';
+    return Response.json({ message: pesanSukses, kodeUnik }, { status: 201 });
 
   } catch (error) {
     console.error(error);
