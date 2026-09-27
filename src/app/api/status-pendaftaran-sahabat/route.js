@@ -405,9 +405,10 @@ export async function PATCH(request) {
 
           // Voucher Rp1jt AUTO-generate SEKALIGUS AUTO-APPROVE begitu akun
           // aktif (disetujui_at langsung diisi NOW(), bukan NULL lagi —
-          // dikonfirmasi user 2026-09-27, gerbang ACC manual admin dicabut:
-          // titik "Aktifkan" akun ITU SENDIRI udah jadi review manual admin,
-          // ACC voucher terpisah cuma nambah 1 klik yang gak perlu). Lihat
+          // dikonfirmasi user 2026-09-27/28, gerbang ACC manual admin
+          // dicabut: titik "Aktifkan" akun ITU SENDIRI udah jadi review
+          // manual admin, ACC voucher terpisah cuma nambah 1 klik yang gak
+          // perlu & dulu bikin jamaah mentok di checkout). Lihat
           // cariVoucherValid() di src/lib/voucher.js buat gate pemakaiannya.
           // Kode pakai user_id penuh (VARCHAR(36), unik by construction) biar
           // gak perlu cek duplikat kayak voucher manual admin.

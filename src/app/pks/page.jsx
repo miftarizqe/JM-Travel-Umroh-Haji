@@ -143,6 +143,13 @@ function PKSPageInner() {
   } : null;
   const menungguDataAwal = (jenis === 'perwakilan' || jenis === 'sahabat_baitullah') && !pksUser;
 
+  // Isi pendek (gak sampai bikin kotak bisa di-scroll) gak pernah memicu
+  // onScroll — cek sekali begitu pasal selesai dirender.
+  useEffect(() => {
+    if (pasal && pasal.length > 0 && !menungguDataAwal) cekScroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pasal, menungguDataAwal]);
+
   return (
     <Layout title="📜 Perjanjian Kerjasama" showBack confirmLeave={setuju}
       confirmMessage="Yakin ingin keluar? Persetujuan yang sudah dicentang belum disimpan.">
@@ -162,6 +169,12 @@ function PKSPageInner() {
             className="p-5 max-h-[400px] overflow-y-auto text-sm text-gray-600 space-y-4">
             {!pasal || menungguDataAwal ? (
               <div className="text-center text-gray-400 py-10">Memuat isi perjanjian...</div>
+            ) : pasal.length === 0 ? (
+              // Pasal belum diisi admin — jangan tampilkan kotak kosong yang
+              // seolah-olah bisa disetujui (checkbox tetap terkunci).
+              <div className="text-center text-red-500 py-10">
+                Isi perjanjian belum tersedia. Silakan hubungi admin JM Travel.
+              </div>
             ) : (
               pasal.map(p => (
                 <div key={p.nomor}>
