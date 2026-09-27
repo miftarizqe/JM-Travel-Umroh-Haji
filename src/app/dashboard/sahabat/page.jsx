@@ -28,7 +28,6 @@ export default function DashboardSahabatPage() {
   const [user] = useCurrentUser();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [drillDownId, setDrillDownId] = useState(null);
 
@@ -46,11 +45,12 @@ export default function DashboardSahabatPage() {
 
   if (loading || !data?.akun) return <Layout title="🤝 Dashboard Sahabat Baitullah"><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
 
-  const link = typeof window !== 'undefined' ? `${window.location.origin}/register?role=sahabat&ref=${data.akun.kode_unik}` : '';
   // Kode invite BEDA dari kode akun (kode_unik) — khusus buat mengundang
   // orang jadi Jamaah Sahabat Baitullah BARU (dikonfirmasi user 2026-09-03,
-  // mirror kode_invite_perwakilan). Link referral biasa di atas TETAP dipakai
-  // buat jamaah checkout/daftar sebagai jamaah biasa via link Anda.
+  // mirror kode_invite_perwakilan). Link referral berbasis kode_unik
+  // (?role=sahabat&ref=SBJMxxxx) DIHAPUS dari Beranda (dikonfirmasi user
+  // 2026-09-27) — isinya sama-sama buka pendaftaran Sahabat, bikin bingung,
+  // & kode_unik sekuensial gampang ditebak. Cukup satu link rekrut ini.
   const linkInvite = typeof window !== 'undefined' && data.akun.kode_invite_sahabat
     ? `${window.location.origin}/register?role=sahabat&ref=${data.akun.kode_invite_sahabat}` : '';
 
@@ -60,10 +60,6 @@ export default function DashboardSahabatPage() {
   const closingLangsung = data.closing_langsung || { items: [], total_confirmed: 0, total_pending: 0 };
   const forecast = data.forecast || { calon_ujroh: [], potensi_total: 0 };
   const adaPending = data.ringkasan.saldo_pending > 0;
-
-  function salinLink() {
-    navigator.clipboard.writeText(link).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
-  }
 
   function salinLinkInvite() {
     navigator.clipboard.writeText(linkInvite).then(() => { setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 2000); });
@@ -171,20 +167,9 @@ export default function DashboardSahabatPage() {
           </CollapsibleSection>
         )}
 
-        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
-          <div className="font-bold text-[#0E2F6E] mb-2">🔗 Link Referral Anda</div>
-          <div className="flex gap-2">
-            <input readOnly value={link} className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-xs text-gray-500" />
-            <button onClick={salinLink} className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg">
-              {copied ? '✓' : 'Salin'}
-            </button>
-          </div>
-          <div className="text-[10px] text-gray-400 mt-1">Siapa pun yang daftar lewat link ini otomatis tercatat sebagai rekrutan Anda.</div>
-        </div>
-
         {linkInvite && (
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
-            <div className="font-bold text-[#0E2F6E] mb-2">🔗 Kode &amp; Link Rekrut Anggota Baru</div>
+            <div className="font-bold text-[#0E2F6E] mb-2">🔗 Link Rekrut Sahabat Baitullah</div>
             <div className="flex gap-2 mb-1">
               <div className="px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm font-bold text-[#0E2F6E]">{data.akun.kode_invite_sahabat}</div>
               <input readOnly value={linkInvite} className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-xs text-gray-500" />
@@ -192,7 +177,7 @@ export default function DashboardSahabatPage() {
                 {copiedInvite ? '✓' : 'Salin'}
               </button>
             </div>
-            <div className="text-[10px] text-gray-400 mt-1">Kode ini BEDA dari kode akun Anda ({data.akun.kode_unik}) — khusus buat mengundang orang jadi Jamaah Sahabat Baitullah baru.</div>
+            <div className="text-[10px] text-gray-400 mt-1">Bagikan link ini untuk mengajak orang jadi anggota Sahabat Baitullah baru — otomatis tercatat sebagai rekrutan Anda (generasi berikutnya).</div>
           </div>
         )}
 

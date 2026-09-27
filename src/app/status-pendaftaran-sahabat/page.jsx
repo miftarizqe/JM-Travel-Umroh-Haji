@@ -44,7 +44,21 @@ export default function StatusPendaftaranSahabatPage() {
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
 
   function muat() {
-    fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+    fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
+      // Sinkronkan status TERKINI ke localStorage (sama seperti
+      // status-pendaftaran/page.jsx) — /dashboard/sahabat nge-guard pakai
+      // user.status dari localStorage, yang masih 'pending' sejak login.
+      // Tanpa ini, habis di-ACC admin "Buka Dashboard" mantul balik ke sini.
+      if (d.user) {
+        try {
+          const parsed = JSON.parse(localStorage.getItem('user') || 'null');
+          if (parsed && parsed.id === d.user.id) {
+            localStorage.setItem('user', JSON.stringify({ ...parsed, status: d.user.status, terverifikasi: d.user.terverifikasi }));
+          }
+        } catch {}
+      }
+      setData(d); setLoading(false);
+    }).catch(() => setLoading(false));
   }
 
   useEffect(() => {
