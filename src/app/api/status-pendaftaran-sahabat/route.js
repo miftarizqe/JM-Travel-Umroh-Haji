@@ -380,16 +380,17 @@ export async function PATCH(request) {
 
           // Voucher Rp1jt AUTO-generate sistem begitu akun aktif (dikonfirmasi
           // user 2026-09-01 — bukan admin bikin manual dari nol lagi kayak
-          // sebelumnya), TAPI disetujui_at SENGAJA NULL dulu — admin tetap
-          // wajib ACC manual (cek data bener/gak) sebelum voucher ini valid
-          // dipakai checkout. Lihat cariVoucherValid() di src/lib/voucher.js
-          // buat gate-nya, dan PATCH .../vouchers {approve:true} buat ACC-nya.
+          // sebelumnya). Sejak 2026-09-28 (dikonfirmasi user) langsung
+          // disetujui_at = NOW() — ACC akun aktif di atas SUDAH jadi
+          // pemeriksaan data admin, jadi gak perlu ACC super_admin terpisah
+          // lagi (dulu bikin jamaah mentok di checkout). Gate disetujui_at di
+          // cariVoucherValid() (src/lib/voucher.js) tetap ada buat voucher lain.
           // Kode pakai user_id penuh (VARCHAR(36), unik by construction) biar
           // gak perlu cek duplikat kayak voucher manual admin.
           await pool.query(
             `INSERT INTO vouchers (kode, potongan, kuota, terpakai, aktif, disetujui_at, for_user, akses_role, tampil, catatan, used)
-             VALUES (?, 1000000, 1, 0, 1, NULL, ?, 'akun', 0, ?, 0)`,
-            [`SAHABAT-${user_id}`, user_id, `Voucher Rp1.000.000 — auto-generate pendaftaran Sahabat Baitullah, menunggu ACC admin`]
+             VALUES (?, 1000000, 1, 0, 1, NOW(), ?, 'akun', 0, ?, 0)`,
+            [`SAHABAT-${user_id}`, user_id, `Voucher Rp1.000.000 — auto-generate pendaftaran Sahabat Baitullah, otomatis disetujui saat akun aktif`]
           );
         }
       }
