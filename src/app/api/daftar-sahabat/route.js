@@ -31,12 +31,12 @@ export async function POST(req) {
     // registrasi/koreksi admin, form wizard ini cuma nampilin read-only,
     // gak boleh nyelundup ganti lewat body request langsung juga. Sumber
     // kebenarannya SELALU dari users, bukan input jamaah lagi.
-    const [[userSaatIni0]] = await db.query('SELECT nik, wa, email, perekrut_id, terverifikasi FROM users WHERE id = ?', [user_id]);
-    // Akun baru wajib diverifikasi admin dulu (pengganti OTP registrasi) —
-    // dicek di server, bukan cuma disembunyikan di frontend.
-    if (!userSaatIni0?.terverifikasi) {
-      return NextResponse.json({ error: 'Akun Anda masih menunggu verifikasi admin.' }, { status: 403 });
-    }
+    // Verifikasi akun admin BUKAN lagi gerbang di sini (dikonfirmasi user
+    // 2026-09-27) — data diri boleh diisi begitu akun dibuat, biar alurnya
+    // 1 kesatuan tanpa nunggu di tengah jalan. Verifikasi admin tetap ada,
+    // cuma dipindah jadi syarat aktivasi akun di ujung (lihat action
+    // 'advance' ke 'active' di /api/status-pendaftaran-sahabat).
+    const [[userSaatIni0]] = await db.query('SELECT nik, wa, email, perekrut_id FROM users WHERE id = ?', [user_id]);
     const nik = userSaatIni0?.nik;
     const wa = userSaatIni0?.wa;
     const email = userSaatIni0?.email;

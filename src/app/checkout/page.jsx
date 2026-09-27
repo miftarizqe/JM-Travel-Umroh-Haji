@@ -31,20 +31,22 @@ function CheckoutPageInner() {
   const [prog, setProg] = useState(null);
   const [step, setStep] = useState(1);
   const [cart, setCart] = useState([]);
-  const [current, setCurrent] = useState({ paket: 'eksekutif', kamar: 'Triple (3/Kamar)', jumlah: 1, customHotel: null, namas: [''], was: [''], jks: [''], opsiTambahan: [] });
+  const [current, setCurrent] = useState({ paket: 'eksekutif', kamar: 'Triple (3/Kamar)', jumlah: 1, hargaCustom: '', customHotel: null, namas: [''], was: [''], jks: [''], opsiTambahan: [] });
   // Dari CartPaketKamar — dipakai isi voucher_kode pas submit & nampilin
   // info sisa pelunasan di step 3 (komponennya sendiri sudah unmount di situ).
   const [summary, setSummary] = useState({ totalHarga: 0, totalDp: 0, voucherKode: null, voucherDiskon: 0, totalHargaSetelahDiskon: 0, sisaPelunasan: 0 });
   const [kodeUnik] = useState(() => Math.floor(Math.random() * 900) + 100);
   // Sumber informasi (siapa yang mengajak) — WAJIB di checkout,
-  // karena inilah yang menentukan siapa penerima komisi. Perwakilan
-  // yang checkout untuk diri sendiri TIDAK perlu ditanya sumber info —
-  // closing otomatis ke akun mereka sendiri, sama seperti order-jamaah.
-  // Diisi via lazy initializer dari `user` (sudah resolve duluan lewat
-  // useCurrentUser di atas), bukan efek — biar gak kena flag
-  // react-hooks/set-state-in-effect.
-  const [sumber, setSumber] = useState(() => user?.role === 'perwakilan' ? user.role : '');
-  const [referralKode, setReferralKode] = useState(() => user?.role === 'perwakilan' ? (user.kode_unik || '') : '');
+  // karena inilah yang menentukan siapa penerima komisi. Perwakilan/Sahabat
+  // Baitullah yang checkout untuk diri sendiri (mis. Closing Langsung)
+  // TIDAK perlu ditanya sumber info — closing otomatis ke akun mereka
+  // sendiri (dikonfirmasi user 2026-09-27, mirror perilaku /order-jamaah
+  // yang sekarang dilebur ke sini). Diisi via lazy initializer dari `user`
+  // (sudah resolve duluan lewat useCurrentUser di atas), bukan efek — biar
+  // gak kena flag react-hooks/set-state-in-effect.
+  const AUTO_LOCK_SUMBER_ROLES = ['perwakilan', 'sahabat_baitullah'];
+  const [sumber, setSumber] = useState(() => AUTO_LOCK_SUMBER_ROLES.includes(user?.role) ? user.role : '');
+  const [referralKode, setReferralKode] = useState(() => AUTO_LOCK_SUMBER_ROLES.includes(user?.role) ? (user.kode_unik || '') : '');
   // Referral perwakilan PERMANEN (dikunci sejak registrasi) — kalau jamaah
   // punya ini, dropdown "Sumber Informasi" diganti banner read-only di
   // bawah, murni kosmetik karena server (buatSatuBooking) SUDAH memaksa
@@ -226,7 +228,14 @@ function CheckoutPageInner() {
           referral_perw_id: user.role === 'perwakilan' ? user.id
             : permanentReferrer ? permanentReferrer.id
             : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null,
-          referral_sahabat_id: sumber === 'sahabat_baitullah' ? (sahabatList.find(k => k.kode_unik === referralKode)?.id || null) : null,
+          referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
+            : sumber === 'sahabat_baitullah' ? (sahabatList.find(k => k.kode_unik === referralKode)?.id || null) : null,
+          // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
+          // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
+          // diorderkan perwakilan/sahabat/admin lewat checkout salah
+          // tercatat "jamaah" di kolom "Dipesan Oleh (Role)" laporan admin.
+          ordered_by: user.id,
+          ordered_by_role: user.role,
         })
       });
       const data = await res.json();
@@ -659,26 +668,54 @@ function CheckoutPageInner() {
               // tergantung custom_hotel_tersedia biar gak keliru dikira
               // satu-satunya cara.
               extra={
-                <div className="bg-gradient-to-r from-[#C9952A] to-yellow-500 rounded-xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-bold text-white text-sm">✨ Ingin Paket Custom?</div>
-                      <div className="text-xs text-white/85 mt-0.5">
-                        {prog?.custom_hotel_tersedia
-                          ? 'Gak nemu kombinasi yang cocok di atas? Konsultasi langsung'
-                          : 'Kombinasi hotel berbeda Mekkah & Madinah'}
+                (user.role === 'admin' || user.role === 'super_admin') ? (() => {
+                  // Dulu cuma ada di /order-jamaah (sekarang dilebur ke sini,
+                  // dikonfirmasi user 2026-09-27) — closing Direct/Kantor
+                  // sering pakai harga negosiasi, bukan harga normal program.
+                  const kamarKey = current.kamar?.includes('Quad') ? 'quad' : current.kamar?.includes('Double') ? 'double' : 'triple';
+                  const hargaNormal = prog?.[`harga_${current.paket}_${kamarKey}`] || prog?.[`harga_${current.paket}`] || 0;
+                  return (
+                    <div className="bg-gray-900 rounded-xl p-4 space-y-2">
+                      <div className="font-bold text-white text-sm">💰 Set Harga Sendiri (Admin)</div>
+                      <div className="text-xs text-gray-300">
+                        Kosongkan untuk pakai harga normal (Rp {hargaNormal.toLocaleString('id-ID')}/jamaah) untuk item ini.
                       </div>
+                      <input
+                        type="number"
+                        value={current.hargaCustom}
+                        onChange={e => setCurrent({ ...current, hargaCustom: e.target.value })}
+                        placeholder={`Rp ${hargaNormal.toLocaleString('id-ID')}`}
+                        className="w-full px-3 py-2 rounded-lg border-2 border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-[#C9952A] focus:outline-none text-sm"
+                      />
+                      {current.hargaCustom !== '' && (
+                        <button onClick={() => setCurrent({ ...current, hargaCustom: '' })} className="text-xs text-[#C9952A] font-semibold underline">
+                          Reset ke harga normal
+                        </button>
+                      )}
                     </div>
-                    <button
-                      onClick={() => {
-                        const msg = `Halo JM Travel, saya ingin konsultasi paket custom untuk program *${prog?.name}*. Mohon bantuannya 🙏`;
-                        window.open(waLink(pengaturan.wa_kantor, msg) || '#', '_blank');
-                      }}
-                      className="bg-white text-[#C9952A] font-bold text-xs px-4 py-2 rounded-full hover:bg-yellow-50 transition-colors whitespace-nowrap">
-                      Chat Admin →
-                    </button>
+                  );
+                })() : (
+                  <div className="bg-gradient-to-r from-[#C9952A] to-yellow-500 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-bold text-white text-sm">✨ Ingin Paket Custom?</div>
+                        <div className="text-xs text-white/85 mt-0.5">
+                          {prog?.custom_hotel_tersedia
+                            ? 'Gak nemu kombinasi yang cocok di atas? Konsultasi langsung'
+                            : 'Kombinasi hotel berbeda Mekkah & Madinah'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const msg = `Halo JM Travel, saya ingin konsultasi paket custom untuk program *${prog?.name}*. Mohon bantuannya 🙏`;
+                          window.open(waLink(pengaturan.wa_kantor, msg) || '#', '_blank');
+                        }}
+                        className="bg-white text-[#C9952A] font-bold text-xs px-4 py-2 rounded-full hover:bg-yellow-50 transition-colors whitespace-nowrap">
+                        Chat Admin →
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )
               }
             />
 
@@ -743,6 +780,12 @@ function CheckoutPageInner() {
                 </div>
               ))}
             </div>
+            {/* Notice DP non-refundable (dikonfirmasi user 2026-09-27) — cuma
+                di flow checkout normal (ada DP), BUKAN di checkout mandiri
+                Sahabat Baitullah (dibayar dari saldo tabungan, gak ada DP). */}
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600 text-center">
+              ⚠️ DP tidak dapat dikembalikan, namun dapat dialihkan ke program lain.
+            </div>
             <UploadBukti
               onUploaded={(path, nama) => { setBuktiPath(path); setBuktiNama(nama); }}
               label="Klik untuk upload bukti transfer DP"
@@ -779,7 +822,15 @@ function CheckoutPageInner() {
               <div>③ Formulir jamaah terbuka untuk diisi</div>
               <div>④ Lanjutkan pelunasan setelah formulir selesai</div>
             </div>
-            <button onClick={() => router.push('/dashboard/jamaah')}
+            <button onClick={() => {
+                // Bug ditemukan & diperbaiki 2026-09-27 — dulu hardcode ke
+                // /dashboard/jamaah buat semua role, baru kerasa begitu
+                // perwakilan/sahabat/admin ikut lewat checkout (dilebur dari
+                // /order-jamaah). Key HARUS 'sahabat_baitullah' (bukan
+                // 'sahabat') — itu nilai role yang beneran dipakai di sistem.
+                const tujuan = { admin: '/admin', super_admin: '/admin', perwakilan: '/dashboard/perwakilan', sahabat_baitullah: '/dashboard/sahabat' };
+                router.push(tujuan[user.role] || '/dashboard/jamaah');
+              }}
               className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors">
               Ke Dashboard →
             </button>

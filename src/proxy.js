@@ -7,7 +7,6 @@ const protectedRoutes = [
   '/form-jamaah',
   '/pelunasan',
   '/admin',
-  '/order-jamaah',
   '/upgrade-paket',
   '/upload-foto',
   '/pks',

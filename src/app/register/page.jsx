@@ -3,6 +3,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
+import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
+import RecaptchaCheckbox from '@/app/components/RecaptchaCheckbox';
 import { tangkapRefPerwakilan, ambilRefPerwakilan } from '@/lib/referralCapture';
 
 export default function RegisterPage() {
@@ -99,6 +101,11 @@ function RegisterPageInner() {
   const [kodeReferralSahabatInvalid, setKodeReferralSahabatInvalid] = useState(false);
   const [kodeReferralSahabatChecking, setKodeReferralSahabatChecking] = useState(false);
   const [kodeInviteSahabatDariLink, setKodeInviteSahabatDariLink] = useState(false);
+  // Token widget "Saya bukan robot" (dikonfirmasi user 2026-09-27) — kosong
+  // terus kalau NEXT_PUBLIC_RECAPTCHA_SITE_KEY belum diisi (RecaptchaCheckbox
+  // gak render apa-apa), makanya validasinya di handleRegister juga
+  // dilewatin kalau site key kosong.
+  const [captchaToken, setCaptchaToken] = useState('');
 
   const isDirty = step > 1 || !!(form.name || form.nik || form.wa || form.email || form.password);
   useUnsavedGuard(isDirty);
@@ -137,24 +144,17 @@ function RegisterPageInner() {
       .then(d => {
         const list = d.perwakilan || [];
         setSahabatList(list);
-        // ?ref=<kode_unik> dari link pribadi anggota sahabat — auto-lock
-        // perekrut_id kalau match, gak perlu pilih manual dari dropdown.
-        const matchRoleAwal = refCode && list.find(k => k.kode_unik === refCode);
-        if (refCode && roleAwal === 'sahabat_baitullah') {
-          if (matchRoleAwal) setForm(f => ({ ...f, perekrut_id: matchRoleAwal.id }));
-          else setRefNotFound(true);
-        }
-        // Sahabat Baitullah BUKAN pilihan self-service terbuka — cuma boleh
-        // dipilih kalau beneran datang dari link referral anggota sahabat
-        // aktif (dikonfirmasi user 2026-09-03). Kalau modal kemitraan landing
-        // page (atau siapapun) bawa ?role=sahabat tanpa ref yang valid,
-        // batalkan pre-seleksinya & balik ke kartu pilihan biasa (yang di
-        // bawah juga udah nyaring sahabat keluar kalau refSahabatJamaahId
-        // kosong).
-        if (roleAwal === 'sahabat_baitullah' && !matchRoleAwal) {
-          setTampilkanPilihan(true);
-          setForm(f => (f.role === 'sahabat_baitullah' ? { ...f, role: '' } : f));
-        }
+        // Keputusan "role=sahabat_baitullah dari URL ini valid atau enggak"
+        // SENGAJA gak diambil di sini lagi (bug ditemukan & diperbaiki
+        // 2026-09-27) — dulu effect ini BALAPAN sama effect verify-invite di
+        // bawah (dua-duanya sama-sama boleh ngunci role, lihat komentar di
+        // situ), dan effect ini kadang menang duluan lalu nge-reset
+        // tampilkanPilihan/form.role padahal link invite-nya valid (kode
+        // invite ('kode_invite_sahabat') memang gak bakal pernah match
+        // kode_unik di list ini, jadi SELALU keliatan "gak match" dari sudut
+        // pandang effect ini doang). Sekarang effect verify-invite di bawah
+        // yang jadi SATU-SATUNYA penentu (dicoba invite dulu, baru fallback
+        // ke kode_unik secara berurutan/gak balapan).
         // Referral permanen jamaah dari link sahabat (Sahabat Baitullah) —
         // dicek TERLEPAS dari roleAwal juga, sama alasannya kayak di atas:
         // ini yang nutup celah lama (form.perekrut_id nyasar ke users.perekrut_id
@@ -189,12 +189,15 @@ function RegisterPageInner() {
       .catch(() => {});
   }, [refCode, roleAwal]);
 
-  // ?role=sahabat&ref=<kode_invite_sahabat> dari link "rekrut anggota
-  // sahabat baru" (beda dari link referral biasa yang pakai kode_unik,
-  // lihat matchKopJamaah di atas) — begitu valid, paksa role & pilihan
-  // tetap 'sahabat_baitullah' + perekrut_id terkunci, override reset yang mungkin
-  // sempat kejadian di effect /api/referral-list di atas (race aman karena
-  // ini state terakhir yang menang buat kasus ini).
+  // ?role=sahabat&ref=<kode> dari link sahabat — SATU-SATUNYA effect yang
+  // boleh mutusin valid/gak-nya role=sahabat_baitullah dari URL (bug race
+  // condition ditemukan & diperbaiki 2026-09-27, lihat komentar panjang di
+  // effect /api/referral-list di atas). Dicoba BERURUTAN, bukan balapan:
+  // 1) coba sebagai kode_invite_sahabat (link "rekrut anggota baru"), kalau
+  //    valid langsung kunci. 2) kalau bukan/invalid, fallback coba sebagai
+  //    kode_unik biasa (link pribadi sahabat yang dipakai apa adanya buat
+  //    rekrut, dikonfirmasi user 2026-09-03 dua sumber ini sama-sama sah).
+  // 3) kalau dua-duanya gagal, baru balik ke kartu pilihan biasa.
   useEffect(() => {
     if (!(refCode && roleAwal === 'sahabat_baitullah')) return;
     fetch('/api/referral-list/verify-invite', {
@@ -208,7 +211,25 @@ function RegisterPageInner() {
           setTampilkanPilihan(false);
           setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: d.id }));
           setPerekrutTerkunciSahabat({ id: d.id, name: d.name, kode_unik: d.kode_unik });
+          return;
         }
+        // Fallback kode_unik — fetch baru di sini (bukan pakai sahabatList
+        // dari effect lain) justru biar urutannya kepastian, gak gantung ke
+        // timing effect lain.
+        return fetch('/api/referral-list?role=sahabat_baitullah')
+          .then(r => r.json())
+          .then(d2 => {
+            const match = (d2.perwakilan || []).find(k => k.kode_unik === refCode);
+            if (match) {
+              setTampilkanPilihan(false);
+              setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: match.id }));
+              setPerekrutTerkunciSahabat({ id: match.id, name: match.name, kode_unik: match.kode_unik });
+            } else {
+              setRefNotFound(true);
+              setTampilkanPilihan(true);
+              setForm(f => (f.role === 'sahabat_baitullah' ? { ...f, role: '' } : f));
+            }
+          });
       })
       .catch(() => {});
   }, [refCode, roleAwal]);
@@ -299,6 +320,12 @@ function RegisterPageInner() {
     if (form.role === 'sahabat_baitullah' && !form.perekrut_id) {
       setError('Masukkan kode referral Sahabat Baitullah yang valid untuk melanjutkan.'); return;
     }
+    // Captcha cuma wajib kalau widget-nya beneran dirender (site key udah
+    // diisi) — RecaptchaCheckbox gak render apa-apa kalau belum, biar dev
+    // lokal/deploy awal sebelum key didaftarkan tetap bisa jalan.
+    if (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !captchaToken) {
+      setError('Mohon centang verifikasi "Saya bukan robot" terlebih dahulu.'); return;
+    }
     setLoading(true);
     try {
       // role='jamaah' TIDAK PERNAH kirim perekrut_id (itu khusus rantai
@@ -309,8 +336,9 @@ function RegisterPageInner() {
       const payload = form.role === 'jamaah'
         ? { ...form, perekrut_id: undefined,
             ref_perwakilan_jamaah_id: refPerwakilanJamaahId || undefined,
-            ref_sahabat_jamaah_id: refSahabatJamaahId || undefined }
-        : form;
+            ref_sahabat_jamaah_id: refSahabatJamaahId || undefined,
+            captchaToken }
+        : { ...form, captchaToken };
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -443,6 +471,7 @@ function RegisterPageInner() {
                   value={form.password}
                   onChange={e => setForm({...form, password: e.target.value})}
                 />
+                <PasswordStrengthMeter password={form.password} />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">Konfirmasi Password *</label>
@@ -606,6 +635,8 @@ function RegisterPageInner() {
                   </div>
                 );
               })()}
+
+              <RecaptchaCheckbox onChange={setCaptchaToken} />
 
               {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">⚠️ {error}</div>}
               <div className="flex gap-2">

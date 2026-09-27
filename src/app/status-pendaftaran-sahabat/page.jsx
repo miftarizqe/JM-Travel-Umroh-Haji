@@ -204,23 +204,16 @@ export default function StatusPendaftaranSahabatPage() {
           Program Sahabat Baitullah — ikuti langkah di bawah sampai selesai untuk jadi Jamaah Sahabat Baitullah aktif.
         </div>
 
-        {/* Urutan FINAL (dikonfirmasi user 2026-09-20): SPK-AK -> Bukti TF ->
-            Rekening Tabungan Umroh -> CIF & Blokir. Rekening tabungan umroh
-            SENGAJA bukan lagi bagian wizard /daftar-sahabat (dulu ditaruh di
-            situ, sebelum SPK-AK — SALAH, sudah diperbaiki) — diisi di sini
-            setelah bukti TF diverifikasi. */}
-        <Item done={prasyarat.spk_ak_selesai} label="SPK-AK — Surat Perjanjian Jamaah Sahabat Baitullah">
-          {!prasyarat.spk_ak_selesai && (
-            <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
-              Lanjut TTD Digital →
-            </button>
-          )}
-          {prasyarat.spk_ak_selesai && <div className="text-xs text-gray-500">Sudah ditandatangani secara digital.</div>}
-        </Item>
-
+        {/* Urutan FINAL (dikonfirmasi user 2026-09-27): Bukti TF -> SPK-AK ->
+            Rekening Tabungan Umroh -> CIF & Blokir — TANPA gate admin di
+            tengah lagi (dibalik dari urutan lama SPK-AK dulu baru TF).
+            Alasannya: materai SPK-AK (nanti kalau provider Peruri beneran
+            disambung, sekarang masih mock/gratis) cuma boleh kebakar buat
+            orang yang udah beneran transfer Rp1jt, bukan buat siapa aja yang
+            baru isi data terus ngilang. Dipaksa juga di server (lihat
+            /api/admin/dokumen-signature), bukan cuma gate UI di sini. */}
         <Item done={prasyarat.bukti_tf_verified} label={prasyarat.bukti_tf_verified ? 'Bukti transfer terunggah' : 'Unggah bukti transfer Rp1.000.000'}>
-          {!prasyarat.spk_ak_selesai && <div className="text-xs text-gray-400">Selesaikan tanda tangan digital SPK-AK dulu.</div>}
-          {prasyarat.spk_ak_selesai && !prasyarat.bukti_tf_uploaded && (
+          {!prasyarat.bukti_tf_uploaded && (
             <div className="space-y-2">
               {rekeningSahabat.length > 0 && (
                 <div className="bg-[#E8F0FB] rounded-lg p-2 text-xs text-[#1A4FA0] space-y-1">
@@ -240,9 +233,19 @@ export default function StatusPendaftaranSahabatPage() {
           )}
         </Item>
 
+        <Item done={prasyarat.spk_ak_selesai} label="SPK-AK — Surat Perjanjian Jamaah Sahabat Baitullah">
+          {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Unggah bukti transfer dulu di atas.</div>}
+          {prasyarat.bukti_tf_verified && !prasyarat.spk_ak_selesai && (
+            <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
+              Lanjut TTD Digital →
+            </button>
+          )}
+          {prasyarat.spk_ak_selesai && <div className="text-xs text-gray-500">Sudah ditandatangani secara digital.</div>}
+        </Item>
+
         <Item done={prasyarat.rekening_umroh_terisi} label="Rekening Tabungan Umroh">
-          {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Menunggu verifikasi bukti transfer dulu.</div>}
-          {prasyarat.bukti_tf_verified && (
+          {!prasyarat.spk_ak_selesai && <div className="text-xs text-gray-400">Selesaikan tanda tangan digital SPK-AK dulu.</div>}
+          {prasyarat.spk_ak_selesai && (
             prasyarat.rekening_umroh_terisi ? (
               <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}</div>
             ) : (

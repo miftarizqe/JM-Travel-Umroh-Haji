@@ -4,8 +4,21 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
+import { usePengaturan } from '@/lib/usePengaturan';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
+
+// Perekrut admin/super_admin ATAU Head of Program tercatat sebagai
+// "Management" (dikonfirmasi user 2026-09-27) — bukan "Tidak ada" (perekrut-nya
+// TETAP ada, cuma bukan sesama anggota sahabat). Selain itu tampilin nama
+// sahabat yang beneran merekrut apa adanya.
+function labelPerekrut(profil, pengaturan) {
+  if (!profil?.perekrut_id) return '— Tidak ada —';
+  const isManagement = ['admin', 'super_admin'].includes(profil.perekrut_role)
+    || (pengaturan?.head_of_program_user_id && String(profil.perekrut_id) === String(pengaturan.head_of_program_user_id));
+  if (isManagement) return 'Management';
+  return profil.perekrut_nama || '— Tidak ada —';
+}
 
 const emptyForm = () => ({
   nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
@@ -27,15 +40,14 @@ export default function DaftarSahabatPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
   const mounted = useMounted();
-  const [sahabatList, setSahabatList] = useState([]);
+  const [pengaturan] = usePengaturan();
   const [programEksklusif, setProgramEksklusif] = useState([]);
   const [form, setForm] = useState(() => ({
     ...emptyForm(),
     nama: user?.name || '', nik: user?.nik || '', wa: user?.wa || '', email: user?.email || '',
   }));
-  const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target (TERAKHIR — rekening tabungan umroh BUKAN bagian wizard ini lagi, lihat komentar di lanjutKePerjanjian)
+  const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target (TERAKHIR — rekening tabungan umroh BUKAN bagian wizard ini lagi, lihat komentar di lanjutKeStatus)
   const [sudahKirim, setSudahKirim] = useState(false);
-  const [belumVerifikasi, setBelumVerifikasi] = useState(false);
   const [uploadingKtp, setUploadingKtp] = useState(false);
   const [uploadingPaspor, setUploadingPaspor] = useState(false);
   const [profil, setProfil] = useState(null);
@@ -48,7 +60,6 @@ export default function DaftarSahabatPage() {
 
   useEffect(() => {
     if (!user) return;
-    fetch('/api/referral-list?role=sahabat_baitullah').then(r => r.json()).then(d => setSahabatList(d.perwakilan || [])).catch(()=>{});
     fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => { if (d.user) setProfil(d.user); }).catch(()=>{});
     // Target Impian (step 3) dipilih dari Program Eksklusif yang admin
     // tandai khusus Sahabat Baitullah (publish_type='sahabat_baitullah',
@@ -66,8 +77,6 @@ export default function DaftarSahabatPage() {
     // /status-pendaftaran-sahabat) — lompat ke halaman status buat
     // lanjutin step berikutnya.
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
-      // Cuma tampilan — penolakan sebenarnya ada di POST /api/daftar-sahabat.
-      if (d.prasyarat && !d.prasyarat.akun_terverifikasi) setBelumVerifikasi(true);
       if (d.prasyarat?.data_diri_terkirim) {
         setSudahKirim(true);
         router.push('/status-pendaftaran-sahabat');
@@ -130,12 +139,14 @@ export default function DaftarSahabatPage() {
     return true;
   }
 
-  // Data diri (step 1-3) disimpan lewat POST /api/daftar-sahabat, LALU
-  // langsung ke SPK-AK (dikonfirmasi user 2026-09-20 — urutan final: data
-  // diri -> SPK-AK -> bukti TF -> rekening tabungan umroh -> CIF & blokir).
-  // Rekening tabungan umroh SENGAJA BUKAN bagian wizard ini lagi — diisi
-  // belakangan di /status-pendaftaran-sahabat setelah bukti TF diverifikasi.
-  async function lanjutKePerjanjian() {
+  // Data diri (step 1-3) disimpan lewat POST /api/daftar-sahabat, LALU ke
+  // halaman status buat lanjutin sisa funnel (dikonfirmasi user 2026-09-27 —
+  // urutan final: data diri -> bukti TF -> SPK-AK -> rekening tabungan umroh
+  // -> CIF & blokir -> aktivasi admin, TANPA gate admin di tengah lagi).
+  // Bukti TF sengaja didahulukan dari SPK-AK (dibalik dari urutan lama)
+  // biar materai gak kebakar duluan buat orang yang ujung-ujungnya gak
+  // pernah transfer.
+  async function lanjutKeStatus() {
     if (!validStep()) return;
     setSavingKirim(true);
     try {
@@ -148,7 +159,7 @@ export default function DaftarSahabatPage() {
         if (!res.ok) { alert(d.error); setSavingKirim(false); return; }
         setSudahKirim(true);
       }
-      router.push('/pks?jenis=sahabat_baitullah');
+      router.push('/status-pendaftaran-sahabat');
     } catch { alert('Terjadi kesalahan'); }
     setSavingKirim(false);
   }
@@ -157,15 +168,6 @@ export default function DaftarSahabatPage() {
 
   const inp = "w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
   const lbl = "block text-xs font-semibold text-[#0E2F6E] mb-1";
-
-  if (belumVerifikasi) {
-    return <Layout title="🤝 Pendaftaran Sahabat Baitullah" showBack><div className="max-w-md mx-auto">
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
-        <div className="text-3xl mb-2">⏳</div>
-        <h4 className="font-bold text-yellow-800 mb-1">Menunggu Verifikasi Admin</h4>
-        <p className="text-sm text-yellow-700">Akun Anda belum diverifikasi admin. Silakan tunggu, atau hubungi admin JM Travel.</p>
-      </div></div></Layout>;
-  }
 
   return (
     <Layout title="🤝 Pendaftaran Sahabat Baitullah" showBack confirmLeave={isDirty && !sudahKirim}
@@ -305,7 +307,7 @@ export default function DaftarSahabatPage() {
                   2026-09-03) — di sini murni tampilan read-only, gak ada
                   lagi jalur pilih/ganti manual. */}
               <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">
-                {sahabatList.find(k=>String(k.id)===String(profil?.perekrut_id))?.name || '— Tidak ada —'}
+                {labelPerekrut(profil, pengaturan)}
               </div>
               <div className="text-[10px] text-gray-400 mt-1">Sudah dipilih waktu Anda mendaftar akun, tidak bisa diubah di sini.</div>
             </div>
@@ -355,9 +357,9 @@ export default function DaftarSahabatPage() {
                 Lanjut →
               </button>
             ) : (
-              <button onClick={lanjutKePerjanjian} disabled={savingKirim}
+              <button onClick={lanjutKeStatus} disabled={savingKirim}
                 className="flex-[2] bg-[#C9952A] hover:bg-yellow-600 text-white font-bold py-2.5 rounded-full text-sm disabled:opacity-50">
-                {savingKirim ? 'Menyimpan...' : 'Lanjut ke Perjanjian (SPK-AK) →'}
+                {savingKirim ? 'Menyimpan...' : 'Simpan & Lanjutkan →'}
               </button>
             )}
           </div>

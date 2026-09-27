@@ -165,6 +165,15 @@ async function siapkanData(dokumen, refId) {
     if (dokumen === 'spk_ak' && user.agama === 'non_islam') {
       throw Object.assign(new Error('Anggota non-Muslim wajib pakai Surat Perjanjian Referral Non-Muslim'), { status: 400 });
     }
+    // Bukti TF Rp1jt WAJIB duluan sebelum SPK-AK (urutan dibalik 2026-09-27,
+    // dulu SPK-AK duluan) — biar materai (nanti kalau provider Peruri beneran
+    // disambung) gak kebakar buat orang yang isi data terus ngilang tanpa
+    // pernah transfer. Dicek di server juga (bukan cuma gate UI), biar gak
+    // bisa dilewatin lewat panggilan API langsung.
+    const [[pendaftaranSahabat]] = await pool.query('SELECT bukti_tf_verified_at FROM sahabat_pendaftaran WHERE user_id = ?', [refId]);
+    if (!pendaftaranSahabat?.bukti_tf_verified_at) {
+      throw Object.assign(new Error('Unggah bukti transfer Rp1.000.000 terlebih dahulu sebelum tanda tangan SPK-AK'), { status: 400 });
+    }
     user.alamat = user.alamat_ktp || user.alamat;
 
     // PIHAK KETIGA — Head of Program (pengaturan.head_of_program_user_id),

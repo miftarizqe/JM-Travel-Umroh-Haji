@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { nomorKodeUnikBerikutnya } from '@/lib/kodeUnik';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
+import { verifikasiRecaptcha } from '@/lib/recaptcha';
 import { emailValid, nikValid, normalisasiWA, varianWA } from '@/lib/validasiAkun';
 
 // Cegah spam pembuatan akun: 10 registrasi per IP per jam.
@@ -15,6 +16,13 @@ export async function POST(request) {
     if (!r.boleh) return responsTerlaluBanyak(r.sisaDetik);
 
     const body = await request.json();
+
+    // Verifikasi captcha (dikonfirmasi user 2026-09-27) — di-skip otomatis
+    // kalau RECAPTCHA_SECRET_KEY belum diisi (lihat src/lib/recaptcha.js).
+    const captchaOk = await verifikasiRecaptcha(body.captchaToken, ipKlien(request));
+    if (!captchaOk) {
+      return Response.json({ error: 'Verifikasi captcha gagal, silakan coba lagi.' }, { status: 400 });
+    }
     const name = String(body.name||'').trim();
     const email = String(body.email||'').trim().toLowerCase();
     const waInput = String(body.wa||'').trim();

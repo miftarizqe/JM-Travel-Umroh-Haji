@@ -88,11 +88,8 @@ export default function DashboardJamaah() {
       <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white rounded-2xl p-6 mb-6 text-center md:text-left">
         <h2 className="text-xl md:text-2xl font-bold">Assalamualaikum, {user.name.split(' ')[0]} 👋</h2>
         <p className="text-sm opacity-85 mt-1">Selamat datang di portal jamaah JM Travel</p>
-        {user.kode_unik && (
-          <span className="inline-block mt-3 bg-white/15 border border-white/30 rounded-full px-3 py-1 text-xs font-bold tracking-wider">
-            🔑 Kode: {user.kode_unik}
-          </span>
-        )}
+        {/* Kode unik jamaah disembunyikan sementara, belum ada kegunaannya buat jamaah
+            (butuh pengembangan lebih lanjut, dikonfirmasi user 2026-09-27). */}
       </div>
 
       {/* Quick Actions */}

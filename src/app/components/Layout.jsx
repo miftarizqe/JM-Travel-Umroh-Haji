@@ -403,7 +403,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '💳', label: 'Pembayaran', path: '/admin?tab=payments' },
       { icon: '🚫', label: 'Pembatalan', path: '/admin?tab=pembatalan' },
       { icon: '💰', label: 'Custom Harga', path: '/admin?tab=customharga' },
-      { icon: '➕', label: 'Order Jamaah', path: '/order-jamaah' },
+      { icon: '➕', label: 'Order Jamaah', path: '/programs' },
       { icon: '🧮', label: 'Ajuan Budget Kalkulator', path: '/admin/kalkulator-leads' },
       // Ajuan Kalkulator Perwakilan SENGAJA tetap di sini (bukan pindah ke
       // "Program Kemitraan" > Perwakilan) — itu review quote/leads harga,
@@ -530,7 +530,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     perwakilan: [
       { icon: '🏠', label: 'Beranda', path: '/dashboard/perwakilan' },
       { icon: '🕌', label: 'Program', path: '/programs' },
-      { icon: '➕', label: 'Order', path: '/order-jamaah' },
       { icon: '🌳', label: 'Downline', path: '/dashboard/downline' },
       { icon: '💰', label: 'Harga', path: '/perwakilan/harga' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
@@ -539,7 +538,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     sahabat: [
       { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat' },
       { icon: '🕌', label: 'Program', path: '/programs' },
-      { icon: '➕', label: 'Order (Closing Langsung)', path: '/order-jamaah' },
       { icon: '🌳', label: 'Team', path: '/dashboard/sahabat/team' },
       { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/sahabat/riwayat-closing' },
       { icon: '🧾', label: 'Riwayat Tabungan Umroh', path: '/dashboard/sahabat/riwayat' },

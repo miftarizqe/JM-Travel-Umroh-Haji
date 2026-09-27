@@ -385,7 +385,7 @@ export default function DashboardPerwakilan() {
       {programAktif.length === 0 && forecastDownline.length === 0 ? (
         <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
           Belum ada order berjalan.{' '}
-          <span className="font-bold cursor-pointer underline" onClick={() => router.push('/order-jamaah')}>
+          <span className="font-bold cursor-pointer underline" onClick={() => router.push('/programs')}>
             Order jamaah →
           </span>
         </div>

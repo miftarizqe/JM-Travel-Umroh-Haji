@@ -187,7 +187,7 @@ export async function PATCH(request) {
       // terverifikasi) — satu-satunya transisi admin yang tersisa di sini
       // adalah ke 'active'.
       const [[u]] = await pool.query(
-        `SELECT kode_unik, cif_bsi, agama, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
+        `SELECT kode_unik, cif_bsi, agama, terverifikasi, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
          FROM users WHERE id = ?`, [user_id]
       );
       // rangkap='travel' WAJIB (bug ditemukan & diperbaiki 2026-09-19) —
@@ -202,10 +202,14 @@ export async function PATCH(request) {
       const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_path;
 
       if (status_baru === 'active') {
-        // Urutan wajib linear (dikonfirmasi user 2026-09-20): SPK-AK -> bukti
-        // TF -> rekening tabungan umroh -> CIF & blokir. Dipaksa juga di sini
+        // Urutan wajib linear (dikonfirmasi user 2026-09-27): bukti TF -> SPK-AK
+        // -> rekening tabungan umroh -> CIF & blokir. Dipaksa juga di sini
         // (bukan cuma gate UI di status-pendaftaran-sahabat/page.jsx) biar
-        // gak bisa dilewatin lewat panggilan API admin langsung.
+        // gak bisa dilewatin lewat panggilan API admin langsung. Verifikasi
+        // akun (dulu gerbang terpisah sebelum isi data diri) SEKARANG jadi
+        // syarat di sini juga — satu-satunya gate admin yang tersisa,
+        // digabung dengan aktivasi akhir (dikonfirmasi user 2026-09-27).
+        if (!u.terverifikasi) return Response.json({ error: 'Akun jamaah ini belum diverifikasi admin' }, { status: 400 });
         if (!spkAkSelesai) return Response.json({ error: 'SPK-AK belum selesai ditandatangani' }, { status: 400 });
         if (!p.bukti_tf_verified_at) return Response.json({ error: 'Bukti transfer belum diverifikasi' }, { status: 400 });
         if (!u.no_rekening_tabungan_umroh) return Response.json({ error: 'Rekening Tabungan Umroh belum diisi' }, { status: 400 });

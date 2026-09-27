@@ -298,7 +298,11 @@ function TeamContent() {
 
       {team.length === 0 ? (
         <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
-          Belum ada anggota team. Bagikan link referral Anda dari dashboard buat mulai merekrut.
+          Belum ada anggota team. Bagikan link referral Anda dari{' '}
+          <button onClick={() => router.push('/dashboard/sahabat')} className="font-bold underline hover:no-underline">
+            halaman Beranda
+          </button>{' '}
+          buat mulai merekrut.
         </div>
       ) : (
         <>

@@ -217,7 +217,9 @@ export default function ProfilPage() {
               </div>
             </div>
 
-            {user.kode_unik && (
+            {/* Kode unik disembunyikan buat jamaah — belum ada kegunaannya, butuh
+                pengembangan lebih lanjut (dikonfirmasi user 2026-09-27). */}
+            {user.role !== 'jamaah' && user.kode_unik && (
               <span className="bg-white/15 border border-white/30 rounded-full px-3 py-1 text-xs font-bold flex-shrink-0">
                 🔑 {user.kode_unik}
               </span>
