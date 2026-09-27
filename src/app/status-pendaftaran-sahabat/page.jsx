@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -39,6 +39,7 @@ export default function StatusPendaftaranSahabatPage() {
   const [suratPemblokiran, setSuratPemblokiran] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sudahBacaGabungan, setSudahBacaGabungan] = useState(false);
+  const scrollGabunganRef = useRef(null);
   const [setujuGabungan, setSetujuGabungan] = useState(false);
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
 
@@ -161,10 +162,22 @@ export default function StatusPendaftaranSahabatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  function cekScrollGabungan(e) {
-    const el = e.target;
+  // Pasal salah satu surat belum diisi admin — jangan biarkan disetujui.
+  const pasalGabunganKosong = !!(skCif && suratPemblokiran) &&
+    (!(skCif.pasal || []).length || !(suratPemblokiran.pasal || []).length);
+
+  function cekScrollGabungan() {
+    const el = scrollGabunganRef.current;
+    if (!el || pasalGabunganKosong) return;
     if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setSudahBacaGabungan(true);
   }
+
+  // Isi pendek (gak sampai bikin kotak bisa di-scroll) gak pernah memicu
+  // onScroll — cek sekali begitu kedua surat selesai dirender (sama seperti /pks).
+  useEffect(() => {
+    if (skCif && suratPemblokiran) cekScrollGabungan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skCif, suratPemblokiran]);
 
   async function submitSetujuGabungan() {
     if (!setujuGabungan) { alert('Centang persetujuan terlebih dahulu!'); return; }
@@ -335,21 +348,27 @@ export default function StatusPendaftaranSahabatPage() {
                 </button>
               ) : (
                 <>
-                  <div onScroll={cekScrollGabungan}
+                  <div ref={scrollGabunganRef} onScroll={cekScrollGabungan}
                     className="max-h-[350px] overflow-y-auto border border-gray-200 rounded-lg p-3 text-gray-600 space-y-4"
                     style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
                     <div>
                       <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA KERJASAMA MULTI CIF</div>
                       <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
                       {(skCif.pasal || []).map(p => (<div key={`skcif-${p.nomor}`}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
+                      {!(skCif.pasal || []).length && (
+                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
+                      )}
                     </div>
                     <div className="pt-4 border-t border-gray-100">
                       <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
                       <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
                       {(suratPemblokiran.pasal || []).map(p => (<div key={`pemblokiran-${p.nomor}`}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
+                      {!(suratPemblokiran.pasal || []).length && (
+                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
+                      )}
                     </div>
                   </div>
-                  {!sudahBacaGabungan && (
+                  {!sudahBacaGabungan && !pasalGabunganKosong && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-center text-xs text-yellow-700">
                       ⬇️ Gulir ke bawah sampai selesai membaca kedua surat
                     </div>

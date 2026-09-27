@@ -18,13 +18,15 @@ export async function pastikanSnapshot(pool, refId, dokumen) {
     'SELECT nomor, tipe, judul, isi FROM dokumen_pasal WHERE dokumen = ?',
     [dokumen]
   );
-  if (pasalRows.length > 0) {
-    const values = pasalRows.map(p => [refId, dokumen, p.nomor, p.tipe, p.judul, p.isi]);
-    await pool.query(
-      'INSERT INTO dokumen_pasal_snapshot (ref_id, dokumen, nomor, tipe, judul, isi) VALUES ?',
-      [values]
-    );
-  }
+  // Pasal belum diisi admin — jangan bekukan apa-apa dulu. Kalau signer
+  // ikut dibekukan di sini, pemanggilan berikutnya (setelah pasal diisi)
+  // bakal INSERT signer lagi & kena ER_DUP_ENTRY.
+  if (pasalRows.length === 0) return;
+  const values = pasalRows.map(p => [refId, dokumen, p.nomor, p.tipe, p.judul, p.isi]);
+  await pool.query(
+    'INSERT INTO dokumen_pasal_snapshot (ref_id, dokumen, nomor, tipe, judul, isi) VALUES ?',
+    [values]
+  );
 
   // surat_pemblokiran gak punya konsep "penandatangan PIHAK PERTAMA" di
   // halaman cetak (cuma 1 pihak yang TTD, si member) — jadi gak perlu
@@ -32,13 +34,19 @@ export async function pastikanSnapshot(pool, refId, dokumen) {
   // catatan di pasalUntukCetak.js), jadi HARUS ikut nyimpen snapshot signer.
   if (dokumen === 'surat_pemblokiran') return;
 
+  // ON DUPLICATE KEY UPDATE di bawah: baris signer bisa sudah ada dari
+  // pemanggilan lama waktu pasal masih kosong (sebelum guard di atas) —
+  // sampai sini berarti pasal BARU dibekukan, jadi signer ikut dibekukan
+  // ulang di momen yang sama.
+
   // sk_cif: Penerima Kuasa punya penandatangan SENDIRI (bukan Head of
   // Program, bukan Penandatangan Umum), plus butuh NIK (dokumen lain gak)
   // — dikonfirmasi user 2026-09-10 (samain ke "Surat Kuasa CIF.docx").
   if (dokumen === 'sk_cif') {
     const skCifSigner = await ambilSignerSkCif(pool);
     await pool.query(
-      'INSERT INTO dokumen_signer_snapshot (ref_id, dokumen, nama, nik, jabatan) VALUES (?, ?, ?, ?, ?)',
+      `INSERT INTO dokumen_signer_snapshot (ref_id, dokumen, nama, nik, jabatan) VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE nama = VALUES(nama), nik = VALUES(nik), jabatan = VALUES(jabatan)`,
       [refId, dokumen, skCifSigner?.nama || null, skCifSigner?.nik || null, skCifSigner?.jabatan || null]
     );
     return;
@@ -52,7 +60,9 @@ export async function pastikanSnapshot(pool, refId, dokumen) {
   // gak punya blok ini di draft resminya) — dokumen lain simpan NULL.
   const hoAktif = dokumen === 'spka';
   await pool.query(
-    'INSERT INTO dokumen_signer_snapshot (ref_id, dokumen, nama, jabatan, head_of_agency_nama, head_of_agency_jabatan) VALUES (?, ?, ?, ?, ?, ?)',
+    `INSERT INTO dokumen_signer_snapshot (ref_id, dokumen, nama, jabatan, head_of_agency_nama, head_of_agency_jabatan) VALUES (?, ?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE nama = VALUES(nama), jabatan = VALUES(jabatan),
+       head_of_agency_nama = VALUES(head_of_agency_nama), head_of_agency_jabatan = VALUES(head_of_agency_jabatan)`,
     [
       refId, dokumen,
       pengaturan?.[kolom.nama] || null, pengaturan?.[kolom.jabatan] || null,
