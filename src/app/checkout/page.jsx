@@ -57,7 +57,12 @@ function CheckoutPageInner() {
   // atribusi ke anggota sahabat yang bantu, pola identik sumber='perwakilan'
   // di atas. MURNI tag (referral_sahabat_id) buat admin proses split
   // rekening pribadi secara manual — TIDAK ikut logic komisi/voucher apa pun.
-  const [sahabatList, setSahabatList] = useState([]);
+  // Daftar nama anggota Sahabat SENGAJA gak di-fetch lagi (ditutup
+  // 2026-09-28, dikonfirmasi user — dulu dropdown nampilin nama lengkap semua
+  // anggota). Jamaah ketik kode_unik Sahabat yang mengajak, diverifikasi
+  // server 1 kode (POST /api/referral-list/cek-sahabat, nama disamarkan).
+  const [sahabatTerverifikasi, setSahabatTerverifikasi] = useState(null);
+  const [cekSahabatStatus, setCekSahabatStatus] = useState('');
   const [buktiPath, setBuktiPath] = useState(null);
   const [buktiNama, setBuktiNama] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -86,6 +91,30 @@ function CheckoutPageInner() {
   const isDirty = step > 1 && step < (isMandiriSahabat ? 3 : 4);
   useUnsavedGuard(isDirty);
 
+  // Verifikasi kode Sahabat yang diketik jamaah (didebounce 400ms). Akun
+  // Sahabat sendiri gak lewat sini — referralKode-nya kode milik sendiri &
+  // referral_sahabat_id dipaksa user.id pas submit.
+  useEffect(() => {
+    if (user?.role === 'sahabat_baitullah' || sumber !== 'sahabat_baitullah') return;
+    const kode = referralKode.trim();
+    setSahabatTerverifikasi(null);
+    if (!kode) { setCekSahabatStatus(''); return; }
+    setCekSahabatStatus('cek');
+    const timer = setTimeout(() => {
+      fetch('/api/referral-list/cek-sahabat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kode }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) { setSahabatTerverifikasi(d); setCekSahabatStatus(''); }
+          else setCekSahabatStatus('invalid');
+        })
+        .catch(() => setCekSahabatStatus('invalid'));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [referralKode, sumber, user?.role]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -110,11 +139,6 @@ function CheckoutPageInner() {
         }
       })
       .catch(() => {});
-    fetch('/api/referral-list?role=sahabat_baitullah')
-      .then(r => r.json())
-      .then(d => { setSahabatList(d.perwakilan || []); })
-      .catch(() => {});
-
     if (progId) {
       fetch('/api/programs')
         .then(r => r.json())
@@ -229,7 +253,7 @@ function CheckoutPageInner() {
             : permanentReferrer ? permanentReferrer.id
             : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
-            : sumber === 'sahabat_baitullah' ? (sahabatList.find(k => k.kode_unik === referralKode)?.id || null) : null,
+            : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
           // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
           // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
           // diorderkan perwakilan/sahabat/admin lewat checkout salah
@@ -564,6 +588,10 @@ function CheckoutPageInner() {
               <div className="rounded-xl p-4 text-sm border-2 bg-purple-50 text-purple-700 border-[#C9952A]">
                 {`🏢 Checkout sebagai Perwakilan — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
               </div>
+            ) : user?.role === 'sahabat_baitullah' ? (
+              <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
+                {`🤝 Checkout sebagai Sahabat Baitullah — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
+              </div>
             ) : permanentReferrer ? (
               <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
                 {`📌 Referral Anda terkunci ke ${permanentReferrer.name} (${permanentReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
@@ -608,22 +636,20 @@ function CheckoutPageInner() {
 
               {sumber === 'sahabat_baitullah' && (
                 <div>
-                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Pilih Nama Jamaah Sahabat Baitullah *</label>
-                  <SearchableSelect
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Sahabat Baitullah *</label>
+                  <input
                     value={referralKode}
-                    onChange={setReferralKode}
-                    placeholder="Ketik buat cari nama Jamaah Sahabat Baitullah..."
-                    options={sahabatList.map(k => ({ value: k.kode_unik, label: `${k.name} (${k.kode_unik})` }))}
+                    onChange={e => setReferralKode(e.target.value.toUpperCase())}
+                    placeholder="Contoh: SBJM0002"
+                    className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekSahabatStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
-                  {sahabatList.length === 0 && (
-                    <div className="text-[10px] text-red-500 mt-1">
-                      Belum ada Jamaah Sahabat Baitullah aktif. Hubungi admin JM Travel.
-                    </div>
-                  )}
+                  {cekSahabatStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
+                  {cekSahabatStatus === 'invalid' && <div className="text-[10px] text-red-500 mt-1">Kode tidak ditemukan. Tanyakan kode referral ke anggota Sahabat Baitullah yang mengajak Anda.</div>}
+                  {sahabatTerverifikasi && <div className="text-[10px] text-green-600 mt-1">✓ {sahabatTerverifikasi.nama} ({sahabatTerverifikasi.kode_unik})</div>}
                 </div>
               )}
 
-              {(sumber === 'perwakilan' || sumber === 'sahabat_baitullah') && referralKode && (
+              {((sumber === 'perwakilan' && referralKode) || (sumber === 'sahabat_baitullah' && sahabatTerverifikasi)) && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">
                   ✅ Pendaftaran akan tercatat atas nama {sumber} yang dipilih.
                 </div>
@@ -633,10 +659,13 @@ function CheckoutPageInner() {
 
             <button
               onClick={() => {
-                if (user?.role === 'perwakilan' || permanentReferrer) { setStep(2); return; }
+                if (user?.role === 'perwakilan' || user?.role === 'sahabat_baitullah' || permanentReferrer) { setStep(2); return; }
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
-                if ((sumber === 'perwakilan' || sumber === 'sahabat_baitullah') && !referralKode) {
-                  alert(`Pilih nama ${sumber} terlebih dahulu!`); return;
+                if (sumber === 'perwakilan' && !referralKode) {
+                  alert('Pilih nama perwakilan terlebih dahulu!'); return;
+                }
+                if (sumber === 'sahabat_baitullah' && !sahabatTerverifikasi) {
+                  alert('Masukkan kode referral Sahabat Baitullah yang valid!'); return;
                 }
                 setStep(2);
               }}

@@ -59,7 +59,6 @@ function RegisterPageInner() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [perwList, setPerwList] = useState([]);
-  const [sahabatList, setSahabatList] = useState([]);
   const [refNotFound, setRefNotFound] = useState(false);
   // Info perekrut yang udah TERKUNCI dari link invite (kode_invite_perwakilan/
   // kode_invite_sahabat) — disimpan LANGSUNG dari respons verify-invite
@@ -76,6 +75,10 @@ function RegisterPageInner() {
   // ilang kalau user klik "Ubah" ganti pilihan role di step 2.
   const [refPerwakilanJamaahId, setRefPerwakilanJamaahId] = useState(null);
   const [refSahabatJamaahId, setRefSahabatJamaahId] = useState(null);
+  // Nama (disamarkan server) pemilik refSahabatJamaahId — daftar anggota
+  // Sahabat gak di-fetch lagi (ditutup 2026-09-28), jadi namanya disimpan
+  // langsung dari respons /api/referral-list/cek-sahabat.
+  const [refSahabatJamaahNama, setRefSahabatJamaahNama] = useState('');
   // Kode referral perwakilan yang diketik manual (bukan dari link) —
   // dikonfirmasi user 2026-09-03: kartu "Perwakilan" tetap selalu
   // ditawarkan, tapi WAJIB isi kode referral valid (bukan pilih nama dari
@@ -149,32 +152,23 @@ function RegisterPageInner() {
         }
       })
       .catch(() => {});
-    fetch('/api/referral-list?role=sahabat_baitullah')
-      .then(r => r.json())
-      .then(d => {
-        const list = d.perwakilan || [];
-        setSahabatList(list);
-        // Keputusan "role=sahabat_baitullah dari URL ini valid atau enggak"
-        // SENGAJA gak diambil di sini lagi (bug ditemukan & diperbaiki
-        // 2026-09-27) — dulu effect ini BALAPAN sama effect verify-invite di
-        // bawah (dua-duanya sama-sama boleh ngunci role, lihat komentar di
-        // situ), dan effect ini kadang menang duluan lalu nge-reset
-        // tampilkanPilihan/form.role padahal link invite-nya valid (kode
-        // invite ('kode_invite_sahabat') memang gak bakal pernah match
-        // kode_unik di list ini, jadi SELALU keliatan "gak match" dari sudut
-        // pandang effect ini doang). Sekarang effect verify-invite di bawah
-        // yang jadi SATU-SATUNYA penentu (dicoba invite dulu, baru fallback
-        // ke kode_unik secara berurutan/gak balapan).
-        // Referral permanen jamaah dari link sahabat (Sahabat Baitullah) —
-        // dicek TERLEPAS dari roleAwal juga, sama alasannya kayak di atas:
-        // ini yang nutup celah lama (form.perekrut_id nyasar ke users.perekrut_id
-        // pas user klik "Ubah" pilih Jamaah) dengan nyimpen ke state terpisah.
-        if (refCode) {
-          const matchKopJamaah = list.find(k => k.kode_unik === refCode);
-          if (matchKopJamaah) setRefSahabatJamaahId(matchKopJamaah.id);
-        }
+    // Referral permanen jamaah dari link sahabat (kode_unik) — dicek
+    // TERLEPAS dari roleAwal, biar tetap kepakai walau user akhirnya daftar
+    // sebagai Jamaah. Nutup celah lama (form.perekrut_id nyasar ke
+    // users.perekrut_id pas user klik "Ubah" pilih Jamaah) dengan nyimpen ke
+    // state terpisah. Cek 1 kode ke server (nama disamarkan) — daftar anggota
+    // Sahabat gak di-list ke publik lagi (2026-09-28). Keputusan valid/gak-nya
+    // role=sahabat_baitullah dari URL tetap cuma di effect verify-invite di
+    // bawah (bug race condition 2026-09-27).
+    if (refCode) {
+      fetch('/api/referral-list/cek-sahabat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kode: refCode }),
       })
-      .catch(() => {});
+        .then(r => r.json())
+        .then(d => { if (d.valid) { setRefSahabatJamaahId(d.id); setRefSahabatJamaahNama(d.nama); } })
+        .catch(() => {});
+    }
   }, []);
 
   // ?role=perwakilan&ref=<kode_invite> dari link pribadi rekrut-perwakilan —
@@ -223,17 +217,19 @@ function RegisterPageInner() {
           setPerekrutTerkunciSahabat({ id: d.id, name: d.name, kode_unik: d.kode_unik });
           return;
         }
-        // Fallback kode_unik — fetch baru di sini (bukan pakai sahabatList
-        // dari effect lain) justru biar urutannya kepastian, gak gantung ke
-        // timing effect lain.
-        return fetch('/api/referral-list?role=sahabat_baitullah')
+        // Fallback kode_unik — dicek berurutan di sini (bukan pakai hasil
+        // effect lain) biar gak gantung ke timing effect lain. Nama dari
+        // cek-sahabat sudah disamarkan server.
+        return fetch('/api/referral-list/cek-sahabat', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ kode: refCode }),
+        })
           .then(r => r.json())
           .then(d2 => {
-            const match = (d2.perwakilan || []).find(k => k.kode_unik === refCode);
-            if (match) {
+            if (d2.valid) {
               setTampilkanPilihan(false);
-              setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: match.id }));
-              setPerekrutTerkunciSahabat({ id: match.id, name: match.name, kode_unik: match.kode_unik });
+              setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: d2.id }));
+              setPerekrutTerkunciSahabat({ id: d2.id, name: d2.nama, kode_unik: d2.kode_unik });
             } else {
               setRefNotFound(true);
               setTampilkanPilihan(true);
@@ -282,7 +278,11 @@ function RegisterPageInner() {
       })
         .then(r => r.json())
         .then(d => {
-          if (d.valid) { setForm(f => ({ ...f, perekrut_id: d.id })); setKodeReferralSahabatInvalid(false); }
+          if (d.valid) {
+            setForm(f => ({ ...f, perekrut_id: d.id }));
+            setPerekrutTerkunciSahabat({ id: d.id, name: d.name, kode_unik: d.kode_unik });
+            setKodeReferralSahabatInvalid(false);
+          }
           else setKodeReferralSahabatInvalid(true);
         })
         .catch(() => {})
@@ -437,7 +437,7 @@ function RegisterPageInner() {
               {(refPerwakilanJamaahId || refSahabatJamaahId) && (() => {
                 const nama = refPerwakilanJamaahId
                   ? perwList.find(p => p.id === refPerwakilanJamaahId)?.name
-                  : sahabatList.find(k => k.id === refSahabatJamaahId)?.name;
+                  : refSahabatJamaahNama;
                 return (
                   <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 text-xs text-amber-700">
                     📌 Kalau Anda daftar sebagai <b>Jamaah</b>, akun ini akan terhubung permanen dengan {refPerwakilanJamaahId ? 'Perwakilan' : 'anggota Sahabat Baitullah'} <b>{nama || '-'}</b> — tidak bisa diubah lagi setelah akun dibuat.
@@ -637,7 +637,7 @@ function RegisterPageInner() {
               })()}
 
               {form.role === 'sahabat_baitullah' && (() => {
-                const terkunci = perekrutTerkunciSahabat || sahabatList.find(k => k.id === form.perekrut_id);
+                const terkunci = perekrutTerkunciSahabat;
                 return (
                   <div>
                     <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">
