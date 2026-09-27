@@ -5,8 +5,9 @@
 // di bawah, tanpa bongkar pemanggil (src/app/api/admin/dokumen-signature/route.js).
 import { tambahLampiranSertifikat } from '@/lib/pdfDokumen/lampiranSertifikat';
 import * as mockProvider from './providers/mock';
+import * as privyProvider from './providers/privy';
 
-const PROVIDERS = { mock: mockProvider };
+const PROVIDERS = { mock: mockProvider, privy: privyProvider };
 
 function ambilProvider(nama) {
   const p = PROVIDERS[nama];

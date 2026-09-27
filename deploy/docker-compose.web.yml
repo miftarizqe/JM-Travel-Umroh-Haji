@@ -23,6 +23,15 @@ services:
       # tampil & verifikasi di server otomatis di-skip.
       NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
       RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY:-}
+      # TTD digital (lihat .env.local buat penjelasan & TODO sebelum ganti ke 'privy').
+      TTD_PROVIDER: ${TTD_PROVIDER:-mock}
+      PRIVY_API_BASE_URL: ${PRIVY_API_BASE_URL:-}
+      PRIVY_API_KEY: ${PRIVY_API_KEY:-}
+      PRIVY_API_SECRET: ${PRIVY_API_SECRET:-}
+      PRIVY_MERCHANT_KEY: ${PRIVY_MERCHANT_KEY:-}
+      PRIVY_WEBHOOK_SECRET: ${PRIVY_WEBHOOK_SECRET:-}
+      # e-Meterai (lihat .env.local buat penjelasan).
+      MATERAI_PROVIDER: ${MATERAI_PROVIDER:-mock}
     volumes:
       - web_private_uploads:/app/private-uploads
       - web_public_uploads:/app/public/uploads

@@ -1,11 +1,6 @@
-import { readFile } from 'fs/promises';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
-import { catatAudit } from '@/lib/audit';
-import { kirimNotifikasi } from '@/lib/notifikasi';
-import { selesaikanTtd } from '@/lib/eSignature';
-import { simpanPdfDokumenSignature } from '@/lib/pdfDokumen/simpanPdf';
-import { absolutePathDariUrl } from '@/lib/dokumenProteksi';
+import { selesaikanSesiTtdById } from '@/lib/eSignature/selesaikanSesi';
 
 // POST /api/dokumen-signature/[id]/selesaikan
 // Trigger MOCK buat simulasi provider TTD selesai — di produksi nanti (begitu
@@ -40,42 +35,11 @@ export async function POST(request, { params }) {
       if (!cocok) return Response.json({ error: 'Anda tidak berwenang menyelesaikan sesi ini' }, { status: 403 });
     }
 
-    const sumberPath = sig.pdf_bermaterai_path || sig.pdf_awal_path;
-    const pdfBuffer = await readFile(absolutePathDariUrl(sumberPath));
-
-    const hasil = await selesaikanTtd({
-      providerRef: sig.ttd_provider_ref,
-      signer: { nama: sig.signer_nama, email: sig.signer_email, wa: sig.signer_wa },
-      pdfBuffer,
-      dokumen: sig.dokumen,
-    });
-    const pdfFinalPath = await simpanPdfDokumenSignature(hasil.pdfBuffer, { dokumen: sig.dokumen, refId: sig.ref_id, tahap: 'final' });
-
-    await pool.query(
-      `UPDATE dokumen_signature SET fase = 'selesai', pdf_final_path = ?, completed_at = ? WHERE id = ?`,
-      [pdfFinalPath, hasil.selesaiAt, sig.id]
-    );
-
-    await catatAudit(pool, {
-      actor: auth.user,
-      aksi: 'dokumen_signature_selesai',
-      target_type: sig.dokumen,
-      target_id: sig.ref_id,
-      keterangan: `TTD digital selesai (${sig.ttd_provider || 'mock'}).`,
-    });
-
-    if (sig.requested_by && sig.requested_by !== auth.user.id) {
-      await kirimNotifikasi(pool, {
-        user_id: sig.requested_by,
-        tipe: 'dokumen_ttd_selesai',
-        judul: 'Dokumen Selesai Ditandatangani',
-        pesan: `Dokumen ${sig.dokumen} sudah selesai ditandatangani secara digital.`,
-        link: `/tanda-tangan/${sig.id}`,
-      });
-    }
+    const { pdfFinalPath } = await selesaikanSesiTtdById(sig.id, { actor: auth.user });
 
     return Response.json({ message: 'Tanda tangan digital selesai!', pdf_final_path: pdfFinalPath });
   } catch (error) {
+    if (error.status) return Response.json({ error: error.message }, { status: error.status });
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
   }
