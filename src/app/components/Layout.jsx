@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { useIsHop } from '@/lib/useIsHop';
 
 const DEFAULT_CONFIRM_MSG = 'Yakin ingin keluar? Perubahan yang belum disimpan akan hilang.';
 
@@ -283,6 +284,13 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const user = mounted ? rawUser : null;
+  // Head of Program (akun sahabat_baitullah biasa yang ditunjuk admin) —
+  // dikonfirmasi user 2026-09-27: sebelumnya udah bisa INTIP (read-only)
+  // halaman admin Sahabat Baitullah lewat API, tapi gak ada link buat
+  // nemuinnya dari sidebar sama sekali. Ditambahin di bawah (grup
+  // "Pengawasan Program"), CUMA link — gak nambah hak akses baru,
+  // wewenangnya di endpoint masih persis kayak sebelumnya (liat doang).
+  const { isHop } = useIsHop(user);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Collapse sidebar desktop (beda dari sidebarOpen yang buat drawer mobile)
   // — admin bisa sembunyikan sementara buat lapangin layar, preferensinya
@@ -544,6 +552,17 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '🎞️', label: 'Materi Presentasi', path: '/dashboard/sahabat/materi' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },
+      // Head of Program doang (lihat useIsHop di atas) — semua halaman ini
+      // read-only buat akun ini, tombol aksinya udah disembunyiin di
+      // masing-masing halaman + endpoint tulisnya tetap admin-only di server.
+      ...(isHop ? [{ icon: '🔍', label: 'Pengawasan Program', children: [
+        { icon: '📝', label: 'Pendaftaran', path: '/admin/sahabat' },
+        { icon: '🗂️', label: 'Database Anggota', path: '/admin/sahabat/database' },
+        { icon: '📜', label: 'Riwayat Closing (Semua)', path: '/admin/sahabat/riwayat-closing' },
+        { icon: '💸', label: 'Pencairan', path: '/admin/sahabat/pencairan' },
+        { icon: '🎞️', label: 'Materi Presentasi (Kelola)', path: '/admin/sahabat/materi' },
+        { icon: '⚙️', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
+      ] }] : []),
     ],
   };
 
