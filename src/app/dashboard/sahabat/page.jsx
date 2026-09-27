@@ -52,7 +52,7 @@ export default function DashboardSahabatPage() {
   // 2026-09-27) — isinya sama-sama buka pendaftaran Sahabat, bikin bingung,
   // & kode_unik sekuensial gampang ditebak. Cukup satu link rekrut ini.
   const linkInvite = typeof window !== 'undefined' && data.akun.kode_invite_sahabat
-    ? `${window.location.origin}/register?role=sahabat&ref=${data.akun.kode_invite_sahabat}` : '';
+    ? `${window.location.origin}/register?role=sahabat_baitullah&ref=${data.akun.kode_invite_sahabat}` : '';
 
   const skema = data.skema || {};
   const perluPerhatian = data.perlu_perhatian || { belum_tf: [], menunggu_bsi: [], menunggu_sk_cif: [] };

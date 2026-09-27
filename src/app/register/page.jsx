@@ -22,7 +22,11 @@ function RegisterPageInner() {
   const searchParams = useSearchParams();
   // Dari modal kemitraan di landing page (lihat page.tsx) — biar gak disuruh
   // milih ulang tipe akun di step 2 padahal udah milih dari kartu kemitraan.
-  const roleAwal = searchParams.get('role');
+  // 'sahabat' = alias lama dari link rekrut di Beranda Sahabat (sebelum
+  // 2026-09-28 link-nya ?role=sahabat) — dinormalkan biar link yang terlanjur
+  // dibagikan tetap ngunci tipe akun & perekrut, sama kayak link admin.
+  const roleParam = searchParams.get('role');
+  const roleAwal = roleParam === 'sahabat' ? 'sahabat_baitullah' : roleParam;
   // Perwakilan sementara di-pause (dikonfirmasi user 2026-09-27) — link lama
   // yang bawa ?role=perwakilan gak lagi auto-lock, balik ke kartu pilihan
   // biasa (yang di situ juga udah nampilin "Segera Hadir", disabled).
