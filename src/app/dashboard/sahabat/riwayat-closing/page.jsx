@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { warnaProgress } from '@/lib/kesiapanTabungan';
 import TombolWA from '@/app/components/TombolWA';
+import { STAGE_LABELS, formLengkap, getStage } from '@/lib/bookingStage';
 
 function fmtTanggal(iso) {
   if (!iso) return '-';
@@ -46,6 +47,7 @@ function RiwayatClosingContent() {
   const [tab, setTab] = useState('referral');
   const [dari, setDari] = useState('');
   const [sampai, setSampai] = useState('');
+  const [expandBooking, setExpandBooking] = useState(null);
 
   const paramId = searchParams.get('sahabat_id');
   const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
@@ -184,20 +186,123 @@ function RiwayatClosingContent() {
           <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">Belum ada closing jamaah di jaringan Anda.</div>
         ) : (
           <div className="space-y-2">
-            {closingLangsung.map(b => (
-              <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="font-bold text-[#0E2F6E] text-sm truncate">{b.prog_name}</div>
-                    <div className="text-[10px] text-gray-400">{b.jumlah_jamaah} jamaah · Via: {b.sahabat_nama} ({b.sahabat_kode_unik})</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">{fmtTanggal(b.created_at)}</div>
+            {closingLangsung.map(b => {
+              // Cuma yang BENERAN closing-in booking ini sendiri yang boleh
+              // lanjutin isi form/perjanjian (dikonfirmasi user 2026-09-28) —
+              // liat closing DOWNLINE tetap boleh, tapi read-only status doang,
+              // aksinya tetap milik yang beneran ordered_by di booking itu.
+              const punyaSendiri = String(b.referral_sahabat_id) === String(user.id);
+              const stage = getStage(b);
+              const isOpen = expandBooking === b.id;
+              const sudahSelesaiTotal = b.status === 'selesai' || b.status === 'dibatalkan';
+              return (
+                <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
+                  <div className="p-3 cursor-pointer" onClick={() => setExpandBooking(isOpen ? null : b.id)}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-[#0E2F6E] text-sm truncate">{b.prog_name}</div>
+                        <div className="text-[10px] text-gray-400">{b.jumlah_jamaah} jamaah · Via: {b.sahabat_nama} ({b.sahabat_kode_unik})</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">{fmtTanggal(b.created_at)}</div>
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
+                          {STATUS_BOOKING_LABEL[b.status] || b.status}
+                        </span>
+                        <span className="text-[9px] text-gray-400">{isOpen ? 'Tutup ▲' : 'Detail ▼'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 shrink-0">
-                    {STATUS_BOOKING_LABEL[b.status] || b.status}
-                  </span>
+
+                  {isOpen && (
+                    <div className="px-3 pb-3 border-t border-gray-100 pt-3">
+                      {sudahSelesaiTotal ? (
+                        <div className="text-xs text-gray-400 text-center py-2">
+                          Booking ini sudah {STATUS_BOOKING_LABEL[b.status]?.toLowerCase()}, gak ada progres lanjutan.
+                        </div>
+                      ) : b.status === 'menunggu_batal' ? (
+                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-lg">
+                          ⏳ Pengajuan pembatalan booking ini sedang ditinjau admin JM Travel.
+                        </div>
+                      ) : (
+                        <>
+                          {/* Progress 5 tahap — persis sama kayak dashboard jamaah */}
+                          <div className="flex items-center mb-3">
+                            {STAGE_LABELS.map((label, i) => (
+                              <div key={label} className="flex items-center flex-1 last:flex-none">
+                                <div className="flex flex-col items-center">
+                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                                    i + 1 <= stage ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-400'
+                                  }`}>
+                                    {i + 1 <= stage ? '✓' : i + 1}
+                                  </div>
+                                  <div className={`text-[9px] mt-1 ${i + 1 <= stage ? 'text-[#1A4FA0] font-bold' : 'text-gray-400'}`}>{label}</div>
+                                </div>
+                                {i < STAGE_LABELS.length - 1 && (
+                                  <div className={`flex-1 h-0.5 mx-1 mb-4 ${i + 1 < stage ? 'bg-[#1A4FA0]' : 'bg-gray-200'}`}></div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="text-xs text-gray-500 mb-3">
+                            DP: <strong>{b.dp_status === 'confirmed' ? '✅ Dikonfirmasi' : b.dp_status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}</strong>
+                          </div>
+
+                          {!punyaSendiri ? (
+                            <div className="text-[10px] text-gray-400 text-center bg-gray-50 rounded-lg py-2">
+                              Closing ini milik downline Anda — cuma bisa lihat status, aksi lanjutan dikerjakan oleh {b.sahabat_nama}.
+                            </div>
+                          ) : (
+                            <>
+                              {stage === 1 && !formLengkap(b) && (
+                                <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
+                                  className="w-full bg-[#1A4FA0] text-white text-sm font-bold py-2 rounded-full hover:bg-[#0E2F6E] transition-colors">
+                                  Isi Formulir Jamaah sambil menunggu ({b.form_filled}/{b.form_total}) →
+                                </button>
+                              )}
+                              {stage === 2 && (
+                                <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
+                                  className="w-full bg-[#1A4FA0] text-white text-sm font-bold py-2 rounded-full hover:bg-[#0E2F6E] transition-colors">
+                                  Isi Formulir Jamaah ({b.form_filled}/{b.form_total}) →
+                                </button>
+                              )}
+                              {stage === 3 && !b.setuju_pks && (
+                                <button onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${b.id}`)}
+                                  className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors">
+                                  📜 Baca & Setujui Perjanjian →
+                                </button>
+                              )}
+                              {stage === 3 && b.setuju_pks && b.perjanjian_sig?.metode === 'digital' && b.perjanjian_sig?.fase !== 'selesai' && (
+                                <button onClick={() => router.push(`/tanda-tangan/${b.perjanjian_sig.id}`)}
+                                  className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors">
+                                  ✍️ Lanjutkan Tanda Tangan Digital →
+                                </button>
+                              )}
+                              {stage === 3 && b.setuju_pks && (!b.perjanjian_sig || b.perjanjian_sig.metode === 'fisik') && (
+                                <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full">
+                                  ⏳ Menunggu materai & TTD fisik Perjanjian Jamaah diproses admin
+                                </div>
+                              )}
+                              {stage === 4 && (
+                                <button onClick={() => router.push(`/pelunasan?booking_id=${b.id}`)}
+                                  className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors">
+                                  {b.pelunasan_status === 'pending_confirm' ? '⏳ Pelunasan Menunggu Konfirmasi' : 'Lanjut Pelunasan →'}
+                                </button>
+                              )}
+                              {stage === 5 && (
+                                <div className="bg-green-50 text-green-700 text-xs text-center py-2 rounded-full">
+                                  🎉 Lunas — tinggal tunggu keberangkatan
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )
       )}

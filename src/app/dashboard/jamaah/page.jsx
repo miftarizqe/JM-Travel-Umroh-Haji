@@ -6,6 +6,7 @@ import { CollapsibleSection } from '@/app/components/Collapsible';
 import DokumenSayaList from '@/app/components/DokumenSayaList';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
+import { STAGE_LABELS, formLengkap, getStage } from '@/lib/bookingStage';
 
 export default function DashboardJamaah() {
   const router = useRouter();
@@ -48,27 +49,6 @@ export default function DashboardJamaah() {
   // Booking dibatalkan tetap masuk histori, bukan hilang begitu saja.
   const done = bookings.filter(b => b.status === 'selesai' || b.status === 'dibatalkan');
 
-  // Tentukan tahap booking (1-5) untuk progress bar & tombol lanjut
-  // 1 = DP dikirim, 2 = DP dikonfirmasi, 3 = form selesai, 4 = perjanjian
-  // selesai (siap lunas), 5 = lunas. Perjanjian Jamaah SEKARANG step wajib
-  // tersendiri (materai + TTD, digital atau fisik) — bukan lagi cuma gate
-  // checkbox tersembunyi di /pelunasan (lihat src/lib/materaiRule.js).
-  function perjanjianSelesai(b) {
-    return !!b.setuju_pks && (!!b.perjanjian_scan_path || b.perjanjian_sig?.fase === 'selesai');
-  }
-  // Form murni data-entry — gak butuh DP beneran confirmed buat mulai diisi,
-  // jamaah boleh isi sambil nunggu admin proses DP (lihat render stage 1).
-  function formLengkap(b) {
-    return b.form_filled >= b.form_total;
-  }
-  function getStage(b) {
-    if (b.pelunasan_status === 'paid') return 5;
-    if (formLengkap(b) && b.dp_status === 'confirmed' && perjanjianSelesai(b)) return 4;
-    if (formLengkap(b) && b.dp_status === 'confirmed') return 3;
-    if (b.dp_status === 'confirmed') return 2;
-    return 1;
-  }
-
   // jamaah_data diseed nama-nya sejak checkout (lihat CartPaketKamar) —
   // dipakai buat label kartu supaya booking gampang dibedakan.
   function namaJamaahUtama(b) {
@@ -80,7 +60,7 @@ export default function DashboardJamaah() {
     return jamaah[0].nama + (jamaah.length > 1 ? ` & ${jamaah.length - 1} lainnya` : '');
   }
 
-  const stageLabels = ['DP', 'Konfirmasi', 'Formulir', 'Perjanjian', 'Lunas'];
+  const stageLabels = STAGE_LABELS;
 
   return (
     <Layout>

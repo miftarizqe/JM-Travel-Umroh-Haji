@@ -103,6 +103,7 @@ export async function GET(request) {
     const filtroTanggal = dari && sampai ? 'AND b.created_at BETWEEN ? AND DATE_ADD(?, INTERVAL 1 DAY)' : '';
     const [closingLangsungRows] = await pool.query(
       `SELECT b.id, b.prog_name, b.paket, b.jumlah_jamaah, b.status, b.dp_status, b.pelunasan_status, b.created_at,
+              b.form_filled, b.form_total, b.setuju_pks, b.perjanjian_scan_path, b.total_harga, b.referral_sahabat_id,
               k.name AS sahabat_nama, k.kode_unik AS sahabat_kode_unik
        FROM bookings b
        JOIN users k ON k.id = b.referral_sahabat_id
@@ -110,6 +111,23 @@ export async function GET(request) {
        ORDER BY b.created_at DESC`,
       dari && sampai ? [...jaringanIds, dari, sampai] : jaringanIds
     );
+
+    // Status TTD Perjanjian Jamaah — dipakai getStage()/perjanjianSelesai()
+    // di FE (lihat src/lib/bookingStage.js), sama pola persis dgn
+    // /api/bookings buat dashboard jamaah. Jamaah yang di-closing-in sahabat
+    // gak selalu punya akun sendiri, jadi sahabat yang closing-in ini yang
+    // perlu liat & lanjutin tahap ini (dikonfirmasi user 2026-09-28).
+    if (closingLangsungRows.length > 0) {
+      const bookingIds = closingLangsungRows.map(b => b.id);
+      const [sigRows] = await pool.query(
+        `SELECT ref_id, id, fase, metode FROM dokumen_signature WHERE dokumen = 'jamaah' AND ref_id IN (${bookingIds.map(() => '?').join(',')})`,
+        bookingIds
+      );
+      const sigMap = new Map(sigRows.map(s => [String(s.ref_id), { id: s.id, fase: s.fase, metode: s.metode }]));
+      for (const b of closingLangsungRows) {
+        b.perjanjian_sig = sigMap.get(String(b.id)) || null;
+      }
+    }
 
     // Filter periode buat closing referral (yang beneran udah closing/aktif
     // aja yang dicek terhadap tanggal_aktif — di-filter di JS, bukan SQL,
