@@ -23,6 +23,12 @@ import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
 // dokumen kayak sebelumnya.
 const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'formulir', 'invoice', 'spk_ak', 'sk_cif', 'surat_pemblokiran', 'spk_ak_nonis'];
 
+// SPKA-Ins & SPK-AK DUA-DUANYA 2 rangkap/2 materai (dikonfirmasi user
+// 2026-09-09, SPK-AK ikut skema SPKA-Ins persis) — signerPihak 'eksternal' =
+// pihak luar JM Travel yang TTD (Perwakilan buat spka_ins, Jamaah Sahabat
+// Baitullah buat spk_ak).
+const RANGKAP_PER_DOKUMEN = { spka_ins: RANGKAP_SPKA_INS, spk_ak: RANGKAP_SPK_AK, spk_ak_nonis: RANGKAP_SPK_AK_NONIS };
+
 async function ambilPengaturan() {
   const [[p]] = await pool.query('SELECT * FROM pengaturan WHERE id = 1');
   return p || {};
@@ -223,6 +229,63 @@ async function siapkanData(dokumen, refId) {
   };
 }
 
+// Proses dokumen 2-rangkap (spka_ins/spk_ak/spk_ak_nonis) sampai terkirim
+// buat TTD digital — diekstrak dari POST (dikonfirmasi user 2026-09-28) biar
+// bisa dipanggil ULANG server-side dari tempat lain. SPK-AK Sahabat
+// Baitullah BUKAN lagi dipicu langsung pas jamaah klik "Setuju & TTD
+// Digital" di /pks (itu sekarang cuma nyimpen persetujuan, lihat /api/pks)
+// — materai beneran baru dibeli & sesi TTD baru dibuat DI SINI, dipanggil
+// dari titik admin klik "Aktifkan" (lihat /api/status-pendaftaran-sahabat),
+// biar e-materai gak kebakar buat orang yang isi data terus ngilang sebelum
+// beneran diproses admin.
+export async function kirimDokumenRangkapUntukTtd({ dokumen, refId, actorUser, baseUrl }) {
+  const daftarRangkap = RANGKAP_PER_DOKUMEN[dokumen];
+  if (!daftarRangkap) throw Object.assign(new Error('Dokumen ini bukan dokumen 2 rangkap'), { status: 400 });
+
+  const isAdmin = ['admin', 'super_admin'].includes(actorUser.role);
+  const requestedBy = isAdmin ? actorUser.id : null;
+  const data = await siapkanData(dokumen, refId);
+
+  const labelDokumen = dokumen === 'spka_ins' ? 'SPKA-Ins' : dokumen === 'spk_ak' ? 'SPK-AK' : 'Surat Perjanjian Referral Non-Muslim';
+  const namaEksternal = dokumen === 'spka_ins' ? 'Perwakilan' : 'Jamaah Sahabat Baitullah';
+
+  const hasil = [];
+  for (const r of daftarRangkap) {
+    const pdfBuffer = await data.generatePdf(r.label);
+    const signerInfo = r.signerPihak === 'eksternal'
+      ? { nama: data.user.name, email: data.user.email, wa: data.user.wa }
+      : { nama: data.jmSigner?.nama || 'JM Travel', email: null, wa: null };
+    const row = await prosesSatuSesiDigital({
+      dokumen, refId, rangkap: r.rangkap, pdfBuffer, signer: signerInfo,
+      perluMaterai: true, requestedBy, baseUrl, autoSelesai: r.signerPihak === 'jm',
+    });
+    hasil.push(row);
+  }
+
+  await catatAudit(pool, {
+    actor: actorUser, aksi: 'dokumen_signature_dikirim', target_type: dokumen, target_id: String(refId),
+    keterangan: `2 rangkap ${labelDokumen} dikirim untuk TTD digital (provider mock) — rangkap travel menunggu ${namaEksternal}, rangkap luar auto-selesai (TTD JM Travel).`,
+  });
+
+  const rangkapTravel = hasil.find(h => h.rangkap === 'travel');
+  if (rangkapTravel) {
+    await kirimNotifikasi(pool, {
+      user_id: data.user.id,
+      tipe: 'dokumen_menunggu_ttd',
+      judul: `${labelDokumen} Menunggu Tanda Tangan Digital Anda`,
+      pesan: `Rangkap ${dokumen === 'spka_ins' ? 'Perjanjian Kerja Sama Perwakilan' : 'Perjanjian Kerja Sama Jamaah Sahabat Baitullah'} yang akan disimpan JM Travel menunggu tanda tangan digital Anda.`,
+      link: `/tanda-tangan/${rangkapTravel.id}`,
+    });
+  }
+
+  // `id` di top-level WAJIB ada (bug ditemukan & diperbaiki 2026-09-20) —
+  // caller self-service (mis. /pks/page.jsx buat SPKA-Ins) cuma baca
+  // `dSig.id` buat redirect ke /tanda-tangan/[id], gak tau soal array
+  // `rangkap`. Yang dikirim rangkap 'travel' (pihak eksternal yang beneran
+  // perlu TTD, rangkap 'luar' udah auto-selesai duluan di atas).
+  return { message: `${labelDokumen} dikirim untuk TTD digital (2 rangkap).`, rangkap: hasil, id: rangkapTravel?.id };
+}
+
 // POST /api/admin/dokumen-signature  body: { dokumen, ref_id, metode }
 // Endpoint UNIFIED dipakai keempat jenis dokumen — bukan 4 endpoint bespoke.
 // metode='fisik': cuma catat pilihan, jalur upload scan existing sama sekali
@@ -281,58 +344,14 @@ export async function POST(request) {
 
     const baseUrl = new URL(request.url).origin;
     const requestedBy = isAdmin ? auth.user.id : null;
-    const data = await siapkanData(dokumen, ref_id);
 
-    // SPKA-Ins & SPK-AK DUA-DUANYA 2 rangkap/2 materai (dikonfirmasi user
-    // 2026-09-09, SPK-AK ikut skema SPKA-Ins persis) — signerPihak
-    // 'eksternal' = pihak luar JM Travel yang TTD (Perwakilan buat
-    // spka_ins, Jamaah Sahabat Baitullah buat spk_ak).
-    const RANGKAP_PER_DOKUMEN = { spka_ins: RANGKAP_SPKA_INS, spk_ak: RANGKAP_SPK_AK, spk_ak_nonis: RANGKAP_SPK_AK_NONIS };
     if (RANGKAP_PER_DOKUMEN[dokumen]) {
-      const daftarRangkap = RANGKAP_PER_DOKUMEN[dokumen];
-      const labelDokumen = dokumen === 'spka_ins' ? 'SPKA-Ins' : dokumen === 'spk_ak' ? 'SPK-AK' : 'Surat Perjanjian Referral Non-Muslim';
-      const namaEksternal = dokumen === 'spka_ins' ? 'Perwakilan' : 'Jamaah Sahabat Baitullah';
-
-      const hasil = [];
-      for (const r of daftarRangkap) {
-        const pdfBuffer = await data.generatePdf(r.label);
-        const signerInfo = r.signerPihak === 'eksternal'
-          ? { nama: data.user.name, email: data.user.email, wa: data.user.wa }
-          : { nama: data.jmSigner?.nama || 'JM Travel', email: null, wa: null };
-        const row = await prosesSatuSesiDigital({
-          dokumen, refId: ref_id, rangkap: r.rangkap, pdfBuffer, signer: signerInfo,
-          perluMaterai: true, requestedBy, baseUrl, autoSelesai: r.signerPihak === 'jm',
-        });
-        hasil.push(row);
-      }
-
-      await catatAudit(pool, {
-        actor: auth.user, aksi: 'dokumen_signature_dikirim', target_type: dokumen, target_id: String(ref_id),
-        keterangan: `2 rangkap ${labelDokumen} dikirim untuk TTD digital (provider mock) — rangkap travel menunggu ${namaEksternal}, rangkap luar auto-selesai (TTD JM Travel).`,
-      });
-
-      const rangkapTravel = hasil.find(h => h.rangkap === 'travel');
-      if (rangkapTravel) {
-        await kirimNotifikasi(pool, {
-          user_id: data.user.id,
-          tipe: 'dokumen_menunggu_ttd',
-          judul: `${labelDokumen} Menunggu Tanda Tangan Digital Anda`,
-          pesan: `Rangkap ${dokumen === 'spka_ins' ? 'Perjanjian Kerja Sama Perwakilan' : 'Perjanjian Kerja Sama Jamaah Sahabat Baitullah'} yang akan disimpan JM Travel menunggu tanda tangan digital Anda.`,
-          link: `/tanda-tangan/${rangkapTravel.id}`,
-        });
-      }
-
-      // `id` di top-level WAJIB ada (bug ditemukan & diperbaiki 2026-09-20)
-      // — caller self-service (mis. /pks/page.jsx buat SPK-AK/SPKA-Ins) cuma
-      // baca `dSig.id` buat redirect ke /tanda-tangan/[id], gak tau soal
-      // array `rangkap`. Tanpa ini redirect-nya jadi /tanda-tangan/undefined
-      // -> "Sesi tanda tangan tidak ditemukan". Yang dikirim rangkap
-      // 'travel' (pihak eksternal yang beneran perlu TTD, rangkap 'luar'
-      // udah auto-selesai duluan di atas).
-      return Response.json({ message: `${labelDokumen} dikirim untuk TTD digital (2 rangkap).`, rangkap: hasil, id: rangkapTravel?.id });
+      const hasil = await kirimDokumenRangkapUntukTtd({ dokumen, refId: ref_id, actorUser: auth.user, baseUrl });
+      return Response.json(hasil);
     }
 
     // Dokumen 1-rangkap (jamaah/formulir/invoice)
+    const data = await siapkanData(dokumen, ref_id);
     const pdfBuffer = await data.generatePdf();
     const perluMaterai = apakahPerluMaterai(dokumen, data.materaiCtx || {});
     const row = await prosesSatuSesiDigital({

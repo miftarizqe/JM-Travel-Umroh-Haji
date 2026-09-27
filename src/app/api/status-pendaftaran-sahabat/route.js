@@ -3,6 +3,7 @@ import { wajibLogin, wajibRole } from '@/lib/auth';
 import { pastikanKodeInviteSahabat } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { catatRekening } from '@/lib/rekeningLedger';
+import { kirimDokumenRangkapUntukTtd } from '@/app/api/admin/dokumen-signature/route';
 
 // Urutan step pendaftaran sahabat — LINEAR, beda bentuk dari perwakilan
 // (yang punya 2 cabang kantor/paket) makanya sengaja tabel & endpoint
@@ -69,6 +70,10 @@ export async function GET(request) {
       data_diri_terkirim: !!pendaftaran,
       bukti_tf_uploaded: !!pendaftaran?.bukti_tf_path,
       bukti_tf_verified: !!pendaftaran?.bukti_tf_verified_at,
+      // Jamaah SETUJU SPK-AK (checkbox di /pks) — dipakai sebagai gerbang
+      // funnel (dikonfirmasi user 2026-09-28), BEDA dari spk_ak_selesai di
+      // bawah (materai+TTD beneran, baru diproses pas admin klik "Aktifkan").
+      spk_ak_disetujui: !!u.setuju_pks,
       spk_ak_selesai: spkAkSelesai,
       rekening_umroh_terisi: !!u.no_rekening_tabungan_umroh,
       cif_bsi_terisi: !!u.cif_bsi,
@@ -187,7 +192,7 @@ export async function PATCH(request) {
       // terverifikasi) — satu-satunya transisi admin yang tersisa di sini
       // adalah ke 'active'.
       const [[u]] = await pool.query(
-        `SELECT kode_unik, cif_bsi, agama, terverifikasi, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
+        `SELECT kode_unik, cif_bsi, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
          FROM users WHERE id = ?`, [user_id]
       );
       // rangkap='travel' WAJIB (bug ditemukan & diperbaiki 2026-09-19) —
@@ -205,20 +210,40 @@ export async function PATCH(request) {
         // Urutan wajib linear (dikonfirmasi user 2026-09-27): bukti TF -> SPK-AK
         // -> rekening tabungan umroh -> CIF & blokir. Dipaksa juga di sini
         // (bukan cuma gate UI di status-pendaftaran-sahabat/page.jsx) biar
-        // gak bisa dilewatin lewat panggilan API admin langsung. Verifikasi
-        // akun (dulu gerbang terpisah sebelum isi data diri) SEKARANG jadi
-        // syarat di sini juga — satu-satunya gate admin yang tersisa,
-        // digabung dengan aktivasi akhir (dikonfirmasi user 2026-09-27).
-        if (!u.terverifikasi) return Response.json({ error: 'Akun jamaah ini belum diverifikasi admin' }, { status: 400 });
-        if (!spkAkSelesai) return Response.json({ error: 'SPK-AK belum selesai ditandatangani' }, { status: 400 });
+        // gak bisa dilewatin lewat panggilan API admin langsung.
+        //
+        // Verifikasi akun terpisah SENGAJA GAK ADA di sini (dicoba, lalu
+        // dicabut lagi, dikonfirmasi user 2026-09-27) — akun Sahabat
+        // Baitullah sekarang auto-terverifikasi pas daftar (lihat
+        // /api/auth/register), soalnya mau di-ACC admin manual apa enggak,
+        // akun ini tetep gak bisa ngapa-ngapain sebelum funnel di bawah ini
+        // selesai — admin ttp review manual di titik "Aktifkan" ini juga.
+        // spk_ak_selesai (materai+TTD beneran) SENGAJA BUKAN gate di sini
+        // lagi (dikonfirmasi user 2026-09-28) — itu justru baru DIPROSES di
+        // titik ini (lihat pemanggilan kirimDokumenRangkapUntukTtd di bawah).
+        // Syaratnya sekarang cuma "udah setuju" (checkbox di /pks).
+        if (!u.setuju_pks) return Response.json({ error: 'SPK-AK belum disetujui jamaah' }, { status: 400 });
         if (!p.bukti_tf_verified_at) return Response.json({ error: 'Bukti transfer belum diverifikasi' }, { status: 400 });
         if (!u.no_rekening_tabungan_umroh) return Response.json({ error: 'Rekening Tabungan Umroh belum diisi' }, { status: 400 });
-        if (!u.cif_bsi) return Response.json({ error: 'Nomor CIF BSI belum diisi' }, { status: 400 });
+        // No. CIF BSI DICABUT dari syarat (dikonfirmasi user 2026-09-27) —
+        // gak perlu diisi jamaah lagi sama sekali, di funnel maupun gate ini.
         // Scan fisik SK-CIF/Surat Pemblokiran SENGAJA BUKAN lagi syarat ACC
         // (dikonfirmasi user 2026-09-19) — boleh nyusul dikirim setelah
         // akun aktif. Yang wajib cuma persetujuan baca "SK-CIF & Surat
         // Kuasa Blokir Rekening" ini sendiri.
         if (!u.setuju_sk_cif_pemblokiran_at) return Response.json({ error: 'Jamaah belum menyetujui SK-CIF & Surat Kuasa Blokir Rekening' }, { status: 400 });
+
+        // Titik pemicu materai + sesi TTD digital SPK-AK yang SEBENARNYA
+        // (dikonfirmasi user 2026-09-28) — begitu admin klik "Aktifkan" &
+        // semua syarat di atas lolos, di sinilah e-materai beneran dibeli
+        // (nanti kalau provider Peruri disambung) & PDF final SPK-AK
+        // diterbitkan. Guard `!spkAkSelesai` jaga-jaga dobel klik (upsert di
+        // prosesSatuSesiDigital bakal RESET sesi yang udah selesai kalau
+        // dipanggil ulang — jangan sampai kejadian).
+        if (!spkAkSelesai) {
+          const baseUrl = new URL(request.url).origin;
+          await kirimDokumenRangkapUntukTtd({ dokumen: dokumenSpkAk, refId: user_id, actorUser: auth.user, baseUrl });
+        }
       }
 
       await pool.query('UPDATE sahabat_pendaftaran SET status = ?, catatan_admin = ? WHERE user_id = ?', [status_baru, body.catatan_admin || null, user_id]);
@@ -378,18 +403,18 @@ export async function PATCH(request) {
             });
           }
 
-          // Voucher Rp1jt AUTO-generate sistem begitu akun aktif (dikonfirmasi
-          // user 2026-09-01 — bukan admin bikin manual dari nol lagi kayak
-          // sebelumnya), TAPI disetujui_at SENGAJA NULL dulu — admin tetap
-          // wajib ACC manual (cek data bener/gak) sebelum voucher ini valid
-          // dipakai checkout. Lihat cariVoucherValid() di src/lib/voucher.js
-          // buat gate-nya, dan PATCH .../vouchers {approve:true} buat ACC-nya.
+          // Voucher Rp1jt AUTO-generate SEKALIGUS AUTO-APPROVE begitu akun
+          // aktif (disetujui_at langsung diisi NOW(), bukan NULL lagi —
+          // dikonfirmasi user 2026-09-27, gerbang ACC manual admin dicabut:
+          // titik "Aktifkan" akun ITU SENDIRI udah jadi review manual admin,
+          // ACC voucher terpisah cuma nambah 1 klik yang gak perlu). Lihat
+          // cariVoucherValid() di src/lib/voucher.js buat gate pemakaiannya.
           // Kode pakai user_id penuh (VARCHAR(36), unik by construction) biar
           // gak perlu cek duplikat kayak voucher manual admin.
           await pool.query(
             `INSERT INTO vouchers (kode, potongan, kuota, terpakai, aktif, disetujui_at, for_user, akses_role, tampil, catatan, used)
-             VALUES (?, 1000000, 1, 0, 1, NULL, ?, 'akun', 0, ?, 0)`,
-            [`SAHABAT-${user_id}`, user_id, `Voucher Rp1.000.000 — auto-generate pendaftaran Sahabat Baitullah, menunggu ACC admin`]
+             VALUES (?, 1000000, 1, 0, 1, NOW(), ?, 'akun', 0, ?, 0)`,
+            [`SAHABAT-${user_id}`, user_id, `Voucher Rp1.000.000 — auto-generate & auto-approve pendaftaran Sahabat Baitullah`]
           );
         }
       }

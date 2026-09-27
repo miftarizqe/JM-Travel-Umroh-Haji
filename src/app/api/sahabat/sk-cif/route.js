@@ -22,7 +22,6 @@ export async function GET(request) {
     const user = rows[0];
     if (!user) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
     if (user.role !== 'sahabat_baitullah') return Response.json({ error: 'Hanya berlaku untuk akun sahabat' }, { status: 400 });
-    if (!user.cif_bsi) return Response.json({ error: 'Isi nomor CIF BSI terlebih dahulu' }, { status: 400 });
     user.alamat = user.alamat_ktp || user.alamat;
 
     const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SK-CIF', 'no_sk_cif');

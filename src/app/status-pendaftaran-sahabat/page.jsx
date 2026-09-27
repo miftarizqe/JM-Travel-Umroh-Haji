@@ -25,8 +25,6 @@ export default function StatusPendaftaranSahabatPage() {
   const [pengaturan] = usePengaturan();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [cifInput, setCifInput] = useState('');
-  const [savingCif, setSavingCif] = useState(false);
   const [tanggalMulaiInput, setTanggalMulaiInput] = useState('');
   const [savingBlokirData, setSavingBlokirData] = useState(false);
   const [uploadingTf, setUploadingTf] = useState(false);
@@ -81,21 +79,6 @@ export default function StatusPendaftaranSahabatPage() {
       muat();
     } catch { alert('Terjadi kesalahan'); }
     setSaving(false);
-  }
-
-  async function simpanCif() {
-    if (!cifInput.trim()) { alert('Isi nomor CIF BSI dulu'); return; }
-    setSavingCif(true);
-    try {
-      const res = await fetch('/api/sahabat/cif-bsi', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cif_bsi: cifInput.trim() }),
-      });
-      const d = await res.json();
-      if (!res.ok) { alert(d.error); setSavingCif(false); return; }
-      muat();
-    } catch { alert('Terjadi kesalahan'); }
-    setSavingCif(false);
   }
 
   async function simpanDataBlokir() {
@@ -194,7 +177,10 @@ export default function StatusPendaftaranSahabatPage() {
     </div></Layout>;
   }
 
-  const cifDanBlokirLengkap = prasyarat.cif_bsi_terisi && prasyarat.blokir_data_terisi;
+  // No. CIF BSI DICABUT dari funnel (dikonfirmasi user 2026-09-27) — gak
+  // perlu diisi jamaah lagi & gak ada di output SK-CIF juga, satu-satunya
+  // syarat sisa buat lanjut baca SK-CIF cuma data blokir rekening.
+  const cifDanBlokirLengkap = prasyarat.blokir_data_terisi;
 
   return (
     <Layout title="🤝 Status Pendaftaran Sahabat Baitullah" showBack>
@@ -233,19 +219,27 @@ export default function StatusPendaftaranSahabatPage() {
           )}
         </Item>
 
-        <Item done={prasyarat.spk_ak_selesai} label="SPK-AK — Surat Perjanjian Jamaah Sahabat Baitullah">
+        {/* spk_ak_disetujui (checkbox di /pks) — GERBANG funnel di sini,
+            BUKAN spk_ak_selesai (materai+TTD beneran, baru diproses server
+            pas admin klik "Aktifkan" di ujung, dikonfirmasi user 2026-09-28
+            biar e-materai gak kebakar duluan). */}
+        <Item done={prasyarat.spk_ak_disetujui} label="SPK-AK — Surat Perjanjian Jamaah Sahabat Baitullah">
           {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Unggah bukti transfer dulu di atas.</div>}
-          {prasyarat.bukti_tf_verified && !prasyarat.spk_ak_selesai && (
+          {prasyarat.bukti_tf_verified && !prasyarat.spk_ak_disetujui && (
             <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
               Lanjut TTD Digital →
             </button>
           )}
-          {prasyarat.spk_ak_selesai && <div className="text-xs text-gray-500">Sudah ditandatangani secara digital.</div>}
+          {prasyarat.spk_ak_disetujui && (
+            <div className="text-xs text-gray-500">
+              Sudah disetujui.{!prasyarat.spk_ak_selesai && ' Materai & PDF final diterbitkan setelah akun diaktifkan admin.'}
+            </div>
+          )}
         </Item>
 
         <Item done={prasyarat.rekening_umroh_terisi} label="Rekening Tabungan Umroh">
-          {!prasyarat.spk_ak_selesai && <div className="text-xs text-gray-400">Selesaikan tanda tangan digital SPK-AK dulu.</div>}
-          {prasyarat.spk_ak_selesai && (
+          {!prasyarat.spk_ak_disetujui && <div className="text-xs text-gray-400">Setujui SPK-AK dulu.</div>}
+          {prasyarat.spk_ak_disetujui && (
             prasyarat.rekening_umroh_terisi ? (
               <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}</div>
             ) : (
@@ -263,7 +257,9 @@ export default function StatusPendaftaranSahabatPage() {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <input value={rekUmrohInput} onChange={e => setRekUmrohInput(e.target.value)} placeholder="Nomor rekening tabungan umroh"
+                  <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
+                    onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Nomor rekening tabungan umroh"
                     className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
                   <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh)} disabled={savingRekUmroh}
                     className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
@@ -280,19 +276,6 @@ export default function StatusPendaftaranSahabatPage() {
 
           {prasyarat.rekening_umroh_terisi && !prasyarat.setuju_sk_cif_pemblokiran && !cifDanBlokirLengkap && (
             <div className="space-y-3">
-              {!prasyarat.cif_bsi_terisi ? (
-                <div className="flex gap-2">
-                  <input value={cifInput} onChange={e => setCifInput(e.target.value)} placeholder="Nomor CIF BSI"
-                    className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
-                  <button onClick={simpanCif} disabled={savingCif}
-                    className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
-                    {savingCif ? '...' : 'Simpan'}
-                  </button>
-                </div>
-              ) : (
-                <div className="text-xs text-gray-500">No. CIF BSI: <b>{u.cif_bsi}</b></div>
-              )}
-
               {!prasyarat.blokir_data_terisi && (
                 <div className="space-y-2">
                   {/* Nominal & jangka waktu bukan input bebas lagi

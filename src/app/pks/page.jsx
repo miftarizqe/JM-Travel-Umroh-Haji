@@ -90,10 +90,16 @@ function PKSPageInner() {
     setLoading(false);
   }
 
-  // Khusus jamaah & sahabat: selain "setuju" (checkbox, tetap jadi gerbang
-  // lanjut seperti sebelumnya — TIDAK diubah), ada opsi lanjut TTD digital
+  // Khusus jamaah: selain "setuju" (checkbox, tetap jadi gerbang lanjut
+  // seperti sebelumnya — TIDAK diubah), ada opsi lanjut TTD digital
   // sungguhan (bikin PDF + sesi tanda tangan) alih-alih cuma checkbox.
-  // ref_id beda per jenis: jamaah -> booking, sahabat -> akun user sendiri.
+  //
+  // sahabat_baitullah BEDA (dikonfirmasi user 2026-09-28) — tombol ini
+  // SEKARANG cuma nyimpen persetujuan (`users.setuju_pks`), TIDAK langsung
+  // beli e-materai / bikin sesi TTD. Itu baru dipicu server-side pas admin
+  // klik "Aktifkan" di /status-pendaftaran-sahabat (lihat
+  // kirimDokumenRangkapUntukTtd di /api/admin/dokumen-signature) — biar
+  // e-materai gak kebakar buat orang yang isi data terus ngilang.
   async function simpanLaluTtdDigital() {
     if (!setuju) { alert('Centang persetujuan terlebih dahulu!'); return; }
     const refId = jenis === 'sahabat_baitullah' ? userId : bookingId;
@@ -106,6 +112,11 @@ function PKSPageInner() {
       });
       const dPks = await resPks.json();
       if (!resPks.ok) { alert(dPks.error); setLoadingDigital(false); return; }
+
+      if (jenis === 'sahabat_baitullah') {
+        router.push('/status-pendaftaran-sahabat');
+        return;
+      }
 
       const resSig = await fetch('/api/admin/dokumen-signature', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
