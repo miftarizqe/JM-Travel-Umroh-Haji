@@ -436,8 +436,8 @@ function RegisterPageInner() {
               })()}
               {[
                 {id:'name', label:'Nama Lengkap *', placeholder:'Nama sesuai KTP'},
-                {id:'nik', label:'No. KTP (NIK 16 digit) *', placeholder:'16 digit angka', maxLength:16},
-                {id:'wa', label:'No. WhatsApp *', placeholder:'08xxxxxxxxxx'},
+                {id:'nik', label:'No. KTP (NIK 16 digit) *', placeholder:'16 digit angka', maxLength:16, numeric:true},
+                {id:'wa', label:'No. WhatsApp *', placeholder:'08xxxxxxxxxx', maxLength:13, numeric:true},
                 {id:'email', label:'Email *', placeholder:'email@domain.com'},
               ].map(f => (
                 <div key={f.id}>
@@ -446,8 +446,15 @@ function RegisterPageInner() {
                     className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm transition-colors"
                     placeholder={f.placeholder}
                     maxLength={f.maxLength}
+                    inputMode={f.numeric ? 'numeric' : undefined}
                     value={form[f.id]}
-                    onChange={e => setForm({...form, [f.id]: e.target.value})}
+                    onChange={e => {
+                      // NIK & No. WhatsApp: angka doang, non-digit dibuang di
+                      // FE (dikonfirmasi user via Farrosy 2026-09-27) — jangan
+                      // cuma andalkan maxLength, itu gak nyaring huruf.
+                      const v = f.numeric ? e.target.value.replace(/\D/g, '') : e.target.value;
+                      setForm({...form, [f.id]: v});
+                    }}
                   />
                 </div>
               ))}
