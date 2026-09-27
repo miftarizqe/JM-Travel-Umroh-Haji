@@ -14,7 +14,13 @@ export function useIsHop(user) {
 
   useEffect(() => {
     if (!user) return;
-    if (['admin', 'super_admin'].includes(user.role)) { setChecked(true); return; }
+    // Dipanggil dari Layout.jsx (dipakai SEMUA role di SETIAP halaman) —
+    // cuma akun sahabat_baitullah yang mungkin ditunjuk HOP, jamaah/
+    // perwakilan gak akan pernah, jadi skip fetch-nya total buat mereka
+    // (bug performa ditemukan & diperbaiki 2026-09-27 — sebelumnya nembak
+    // /api/sahabat/hop-status di TIAP halaman buat SEMUA orang, nambah
+    // beban DB gak perlu).
+    if (user.role !== 'sahabat_baitullah') { setChecked(true); return; }
     setChecked(false);
     fetch('/api/sahabat/hop-status').then(r => r.json())
       .then(d => setIsHop(!!d.isHop))
