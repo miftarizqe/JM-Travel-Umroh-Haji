@@ -583,7 +583,7 @@ function RegisterPageInner() {
                       // (dikonfirmasi user 2026-09-03), mirror alasan yang sama
                       // kayak tipe akun di atas.
                       <div className="bg-[#E8F0FB] border border-[#1A4FA0]/20 rounded-xl px-4 py-3">
-                        <div className="text-sm font-bold text-[#0E2F6E]">{terkunci.name} ({terkunci.kode_unik})</div>
+                        <div className="text-sm font-bold text-[#0E2F6E]">{terkunci.name}{(terkunci.kode_unik || refCode || kodeReferralPerwakilan) && ` (${terkunci.kode_unik || refCode || kodeReferralPerwakilan})`}</div>
                       </div>
                     ) : (
                       <input
@@ -620,7 +620,7 @@ function RegisterPageInner() {
                     </label>
                     {terkunci ? (
                       <div className="bg-[#E8F0FB] border border-[#1A4FA0]/20 rounded-xl px-4 py-3">
-                        <div className="text-sm font-bold text-[#0E2F6E]">{terkunci.name} ({terkunci.kode_unik})</div>
+                        <div className="text-sm font-bold text-[#0E2F6E]">{terkunci.name}{(terkunci.kode_unik || refCode || kodeReferralSahabat) && ` (${terkunci.kode_unik || refCode || kodeReferralSahabat})`}</div>
                       </div>
                     ) : (
                       <input
