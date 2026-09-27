@@ -306,6 +306,13 @@ export default function StatusPendaftaranSahabatPage() {
                     <div>Nominal blokir: <b>Rp {Number(pendaftaran?.target_estimasi_harga || 0).toLocaleString('id-ID')}</b></div>
                     <div>Jangka waktu: <b>90 hari</b></div>
                   </div>
+                  {!(Number(pendaftaran?.target_estimasi_harga) > 0) ? (
+                    // Target Rp 0 (program belum ada harga waktu daftar) —
+                    // server pasti menolak, jadi arahkan ke admin saja.
+                    <div className="text-xs text-red-500">
+                      Target Impian Anda belum punya harga, jadi nominal blokir belum bisa dihitung. Hubungi admin JM Travel untuk memperbaiki target Anda.
+                    </div>
+                  ) : (<>
                   <label className="block text-xs font-semibold text-gray-500">Tanggal Mulai Blokir</label>
                   <input value={tanggalMulaiInput} onChange={e => setTanggalMulaiInput(e.target.value)} type="date"
                     className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
@@ -313,6 +320,7 @@ export default function StatusPendaftaranSahabatPage() {
                     className="bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50">
                     {savingBlokirData ? 'Menyimpan...' : 'Simpan Data Blokir'}
                   </button>
+                  </>)}
                 </div>
               )}
             </div>

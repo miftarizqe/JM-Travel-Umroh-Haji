@@ -135,6 +135,10 @@ export default function DaftarSahabatPage() {
     }
     if (step === 3) {
       if (!form.target_program_id) return alert('Target Impian (Program) wajib dipilih!') || false;
+      // Program yang harga paketnya belum diisi admin bikin target Rp 0 —
+      // nanti nominal blokir rekening ikut 0 & jamaah mentok di step blokir.
+      if (!(Number(form.target_estimasi_harga) > 0))
+        return alert('Harga program ini belum tersedia. Pilih program lain atau hubungi admin JM Travel.') || false;
     }
     return true;
   }
@@ -339,8 +343,11 @@ export default function DaftarSahabatPage() {
               )}
               <label className={lbl}>Estimasi Harga (Rp)</label>
               <div className={`${inp} bg-gray-50 text-gray-400`}>
-                {form.target_estimasi_harga ? `Rp ${Number(form.target_estimasi_harga).toLocaleString('id-ID')}` : '-'}
+                {Number(form.target_estimasi_harga) > 0 ? `Rp ${Number(form.target_estimasi_harga).toLocaleString('id-ID')}` : '-'}
               </div>
+              {form.target_program_id && !(Number(form.target_estimasi_harga) > 0) && (
+                <div className="text-[10px] text-red-500 mt-1">Harga program ini belum diisi admin — pilih program lain atau hubungi admin JM Travel.</div>
+              )}
             </div>
           </>)}
 

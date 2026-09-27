@@ -56,6 +56,11 @@ export async function POST(req) {
     if (!target_program_id || !String(target_minat || '').trim() || !target_estimasi_harga) {
       return NextResponse.json({ error: 'Target impian (Program Eksklusif) wajib dipilih' }, { status: 400 });
     }
+    // "0" (string) lolos cek di atas — tolak eksplisit, karena target Rp 0 bikin
+    // nominal blokir rekening ikut 0 & /api/sahabat/blokir-rekening menolak.
+    if (!(Number(target_estimasi_harga) > 0)) {
+      return NextResponse.json({ error: 'Harga program target belum tersedia — pilih program lain atau hubungi admin' }, { status: 400 });
+    }
     const [[programTarget]] = await db.query(
       "SELECT id FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1",
       [target_program_id]

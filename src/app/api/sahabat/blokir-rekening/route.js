@@ -37,7 +37,7 @@ export async function PATCH(request) {
     );
     const nominal = Number(pendaftaran?.target_estimasi_harga || 0);
     if (!nominal || nominal <= 0) {
-      return Response.json({ error: 'Target Impian belum diisi — lengkapi dulu data diri pendaftaran' }, { status: 400 });
+      return Response.json({ error: 'Target Impian belum punya harga (Rp 0), jadi nominal blokir belum bisa dihitung. Hubungi admin JM Travel untuk memperbaiki target Anda.' }, { status: 400 });
     }
 
     await pool.query(
