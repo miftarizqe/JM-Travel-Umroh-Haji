@@ -24,14 +24,12 @@ function tipeDefaultUntuk(dokumen) {
 }
 
 function ambilSheetsClient() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const email = process.env.GOOGLE_SHEETS_CLIENT_EMAIL;
   // Private key JSON service account biasanya ditaruh di env sebagai 1 baris
-  // dengan literal "\n" — harus dikembalikan jadi newline asli dulu. Service
-  // account ini SAMA dengan yang dipakai src/lib/googleDocsMerge.js (1 akun,
-  // beberapa scope API — Sheets di sini, Docs+Drive di sana).
-  const privateKey = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  // dengan literal "\n" — harus dikembalikan jadi newline asli dulu.
+  const privateKey = (process.env.GOOGLE_SHEETS_PRIVATE_KEY || '').replace(/\\n/g, '\n');
   if (!email || !privateKey) {
-    throw Object.assign(new Error('GOOGLE_SERVICE_ACCOUNT_EMAIL/GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY belum diisi di env.'), { status: 400 });
+    throw Object.assign(new Error('GOOGLE_SHEETS_CLIENT_EMAIL/GOOGLE_SHEETS_PRIVATE_KEY belum diisi di env.'), { status: 400 });
   }
   const auth = new google.auth.JWT(email, null, privateKey, ['https://www.googleapis.com/auth/spreadsheets.readonly']);
   return google.sheets({ version: 'v4', auth });

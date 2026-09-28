@@ -40,7 +40,6 @@ export default function StatusPendaftaranSahabatPage() {
   const scrollGabunganRef = useRef(null);
   const [setujuGabungan, setSetujuGabungan] = useState(false);
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
-  const [generatingPdfPercobaan, setGeneratingPdfPercobaan] = useState(false);
 
   function muat() {
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
@@ -176,26 +175,6 @@ export default function StatusPendaftaranSahabatPage() {
     if (skCif && suratPemblokiran) cekScrollGabungan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skCif, suratPemblokiran]);
-
-  // PERCOBAAN mail-merge Google Docs (dikonfirmasi user 2026-09-28) — TIDAK
-  // menggantikan alur baca/print di atas, cuma nawarin PDF alternatif hasil
-  // template Google Docs buat dibandingin. Butuh SK_CIF_TEMPLATE_DOC_ID &
-  // GOOGLE_DRIVE_FOLDER_ID (+ service account) disetup dulu, lihat .env.local.
-  async function cobaPdfGoogleDocs() {
-    setGeneratingPdfPercobaan(true);
-    try {
-      const res = await fetch('/api/sahabat/sk-cif/pdf-percobaan', { method: 'POST' });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        alert(d.error || 'Gagal membuat PDF percobaan');
-        setGeneratingPdfPercobaan(false);
-        return;
-      }
-      const blob = await res.blob();
-      window.open(URL.createObjectURL(blob), '_blank');
-    } catch { alert('Terjadi kesalahan'); }
-    setGeneratingPdfPercobaan(false);
-  }
 
   async function submitSetujuGabungan() {
     if (!setujuGabungan) { alert('Centang persetujuan terlebih dahulu!'); return; }
@@ -418,11 +397,7 @@ export default function StatusPendaftaranSahabatPage() {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-700 mt-2">
                 Boleh dilewati dulu — tapi segera cetak, tanda tangani di atas materai asli, lalu kirim fisiknya ke kantor JM Travel Jakarta.
               </div>
-              <div className="text-right mt-2 flex justify-end gap-3">
-                <button onClick={cobaPdfGoogleDocs} disabled={generatingPdfPercobaan}
-                  className="text-gray-400 hover:text-[#1A4FA0] font-bold text-xs disabled:opacity-50">
-                  {generatingPdfPercobaan ? 'Membuat PDF...' : '🧪 Coba PDF Google Docs (percobaan)'}
-                </button>
+              <div className="text-right mt-2">
                 <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold text-sm">🖨️ Print Kedua Surat</button>
               </div>
             </div>

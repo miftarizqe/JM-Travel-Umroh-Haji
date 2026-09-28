@@ -37,13 +37,10 @@ services:
       MEKARI_API_BASE_URL: ${MEKARI_API_BASE_URL:-}
       MEKARI_BEARER_TOKEN: ${MEKARI_BEARER_TOKEN:-}
       MEKARI_WEBHOOK_SECRET: ${MEKARI_WEBHOOK_SECRET:-}
-      # Google Sheets (sync pasal) + Google Docs mail-merge percobaan SK-CIF —
-      # 1 service account (lihat .env.local buat cara setup).
-      GOOGLE_SERVICE_ACCOUNT_EMAIL: ${GOOGLE_SERVICE_ACCOUNT_EMAIL:-}
-      GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: ${GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY:-}
+      # Sync pasal dari Google Sheets (lihat .env.local buat cara setup).
+      GOOGLE_SHEETS_CLIENT_EMAIL: ${GOOGLE_SHEETS_CLIENT_EMAIL:-}
+      GOOGLE_SHEETS_PRIVATE_KEY: ${GOOGLE_SHEETS_PRIVATE_KEY:-}
       PASAL_GOOGLE_SHEET_ID: ${PASAL_GOOGLE_SHEET_ID:-}
-      GOOGLE_DRIVE_FOLDER_ID: ${GOOGLE_DRIVE_FOLDER_ID:-}
-      SK_CIF_TEMPLATE_DOC_ID: ${SK_CIF_TEMPLATE_DOC_ID:-}
     volumes:
       - web_private_uploads:/app/private-uploads
       - web_public_uploads:/app/public/uploads
