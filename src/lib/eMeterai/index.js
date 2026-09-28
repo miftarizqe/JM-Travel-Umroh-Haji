@@ -1,12 +1,15 @@
 // Lapisan abstraksi materai digital — provider-agnostic. Provider aktif
 // dipilih lewat env MATERAI_PROVIDER (default 'mock'), supaya begitu akun
-// bisnis Peruri aktif, tinggal ganti env-nya + isi providers/peruri.js,
+// bisnis provider aktif, tinggal ganti env-nya + isi providers/mekari.js,
 // tanpa bongkar pemanggil (src/app/api/admin/dokumen-signature/route.js).
+// Mekari Sign dipilih 2026-09-28 (distributor resmi e-Meterai Peruri
+// sekaligus provider TTD digital — satu vendor buat dua kebutuhan, lihat
+// src/lib/eSignature/providers/mekari.js).
 import { tambahLampiranSertifikat } from '@/lib/pdfDokumen/lampiranSertifikat';
 import * as mockProvider from './providers/mock';
-import * as peruriProvider from './providers/peruri';
+import * as mekariProvider from './providers/mekari';
 
-const PROVIDERS = { mock: mockProvider, peruri: peruriProvider };
+const PROVIDERS = { mock: mockProvider, mekari: mekariProvider };
 
 function ambilProvider(nama) {
   const p = PROVIDERS[nama];
@@ -28,7 +31,7 @@ export async function beliMaterai({ dokumen, refId, pdfBuffer, baseUrl }) {
     judul: 'LAMPIRAN — E-METERAI DIGITAL',
     baris: [
       ['Nomor Seri', hasil.kodeUnik],
-      ['Provider', namaProvider === 'mock' ? 'Mock — belum terhubung Peruri' : namaProvider],
+      ['Provider', namaProvider === 'mock' ? 'Mock — belum terhubung Mekari Sign' : namaProvider],
       ['Nominal', 'Rp 10.000'],
       ['Dibeli pada', hasil.dibeliAt.toLocaleString('id-ID')],
     ],
