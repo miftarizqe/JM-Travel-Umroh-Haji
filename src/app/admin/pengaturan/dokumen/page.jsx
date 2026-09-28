@@ -458,6 +458,7 @@ export default function AdminPengaturanDokumenPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [showPreviewDokumen, setShowPreviewDokumen] = useState(false);
   const [reordering, setReordering] = useState(null); // nomor pasal yg lagi digeser
+  const [syncingSheet, setSyncingSheet] = useState(false);
 
   function muatPasal(dok) {
     fetch(`/api/admin/pasal?dokumen=${dok}`)
@@ -555,6 +556,20 @@ export default function AdminPengaturanDokumenPage() {
       muatPasal(dokumen);
     } catch { alert('Terjadi kesalahan'); }
     setSaving(false);
+  }
+
+  async function syncDariSheet() {
+    if (!confirm('Sync dari Google Sheets? Ini TIMPA isi pasal dokumen yang ada di Sheet dengan versi terbaru — dokumen yang gak ada di Sheet gak kesentuh.')) return;
+    setSyncingSheet(true);
+    try {
+      const res = await fetch('/api/admin/pasal/sync-sheet', { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal sync dari Sheet'); setSyncingSheet(false); return; }
+      const ringkasan = (d.ringkasan || []).map(r => `${r.dokumen}: ${r.jumlah} pasal`).join('\n') || 'Gak ada baris valid di Sheet.';
+      alert(`Sync selesai!\n\n${ringkasan}`);
+      muatPasal(dokumen);
+    } catch { alert('Terjadi kesalahan'); }
+    setSyncingSheet(false);
   }
 
   async function geserPasal(nomor, arah) {
@@ -735,11 +750,18 @@ export default function AdminPengaturanDokumenPage() {
       </div>
 
       {/* ISI PASAL */}
-      <div className="font-bold text-[#0E2F6E] mb-1">📜 Isi Pasal</div>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <div className="font-bold text-[#0E2F6E]">📜 Isi Pasal</div>
+        <button onClick={syncDariSheet} disabled={syncingSheet}
+          className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] disabled:opacity-50 px-3 py-1.5 rounded-full whitespace-nowrap">
+          {syncingSheet ? 'Sinkronisasi...' : '📊 Sync dari Google Sheets'}
+        </button>
+      </div>
       <div className="text-xs text-gray-400 mb-4">
         Perubahan cuma berlaku ke dokumen yang BELUM dibekukan (perwakilan yang nomor suratnya belum pernah digenerate, atau booking jamaah yang belum klik Setuju). Dokumen yang sudah dibekukan TETAP pakai isi versi lama — lihat tanda 🔒 di halaman cetaknya.
         Sintaks: <code className="bg-gray-100 px-1 rounded">**tebal**</code>, <code className="bg-gray-100 px-1 rounded">_miring_</code>, <code className="bg-gray-100 px-1 rounded">- item list</code>, <code className="bg-gray-100 px-1 rounded">  - sub-item huruf</code> (indent 2 spasi),
         dan <code className="bg-gray-100 px-1 rounded">{'{{bank_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{rekening_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{nama_rekening_agen}}'}</code> buat rekening PENANDA TANGAN (beda tiap orang, jangan diisi manual).
+        Bisa juga edit lewat Google Sheets (lebih nyaman buat teks panjang) — kolom <code className="bg-gray-100 px-1 rounded">dokumen | nomor | judul | isi</code>, lalu klik &ldquo;Sync dari Google Sheets&rdquo; di atas.
       </div>
 
       <div className="flex flex-wrap gap-2 mb-3">
