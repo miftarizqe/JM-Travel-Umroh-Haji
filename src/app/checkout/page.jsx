@@ -589,8 +589,22 @@ function CheckoutPageInner() {
                 {`🏢 Checkout sebagai Perwakilan — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
               </div>
             ) : user?.role === 'sahabat_baitullah' ? (
-              <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
-                {`🤝 Checkout sebagai Sahabat Baitullah — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
+              // Tampilan sama dengan form sumber info biasa, tapi terkunci —
+              // closing otomatis ke akun sendiri (server juga maksa user.id).
+              <div className="bg-white border-2 border-[#C9952A] rounded-xl p-4 space-y-3">
+                <div>
+                  <div className="font-bold text-[#0E2F6E] text-sm">📣 Dari mana Anda mengetahui JM Travel?</div>
+                  <div className="text-xs text-gray-400 mt-0.5">🔒 Terkunci — closing otomatis tercatat ke akun Anda.</div>
+                </div>
+                <select value="sahabat_baitullah" disabled
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed">
+                  <option value="sahabat_baitullah">Jamaah Sahabat Baitullah</option>
+                </select>
+                <div>
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Sahabat Baitullah</label>
+                  <input value={`${user.kode_unik || ''} — ${user.name}`} readOnly disabled
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed" />
+                </div>
               </div>
             ) : permanentReferrer ? (
               <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
