@@ -3,7 +3,19 @@
 # Caddy bisa meneruskan ke "web:3000" tanpa membuka port 3000 ke publik.
 services:
   web:
-    build: /path/ke/JM-Travel-Umroh-Haji   # ganti dengan lokasi clone repo ini di VPS
+    build:
+      context: /path/ke/JM-Travel-Umroh-Haji   # ganti dengan lokasi clone repo ini di VPS
+      # NEXT_PUBLIC_* WAJIB lewat build.args (bukan cuma environment: di
+      # bawah) — diinline webpack ke bundle client SAAT `docker compose
+      # build`, environment: runtime container gak kebaca sama sekali di
+      # titik itu (bug ditemukan & diperbaiki 2026-09-28: reCAPTCHA/GA4/
+      # Pixel/SnapWidget IG kemungkinan gak pernah nyala di produksi
+      # meskipun env-nya udah diisi, gara-gara cuma masuk environment: doang).
+      args:
+        NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
+        NEXT_PUBLIC_SNAPWIDGET_ID: ${NEXT_PUBLIC_SNAPWIDGET_ID:-}
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}
+        NEXT_PUBLIC_FB_PIXEL_ID: ${NEXT_PUBLIC_FB_PIXEL_ID:-}
     restart: unless-stopped
     environment:
       DB_HOST: db
@@ -17,11 +29,6 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-}
       # Alamat publik situs, dipakai untuk link di ID card (default-nya localhost).
       APP_URL: ${APP_URL:-https://jmtourtravel.com}
-      # Google reCAPTCHA v2 di halaman registrasi (lihat .env.local buat cara
-      # daftar). NEXT_PUBLIC_RECAPTCHA_SITE_KEY dibaca browser (harus keisi
-      # SEBELUM `npm run build`, bukan cuma runtime) — kosong = widget tidak
-      # tampil & verifikasi di server otomatis di-skip.
-      NEXT_PUBLIC_RECAPTCHA_SITE_KEY: ${NEXT_PUBLIC_RECAPTCHA_SITE_KEY:-}
       RECAPTCHA_SECRET_KEY: ${RECAPTCHA_SECRET_KEY:-}
       # TTD digital + e-Meterai — satu vendor Mekari Sign buat dua-duanya
       # (lihat .env.local buat penjelasan & TODO sebelum ganti ke 'mekari').
