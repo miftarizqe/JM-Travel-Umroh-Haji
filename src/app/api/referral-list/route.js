@@ -16,19 +16,19 @@ import pool from '@/lib/db';
  * dibuat, jadi belum ada sesi. Endpoint ini hanya mengembalikan data yang
  * aman: nama, kode unik, wilayah. Tanpa NIK, alamat, rekening, atau komisi.
  *
- * ?role= opsional (whitelist 'perwakilan'|'sahabat_baitullah', default 'perwakilan')
- * — dipakai juga buat dropdown/lock perekrut di pendaftaran sahabat.
+ * ?role=sahabat_baitullah DITUTUP (2026-09-28, dikonfirmasi user) — dulu
+ * nge-list nama lengkap semua anggota Sahabat (jamaah perorangan) ke publik.
+ * Sekarang selalu balikin list kosong (biar bundle client lama gak error);
+ * pakai POST /api/referral-list/cek-sahabat (cek 1 kode, nama disamarkan).
  * Response key TETAP "perwakilan" apapun role-nya (bukan diganti dinamis)
  * biar caller lama (checkout, daftar-perwakilan) yang belum kirim ?role
  * gak perlu diubah sama sekali.
  */
-const ROLE_VALID = ['perwakilan', 'sahabat_baitullah'];
-
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const roleParam = searchParams.get('role');
-    const role = ROLE_VALID.includes(roleParam) ? roleParam : 'perwakilan';
+    if (searchParams.get('role') === 'sahabat_baitullah') return Response.json({ perwakilan: [] });
+    const role = 'perwakilan';
 
     const [perwakilan] = await pool.query(
       `SELECT id, name, kode_unik, wilayah

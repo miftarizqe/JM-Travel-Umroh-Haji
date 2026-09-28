@@ -66,6 +66,22 @@ export async function buatSatuBooking(conn, params) {
   // cair ke Head of Program pas booking-nya selesai — gak ada kode
   // tambahan yang perlu disentuh di closing.js.
   let referralSahabatFinal = referral_sahabat_id || null;
+  // referral_sahabat_id kiriman client WAJIB milik anggota Sahabat aktif
+  // (atau Head of Program — lihat skenario checkout diri sendiri di
+  // closing.js). FE cuma ngirim ID hasil /api/referral-list/cek-sahabat, tapi
+  // panggilan API langsung bisa ngisi ID sembarang dan nyasarin komisi
+  // closing (ditemukan & diperbaiki 2026-09-28).
+  if (referralSahabatFinal) {
+    const [[valid]] = await conn.query(
+      `SELECT 1 AS ok FROM users u
+       WHERE u.id = ? AND (
+         (u.role = 'sahabat_baitullah' AND u.status = 'active')
+         OR u.id = (SELECT head_of_program_user_id FROM pengaturan WHERE id = 1)
+       )`,
+      [referralSahabatFinal]
+    );
+    if (!valid) throw errStatus('Referral Sahabat Baitullah tidak valid', 400);
+  }
   if (!referralSahabatFinal && meRole === 'sahabat_baitullah') {
     const [[pengHop]] = await conn.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
     referralSahabatFinal = pengHop?.head_of_program_user_id || null;
