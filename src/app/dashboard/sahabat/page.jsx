@@ -30,6 +30,7 @@ export default function DashboardSahabatPage() {
   const [loading, setLoading] = useState(true);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [drillDownId, setDrillDownId] = useState(null);
+  const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
 
   useEffect(() => {
     if (!user) { router.push('/login'); return; }
@@ -63,6 +64,25 @@ export default function DashboardSahabatPage() {
 
   function salinLinkInvite() {
     navigator.clipboard.writeText(linkInvite).then(() => { setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 2000); });
+  }
+
+  // Diakses jamaah yang udah lama aktif buat cetak ulang, gak cuma pas
+  // funnel pendaftaran di /status-pendaftaran-sahabat (dikonfirmasi user
+  // 2026-09-28) — endpoint & isi PDF-nya sama persis.
+  async function unduhPdfDokumen() {
+    setGeneratingPdfSkCif(true);
+    try {
+      const res = await fetch('/api/sahabat/dokumen-legal/pdf-otomatis', { method: 'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Gagal membuat PDF');
+        setGeneratingPdfSkCif(false);
+        return;
+      }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch { alert('Terjadi kesalahan'); }
+    setGeneratingPdfSkCif(false);
   }
 
   return (
@@ -180,6 +200,15 @@ export default function DashboardSahabatPage() {
             <div className="text-[10px] text-gray-400 mt-1">Bagikan link ini untuk mengajak orang jadi anggota Sahabat Baitullah baru — otomatis tercatat sebagai rekrutan Anda (generasi berikutnya).</div>
           </div>
         )}
+
+        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
+          <div className="font-bold text-[#0E2F6E] mb-1">📄 SK-CIF & Surat Pemblokiran</div>
+          <div className="text-[10px] text-gray-400 mb-3">Butuh cetak ulang? Unduh PDF dengan identitas Anda sudah terisi otomatis.</div>
+          <button onClick={unduhPdfDokumen} disabled={generatingPdfSkCif}
+            className="bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-lg">
+            {generatingPdfSkCif ? 'Membuat PDF...' : 'Unduh PDF'}
+          </button>
+        </div>
 
         {skema.is_hop && (
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">

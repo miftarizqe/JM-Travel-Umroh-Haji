@@ -12,12 +12,16 @@
 //
 // Dokumen yang SAMA SEKALI gak muncul di Sheet TIDAK disentuh (tetap pakai
 // isi lama di DB, biasanya diedit manual lewat /admin/pengaturan/dokumen) —
-// jadi Sheet ini boleh cuma isi sebagian dokumen (mis. cuma spk_ak/sk_cif/
-// surat_pemblokiran Sahabat Baitullah), gak wajib semua 6 jenis dokumen.
+// jadi Sheet ini boleh cuma isi sebagian dokumen, gak wajib semuanya.
+//
+// sk_cif & surat_pemblokiran SENGAJA gak ada di daftar (dikonfirmasi user
+// 2026-09-28) — wording resminya sekarang SATU-SATUNYA dari template PDF
+// final (src/lib/pdfDokumen/skCifOverlay.js & suratPemblokiranOverlay.js),
+// bukan lagi dari pasal/Sheets, biar gak ada 2 sumber kebenaran.
 import { google } from 'googleapis';
 import pool from '@/lib/db';
 
-const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'sk_cif', 'surat_pemblokiran', 'spk_ak_nonis'];
+const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'spk_ak_nonis'];
 
 function tipeDefaultUntuk(dokumen) {
   return (dokumen === 'sk_cif' || dokumen === 'surat_pemblokiran') ? 'isian' : 'pasal';

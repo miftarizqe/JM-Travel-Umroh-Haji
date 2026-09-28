@@ -177,14 +177,15 @@ export default function StatusPendaftaranSahabatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skCif, suratPemblokiran]);
 
-  // PDF SK-CIF dengan identitas terisi otomatis (dikonfirmasi user
-  // 2026-09-28) — TIDAK menggantikan tombol Print di atas, cuma nawarin
-  // hasil cetak yang lebih rapi (nempel di template PDF final, bukan lagi
-  // render HTML). Surat Pemblokiran belum ikutan, masih render HTML lama.
+  // PDF gabungan SK-CIF + Surat Pemblokiran dengan identitas terisi
+  // otomatis (dikonfirmasi user 2026-09-28) — SATU file, samain kayak alur
+  // fisiknya (dua surat ini emang dicetak bareng). TIDAK menggantikan
+  // tombol Print di atas, cuma nawarin hasil cetak yang lebih rapi (nempel
+  // di template PDF final, bukan lagi render HTML).
   async function unduhPdfSkCif() {
     setGeneratingPdfSkCif(true);
     try {
-      const res = await fetch('/api/sahabat/sk-cif/pdf-otomatis', { method: 'POST' });
+      const res = await fetch('/api/sahabat/dokumen-legal/pdf-otomatis', { method: 'POST' });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         alert(d.error || 'Gagal membuat PDF');
@@ -421,7 +422,7 @@ export default function StatusPendaftaranSahabatPage() {
               <div className="text-right mt-2 flex justify-end gap-3">
                 <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif}
                   className="text-gray-400 hover:text-[#1A4FA0] font-bold text-xs disabled:opacity-50">
-                  {generatingPdfSkCif ? 'Membuat PDF...' : '📄 Unduh PDF SK-CIF (rapi)'}
+                  {generatingPdfSkCif ? 'Membuat PDF...' : '📄 Unduh PDF Lengkap (rapi)'}
                 </button>
                 <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold text-sm">🖨️ Print Kedua Surat</button>
               </div>

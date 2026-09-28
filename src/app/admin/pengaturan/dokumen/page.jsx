@@ -51,9 +51,17 @@ const DOKUMEN_LIST = [
   { key: 'jamaah', label: 'SPJ (Perjanjian Jamaah)' },
   { key: 'spk_ak', label: 'SPK-AK (Jamaah Sahabat Baitullah)' },
   { key: 'spk_ak_nonis', label: 'Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
-  { key: 'sk_cif', label: 'SK-CIF (Sahabat Baitullah)' },
-  { key: 'surat_pemblokiran', label: 'Surat Pemblokiran Rekening (Sahabat Baitullah)' },
+  { key: 'sk_cif', label: '🔒 SK-CIF (Sahabat Baitullah)' },
+  { key: 'surat_pemblokiran', label: '🔒 Surat Pemblokiran Rekening (Sahabat Baitullah)' },
 ];
+
+// Dikunci dari edit teks (dikonfirmasi user 2026-09-28) — wording resmi 2
+// dokumen ini sekarang SATU-SATUNYA dari template PDF final, bukan lagi
+// pasal di sini. Tab-nya tetap ada (buat lihat isi/preview yang masih
+// dipakai layar baca+centang-setuju jamaah), tapi Tambah/Edit/Hapus/Geser
+// dimatiin — server juga nolak lewat cekTerkunci() di
+// src/app/api/admin/pasal/route.js kalau ada yang nekat panggil API langsung.
+const DOKUMEN_TERKUNCI = ['sk_cif', 'surat_pemblokiran'];
 
 // Judul & nomor contoh yang ditampilkan di atas Preview Dokumen Lengkap —
 // SAMA seperti judul yang muncul di halaman cetak beneran (cetak-pks-mitra,
@@ -779,6 +787,12 @@ export default function AdminPengaturanDokumenPage() {
           {showPreviewDokumen ? '▲ Sembunyikan Preview Dokumen Lengkap' : '👁️ Lihat Preview Dokumen Lengkap'}
         </button>
       )}
+
+      {DOKUMEN_TERKUNCI.includes(dokumen) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
+          🔒 Wording resmi dokumen ini sekarang dari template PDF (bukan pasal di sini lagi) — kirim PDF baru buat update. Daftar di bawah cuma dipakai buat tampilan baca+centang-setuju jamaah, gak bisa diedit dari sini.
+        </div>
+      )}
       </div>
 
       {!loadingPasal && showPreviewDokumen && signerForm && (
@@ -790,7 +804,7 @@ export default function AdminPengaturanDokumenPage() {
         <div className="text-center text-gray-400 py-12">Memuat...</div>
       ) : (
         <>
-          {editing?.isNew && (
+          {editing?.isNew && !DOKUMEN_TERKUNCI.includes(dokumen) && (
             <div className="mb-3">
               <FormPasal editing={editing} setEditing={setEditing} saving={saving} showPreview={showPreview} setShowPreview={setShowPreview}
                 onSimpan={simpanPasal} onBatal={() => setEditing(null)} onHapus={hapusPasal} />
@@ -798,28 +812,32 @@ export default function AdminPengaturanDokumenPage() {
           )}
           <div className="space-y-2 mb-3">
             {pasal.map((p, i) => (
-              editing && !editing.isNew && editing.nomor === p.nomor ? (
+              editing && !editing.isNew && editing.nomor === p.nomor && !DOKUMEN_TERKUNCI.includes(dokumen) ? (
                 <FormPasal key={p.nomor} editing={editing} setEditing={setEditing} saving={saving} showPreview={showPreview} setShowPreview={setShowPreview}
                   onSimpan={simpanPasal} onBatal={() => setEditing(null)} onHapus={hapusPasal} />
               ) : (
                 <div key={p.nomor}
                   className="bg-white rounded-xl border border-gray-200 hover:border-[#1A4FA0] p-3 flex items-center gap-3">
-                  <div className="flex flex-col shrink-0">
-                    <button onClick={() => geserPasal(p.nomor, 'naik')} disabled={i === 0 || reordering}
-                      className="text-gray-400 hover:text-[#1A4FA0] disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1">▲</button>
-                    <button onClick={() => geserPasal(p.nomor, 'turun')} disabled={i === pasal.length - 1 || reordering}
-                      className="text-gray-400 hover:text-[#1A4FA0] disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1">▼</button>
-                  </div>
-                  <div onClick={() => mulaiEdit(p)} className="min-w-0 flex-1 cursor-pointer">
+                  {!DOKUMEN_TERKUNCI.includes(dokumen) && (
+                    <div className="flex flex-col shrink-0">
+                      <button onClick={() => geserPasal(p.nomor, 'naik')} disabled={i === 0 || reordering}
+                        className="text-gray-400 hover:text-[#1A4FA0] disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1">▲</button>
+                      <button onClick={() => geserPasal(p.nomor, 'turun')} disabled={i === pasal.length - 1 || reordering}
+                        className="text-gray-400 hover:text-[#1A4FA0] disabled:opacity-20 disabled:cursor-not-allowed leading-none px-1">▼</button>
+                    </div>
+                  )}
+                  <div onClick={() => !DOKUMEN_TERKUNCI.includes(dokumen) && mulaiEdit(p)} className={`min-w-0 flex-1 ${DOKUMEN_TERKUNCI.includes(dokumen) ? '' : 'cursor-pointer'}`}>
                     <div className="text-xs text-gray-400">{TIPE_LABEL[p.tipe] || 'Pasal'} {p.nomor}</div>
                     <div className="text-sm font-semibold text-gray-700 truncate">{p.judul}</div>
                   </div>
-                  <span onClick={() => mulaiEdit(p)} className="text-xs font-bold text-[#1A4FA0] shrink-0 cursor-pointer">Edit →</span>
+                  {!DOKUMEN_TERKUNCI.includes(dokumen) && (
+                    <span onClick={() => mulaiEdit(p)} className="text-xs font-bold text-[#1A4FA0] shrink-0 cursor-pointer">Edit →</span>
+                  )}
                 </div>
               )
             ))}
           </div>
-          {!editing && (
+          {!editing && !DOKUMEN_TERKUNCI.includes(dokumen) && (
             <button onClick={mulaiTambah}
               className="w-full border-2 border-dashed border-gray-200 hover:border-[#1A4FA0] text-gray-400 hover:text-[#1A4FA0] text-sm font-bold py-3 rounded-xl transition-colors">
               + Tambah Pasal Baru
