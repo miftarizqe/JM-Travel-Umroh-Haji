@@ -40,6 +40,7 @@ export default function StatusPendaftaranSahabatPage() {
   const scrollGabunganRef = useRef(null);
   const [setujuGabungan, setSetujuGabungan] = useState(false);
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
+  const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
 
   function muat() {
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
@@ -175,6 +176,26 @@ export default function StatusPendaftaranSahabatPage() {
     if (skCif && suratPemblokiran) cekScrollGabungan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [skCif, suratPemblokiran]);
+
+  // PDF SK-CIF dengan identitas terisi otomatis (dikonfirmasi user
+  // 2026-09-28) — TIDAK menggantikan tombol Print di atas, cuma nawarin
+  // hasil cetak yang lebih rapi (nempel di template PDF final, bukan lagi
+  // render HTML). Surat Pemblokiran belum ikutan, masih render HTML lama.
+  async function unduhPdfSkCif() {
+    setGeneratingPdfSkCif(true);
+    try {
+      const res = await fetch('/api/sahabat/sk-cif/pdf-otomatis', { method: 'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Gagal membuat PDF');
+        setGeneratingPdfSkCif(false);
+        return;
+      }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch { alert('Terjadi kesalahan'); }
+    setGeneratingPdfSkCif(false);
+  }
 
   async function submitSetujuGabungan() {
     if (!setujuGabungan) { alert('Centang persetujuan terlebih dahulu!'); return; }
@@ -397,7 +418,11 @@ export default function StatusPendaftaranSahabatPage() {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-700 mt-2">
                 Boleh dilewati dulu — tapi segera cetak, tanda tangani di atas materai asli, lalu kirim fisiknya ke kantor JM Travel Jakarta.
               </div>
-              <div className="text-right mt-2">
+              <div className="text-right mt-2 flex justify-end gap-3">
+                <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif}
+                  className="text-gray-400 hover:text-[#1A4FA0] font-bold text-xs disabled:opacity-50">
+                  {generatingPdfSkCif ? 'Membuat PDF...' : '📄 Unduh PDF SK-CIF (rapi)'}
+                </button>
                 <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold text-sm">🖨️ Print Kedua Surat</button>
               </div>
             </div>
