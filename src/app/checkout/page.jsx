@@ -588,24 +588,6 @@ function CheckoutPageInner() {
               <div className="rounded-xl p-4 text-sm border-2 bg-purple-50 text-purple-700 border-[#C9952A]">
                 {`🏢 Checkout sebagai Perwakilan — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
               </div>
-            ) : user?.role === 'sahabat_baitullah' ? (
-              // Tampilan sama dengan form sumber info biasa, tapi terkunci —
-              // closing otomatis ke akun sendiri (server juga maksa user.id).
-              <div className="bg-white border-2 border-[#C9952A] rounded-xl p-4 space-y-3">
-                <div>
-                  <div className="font-bold text-[#0E2F6E] text-sm">📣 Dari mana Anda mengetahui JM Travel?</div>
-                  <div className="text-xs text-gray-400 mt-0.5">🔒 Terkunci — closing otomatis tercatat ke akun Anda.</div>
-                </div>
-                <select value="sahabat_baitullah" disabled
-                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed">
-                  <option value="sahabat_baitullah">Jamaah Sahabat Baitullah</option>
-                </select>
-                <div>
-                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Sahabat Baitullah</label>
-                  <input value={`${user.kode_unik || ''} — ${user.name}`} readOnly disabled
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed" />
-                </div>
-              </div>
             ) : permanentReferrer ? (
               <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
                 {`📌 Referral Anda terkunci ke ${permanentReferrer.name} (${permanentReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
@@ -618,7 +600,12 @@ function CheckoutPageInner() {
               </div>
 
               <select value={sumber}
-                onChange={e => { setSumber(e.target.value); setReferralKode(''); }}
+                onChange={e => {
+                  setSumber(e.target.value);
+                  // Akun Sahabat yang pilih "Jamaah Sahabat Baitullah" otomatis
+                  // pakai kode miliknya sendiri (kolom kode dikunci di bawah).
+                  setReferralKode(user?.role === 'sahabat_baitullah' && e.target.value === 'sahabat_baitullah' ? (user.kode_unik || '') : '');
+                }}
                 className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
                 <option value="">-- Pilih --</option>
                 <option value="perwakilan">Perwakilan JM Travel</option>
@@ -648,13 +635,24 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {sumber === 'sahabat_baitullah' && (
+              {sumber === 'sahabat_baitullah' && user?.role === 'sahabat_baitullah' && (
+                // Dropdown sumber tetap bebas dipilih; yang dikunci cuma kode
+                // referral-nya — akun Sahabat gak bisa atas-namakan anggota lain.
+                <div>
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Sahabat Baitullah</label>
+                  <input value={`${user.kode_unik || ''} — ${user.name}`} readOnly disabled
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed" />
+                  <div className="text-[10px] text-gray-400 mt-1">🔒 Terkunci ke akun Anda sendiri.</div>
+                </div>
+              )}
+
+              {sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && (
                 <div>
                   <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Sahabat Baitullah *</label>
                   <input
                     value={referralKode}
                     onChange={e => setReferralKode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: SBJM0002"
+                    placeholder="Contoh: SBJM0002 atau 6X8AEVY"
                     className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekSahabatStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
                   {cekSahabatStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
@@ -663,7 +661,7 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {((sumber === 'perwakilan' && referralKode) || (sumber === 'sahabat_baitullah' && sahabatTerverifikasi)) && (
+              {((sumber === 'perwakilan' && referralKode) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">
                   ✅ Pendaftaran akan tercatat atas nama {sumber} yang dipilih.
                 </div>
@@ -673,12 +671,12 @@ function CheckoutPageInner() {
 
             <button
               onClick={() => {
-                if (user?.role === 'perwakilan' || user?.role === 'sahabat_baitullah' || permanentReferrer) { setStep(2); return; }
+                if (user?.role === 'perwakilan' || permanentReferrer) { setStep(2); return; }
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
                 if (sumber === 'perwakilan' && !referralKode) {
                   alert('Pilih nama perwakilan terlebih dahulu!'); return;
                 }
-                if (sumber === 'sahabat_baitullah' && !sahabatTerverifikasi) {
+                if (sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && !sahabatTerverifikasi) {
                   alert('Masukkan kode referral Sahabat Baitullah yang valid!'); return;
                 }
                 setStep(2);
