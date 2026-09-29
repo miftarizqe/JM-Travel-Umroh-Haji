@@ -9,9 +9,12 @@ const KOLOM = ['wa_kantor', 'bank_nama', 'bank_rekening', 'bank_atas_nama', 'ala
 // di-parse Number() sendiri di PUT, bukan `|| null` on string kosong.
 // komisi_sahabat_nominal SENGAJA gak dipakai lagi (diganti mekanisme
 // 5 generasi Sahabat Baitullah di bawah) — kolomnya dibiarkan di DB, cuma
-// gak diedit lewat sini lagi.
+// gak diedit lewat sini lagi. komisi_sahabat_closing_persen JUGA dicabut
+// dari sini (dikoreksi 2026-09-30) — closing langsung self-checkout
+// sekarang margin murni (harga jual − HPP) per-booking, bukan persen
+// setting, lihat src/lib/closing.js. Kolomnya dibiarkan di DB (sama pola).
 const KOLOM_ANGKA = [
-  'kurs_sar_idr', 'kurs_usd_idr', 'komisi_sahabat_closing_persen',
+  'kurs_sar_idr', 'kurs_usd_idr',
   'sahabat_gen1_nominal', 'sahabat_gen2_nominal', 'sahabat_gen3_nominal', 'sahabat_gen4_nominal', 'sahabat_gen5_nominal',
   'sahabat_tabungan_awal_nominal', 'sahabat_head_of_program_nominal', 'sahabat_closing_langsung_hop_nominal',
 ];
@@ -23,7 +26,6 @@ const KOLOM_ANGKA = [
 // (bukan cuma UI) biar gak bisa dilewatin lewat panggilan API langsung oleh
 // admin biasa.
 const KOLOM_SENSITIF = [
-  'komisi_sahabat_closing_persen',
   'sahabat_gen1_nominal', 'sahabat_gen2_nominal', 'sahabat_gen3_nominal', 'sahabat_gen4_nominal', 'sahabat_gen5_nominal',
   'sahabat_tabungan_awal_nominal', 'sahabat_head_of_program_nominal', 'sahabat_closing_langsung_hop_nominal',
   'head_of_program_user_id',

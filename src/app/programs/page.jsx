@@ -18,10 +18,17 @@ const SECTION_URUTAN = [
   { key: 'perwakilan', judul: '🏢 Program Khusus Perwakilan', deskripsi: 'Ditujukan admin khusus untuk wilayah/perwakilan Anda.' },
 ];
 
-function KartuProgram({ p, user, router }) {
+function KartuProgram({ p, user, router, isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
   return (
-    <div className="bg-white rounded-2xl border border-[#e0e8f0] overflow-hidden hover:shadow-xl transition-all group">
+    <div className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl transition-all group ${(isTarget || isPendingNewChoice) ? 'border-[#C9952A] ring-2 ring-[#C9952A]/30' : 'border-[#e0e8f0]'}`}>
       <div className="bg-gradient-to-br from-[#0E2F6E] to-[#2060C0] p-5 text-white">
+        {isPendingNewChoice ? (
+          <div className="inline-block bg-[#C9952A] text-[#0E2F6E] text-[10px] font-bold px-2.5 py-1 rounded-full mb-2">⏳ Pilihan Paket Baru Anda</div>
+        ) : isTarget && targetSuspended ? (
+          <div className="inline-block bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2.5 py-1 rounded-full mb-2">⏸️ Nonaktif Sementara</div>
+        ) : isTarget && (
+          <div className="inline-block bg-[#C9952A] text-[#0E2F6E] text-[10px] font-bold px-2.5 py-1 rounded-full mb-2">🎯 Target Impian Anda</div>
+        )}
         <div className="text-xs opacity-75 mb-1">{p.type} · {p.durasi} Hari</div>
         <div className="text-lg font-bold mb-1">{p.name}</div>
         <div className="text-xs opacity-85">{p.highlight}</div>
@@ -62,11 +69,32 @@ function KartuProgram({ p, user, router }) {
           </div>
         </div>
 
-        <button
-          onClick={() => user ? router.push(`/checkout?prog_id=${p.id}`) : router.push('/login')}
-          className="w-full bg-[#1A4FA0] group-hover:bg-[#C9952A] text-white font-bold py-2.5 rounded-full transition-colors">
-          {user ? 'Daftar Sekarang →' : 'Masuk untuk Daftar →'}
-        </button>
+        {/* Program eksklusif Sahabat Baitullah yang BUKAN target impian
+            mereka saat ini — cuma boleh "Lihat Detail" (itinerary/harga),
+            gak bisa langsung checkout (dikonfirmasi user 2026-09-29). Mau
+            ikut program ini harus lewat alur baca S&K + konfirmasi di
+            halaman detail program itu sendiri (dikonfirmasi user
+            2026-09-30 — sengaja gak dibikin gampang), wajib ACC admin
+            dulu. Target LAMA yang lagi nonaktif sementara (ada pengajuan
+            pindah yang menunggu ACC) JUGA cuma "Lihat Detail", gak bisa
+            checkout sampai pengajuannya diproses. */}
+        {isPendingNewChoice ? (
+          <button onClick={() => router.push(`/program/${p.id}`)}
+            className="w-full bg-white border-2 border-[#C9952A] text-[#C9952A] font-bold py-2.5 rounded-full transition-colors">
+            ⏳ Pilihan Paket Baru Anda
+          </button>
+        ) : (eksklusifBukanTarget || targetSuspended) ? (
+          <button onClick={() => router.push(`/program/${p.id}`)}
+            className="w-full bg-white border-2 border-[#1A4FA0] group-hover:border-[#C9952A] text-[#1A4FA0] group-hover:text-[#C9952A] font-bold py-2.5 rounded-full transition-colors">
+            Lihat Detail →
+          </button>
+        ) : (
+          <button
+            onClick={() => user ? router.push(`/checkout?prog_id=${p.id}`) : router.push('/login')}
+            className="w-full bg-[#1A4FA0] group-hover:bg-[#C9952A] text-white font-bold py-2.5 rounded-full transition-colors">
+            {user ? 'Daftar Sekarang →' : 'Masuk untuk Daftar →'}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -75,6 +103,8 @@ function KartuProgram({ p, user, router }) {
 export default function ProgramsPage() {
   const router = useRouter();
   const [programs, setPrograms] = useState([]);
+  const [targetProgramId, setTargetProgramId] = useState(null);
+  const [targetGantiProgramId, setTargetGantiProgramId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [user] = useCurrentUser();
 
@@ -83,7 +113,12 @@ export default function ProgramsPage() {
   useEffect(() => {
     fetch('/api/programs')
       .then(r => r.json())
-      .then(d => { setPrograms(d.programs || []); setLoading(false); });
+      .then(d => {
+        setPrograms(d.programs || []);
+        setTargetProgramId(d.target_program_id || null);
+        setTargetGantiProgramId(d.target_ganti_program_id || null);
+        setLoading(false);
+      });
   }, []);
 
   return (
@@ -96,8 +131,15 @@ export default function ProgramsPage() {
 
       <div className="space-y-10">
         {SECTION_URUTAN.map(s => {
-          const isi = programs.filter(p => (p.publish_type || 'public') === s.key);
+          let isi = programs.filter(p => (p.publish_type || 'public') === s.key);
           if (isi.length === 0) return null;
+          // Program target Sahabat Baitullah SELALU disematkan paling
+          // depan section ini (dikonfirmasi user 2026-09-29) — bukan urut
+          // created_at biasa kayak section lain, biar jamaah langsung
+          // lihat progress ke target sebelum ngelirik paket lain.
+          if (s.key === 'sahabat_baitullah' && targetProgramId) {
+            isi = [...isi].sort((a, b) => (a.id === targetProgramId ? -1 : b.id === targetProgramId ? 1 : 0));
+          }
           return (
             <div key={s.key}>
               <div className="mb-4">
@@ -105,7 +147,13 @@ export default function ProgramsPage() {
                 <p className="text-xs text-gray-400">{s.deskripsi}</p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {isi.map(p => <KartuProgram key={p.id} p={p} user={user} router={router} />)}
+                {isi.map(p => (
+                  <KartuProgram key={p.id} p={p} user={user} router={router}
+                    isTarget={s.key === 'sahabat_baitullah' && p.id === targetProgramId}
+                    isPendingNewChoice={s.key === 'sahabat_baitullah' && !!targetGantiProgramId && p.id === targetGantiProgramId}
+                    targetSuspended={s.key === 'sahabat_baitullah' && p.id === targetProgramId && !!targetGantiProgramId}
+                    eksklusifBukanTarget={s.key === 'sahabat_baitullah' && !!targetProgramId && p.id !== targetProgramId} />
+                ))}
               </div>
             </div>
           );

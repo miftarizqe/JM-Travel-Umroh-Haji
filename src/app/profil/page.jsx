@@ -45,6 +45,7 @@ export default function ProfilPage() {
   // sebelum akun ini ada. Lazy-load pas user udah kebaca (butuh NIK-nya).
   const [riwayatUmroh, setRiwayatUmroh] = useState(null);
   const [loadingRiwayat, setLoadingRiwayat] = useState(false);
+  const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
 
   const FIELD_SENSITIF_REKENING = ['nik', 'bank', 'no_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh'];
   const isAdminSelf = ['admin', 'super_admin'].includes(user?.role);
@@ -57,7 +58,7 @@ export default function ProfilPage() {
   const isDirtyRekening = editingRekening && user && Object.keys(formRekening).some(k => formRekening[k] !== (user[k] || ''));
   useUnsavedGuard(isDirty || isDirtyRekening);
 
-  useEffect(() => {
+  function muatProfil() {
     const u = localStorage.getItem('user');
     if (!u) { router.push('/login'); return; }
     const parsed = JSON.parse(u);
@@ -80,13 +81,36 @@ export default function ProfilPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    muatProfil();
     setLoadingRiwayat(true);
     fetch('/api/profil/riwayat-umroh')
       .then(r => r.json())
       .then(d => setRiwayatUmroh(d.riwayat || []))
       .catch(() => setRiwayatUmroh([]))
       .finally(() => setLoadingRiwayat(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cetak ulang blanko SK-CIF+Surat Pemblokiran (dipindah dari Beranda ke
+  // sini, dikonfirmasi user 2026-09-29 — dokumen dikonsolidasi 1 tempat).
+  async function unduhPdfDokumen() {
+    setGeneratingPdfSkCif(true);
+    try {
+      const res = await fetch('/api/sahabat/dokumen-legal/pdf-otomatis', { method: 'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Gagal membuat PDF');
+        setGeneratingPdfSkCif(false);
+        return;
+      }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch { alert('Terjadi kesalahan'); }
+    setGeneratingPdfSkCif(false);
+  }
 
   async function saveProfile() {
     if (!form.name.trim()) { alert('Nama wajib diisi!'); return; }
@@ -237,7 +261,13 @@ export default function ProfilPage() {
 
         {/* Status Keanggotaan Sahabat Baitullah — dipindah dari Beranda ke
             sini (dikonfirmasi user 2026-09-22, biar Beranda fokus ke
-            ujroh/aktivitas, bukan status akun). */}
+            ujroh/aktivitas, bukan status akun). Dokumen (link scan yang
+            SUDAH DITANDATANGANI + tombol cetak ulang blanko) DIKONSOLIDASI
+            ke sini juga (dikonfirmasi user 2026-09-29 — sebelumnya sempat
+            dobel juga ada di Beranda, dihapus dari sana). Link scan
+            diprioritaskan (dikonfirmasi user — "buat apa liat yg kosongan"),
+            tombol blanko tetap ada di bawahnya buat jaga-jaga kalau
+            scan-nya belum sempat diunggah (opsional, boleh nyusul). */}
         {user.role === 'sahabat_baitullah' && (
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 mb-4">
             <div className="font-bold text-[#0E2F6E] mb-3">📋 Status Keanggotaan</div>
@@ -252,18 +282,35 @@ export default function ProfilPage() {
               </div>
             </div>
             {user.cif_bsi && <div className="text-xs text-gray-400 mb-3">Nomor CIF: <b className="text-gray-600">{user.cif_bsi}</b></div>}
-            <div className="flex flex-wrap gap-2">
-              {user.dokumen?.spk_ak && (
-                <a href={user.dokumen.spk_ak} target="_blank" rel="noopener noreferrer"
-                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">📄 SPK-AK</a>
-              )}
-              {user.dokumen?.sk_cif && (
-                <a href={user.dokumen.sk_cif} target="_blank" rel="noopener noreferrer"
-                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">📄 SK-CIF</a>
-              )}
-            </div>
+            {(user.dokumen?.spk_ak || user.dokumen?.sk_cif || user.dokumen?.surat_pemblokiran) && (
+              <div className="space-y-1 mb-3">
+                <div className="text-[10px] text-gray-400">Dokumen yang sudah ditandatangani (scan):</div>
+                {user.dokumen?.spk_ak && (
+                  <a href={user.dokumen.spk_ak} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-bold text-green-700">✅ SPK-AK (PKS) →</a>
+                )}
+                {user.dokumen?.sk_cif && (
+                  <a href={user.dokumen.sk_cif} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-bold text-green-700">✅ SK-CIF →</a>
+                )}
+                {user.dokumen?.surat_pemblokiran && (
+                  <a href={user.dokumen.surat_pemblokiran} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-xs font-bold text-green-700">✅ Surat Pemblokiran →</a>
+                )}
+              </div>
+            )}
+            <div className="text-[10px] text-gray-400 mb-2">Butuh cetak ulang SK-CIF & Surat Pemblokiran (blanko kosong, identitas Anda sudah terisi otomatis)?</div>
+            <button onClick={unduhPdfDokumen} disabled={generatingPdfSkCif}
+              className="bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-lg">
+              {generatingPdfSkCif ? 'Membuat PDF...' : 'Unduh PDF (SK-CIF & Surat Pemblokiran)'}
+            </button>
           </div>
         )}
+
+        {/* Target Impian + Ganti Target Impian PINDAH ke Beranda
+            (/dashboard/sahabat, dikonfirmasi user 2026-09-29) — dibarengin
+            sama kartu Progress Tabungan yang emang udah ada di sana, biar
+            gak kesebar/duplikat 2 tempat. */}
 
         {/* Voucher Pendaftaran Rp1jt — ikut dipindah dari Beranda (dikonfirmasi
             user 2026-09-22). */}

@@ -74,7 +74,25 @@ export async function GET(request) {
          ) ORDER BY p.created_at DESC`,
         [user.id]
       );
-      return Response.json({ programs: stripProgramsUntukPublik(programs) });
+      // target_program_id diikutkan (dikonfirmasi user 2026-09-29) — dipakai
+      // FE buat nyematkan program target di paling depan section "Program
+      // Eksklusif Sahabat Baitullah", bukan urut created_at biasa.
+      // target_ganti_status/target_ganti_program_id diikutkan juga —
+      // /programs & /program/[id] butuh ini buat nentuin CTA per program:
+      // program yang lagi diajukan jadi target baru -> "Pilihan Paket Baru
+      // Anda", target LAMA & program lain -> biasa/nonaktif sementara
+      // (dikonfirmasi user 2026-09-30).
+      const [[pendaftaran]] = await pool.query(
+        'SELECT program_id, target_ganti_status, target_ganti_program_id FROM sahabat_pendaftaran WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+        [user.id]
+      );
+      const gantiAktif = ['diajukan', 'pembatalan_diajukan'].includes(pendaftaran?.target_ganti_status);
+      return Response.json({
+        programs: stripProgramsUntukPublik(programs),
+        target_program_id: pendaftaran?.program_id || null,
+        target_ganti_program_id: gantiAktif ? pendaftaran.target_ganti_program_id : null,
+        target_ganti_status: gantiAktif ? pendaftaran.target_ganti_status : null,
+      });
     }
 
     // Admin/super_admin (dipakai a.l. oleh halaman Order Jamaah, admin bikinin

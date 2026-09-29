@@ -36,13 +36,13 @@ export async function GET(request) {
 
     const [rows] = await pool.query(
       `SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status, u.wilayah, u.foto_path,
-              u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama, p.role AS perekrut_role, u.reg_status, u.reg_metode, u.reg_jadwal,
+              u.jenis_kelamin, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama, p.role AS perekrut_role, u.reg_status, u.reg_metode, u.reg_jadwal,
               u.alamat_kirim, u.alamat, u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_paspor,
               u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
               u.kode_invite_perwakilan, u.tabungan_haji_status, u.cif_bsi, u.agama,
-              u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.terverifikasi
+              u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_surat_pemblokiran_fisik_path, u.terverifikasi
        FROM users u
        LEFT JOIN users p ON p.id = u.perekrut_id
        LEFT JOIN users rp ON rp.id = u.perekrut_perwakilan_jamaah_id
@@ -108,6 +108,7 @@ export async function GET(request) {
       user.dokumen = {
         spk_ak: sigSpkAk?.pdf_final_path || user.dokumen_spk_ak_fisik_path || null,
         sk_cif: user.dokumen_sk_cif_fisik_path || null,
+        surat_pemblokiran: user.dokumen_surat_pemblokiran_fisik_path || null,
       };
 
       // Voucher welcome Rp1jt — ikut dipindah dari Beranda ke Profil

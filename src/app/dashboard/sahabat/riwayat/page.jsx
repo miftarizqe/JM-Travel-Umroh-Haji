@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import UploadBukti from '@/app/components/UploadBukti';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
@@ -74,11 +75,29 @@ function RiwayatSaldoContent() {
   const [payslip, setPayslip] = useState(null);
   const [expandPeriode, setExpandPeriode] = useState(null);
   const [forecast, setForecast] = useState(null);
+  // Pengajuan Setoran Mandiri self-service (dikonfirmasi user 2026-09-29) —
+  // jamaah nabung ke rekening tabungan umroh PRIBADI mereka sendiri, lalu
+  // unggah bukti transfernya di sini biar admin gak perlu ngecek mutasi BSI
+  // semua akun satu-satu. Cuma buat akun sendiri (bukan admin liat punya
+  // orang lain) — lihat `lihatOrangLain` di bawah.
+  const [nominalSetoran, setNominalSetoran] = useState('');
+  const [buktiPathSetoran, setBuktiPathSetoran] = useState(null);
+  const [buktiNamaSetoran, setBuktiNamaSetoran] = useState(null);
+  const [submittingSetoran, setSubmittingSetoran] = useState(false);
+  const [pengajuanSaya, setPengajuanSaya] = useState([]);
+  const [uploadKeySetoran, setUploadKeySetoran] = useState(0);
 
   const paramId = searchParams.get('sahabat_id');
   const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
   const targetId = (paramId && isAdmin) ? paramId : user?.id;
   const lihatOrangLain = isAdmin && paramId && paramId !== user?.id;
+
+  function muatPengajuanSaya() {
+    fetch('/api/sahabat/setoran-mandiri-pengajuan')
+      .then(r => r.json())
+      .then(d => setPengajuanSaya(d.pengajuan || []))
+      .catch(() => {});
+  }
 
   useEffect(() => {
     if (!user) return;
@@ -103,8 +122,29 @@ function RiwayatSaldoContent() {
         .catch(() => {});
     } else {
       setTargetInfo(null);
+      if (user.role === 'sahabat_baitullah') muatPengajuanSaya();
     }
   }, [user, targetId]);
+
+  async function ajukanSetoranMandiri() {
+    const nominalNum = Number(nominalSetoran);
+    if (!nominalNum || nominalNum <= 0) { alert('Isi nominal setoran dulu'); return; }
+    if (!buktiPathSetoran) { alert('Unggah bukti transfer dulu'); return; }
+    setSubmittingSetoran(true);
+    try {
+      const res = await fetch('/api/sahabat/setoran-mandiri-pengajuan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nominal: nominalNum, bukti_path: buktiPathSetoran, bukti_nama: buktiNamaSetoran }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSubmittingSetoran(false); return; }
+      alert(d.message);
+      setNominalSetoran(''); setBuktiPathSetoran(null); setBuktiNamaSetoran(null);
+      setUploadKeySetoran(k => k + 1);
+      muatPengajuanSaya();
+    } catch { alert('Terjadi kesalahan'); }
+    setSubmittingSetoran(false);
+  }
 
   if (!user || loading || !data) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
@@ -176,6 +216,42 @@ function RiwayatSaldoContent() {
       )}
 
       {tab === 'cashflow' && (<>
+      {!lihatOrangLain && user.role === 'sahabat_baitullah' && (
+        <div className="bg-white rounded-xl border-2 border-emerald-200 p-4 mb-4">
+          <div className="font-bold text-emerald-700 text-sm mb-1">💵 Ajukan Setoran Mandiri</div>
+          <div className="text-xs text-gray-400 mb-3">Sudah menabung ke rekening tabungan umroh Anda sendiri? Unggah bukti transfernya di sini — admin akan cocokkan dengan mutasi rekening & menambah saldo Anda.</div>
+          <div className="space-y-2 mb-3">
+            <input value={nominalSetoran} onChange={e => setNominalSetoran(e.target.value.replace(/\D/g, ''))}
+              placeholder="Nominal setoran (Rp)" inputMode="numeric"
+              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-emerald-400 focus:outline-none" />
+            <UploadBukti key={uploadKeySetoran}
+              onUploaded={(path, nama) => { setBuktiPathSetoran(path); setBuktiNamaSetoran(nama); }}
+              label="Klik untuk upload bukti transfer setoran" />
+          </div>
+          <button onClick={ajukanSetoranMandiri} disabled={submittingSetoran}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold py-2.5 rounded-full">
+            {submittingSetoran ? 'Mengajukan...' : 'Ajukan Setoran Mandiri'}
+          </button>
+
+          {pengajuanSaya.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+              <div className="text-[10px] text-gray-400">Riwayat pengajuan Anda:</div>
+              {pengajuanSaya.map(p => (
+                <div key={p.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
+                  <span className="font-semibold text-gray-600">{fmtRp(p.nominal)}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    p.status === 'disetujui' ? 'bg-green-100 text-green-700' :
+                    p.status === 'ditolak' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {p.status === 'disetujui' ? '✅ Disetujui' : p.status === 'ditolak' ? '❌ Ditolak' : '⏳ Menunggu'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] rounded-xl p-4 text-white flex items-center justify-between mb-4">
         <div>
           <div className="text-[10px] opacity-70">Saldo Awal</div>

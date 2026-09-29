@@ -1,9 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
 import { tangkapRefPerwakilan } from '@/lib/referralCapture';
+import { useCurrentUser } from '@/lib/useCurrentUser';
+import { renderPasalBlock } from '@/lib/pasalMarkup';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
@@ -46,9 +48,26 @@ export default function ProgramDetailPage() {
   const params = useParams();
   const id = params?.id;
 
+  const [user] = useCurrentUser();
   const [prog, setProg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  // Target Impian Sahabat Baitullah (dikonfirmasi user 2026-09-29/30) —
+  // dipakai buat nentuin CTA di bawah: program target -> booking langsung,
+  // program eksklusif LAIN -> ganti jadi "Ingin ikut program eksklusif
+  // ini?" (ajukan ganti target, wajib ACC admin, bukan checkout langsung).
+  // Alurnya SENGAJA dibikin gak gampang (dikonfirmasi user 2026-09-30,
+  // "jgn dibuat semudah itu") — wajib baca S&K (scroll-gate, sama pola
+  // /pks) dulu, baru konfirmasi eksplisit, baru kekirim.
+  const [targetProgramId, setTargetProgramId] = useState(null);
+  const [targetGantiProgramId, setTargetGantiProgramId] = useState(null); // null = gak ada pengajuan aktif
+  const [targetGantiStatus, setTargetGantiStatus] = useState(null); // 'diajukan' | 'pembatalan_diajukan' | null
+  const [submittingGanti, setSubmittingGanti] = useState(false);
+  const [modalStep, setModalStep] = useState(null); // null | 'tnc' | 'konfirmasi'
+  const [pasalTnc, setPasalTnc] = useState(null);
+  const [sudahBacaTnc, setSudahBacaTnc] = useState(false);
+  const [setujuTnc, setSetujuTnc] = useState(false);
+  const scrollTncRef = useRef(null);
 
   // Tangkap ?ref=<kode_unik_perwakilan> kalau ada — link program sering jadi
   // titik masuk pertama yang dibagikan perwakilan (dikonfirmasi user
@@ -63,10 +82,46 @@ export default function ProgramDetailPage() {
         const found = (d.programs || []).find(p => p.id === id);
         if (found) setProg(found);
         else setNotFound(true);
+        setTargetProgramId(d.target_program_id || null);
+        setTargetGantiProgramId(d.target_ganti_program_id || null);
+        setTargetGantiStatus(d.target_ganti_status || null);
         setLoading(false);
       })
       .catch(() => { setNotFound(true); setLoading(false); });
   }, [id]);
+
+  function bukaModalGanti() {
+    setModalStep('tnc');
+    setSudahBacaTnc(false);
+    setSetujuTnc(false);
+    if (!pasalTnc) {
+      fetch('/api/pasal?dokumen=ganti_target_sahabat').then(r => r.json())
+        .then(d => setPasalTnc(d.pasal || []))
+        .catch(() => setPasalTnc([]));
+    }
+  }
+
+  function cekScrollTnc() {
+    const el = scrollTncRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setSudahBacaTnc(true);
+  }
+
+  async function ajukanGantiTarget() {
+    setSubmittingGanti(true);
+    try {
+      const res = await fetch('/api/sahabat/ganti-target', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ program_id: id }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSubmittingGanti(false); return; }
+      alert(d.message);
+      setTargetGantiProgramId(id);
+      setModalStep(null);
+    } catch { alert('Terjadi kesalahan'); }
+    setSubmittingGanti(false);
+  }
 
   function handleBooking() {
     // Wajib login dulu. Kalau belum login -> ke login, lalu balik ke checkout program ini.
@@ -115,6 +170,11 @@ export default function ProgramDetailPage() {
     const nilai = PAKET.map(paket => Number(prog[`harga_${paket}_${kamar}`] || 0));
     return nilai[0] > 0 && nilai.every(n => n === nilai[0]);
   });
+
+  const isEksklusifSahabat = user?.role === 'sahabat_baitullah' && prog.publish_type === 'sahabat_baitullah';
+  const isCurrentTarget = isEksklusifSahabat && prog.id === targetProgramId;
+  const isPendingNewChoice = isEksklusifSahabat && !!targetGantiProgramId && prog.id === targetGantiProgramId;
+  const hasPendingRequestElsewhere = isEksklusifSahabat && !!targetGantiProgramId && prog.id !== targetGantiProgramId;
 
   return (
     <Layout title={prog.name} showBack>
@@ -242,18 +302,127 @@ export default function ProgramDetailPage() {
           </div>
         )}
 
-        {/* CTA BOOKING */}
-        <div className="sticky bottom-4">
-          {seatSisa <= 0 ? (
-            <WaitlistCTA progId={prog.id} />
-          ) : (
-            <button onClick={handleBooking}
-              className="w-full bg-[#C9952A] hover:bg-[#a87c1f] text-white font-bold py-4 rounded-full shadow-lg transition-colors">
-              🕋 Booking Seat Sekarang Juga!
-            </button>
-          )}
-        </div>
+        {/* CTA — program eksklusif Sahabat Baitullah yang BUKAN target
+            impian mereka gak bisa checkout langsung dari sini (dikonfirmasi
+            user 2026-09-29/30). Mau ikut program ini = ajukan ganti target
+            (wajib baca S&K + konfirmasi eksplisit dulu, lihat modal di
+            bawah), wajib ACC admin — target lama otomatis "nonaktif
+            sementara" begitu ada pengajuan aktif (bukan checkout paralel 2
+            program eksklusif sekaligus). */}
+        {isPendingNewChoice && (
+          <div className="bg-white rounded-2xl border-2 border-[#C9952A] p-5 mb-4 text-center">
+            <div className="font-bold text-[#0E2F6E] mb-1">🎯 Pilihan Paket Baru Anda</div>
+            <div className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
+              {targetGantiStatus === 'pembatalan_diajukan'
+                ? '⏳ Anda sudah mengajukan pembatalan perpindahan ke program ini — mohon menunggu ACC admin.'
+                : '⏳ Anda sudah mengajukan perpindahan ke program ini — mohon menunggu ACC admin, atau hubungi admin untuk follow up.'}
+            </div>
+          </div>
+        )}
+
+        {/* Target lama otomatis "nonaktif sementara" selagi ada pengajuan
+            perpindahan yang menunggu ACC (dikonfirmasi user 2026-09-30) —
+            gak boleh booking dari sini sampai pengajuan diproses. */}
+        {isCurrentTarget && hasPendingRequestElsewhere && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center text-xs text-yellow-700 mb-4">
+            ⏳ Program ini sedang nonaktif sementara — ada pengajuan perpindahan Target Impian yang menunggu ACC admin.
+          </div>
+        )}
+
+        {isEksklusifSahabat && !isCurrentTarget && !isPendingNewChoice && (
+          <div className="bg-white rounded-2xl border-2 border-[#C9952A] p-5 mb-4 text-center">
+            <div className="font-bold text-[#0E2F6E] mb-1">🎯 Ingin Mengikuti Program Eksklusif Ini?</div>
+            {hasPendingRequestElsewhere ? (
+              <div className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-2">
+                ⏳ Anda punya pengajuan ganti target lain yang masih menunggu ACC admin. Selesaikan dulu sebelum mengajukan program ini.
+              </div>
+            ) : (
+              <>
+                <p className="text-xs text-gray-400 mb-3">Mengajukan program ini sebagai Target Impian baru akan menonaktifkan sementara target Anda saat ini, dan wajib disetujui admin terlebih dahulu.</p>
+                <button onClick={bukaModalGanti}
+                  className="w-full bg-[#C9952A] hover:bg-[#a87c1f] text-white font-bold py-3 rounded-full transition-colors">
+                  Ajukan Sebagai Target Baru →
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {(!isEksklusifSahabat || (isCurrentTarget && !hasPendingRequestElsewhere)) && (
+          <div className="sticky bottom-4">
+            {seatSisa <= 0 ? (
+              <WaitlistCTA progId={prog.id} />
+            ) : (
+              <button onClick={handleBooking}
+                className="w-full bg-[#C9952A] hover:bg-[#a87c1f] text-white font-bold py-4 rounded-full shadow-lg transition-colors">
+                🕋 Booking Seat Sekarang Juga!
+              </button>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Modal Ganti Target — 2 langkah SENGAJA dipisah (dikonfirmasi user
+          2026-09-30, "jgn dibuat semudah itu"): (1) wajib baca S&K sampai
+          scroll ke bawah baru centang bisa dipencet (pola sama /pks), (2)
+          baru konfirmasi eksplisit sebelum benar-benar kekirim ke server. */}
+      {modalStep && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setModalStep(null)}>
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+            {modalStep === 'tnc' && (
+              <>
+                <div className="flex justify-between items-start mb-3">
+                  <div className="font-bold text-[#0E2F6E] text-lg">📜 Syarat & Ketentuan</div>
+                  <button onClick={() => setModalStep(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+                </div>
+                <div ref={scrollTncRef} onScroll={cekScrollTnc}
+                  className="border border-gray-200 rounded-xl p-4 h-64 overflow-y-auto text-sm text-gray-600 mb-3">
+                  {pasalTnc === null ? (
+                    <div className="text-center text-gray-400 py-10">Memuat...</div>
+                  ) : pasalTnc.length === 0 ? (
+                    <div className="text-center text-gray-400 py-10">Syarat & ketentuan belum tersedia. Hubungi admin.</div>
+                  ) : (
+                    pasalTnc.map(p => <div key={p.nomor}>{renderPasalBlock(p)}</div>)
+                  )}
+                </div>
+                {!sudahBacaTnc && (
+                  <div className="text-[11px] text-gray-400 mb-2 text-center">Gulir sampai bawah untuk melanjutkan.</div>
+                )}
+                <label className={`flex items-start gap-2.5 mb-3 ${sudahBacaTnc ? 'cursor-pointer' : 'opacity-50 cursor-not-allowed'}`}>
+                  <input type="checkbox" checked={setujuTnc} disabled={!sudahBacaTnc}
+                    onChange={e => setSetujuTnc(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
+                  <span className="text-xs text-gray-600">Saya sudah membaca dan menyetujui syarat & ketentuan di atas.</span>
+                </label>
+                <button onClick={() => setModalStep('konfirmasi')} disabled={!setujuTnc}
+                  className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-full transition-colors">
+                  Lanjutkan →
+                </button>
+              </>
+            )}
+            {modalStep === 'konfirmasi' && (
+              <>
+                <div className="text-4xl text-center mb-3">🎯</div>
+                <div className="font-bold text-[#0E2F6E] text-center mb-2">Konfirmasi Pengajuan</div>
+                <p className="text-sm text-gray-600 text-center mb-4">
+                  Apakah Anda yakin ingin mengajukan <b>&quot;{prog.name}&quot;</b> sebagai Target Impian baru?
+                  Jika yakin, Target Impian Anda saat ini akan <b>dinonaktifkan sementara</b> menunggu ACC pengajuan perpindahan program baru ini.
+                  Apabila disetujui admin, program ini yang akan menjadi Target Impian Anda.
+                </p>
+                <div className="flex gap-3">
+                  <button onClick={() => setModalStep('tnc')} disabled={submittingGanti}
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full disabled:opacity-50">
+                    ← Kembali
+                  </button>
+                  <button onClick={ajukanGantiTarget} disabled={submittingGanti}
+                    className="flex-2 bg-[#C9952A] hover:bg-[#a87c1f] text-white font-bold py-3 px-6 rounded-full disabled:opacity-50">
+                    {submittingGanti ? 'Mengajukan...' : 'Ya, Ajukan'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

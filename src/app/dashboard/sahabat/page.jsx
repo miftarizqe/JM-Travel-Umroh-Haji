@@ -30,7 +30,53 @@ export default function DashboardSahabatPage() {
   const [loading, setLoading] = useState(true);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [drillDownId, setDrillDownId] = useState(null);
-  const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
+  // Popup Ganti Target Impian (dikonfirmasi user 2026-09-30) — SENGAJA
+  // cuma reminder singkat + PILIH program di sini, TIDAK langsung
+  // ngajuin dari popup ini ("jgn dibuat semudah itu"). Klik "Lanjutkan"
+  // langsung ke /program/[id] program yang dipilih (skip halaman /programs
+  // sama sekali) — proses baca S&K + konfirmasi eksplisit ada di sana.
+  const [gantiPopupOpen, setGantiPopupOpen] = useState(false);
+  const [programEksklusif, setProgramEksklusif] = useState([]);
+  const [loadingProgramEksklusif, setLoadingProgramEksklusif] = useState(false);
+  const [pilihanProgramId, setPilihanProgramId] = useState(null);
+  const [pembatalanLoading, setPembatalanLoading] = useState(false);
+
+  function muat() {
+    fetch(`/api/sahabat/dashboard?sahabat_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }
+
+  function bukaGantiPopup() {
+    setGantiPopupOpen(true);
+    setPilihanProgramId(null);
+    if (programEksklusif.length === 0) {
+      setLoadingProgramEksklusif(true);
+      fetch('/api/programs').then(r => r.json())
+        .then(d => setProgramEksklusif((d.programs || []).filter(p => p.publish_type === 'sahabat_baitullah')))
+        .catch(() => setProgramEksklusif([]))
+        .finally(() => setLoadingProgramEksklusif(false));
+    }
+  }
+
+  function lanjutkanKeProgram() {
+    if (!pilihanProgramId) return;
+    router.push(`/program/${pilihanProgramId}`);
+  }
+
+  async function batalkanPengajuan() {
+    if (!confirm('Ajukan pembatalan pengajuan ganti target ini? Tetap perlu menunggu ACC admin.')) return;
+    setPembatalanLoading(true);
+    try {
+      const res = await fetch('/api/sahabat/ganti-target', { method: 'PATCH' });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setPembatalanLoading(false); return; }
+      alert(d.message);
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setPembatalanLoading(false);
+  }
 
   useEffect(() => {
     if (!user) { router.push('/login'); return; }
@@ -38,10 +84,8 @@ export default function DashboardSahabatPage() {
     // Belum aktif (masih dalam funnel pendaftaran) — arahkan ke status
     // tracker, bukan dashboard yang isinya masih kosong semua.
     if (user.status !== 'active') { router.push('/status-pendaftaran-sahabat'); return; }
-    fetch(`/api/sahabat/dashboard?sahabat_id=${user.id}`)
-      .then(r => r.json())
-      .then(d => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+    muat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (loading || !data?.akun) return <Layout title="🤝 Dashboard Sahabat Baitullah"><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
@@ -61,28 +105,17 @@ export default function DashboardSahabatPage() {
   const closingLangsung = data.closing_langsung || { items: [], total_confirmed: 0, total_pending: 0 };
   const forecast = data.forecast || { calon_ujroh: [], potensi_total: 0 };
   const adaPending = data.ringkasan.saldo_pending > 0;
+  // Progress Tabungan vs Target Impian (dikonfirmasi user 2026-09-29) —
+  // target.nominal = target_estimasi_harga yang dikunci di wizard
+  // daftar-sahabat (program eksklusif yang dipilih paling awal), BUKAN
+  // harga program yang bisa berubah belakangan. Saldo cukup begitu
+  // saldo_tabungan_umroh >= nominal target, munculin tombol checkout.
+  const target = data.target;
+  const persenTarget = target?.nominal > 0 ? Math.min(100, Math.round((data.ringkasan.saldo_tabungan_umroh / target.nominal) * 100)) : 0;
+  const targetTercapai = target?.nominal > 0 && data.ringkasan.saldo_tabungan_umroh >= target.nominal;
 
   function salinLinkInvite() {
     navigator.clipboard.writeText(linkInvite).then(() => { setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 2000); });
-  }
-
-  // Diakses jamaah yang udah lama aktif buat cetak ulang, gak cuma pas
-  // funnel pendaftaran di /status-pendaftaran-sahabat (dikonfirmasi user
-  // 2026-09-28) — endpoint & isi PDF-nya sama persis.
-  async function unduhPdfDokumen() {
-    setGeneratingPdfSkCif(true);
-    try {
-      const res = await fetch('/api/sahabat/dokumen-legal/pdf-otomatis', { method: 'POST' });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        alert(d.error || 'Gagal membuat PDF');
-        setGeneratingPdfSkCif(false);
-        return;
-      }
-      const blob = await res.blob();
-      window.open(URL.createObjectURL(blob), '_blank');
-    } catch { alert('Terjadi kesalahan'); }
-    setGeneratingPdfSkCif(false);
   }
 
   return (
@@ -133,11 +166,105 @@ export default function DashboardSahabatPage() {
             <div className="font-bold mb-2">💡 Skema Ujroh Sahabat Baitullah</div>
             <div className="opacity-85">Ujroh 5-Generasi: Gen1 {fmtRp(skema.gen?.[0])} · Gen2 {fmtRp(skema.gen?.[1])} · Gen3 {fmtRp(skema.gen?.[2])} · Gen4 {fmtRp(skema.gen?.[3])} · Gen5 {fmtRp(skema.gen?.[4])}</div>
             <div className="opacity-85">Cair sekali per rekrutan yang jadi aktif — dibayar ke perekrut langsung (Gen1) sampai 5 tingkat ke atas rantai referral.</div>
-            <div className="opacity-85">Saldo Awal Pendaftaran: {fmtRp(skema.tabungan_awal)} · Closing Langsung (checkout diri sendiri): {skema.closing_persen}% dari harga booking</div>
+            <div className="opacity-85">Saldo Awal Pendaftaran: {fmtRp(skema.tabungan_awal)} · Closing Langsung (checkout diri sendiri): margin penuh (harga jual − HPP) ke Head of Program</div>
             {skema.is_hop && <div className="opacity-85">Komisi Head of Program: {fmtRp(skema.hop_nominal)} per registrasi baru</div>}
             <div className="mt-2 text-yellow-300">Terkonfirmasi = sudah di-ACC &amp; ditransfer manual ke Tabungan Umroh oleh admin.</div>
           </div>
         </div>
+
+        {/* Progress Tabungan vs Target Impian (dikonfirmasi user
+            2026-09-29) — jamaah pilih program eksklusif di awal
+            (daftar-sahabat), di sini dibandingin langsung saldo tabungan
+            umroh vs harga target itu. Begitu saldo udah cukup, muncul
+            tombol lanjut checkout ke program yang sama — kalau program
+            targetnya somehow dinonaktifkan admin, tombol diganti pesan
+            hubungi admin (bukan disembunyikan diam-diam). */}
+        {target && (
+          <div className="bg-white rounded-xl border-2 border-[#e0e8f0] p-4">
+            <div className="text-xs text-gray-400 mb-1">🎯 Progress Tabungan — {target.program_name || 'Target Impian'}</div>
+            <div className="flex items-end justify-between mb-2">
+              <div className="text-xl font-black text-[#0E2F6E]">{fmtRp(data.ringkasan.saldo_tabungan_umroh)}</div>
+              <div className="text-xs text-gray-400">dari target {fmtRp(target.nominal)}</div>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+              <div className={`h-full rounded-full transition-all ${targetTercapai ? 'bg-green-500' : 'bg-[#1A4FA0]'}`} style={{ width: `${persenTarget}%` }} />
+            </div>
+            <div className="text-[10px] text-gray-400 mt-1">{persenTarget}% tercapai</div>
+            {targetTercapai ? (
+              target.program_aktif ? (
+                <button onClick={() => router.push(`/program/${target.program_id}`)}
+                  className="mt-3 w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2.5 rounded-full">
+                  ✅ Saldo Cukup — Lanjutkan Checkout →
+                </button>
+              ) : (
+                <div className="text-xs text-yellow-600 mt-2">Saldo Anda sudah cukup, tapi program target ini sudah tidak aktif. Hubungi admin JM Travel untuk melanjutkan.</div>
+              )
+            ) : (
+              <div className="text-[10px] text-gray-400 mt-1">Kurang {fmtRp(Math.max(0, target.nominal - data.ringkasan.saldo_tabungan_umroh))} lagi menuju target.</div>
+            )}
+            {/* Ganti Target Impian — popup reminder+pilih program, LANGSUNG
+                ke /program/[id] pas "Lanjutkan" (dikonfirmasi user
+                2026-09-30, "jgn dibuat semudah itu" — bukan submit
+                instan dari sini). Alur ajukan beneran (baca S&K
+                scroll-gate + konfirmasi eksplisit) ada di halaman detail
+                program itu. Pembatalan JUGA wajib ACC admin, konsisten
+                sama filosofi fitur ini — gak ada yang instan sepihak. */}
+            {target.ganti_status === 'diajukan' ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700 mt-3">
+                <div className="mb-2">⏳ Menunggu ACC admin — pengajuan pindah ke <b>{target.ganti_program_name}</b>.</div>
+                <button onClick={batalkanPengajuan} disabled={pembatalanLoading}
+                  className="w-full text-[11px] font-bold text-red-600 bg-white border border-red-200 hover:bg-red-50 disabled:opacity-50 px-3 py-1.5 rounded-full">
+                  {pembatalanLoading ? 'Mengajukan...' : 'Batalkan Pengajuan'}
+                </button>
+              </div>
+            ) : target.ganti_status === 'pembatalan_diajukan' ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700 mt-3">
+                ⏳ Pembatalan sedang menunggu ACC admin — target sementara masih <b>{target.program_name}</b>.
+              </div>
+            ) : (
+              <button onClick={bukaGantiPopup}
+                className="mt-3 w-full text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d9e6f7] px-4 py-2 rounded-full">
+                🔄 Ganti Target Impian
+              </button>
+            )}
+          </div>
+        )}
+
+        {gantiPopupOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setGantiPopupOpen(false)}>
+            <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-start mb-3">
+                <div className="font-bold text-[#0E2F6E] text-lg">🎯 Ganti Target Impian</div>
+                <button onClick={() => setGantiPopupOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+              </div>
+              <div className="text-xs text-gray-500 bg-[#E8F0FB] rounded-lg p-3 mb-3">
+                Mengganti Target Impian akan menonaktifkan sementara program aktif Anda saat ini sampai disetujui admin. Pilih dulu program tujuannya di bawah — detail syarat & konfirmasi ada di halaman program tersebut.
+              </div>
+              {loadingProgramEksklusif ? (
+                <div className="text-center text-gray-400 text-sm py-6">Memuat...</div>
+              ) : programEksklusif.filter(p => p.id !== target?.program_id).length === 0 ? (
+                <div className="text-center text-gray-400 text-sm py-6">Belum ada program eksklusif lain yang aktif.</div>
+              ) : (
+                <div className="space-y-2 mb-4">
+                  {programEksklusif.filter(p => p.id !== target?.program_id).map(p => (
+                    <div key={p.id} onClick={() => setPilihanProgramId(p.id)}
+                      className={`flex items-center justify-between rounded-lg px-3 py-2.5 border-2 cursor-pointer transition-colors ${pilihanProgramId === p.id ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-100 bg-gray-50 hover:border-gray-200'}`}>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-[#0E2F6E] truncate">{p.name}</div>
+                        <div className="text-[10px] text-gray-400">{p.type} · {p.durasi} Hari</div>
+                      </div>
+                      <div className={`shrink-0 w-4 h-4 rounded-full border-2 ${pilihanProgramId === p.id ? 'border-[#1A4FA0] bg-[#1A4FA0]' : 'border-gray-300'}`} />
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={lanjutkanKeProgram} disabled={!pilihanProgramId}
+                className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold py-3 rounded-full transition-colors">
+                Lanjutkan →
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Forecast — potensi ujroh generasi yang BELUM cair, dari downline
             dalam jaringan (sampai gen5) yang masih dalam funnel pendaftaran.
@@ -201,14 +328,11 @@ export default function DashboardSahabatPage() {
           </div>
         )}
 
-        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
-          <div className="font-bold text-[#0E2F6E] mb-1">📄 SK-CIF & Surat Pemblokiran</div>
-          <div className="text-[10px] text-gray-400 mb-3">Butuh cetak ulang? Unduh PDF dengan identitas Anda sudah terisi otomatis.</div>
-          <button onClick={unduhPdfDokumen} disabled={generatingPdfSkCif}
-            className="bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-lg">
-            {generatingPdfSkCif ? 'Membuat PDF...' : 'Unduh PDF'}
-          </button>
-        </div>
+        {/* Kartu dokumen (Unduh PDF blanko + link scan yang sudah
+            ditandatangani) DIPINDAH ke Profil (dikonfirmasi user
+            2026-09-29) — dikonsolidasi 1 tempat, gak dobel lagi di sini.
+            Beranda fokus ke ujroh/aktivitas/target sesuai keputusan awal
+            2026-09-22. */}
 
         {skema.is_hop && (
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">

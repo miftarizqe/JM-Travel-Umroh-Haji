@@ -5,12 +5,19 @@ import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/vouche
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 
 // POST /api/sahabat/checkout-mandiri — checkout Program Sahabat Baitullah
-// (publish_type='sahabat_baitullah') buat DIRI SENDIRI. Beda dari /api/bookings biasa:
-// gak ada tahap DP terpisah — langsung diarahkan ke lunas, dibayar dari saldo
-// tabungan umroh (wajib dipakai duluan) + sisa pribadi via transfer manual
-// kalau saldo belum cukup (dikonfirmasi user 2026-08-29). Booking baru beneran
-// "paid" begitu KEDUA sumber dana (kalau ada) di-acc admin terpisah — lihat
-// cekDanFinalisasiLunasSahabat di src/lib/pembayaranSahabatMandiri.js.
+// (publish_type='sahabat_baitullah') buat DIRI SENDIRI. Beda dari
+// /api/bookings biasa: gak ada tahap DP terpisah — langsung diarahkan ke
+// lunas, dibayar SELURUHNYA dari saldo tabungan umroh (dikonfirmasi user
+// 2026-09-29 — bukan lagi mix saldo+transfer pribadi ke rekening PT
+// Alkhalid, itu keliru: kalau saldo dari ujroh belum cukup, jamaah nabung
+// sendiri ke rekening tabungan umroh MEREKA SENDIRI [no_rekening_tabungan_
+// umroh, hasil blokir BSI], admin cek mutasi & catat via
+// /api/admin/sahabat/setoran-mandiri — itu OTOMATIS nambah saldo_tabungan_
+// umroh yang dipakai di sini, bukan jalur pembayaran terpisah per-booking).
+// Checkout ditolak total kalau saldo belum cukup — TIDAK ADA lagi opsi
+// upload bukti transfer buat nutup selisihnya. Booking baru beneran "paid"
+// begitu pemakaian saldo di-acc admin — lihat cekDanFinalisasiLunasSahabat
+// di src/lib/pembayaranSahabatMandiri.js.
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -21,7 +28,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, bukti_path, bukti_nama, opsi_tambahan_ids } = body;
+    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, opsi_tambahan_ids } = body;
 
     const [progs] = await pool.query('SELECT * FROM programs WHERE id = ?', [prog_id]);
     const prog = progs[0];
@@ -45,10 +52,16 @@ export async function POST(request) {
       await conn.beginTransaction();
 
       // Saldo tersedia — jenis SAMA kayak /api/sahabat/dashboard, DITAMBAH
-      // pemakaian_saldo_sahabat biar pemakaian booking sebelumnya udah kepotong.
+      // pemakaian_saldo_sahabat biar pemakaian booking sebelumnya udah
+      // kepotong. 'setoran_mandiri_sahabat' SEMPAT ketinggalan dari daftar
+      // ini (bug ditemukan & diperbaiki 2026-09-29) — akibatnya setoran
+      // mandiri jamaah (nabung sendiri ke rekening tabungan umroh pribadi,
+      // dicatat admin via /api/admin/sahabat/setoran-mandiri) kehitung di
+      // dashboard tapi TIDAK kehitung di sini pas checkout, jadi jamaah
+      // dikira kurang saldo padahal sebenarnya udah cukup.
       const [saldoRows] = await conn.query(
         `SELECT nominal FROM komisi_ledger WHERE penerima_id = ? AND dikonfirmasi_at IS NOT NULL
-         AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','koreksi_saldo_sahabat')`,
+         AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
         [auth.user.id]
       );
       const saldoTersedia = Math.max(0, saldoRows.reduce((s, r) => s + Number(r.nominal || 0), 0));
@@ -63,12 +76,18 @@ export async function POST(request) {
       });
 
       const totalHarga = hasil.totalHarga;
-      const saldoDipakai = Math.min(saldoTersedia, totalHarga);
-      const sisaPribadi = totalHarga - saldoDipakai;
-
-      if (sisaPribadi > 0 && !bukti_path) {
-        throw Object.assign(new Error('Saldo tabungan belum cukup — bukti transfer buat sisa pembayaran wajib diunggah.'), { status: 400 });
+      // Wajib ditutup PENUH dari saldo tabungan umroh — TIDAK ADA lagi
+      // opsi transfer pribadi buat nutup selisih (dikonfirmasi user
+      // 2026-09-29). Kalau saldo dari ujroh belum cukup, jamaah nabung
+      // sendiri ke rekening tabungan umrohnya sendiri dulu (admin catat via
+      // setoran-mandiri, otomatis nambah saldoTersedia), baru checkout lagi.
+      if (saldoTersedia < totalHarga) {
+        throw Object.assign(new Error(
+          `Saldo tabungan umroh Anda belum cukup (tersedia Rp${saldoTersedia.toLocaleString('id-ID')} dari Rp${totalHarga.toLocaleString('id-ID')}). ` +
+          'Tambah saldo dengan menabung ke rekening tabungan umroh Anda sendiri, lalu tunggu admin memperbarui saldo Anda sebelum checkout lagi.'
+        ), { status: 400 });
       }
+      const saldoDipakai = totalHarga;
 
       if (saldoDipakai > 0) {
         await conn.query(
@@ -78,18 +97,11 @@ export async function POST(request) {
         );
       }
 
-      if (sisaPribadi > 0) {
-        await conn.query(
-          `INSERT INTO payments (booking_id, user_id, nama, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status)
-           VALUES (?, ?, ?, 'lunas', ?, 0, ?, ?, NOW(), 'pending')`,
-          [hasil.bookingId, auth.user.id, auth.user.name, sisaPribadi, bukti_path, bukti_nama || null]
-        );
-      }
-
       // buatSatuBooking otomatis nyimpen 1 baris payments type='dp' (nominal
       // dpAmount) — gak relevan di jalur ini (gak ada tahap DP terpisah,
-      // total_harga PENUH direpresentasiin baris 'lunas' di atas). Nol-in
-      // nominalnya (bukan cuma confirm) biar gak KEDOBEL kehitung di
+      // total_harga PENUH dilunasi dari saldo di atas, gak ada baris
+      // payments 'lunas' lagi sama sekali sejak transfer-pribadi dicabut).
+      // Nol-in nominalnya (bukan cuma confirm) biar gak KEDOBEL kehitung di
       // generateOrUpdateKwitansi (yang jumlahin payments dp+lunas confirmed).
       await conn.query("UPDATE payments SET status = 'confirmed', amount = 0 WHERE booking_id = ? AND type = 'dp'", [hasil.bookingId]);
 
@@ -119,7 +131,6 @@ export async function POST(request) {
         booking_id: hasil.bookingId,
         total_harga: totalHarga,
         saldo_dipakai: saldoDipakai,
-        sisa_pribadi: sisaPribadi,
       }, { status: 201 });
     } catch (err) {
       await conn.rollback();

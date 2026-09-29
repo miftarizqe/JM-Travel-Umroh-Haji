@@ -427,6 +427,8 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '🕌', label: 'Sahabat Baitullah', children: [
         { icon: '🪪', label: 'Pendaftaran', path: '/admin/sahabat' },
         { icon: '💰', label: 'Database Jamaah', path: '/admin/sahabat/database' },
+        { icon: '🎯', label: 'Pengajuan Ganti Target', path: '/admin/sahabat/ganti-target' },
+        { icon: '💵', label: 'Pengajuan Setoran Mandiri', path: '/admin/sahabat/setoran-mandiri-pengajuan' },
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/sahabat/pencairan' },
         { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },

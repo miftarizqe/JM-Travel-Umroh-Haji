@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
-import SearchableSelect from '@/app/components/SearchableSelect';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
 
@@ -132,20 +131,16 @@ export default function PengaturanKomisiSahabatBaitullahPage() {
         </div>
         <div className="mb-3">
           <label className="block text-xs font-semibold text-gray-500 mb-1">Akun Head of Program</label>
-          {isHop ? (
-            <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">{namaHop}</div>
-          ) : (
-            <SearchableSelect
-              value={sahabat.hopUserId}
-              onChange={v => setSahabat(s => ({ ...s, hopUserId: v }))}
-              placeholder="Ketik buat cari nama Jamaah Sahabat Baitullah..."
-              options={adminList.map(a => ({ value: a.id, label: `${a.name} (${a.kode_unik || '-'})` }))}
-            />
-          )}
-          {/* WAJIB akun role sahabat_baitullah aktif (dikonfirmasi user
-              2026-09-07, dulu wajib akun staff admin) — daftarnya dari
-              /api/admin/sahabat/admins yang query-nya udah disesuaikan. */}
-          <div className="text-[10px] text-gray-400 mt-1">Wajib akun Jamaah Sahabat Baitullah aktif (bukan staff). Dapat komisi 2x: tiap ada jemaah baru aktif (nominal di atas), DAN dari closing langsung (persen checkout diri sendiri & nominal fix closing-in jamaah lain, dua-duanya diatur per-program di Costing Program). Sebagai HOP, dia juga bisa lihat SELURUH jaringan Sahabat Baitullah dari dashboard akunnya sendiri (bukan cuma downline dia).</div>
+          {/* SELALU read-only, gak ada picker (dikonfirmasi user 2026-09-30
+              — "gamu milih lagi", akun HOP udah ditentukan dari awal & cuma
+              1 orang, dibuatkan langsung, bukan lewat pendaftaran biasa).
+              Sebelumnya super_admin bisa ganti lewat SearchableSelect,
+              sekarang dicabut total — kalau akun HOP beneran perlu diganti
+              suatu saat (jarang & disengaja), itu tindakan terpisah, bukan
+              dropdown biasa di halaman ini. head_of_program_user_id juga
+              gak diikutkan lagi di payload Simpan di bawah. */}
+          <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">{namaHop}</div>
+          <div className="text-[10px] text-gray-400 mt-1">Wajib akun Jamaah Sahabat Baitullah aktif (bukan staff). Dapat komisi 2x: tiap ada jemaah baru aktif (nominal di atas), DAN dari closing langsung (checkout diri sendiri = margin penuh harga jual dikurangi HPP, otomatis; closing-in jamaah lain = nominal fix, diatur per-program di Costing Program). Sebagai HOP, dia juga bisa lihat SELURUH jaringan Sahabat Baitullah dari dashboard akunnya sendiri (bukan cuma downline dia).</div>
         </div>
         {!isHop && (
           <button onClick={() => setKonfirmasi('sahabat')}
@@ -158,11 +153,6 @@ export default function PengaturanKomisiSahabatBaitullahPage() {
         )}
       </div>
 
-      {/* Card "Closing Langsung" (persen checkout diri sendiri) DIHAPUS dari
-          sini (dikonfirmasi user 2026-09-06) — pindah jadi field per-program
-          di Costing Program (admin/programs), publish_type='sahabat_baitullah',
-          mirror nominal fix Head of Program yang udah pindah duluan. */}
-
       {konfirmasi === 'sahabat' && (
         <ModalKonfirmasi
           judul="Ujroh 5 Generasi & Head of Program"
@@ -172,7 +162,6 @@ export default function PengaturanKomisiSahabatBaitullahPage() {
             sahabat_gen1_nominal: sahabat.gen1, sahabat_gen2_nominal: sahabat.gen2, sahabat_gen3_nominal: sahabat.gen3,
             sahabat_gen4_nominal: sahabat.gen4, sahabat_gen5_nominal: sahabat.gen5,
             sahabat_tabungan_awal_nominal: sahabat.tabunganAwal, sahabat_head_of_program_nominal: sahabat.hopNominal,
-            head_of_program_user_id: sahabat.hopUserId || null,
           })}
           ringkasan={
             <>

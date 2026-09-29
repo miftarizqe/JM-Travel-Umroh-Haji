@@ -24,6 +24,22 @@ const DOC_LIST = [
   { key: 'doc_foto', jenis: 'foto', label: 'Pas Foto' },
 ];
 
+// Ambang 6 bulan — aturan umum imigrasi/maskapai (paspor wajib berlaku
+// minimal 6 bulan dari keberangkatan), dipakai sebagai pengingat generik di
+// sini (dikonfirmasi user 2026-09-29, berlaku SEMUA jamaah lewat form
+// bersama ini, bukan cuma Sahabat Baitullah — form-jamaah memang sudah
+// dipakai semua role). Gak menghalangi submit (paspor tetap opsional di
+// formulir ini, konsisten sama kebijakan yang sudah ada), cuma pengingat
+// visual buat jamaah cek ulang & unggah scan terbaru kalau memang berubah.
+const AMBANG_KADALUARSA_HARI = 180;
+function statusMasaBerlakuPaspor(expPaspor) {
+  if (!expPaspor) return null;
+  const sisaHari = Math.floor((new Date(expPaspor) - new Date()) / 86400000);
+  if (sisaHari < 0) return 'expired';
+  if (sisaHari <= AMBANG_KADALUARSA_HARI) return 'segera';
+  return null;
+}
+
 function hitungUmur(tgl) {
   if (!tgl) return null;
   const lahir = new Date(tgl);
@@ -128,6 +144,7 @@ function FormJamaahPageInner() {
   const j = jamaahList[currentJ] || emptyJamaah();
   const umur = hitungUmur(j.ttl);
   const nikAktif = umur !== null && umur > 17;
+  const statusPaspor = statusMasaBerlakuPaspor(j.exp_paspor);
 
   // Exact-match doang (dipicu pas paspor/NIK selesai diisi) — bukan search
   // bebas, biar gak ada cara ngintip data orang cuma dari coba-coba nomor.
@@ -425,6 +442,13 @@ function FormJamaahPageInner() {
                   <input type="date" value={j.exp_paspor} onChange={e => { if (e.target.value) setField('exp_paspor', e.target.value); }} className={inp}/>
                 </div>
               </div>
+              {statusPaspor && (
+                <div className={`mt-2 rounded-lg p-3 text-xs ${statusPaspor === 'expired' ? 'bg-red-50 border border-red-200 text-red-700' : 'bg-yellow-50 border border-yellow-200 text-yellow-700'}`}>
+                  {statusPaspor === 'expired'
+                    ? '⚠️ Paspor ini sudah kadaluarsa. Mohon perbarui tanggal di atas dan unggah scan paspor terbaru di bagian Dokumen Pendukung di bawah.'
+                    : '⚠️ Paspor ini akan kadaluarsa dalam waktu dekat (kurang dari 6 bulan) — umumnya wajib berlaku minimal 6 bulan dari keberangkatan. Kalau sudah perpanjang, perbarui tanggal di atas dan unggah scan terbaru. Kalau belum ada perubahan, data ini tetap bisa dipakai dulu.'}
+                </div>
+              )}
             </div>
 
             <div>
@@ -569,11 +593,15 @@ function FormJamaahPageInner() {
               <div className="text-xs text-gray-400 mt-0.5">Opsional — boleh diunggah di sini sekarang, atau dikirim menyusul via WhatsApp admin.</div>
             </div>
             <div className="space-y-2">
-              {DOC_LIST.map(doc => (
-                <div key={doc.key} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg px-3 py-2.5">
+              {DOC_LIST.map(doc => {
+                const perluUpdatePaspor = doc.key === 'doc_paspor' && statusPaspor;
+                return (
+                <div key={doc.key} className={`flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 ${perluUpdatePaspor ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50'}`}>
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-gray-700">{doc.label}</div>
-                    {j[doc.key] ? (
+                    {perluUpdatePaspor ? (
+                      <div className="text-xs text-yellow-700">⚠️ Perlu diperbarui (masa berlaku hampir/sudah habis)</div>
+                    ) : j[doc.key] ? (
                       <a href={j[doc.key]} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 font-semibold hover:underline">✅ Terunggah — lihat file</a>
                     ) : (
                       <div className="text-xs text-gray-400">Belum diunggah</div>
@@ -585,7 +613,8 @@ function FormJamaahPageInner() {
                       onChange={e => uploadDoc(doc.key, doc.jenis, e.target.files?.[0])}/>
                   </label>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

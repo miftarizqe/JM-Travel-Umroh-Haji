@@ -53,6 +53,7 @@ const DOKUMEN_LIST = [
   { key: 'spk_ak_nonis', label: '🔒 Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
   { key: 'sk_cif', label: '🔒 SK-CIF (Sahabat Baitullah)' },
   { key: 'surat_pemblokiran', label: '🔒 Surat Pemblokiran Rekening (Sahabat Baitullah)' },
+  { key: 'ganti_target_sahabat', label: 'S&K Ganti Target Impian (Sahabat Baitullah)' },
 ];
 
 // Dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
@@ -78,6 +79,7 @@ const DOKUMEN_JUDUL = {
   spk_ak_nonis: { judul: ['SURAT PERJANJIAN REFERRAL NON-MUSLIM', 'PROGRAM SAHABAT BAITULLAH'], nomor: '09.0001/JMT.JSB-NM.IX/2026' },
   sk_cif: { judul: ['SURAT KUASA', 'KERJASAMA MULTI CIF', 'PADA LAYANAN BSI CASH MANAGEMENT'], nomor: '09.0001/JMT.SK-CIF.IX/2026' },
   surat_pemblokiran: { judul: ['SURAT PERNYATAAN', 'KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN'], nomor: '09.0001/JMT.SURAT-PEMBLOKIRAN.IX/2026' },
+  ganti_target_sahabat: { judul: ['SYARAT & KETENTUAN', 'GANTI TARGET IMPIAN'], nomor: '-' },
 };
 
 // Contoh data buat preview — angka/nama cuma dummy, gak pernah disimpan.

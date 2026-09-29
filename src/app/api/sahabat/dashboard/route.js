@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibPemilikAtauAdmin } from '@/lib/auth';
+import { groupJamaahAktif } from '@/lib/jamaahHarga';
 
 // GET /api/sahabat/dashboard?sahabat_id=xxx
 // Jauh lebih simpel dari dashboard perwakilan — sahabat gak punya
@@ -45,14 +46,46 @@ export async function GET(request) {
       `SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'tunggal' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
       [dokumenSpkAk, sahabatId]
     );
+    // surat_pemblokiran diikutkan (dikonfirmasi user 2026-09-29) — dulu
+    // cuma sk_cif/spk_ak, sekarang beranda juga nampilin link dokumen
+    // YANG SUDAH DITANDATANGANI (scan fisik) kalau sudah diunggah, bukan
+    // cuma tombol "Unduh PDF" blanko-otomatis buat cetak ulang.
     const [[dokUser]] = await pool.query(
-      'SELECT dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path FROM users WHERE id = ?',
+      'SELECT dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path, dokumen_surat_pemblokiran_fisik_path FROM users WHERE id = ?',
       [sahabatId]
     );
     const dokumen = {
       spk_ak: sigSpkAk?.pdf_final_path || dokUser.dokumen_spk_ak_fisik_path || null,
       sk_cif: dokUser.dokumen_sk_cif_fisik_path || null,
+      surat_pemblokiran: dokUser.dokumen_surat_pemblokiran_fisik_path || null,
     };
+
+    // Target Impian (program eksklusif yang dipilih di wizard daftar-sahabat)
+    // — dipakai FE buat kartu "Progress Tabungan" (dikonfirmasi user
+    // 2026-09-29): bandingin saldo_tabungan_umroh vs target_estimasi_harga,
+    // munculin tombol lanjut checkout begitu saldo udah cukup. `aktif`
+    // diikutkan biar FE bisa kasih tau kalau programnya somehow
+    // dinonaktifkan admin sesudah dipilih (bukan disembunyikan diam-diam).
+    // ganti_status/ganti_program_name diikutkan juga — tombol "Ganti Target
+    // Impian" & badge "Menunggu ACC Admin" sekarang di Beranda (dipindah
+    // dari Profil, dikonfirmasi user 2026-09-29), dibarengin kartu ini.
+    const [[targetRow]] = await pool.query(
+      `SELECT sp.program_id, sp.target_estimasi_harga, p.name AS program_name, p.active AS program_aktif,
+              sp.target_ganti_status, pg.name AS target_ganti_program_name
+       FROM sahabat_pendaftaran sp
+       LEFT JOIN programs p ON p.id = sp.program_id
+       LEFT JOIN programs pg ON pg.id = sp.target_ganti_program_id
+       WHERE sp.user_id = ? ORDER BY sp.id DESC LIMIT 1`,
+      [sahabatId]
+    );
+    const target = targetRow?.program_id ? {
+      program_id: targetRow.program_id,
+      program_name: targetRow.program_name,
+      program_aktif: !!targetRow.program_aktif,
+      nominal: Number(targetRow.target_estimasi_harga || 0),
+      ganti_status: targetRow.target_ganti_status || null,
+      ganti_program_name: targetRow.target_ganti_program_name || null,
+    } : null;
 
     // Rekrutan langsung — SEMUA role (jamaah biasa yang cuma nabung, ATAU
     // yang lanjut jadi sahabat juga) selama perekrut_id-nya akun ini,
@@ -119,14 +152,16 @@ export async function GET(request) {
     const rincianPending = rekapJenis(pendingRows);
 
     // Skema ujroh aktif — nominal per generasi + tabungan awal + komisi HoP
-    // + persen closing self-checkout, diambil live dari `pengaturan` (bukan
-    // di-hardcode) biar kartu penjelasan di dashboard selalu sinkron sama
-    // yang beneran dipakai backend saat cascade jalan (lihat
-    // /api/status-pendaftaran-sahabat & src/lib/closing.js).
+    // + nominal HOP closing-in jamaah lain, diambil live dari `pengaturan`
+    // (bukan di-hardcode) biar kartu penjelasan di dashboard selalu sinkron
+    // sama yang beneran dipakai backend saat cascade jalan (lihat
+    // /api/status-pendaftaran-sahabat & src/lib/closing.js). Self-checkout
+    // sekarang margin murni (harga jual − HPP, dihitung per-booking, bukan
+    // persen global) — komisi_sahabat_closing_persen gak dipakai lagi.
     const [[pengaturan]] = await pool.query(
       `SELECT sahabat_gen1_nominal, sahabat_gen2_nominal, sahabat_gen3_nominal, sahabat_gen4_nominal, sahabat_gen5_nominal,
               sahabat_tabungan_awal_nominal, sahabat_head_of_program_nominal, head_of_program_user_id,
-              komisi_sahabat_closing_persen, sahabat_closing_langsung_hop_nominal
+              sahabat_closing_langsung_hop_nominal
        FROM pengaturan WHERE id = 1`
     );
     const genNominal = [
@@ -183,11 +218,17 @@ export async function GET(request) {
     // closing_langsung_sahabat / referral_closing_reguler_sahabat begitu
     // bookingnya kelar. Estimasi nominal SAMA PERSIS logic asli di
     // prosesBookingSelesai (src/lib/closing.js) — cuma gak nyatet apa-apa,
-    // murni proyeksi read-only.
+    // murni proyeksi read-only. Self-checkout HOP MARGIN MURNI (harga jual −
+    // HPP), dikoreksi 2026-09-30 (dulu persen dari harga, gak nyerminin
+    // margin beneran — lihat catatan lengkap di closing.js).
     const isSelfCheckoutHop = isHop; // akun ini sendiri HOP = closing self-checkout siapa pun teratribusi ke dia
     const [bookingLangsungAktif] = await pool.query(
       `SELECT b.id, b.prog_name, b.jumlah_jamaah, b.total_harga, b.status, b.referral_sahabat_id,
-              p.sahabat_closing_nominal_closer, u.name AS pemesan_nama
+              b.jamaah_data, b.paket, b.kamar,
+              p.sahabat_closing_nominal_closer, u.name AS pemesan_nama,
+              p.hpp_deluxe_quad, p.hpp_deluxe_triple, p.hpp_deluxe_double,
+              p.hpp_eksekutif_quad, p.hpp_eksekutif_triple, p.hpp_eksekutif_double,
+              p.hpp_signature_quad, p.hpp_signature_triple, p.hpp_signature_double
        FROM bookings b
        LEFT JOIN programs p ON p.id = b.prog_id
        LEFT JOIN users u ON u.id = b.user_id
@@ -195,9 +236,17 @@ export async function GET(request) {
       [sahabatId]
     );
     const forecastClosingLangsung = bookingLangsungAktif.map(b => {
-      const potensi = isSelfCheckoutHop
-        ? Math.round((b.total_harga || 0) * Number(pengaturan?.komisi_sahabat_closing_persen || 0) / 100)
-        : Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
+      let potensi;
+      if (isSelfCheckoutHop) {
+        let hppTotal = 0;
+        for (const g of groupJamaahAktif(b)) {
+          const paketG = String(g.paket || 'deluxe').toLowerCase();
+          hppTotal += Number(b[`hpp_${paketG}_${g.kamarKey}`] || 0) * g.count;
+        }
+        potensi = (b.total_harga || 0) - hppTotal;
+      } else {
+        potensi = Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
+      }
       return { id: b.id, prog_name: b.prog_name, jumlah_jamaah: b.jumlah_jamaah, pemesan_nama: b.pemesan_nama, status: b.status, jenis: 'closing_langsung_sahabat', potensi_nominal: potensi };
     });
 
@@ -273,6 +322,7 @@ export async function GET(request) {
       akun,
       voucher,
       dokumen,
+      target,
       ringkasan: {
         jumlah_rekrutan: rekrutan.length,
         saldo_pending: saldoPending,
@@ -285,7 +335,6 @@ export async function GET(request) {
         gen: genNominal,
         tabungan_awal: Number(pengaturan?.sahabat_tabungan_awal_nominal || 0),
         hop_nominal: Number(pengaturan?.sahabat_head_of_program_nominal || 0),
-        closing_persen: Number(pengaturan?.komisi_sahabat_closing_persen || 0),
         closing_hop_nominal: Number(pengaturan?.sahabat_closing_langsung_hop_nominal || 0),
         is_hop: isHop,
       },

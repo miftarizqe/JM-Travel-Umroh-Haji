@@ -14,7 +14,7 @@ export default function AdminMateriSahabatPage() {
   const [loading, setLoading] = useState(true);
   const [judul, setJudul] = useState('');
   const [deskripsi, setDeskripsi] = useState('');
-  const [files, setFiles] = useState(null);
+  const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [previewMateri, setPreviewMateri] = useState(null);
 
@@ -36,17 +36,18 @@ export default function AdminMateriSahabatPage() {
 
   async function upload() {
     if (!judul.trim()) { alert('Judul wajib diisi!'); return; }
-    if (!files || files.length === 0) { alert('Pilih minimal 1 gambar slide!'); return; }
+    if (!file) { alert('Pilih file PDF materi dulu!'); return; }
     setUploading(true);
     try {
       const fd = new FormData();
       fd.append('judul', judul.trim());
       if (deskripsi.trim()) fd.append('deskripsi', deskripsi.trim());
-      Array.from(files).forEach(f => fd.append('slides', f));
+      fd.append('file', file);
       const res = await fetch('/api/admin/sahabat/materi', { method: 'POST', body: fd });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal mengunggah'); return; }
-      setJudul(''); setDeskripsi(''); setFiles(null);
+      alert(d.message);
+      setJudul(''); setDeskripsi(''); setFile(null);
       muatData();
     } catch { alert('Terjadi kesalahan saat mengunggah'); }
     setUploading(false);
@@ -71,8 +72,8 @@ export default function AdminMateriSahabatPage() {
       <div className="max-w-2xl mx-auto space-y-4">
         <div className="bg-[#E8F0FB] text-[#0E2F6E] text-xs rounded-xl p-3">
           Bahan presentasi yang diunggah di sini bisa dilihat oleh semua anggota Sahabat Baitullah aktif, tapi <b>tidak bisa diunduh</b> —
-          hanya tampil sebagai slide di aplikasi mereka, lengkap dengan watermark nama & kode akun peninjau. Upload slide dalam bentuk gambar
-          (export dari PPT/PDF ke JPG/PNG dulu), urutan file yang dipilih jadi urutan tampil slide-nya.
+          hanya tampil sebagai slide di aplikasi mereka, lengkap dengan watermark nama & kode akun peninjau. Unggah 1 file PDF utuh (langsung
+          export dari PPT/Canva/dst), server otomatis memecahnya jadi slide sesuai urutan halaman PDF-nya.
         </div>
 
         {!isHop && (
@@ -83,11 +84,28 @@ export default function AdminMateriSahabatPage() {
                 className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
               <textarea value={deskripsi} onChange={e => setDeskripsi(e.target.value)} placeholder="Deskripsi singkat (opsional)" rows={2}
                 className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
-              <input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={e => setFiles(e.target.files)}
-                className="w-full text-xs" />
+              {/* Tombol file besar & jelas (dikonfirmasi user 2026-09-29 —
+                  sebelumnya cuma <input type="file"> polos, keliatan kayak
+                  teks biasa dibanding tombol "Unggah Materi" di bawahnya
+                  yang gede). Pola sama persis FieldUploadScan di
+                  status-pendaftaran-sahabat/page.jsx. */}
+              <label className="flex items-center justify-between gap-2 border-2 border-dashed border-gray-200 hover:border-[#1A4FA0] rounded-lg p-3 cursor-pointer transition-colors">
+                <div className="min-w-0 text-xs">
+                  <div className="font-semibold text-gray-600">📄 File PDF Materi</div>
+                  {file ? (
+                    <div className="text-[#1A4FA0] truncate">{file.name}</div>
+                  ) : (
+                    <span className="text-gray-400">Belum ada file dipilih (maks. 100MB)</span>
+                  )}
+                </div>
+                <span className="shrink-0 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+                  {file ? 'Ganti' : 'Pilih File'}
+                </span>
+                <input type="file" accept="application/pdf" onChange={e => setFile(e.target.files?.[0] || null)} className="hidden" />
+              </label>
               <button onClick={upload} disabled={uploading}
                 className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-sm font-bold py-2.5 rounded-full">
-                {uploading ? 'Mengunggah...' : 'Unggah Materi'}
+                {uploading ? 'Mengunggah & Memproses PDF...' : 'Unggah Materi'}
               </button>
             </div>
           </div>

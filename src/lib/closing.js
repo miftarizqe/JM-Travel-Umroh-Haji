@@ -270,10 +270,15 @@ export async function prosesBookingSelesai(bookingId, actor) {
     // (lihat src/lib/booking.js — self-checkout auto-atribusi ke Head of
     // Program, closing buat orang lain nyimpen id closer aslinya):
     //  - Checkout diri sendiri (referral_sahabat_id === head_of_program_user_id):
-    //    persen dari harga booking (pengaturan.komisi_sahabat_closing_persen,
-    //    global — dikonfirmasi user 2026-09-06 TETAP global, gak per-program,
-    //    beda dari skenario closing jamaah lain di bawah), 100% ke Head of
-    //    Program.
+    //    MARGIN MURNI (harga jual dikurangi HPP), 100% ke Head of Program —
+    //    PERSIS pola ujrohSendiri milik perwakilan di atas (dikoreksi
+    //    2026-09-30, sebelumnya pakai persen dari total_harga
+    //    (pengaturan.komisi_sahabat_closing_persen) yang SALAH — gak
+    //    nyerminin margin beneran, ketauan dari kasus nyata: HPP 34jt/jual
+    //    37jt/voucher 1jt seharusnya margin 2jt yang masuk HOP, bukan
+    //    persen-dari-harga yang gak ada hubungannya sama HPP sama sekali).
+    //    Kolom komisi_sahabat_closing_persen DIBIARKAN di DB (gak dipakai
+    //    lagi lewat sini), sama pola kayak komisi_sahabat_nominal yang lama.
     //  - Closing buat jamaah LAIN yang booking program PUBLIK (bukan jadi
     //    gabung Sahabat Baitullah — skenario ini SENGAJA cuma relevan buat
     //    publish_type='public', dikonfirmasi user 2026-09-06, program
@@ -290,7 +295,7 @@ export async function prosesBookingSelesai(bookingId, actor) {
     //    belum diisi (program lama pra-fitur ini).
     if (b.referral_sahabat_id) {
       const [[pengaturanSahabat]] = await conn.query(
-        'SELECT komisi_sahabat_closing_persen, sahabat_closing_langsung_hop_nominal, head_of_program_user_id FROM pengaturan WHERE id = 1'
+        'SELECT sahabat_closing_langsung_hop_nominal, head_of_program_user_id FROM pengaturan WHERE id = 1'
       );
       const sahabatMember = await getUser(conn, b.referral_sahabat_id);
       const isSelfCheckout = pengaturanSahabat?.head_of_program_user_id
@@ -304,10 +309,14 @@ export async function prosesBookingSelesai(bookingId, actor) {
       const labelAtasNama = `atas nama ${jamaahBooking?.name || '-'} (No. Akun: ${jamaahBooking?.kode_unik || '-'}, Booking #${bookingId})`;
 
       if (isSelfCheckout) {
-        const persen = Number(pengaturanSahabat?.komisi_sahabat_closing_persen || 0);
-        const poolClosingLangsung = Math.round((b.total_harga || 0) * persen / 100);
-        const tercatat = await catat(conn, bookingId, sahabatMember, 'closing_langsung_sahabat', poolClosingLangsung, jml, paket,
-          `Closing Langsung — ${labelAtasNama} — ${b.prog_name}`);
+        let hppTotalSendiri = 0;
+        for (const g of groupJamaahAktif(b)) {
+          const paketG = String(g.paket || 'deluxe').toLowerCase();
+          hppTotalSendiri += Number(b[`hpp_${paketG}_${g.kamarKey}`] || 0) * g.count;
+        }
+        const marginHop = (b.total_harga || 0) - hppTotalSendiri;
+        const tercatat = await catat(conn, bookingId, sahabatMember, 'closing_langsung_sahabat', marginHop, jml, paket,
+          `Closing Langsung (margin) — ${labelAtasNama} — ${b.prog_name}`);
         if (tercatat > 0) {
           rincian.push({ penerima: sahabatMember.name, id: sahabatMember.id, role: sahabatMember.role, jenis: 'closing_langsung_sahabat', nominal: tercatat });
         }
