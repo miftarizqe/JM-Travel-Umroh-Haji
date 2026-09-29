@@ -44,8 +44,15 @@ export async function GET(request) {
     if (users.length === 0) return Response.json({ error: 'User tidak ditemukan' }, { status: 404 });
     const u = users[0];
 
+    // tanggal_berangkat program target diikutkan (dikonfirmasi user
+    // 2026-09-29) — dipakai FE buat pratinjau langsung berapa hari jangka
+    // waktu blokir bakal jadi begitu jamaah pilih "Tanggal Mulai Blokir"
+    // (dihitung otomatis sampai keberangkatan, lihat
+    // /api/sahabat/blokir-rekening — bukan fix 90 hari lagi).
     const [kp] = await pool.query(
-      'SELECT * FROM sahabat_pendaftaran WHERE user_id = ? ORDER BY id DESC LIMIT 1',
+      `SELECT sp.*, p.tanggal_berangkat
+       FROM sahabat_pendaftaran sp LEFT JOIN programs p ON p.id = sp.program_id
+       WHERE sp.user_id = ? ORDER BY sp.id DESC LIMIT 1`,
       [auth.user.id]
     );
     const pendaftaran = kp[0] || null;

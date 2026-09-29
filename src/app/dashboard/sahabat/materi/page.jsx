@@ -15,13 +15,40 @@ export default function MateriSahabatPage() {
   useEffect(() => {
     if (!user) return;
     if (user.role !== 'sahabat_baitullah') { router.push('/dashboard/jamaah'); return; }
-    if (user.status !== 'active') { router.push('/status-pendaftaran-sahabat'); return; }
+    if (user.status !== 'active') return; // belum aktif — gak perlu fetch materi, lihat cabang render di bawah
     fetch('/api/sahabat/materi').then(r => r.json())
       .then(d => { setMateri(d.materi || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [user]);
 
-  if (!user || loading) return <Layout title="🎞️ Materi Presentasi" showBack><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
+  if (!user) return <Layout title="🎞️ Materi Presentasi" showBack><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
+
+  // Menu tetap tampil di sidebar buat semua akun sahabat_baitullah
+  // (dikonfirmasi user 2026-09-29 — sebelumnya disembunyikan pas belum
+  // aktif, ternyata user lebih suka menunya tetap ada tapi kasih tau
+  // alasannya di sini, bukan langsung dilempar ke halaman lain).
+  if (user.status !== 'active') {
+    return (
+      <Layout title="🎞️ Materi Presentasi" showBack>
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
+            <div className="text-3xl mb-2">🔒</div>
+            <h4 className="font-bold text-yellow-800 mb-1">Belum Bisa Diakses</h4>
+            <p className="text-sm text-yellow-700 mt-1">
+              Materi Presentasi cuma bisa dilihat setelah akun Sahabat Baitullah Anda aktif.
+              Selesaikan dulu pendaftarannya, ya.
+            </p>
+            <button onClick={() => router.push('/status-pendaftaran-sahabat')}
+              className="mt-3 bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">
+              Lihat Status Pendaftaran →
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (loading) return <Layout title="🎞️ Materi Presentasi" showBack><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
 
   return (
     <Layout title="🎞️ Materi Presentasi" showBack>

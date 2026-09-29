@@ -20,10 +20,10 @@ const P1 = {
   noRekening:      { x: 210, y: 556, maxWidth: 350 },
   namaRekening:    { x: 210, y: 543, maxWidth: 350 },
   // Poin 1: "...BLOKIR SALDO rekening saya sejumlah Rp_____________,-"
-  nominalBlokir1:  { x: 399, y: 488, maxWidth: 74 },
+  nominalBlokir1:  { x: 399, y: 488, maxWidth: 80 },
   // Poin 1 lanjutan: "Selama jangka waktu __________ hari, terhitung dari tanggal________________dengan tujuan"
-  jangkaWaktuHari: { x: 170, y: 474, maxWidth: 55 },
-  tanggalMulai:    { x: 368, y: 474, maxWidth: 82 },
+  jangkaWaktuHari: { x: 166, y: 474, maxWidth: 66, indent: 4 },
+  tanggalMulai:    { x: 358, y: 474, maxWidth: 98, indent: 4 },
   // Poin 2: "...sejumlah dana/uang sebesar Rp____________,- ada di rekening..." — nominal SAMA dengan poin 1.
   nominalBlokir2:  { x: 166, y: 419, maxWidth: 71 },
 };

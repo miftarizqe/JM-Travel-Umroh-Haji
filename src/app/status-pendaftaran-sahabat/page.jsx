@@ -3,9 +3,49 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
-import { usePengaturan } from '@/lib/usePengaturan';
+import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { renderPasalBlock, SignatureBlokBank, SignatureBlokKuasa, KopPasalDokumen, FONT_DOKUMEN, UKURAN_DOKUMEN } from '@/lib/pasalMarkup';
-import UploadScanDokumen from '@/app/components/UploadScanDokumen';
+
+// Field upload scan dokumen fisik — dipisah dari UploadScanDokumen (komponen
+// bersama, dipakai halaman lain juga) biar gaya tampilannya bisa beda
+// khusus di sini (dikonfirmasi tim desain 2026-09-29: field polos + nama
+// file, BUKAN lagi badge yang nyelip di antara 2 halaman cetak surat).
+function FieldUploadScan({ label, uploadUrl, userId, path: filePath, extraFields, onUploaded }) {
+  const [uploading, setUploading] = useState(false);
+  async function pilihFile(file) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('user_id', userId);
+      Object.entries(extraFields || {}).forEach(([k, v]) => fd.append(k, v));
+      const res = await fetch(uploadUrl, { method: 'POST', body: fd });
+      const d = await res.json();
+      if (res.ok) onUploaded(d.path);
+      else alert(d.error || 'Gagal mengunggah dokumen');
+    } catch { alert('Terjadi kesalahan saat mengunggah'); }
+    setUploading(false);
+  }
+  const namaFile = filePath ? decodeURIComponent(filePath.split('/').pop()) : null;
+  return (
+    <div className="flex items-center gap-2 border-2 border-gray-100 rounded-lg p-2.5">
+      <div className="flex-1 min-w-0 text-xs">
+        <div className="font-semibold text-gray-600">{label}</div>
+        {namaFile ? (
+          <a href={filePath} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] truncate block">{namaFile}</a>
+        ) : (
+          <span className="text-gray-400">Belum ada file diunggah</span>
+        )}
+      </div>
+      <label className="shrink-0 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer">
+        {uploading ? 'Mengunggah...' : namaFile ? 'Ganti' : 'Unggah'}
+        <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={uploading}
+          onChange={e => pilihFile(e.target.files?.[0])} />
+      </label>
+    </div>
+  );
+}
 
 function Item({ done, label, children }) {
   return (
@@ -25,7 +65,6 @@ export default function StatusPendaftaranSahabatPage() {
   const [pengaturan] = usePengaturan();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tanggalMulaiInput, setTanggalMulaiInput] = useState('');
   const [savingBlokirData, setSavingBlokirData] = useState(false);
   const [uploadingTf, setUploadingTf] = useState(false);
   const [rekUmrohInput, setRekUmrohInput] = useState('');
@@ -98,15 +137,9 @@ export default function StatusPendaftaranSahabatPage() {
   }
 
   async function simpanDataBlokir() {
-    if (!tanggalMulaiInput.trim()) {
-      alert('Isi tanggal mulai blokir dulu'); return;
-    }
     setSavingBlokirData(true);
     try {
-      const res = await fetch('/api/sahabat/blokir-rekening', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tanggal_mulai: tanggalMulaiInput }),
-      });
+      const res = await fetch('/api/sahabat/blokir-rekening', { method: 'PATCH' });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setSavingBlokirData(false); return; }
       muat();
@@ -327,16 +360,36 @@ export default function StatusPendaftaranSahabatPage() {
             <div className="space-y-3">
               {!prasyarat.blokir_data_terisi && (
                 <div className="space-y-2">
-                  {/* Nominal & jangka waktu bukan input bebas lagi
-                      (dikonfirmasi user 2026-09-20) — nominal ngikutin
-                      Target Impian yang udah dikunci di wizard daftar-sahabat,
-                      jangka waktu fix 90 hari sesuai perjanjian SPK-AK.
-                      Jamaah cuma pilih tanggal mulai blokirnya. */}
+                  {/* Nominal bukan input bebas lagi (dikonfirmasi user
+                      2026-09-20) — ngikutin Target Impian yang udah dikunci
+                      di wizard daftar-sahabat. Tanggal mulai blokir = hari
+                      ini (tanggal persetujuan) — BUKAN date-picker bebas
+                      lagi (dikonfirmasi user 2026-09-29: "tgl blokir ya
+                      tanggal ttd aja gausah ribet", ini cuma dokumen
+                      perjanjian bukan transaksi bank beneran). Jangka waktu
+                      DULU fix 90 hari, sekarang dihitung otomatis dari hari
+                      ini sampai tanggal keberangkatan program target
+                      (dikonfirmasi user 2026-09-29 — program bisa dipilih
+                      jauh sebelum keberangkatan, gak masuk akal kalau
+                      blokirnya dipatok 90 hari doang gak peduli kapan
+                      berangkatnya). TIDAK digate ke saldo tabungan aktual
+                      (dikonfirmasi user 2026-09-29 — nominal di surat ini
+                      emang cuma nominal target program). */}
                   <div className="text-xs text-gray-400">Data blokir rekening tabungan umroh Anda (otomatis, sesuai perjanjian):</div>
                   <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 text-xs text-gray-600 space-y-1">
                     <div>No. Rekening: <b>{u.no_rekening_tabungan_umroh || '-'}</b></div>
                     <div>Nominal blokir: <b>Rp {Number(pendaftaran?.target_estimasi_harga || 0).toLocaleString('id-ID')}</b></div>
-                    <div>Jangka waktu: <b>90 hari</b></div>
+                    <div>Tanggal mulai: <b>Hari ini, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b></div>
+                    <div>
+                      Jangka waktu: <b>
+                        {pendaftaran?.tanggal_berangkat
+                          ? `${Math.ceil((new Date(pendaftaran.tanggal_berangkat) - new Date()) / 86400000)} hari`
+                          : '-'}
+                      </b>
+                      {pendaftaran?.tanggal_berangkat && (
+                        <span className="text-gray-400"> (berangkat {new Date(pendaftaran.tanggal_berangkat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })})</span>
+                      )}
+                    </div>
                   </div>
                   {!(Number(pendaftaran?.target_estimasi_harga) > 0) ? (
                     // Target Rp 0 (program belum ada harga waktu daftar) —
@@ -344,15 +397,16 @@ export default function StatusPendaftaranSahabatPage() {
                     <div className="text-xs text-red-500">
                       Target Impian Anda belum punya harga, jadi nominal blokir belum bisa dihitung. Hubungi admin JM Travel untuk memperbaiki target Anda.
                     </div>
-                  ) : (<>
-                  <label className="block text-xs font-semibold text-gray-500">Tanggal Mulai Blokir</label>
-                  <input value={tanggalMulaiInput} onChange={e => setTanggalMulaiInput(e.target.value)} type="date"
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+                  ) : !pendaftaran?.tanggal_berangkat ? (
+                    <div className="text-xs text-red-500">
+                      Program target Anda belum punya tanggal keberangkatan, jadi jangka waktu blokir belum bisa dihitung. Hubungi admin JM Travel untuk memperbaiki jadwal program.
+                    </div>
+                  ) : (
                   <button onClick={simpanDataBlokir} disabled={savingBlokirData}
                     className="bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50">
-                    {savingBlokirData ? 'Menyimpan...' : 'Simpan Data Blokir'}
+                    {savingBlokirData ? 'Menyimpan...' : 'Setuju & Simpan Data Blokir'}
                   </button>
-                  </>)}
+                  )}
                 </div>
               )}
             </div>
@@ -415,16 +469,25 @@ export default function StatusPendaftaranSahabatPage() {
           <div className={`flex items-start gap-3 p-3 rounded-xl border ${prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
             <div className="text-lg leading-none mt-0.5">{prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? '✅' : '⏳'}</div>
             <div className="flex-1 min-w-0">
-              <div className={`text-sm font-bold ${prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? 'text-green-700' : 'text-gray-600'}`}>Cetak & Unggah Scan (SK-CIF + Surat Pemblokiran)</div>
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-xs text-yellow-700 mt-2">
-                Boleh dilewati dulu — tapi segera cetak, tanda tangani di atas materai asli, lalu kirim fisiknya ke kantor JM Travel Jakarta.
+              <div className={`text-sm font-bold ${prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? 'text-green-700' : 'text-gray-600'}`}>Unduh & Unggah Scan (SK-CIF + Surat Pemblokiran)</div>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700 mt-2">
+                <div className="font-bold mb-1">Langkah ini dapat dilewati sementara, namun wajib diselesaikan:</div>
+                <ol className="list-decimal list-inside space-y-0.5">
+                  <li>Unduh dokumen di bawah ini, lalu cetak.</li>
+                  <li>Tanda tangani di atas materai asli.</li>
+                  <li>Pindai (scan) hasilnya, lalu unggah pada bagian paling bawah halaman ini.</li>
+                  <li>Kirim dokumen fisik asli yang sudah ditandatangani tersebut ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.</li>
+                </ol>
               </div>
-              <div className="text-right mt-2 flex justify-end gap-3">
+              <div className="mt-2 flex justify-between items-center flex-wrap gap-2">
+                <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum JM Travel, saya membutuhkan bantuan terkait SK-CIF & Surat Pemblokiran.') || '#'}
+                  target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs">
+                  Hubungi Admin via WhatsApp
+                </a>
                 <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif}
-                  className="text-gray-400 hover:text-[#1A4FA0] font-bold text-xs disabled:opacity-50">
-                  {generatingPdfSkCif ? 'Membuat PDF...' : '📄 Unduh PDF Lengkap (rapi)'}
+                  className="text-[#1A4FA0] font-bold text-sm disabled:opacity-50">
+                  {generatingPdfSkCif ? 'Membuat Dokumen...' : '📄 Unduh Dokumen'}
                 </button>
-                <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold text-sm">🖨️ Print Kedua Surat</button>
               </div>
             </div>
           </div>
@@ -447,39 +510,73 @@ export default function StatusPendaftaranSahabatPage() {
             <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
             {(skCif.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
             <SignatureBlokKuasa namaPemberi={u.name} namaPenerima={skCif.mergeData?.nama_wakil} jabatanPenerima={skCif.mergeData?.jabatan_wakil} />
-            <div className="no-print">
-              <UploadScanDokumen label={`Scan SK-CIF (materai + TTD) ${u.dokumen_sk_cif_fisik_path ? '— ✅ terkirim' : '— ⏳ belum dikirim'}`}
-                uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
-                userId={user.id} path={u.dokumen_sk_cif_fisik_path} uploadedAt={null}
-                extraFields={{ jenis: 'sk_cif' }} onUploaded={() => muat()} />
-            </div>
           </div>
         )}
         {prasyarat.setuju_sk_cif_pemblokiran && suratPemblokiran && (
           <div className="sheet bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
-            <div className="no-print text-right">
-              <button onClick={() => window.print()} className="text-[#1A4FA0] font-bold">🖨️ Print Surat Pemblokiran</button>
-            </div>
             <KopPasalDokumen pengaturan={pengaturan} />
             <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN</div>
             <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
             <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
             {(suratPemblokiran.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
             <SignatureBlokBank namaPemberi={u.name} />
-            <div className="no-print">
-              <UploadScanDokumen label={`Scan Surat Pemblokiran (materai + TTD) ${u.dokumen_surat_pemblokiran_fisik_path ? '— ✅ terkirim' : '— ⏳ belum dikirim'}`}
-                uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
-                userId={user.id} path={u.dokumen_surat_pemblokiran_fisik_path} uploadedAt={null}
-                extraFields={{ jenis: 'surat_pemblokiran' }} onUploaded={() => muat()} />
+          </div>
+        )}
+
+        {/* Unggah scan dipisah dari .sheet di atas (dikonfirmasi tim desain
+            2026-09-29) — sebelumnya nyelip di antara 2 halaman cetak surat,
+            keliatan kayak bagian dari surat itu sendiri padahal cuma UI
+            upload. Sekarang dikonsolidasi jadi 1 kartu terpisah, style field
+            polos + nama file (bukan lagi badge status). */}
+        {prasyarat.setuju_sk_cif_pemblokiran && (skCif || suratPemblokiran) && (
+          <div className="no-print bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+            <div>
+              <div className="font-bold text-[#0E2F6E] text-sm">📤 Unggah Scan Dokumen</div>
+              <div className="text-xs text-gray-400 mt-0.5">Unggah hasil pindai (scan) SK-CIF & Surat Pemblokiran yang sudah ditandatangani di atas materai asli.</div>
             </div>
+            <FieldUploadScan label="SK-CIF (materai + TTD)"
+              uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
+              userId={user.id} path={u.dokumen_sk_cif_fisik_path}
+              extraFields={{ jenis: 'sk_cif' }} onUploaded={() => muat()} />
+            <FieldUploadScan label="Surat Pemblokiran (materai + TTD)"
+              uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
+              userId={user.id} path={u.dokumen_surat_pemblokiran_fisik_path}
+              extraFields={{ jenis: 'surat_pemblokiran' }} onUploaded={() => muat()} />
           </div>
         )}
 
         <div className="no-print space-y-3">
+        {/* Style beda sengaja dari Item abu-abu "belum selesai" di atas
+            (dikonfirmasi tim desain 2026-09-29) — status INI justru bagus
+            (semua langkah udah kelar dari sisi jamaah), jadi tampilannya
+            dibikin reassuring/hangat, bukan kesan "kaku nunggu doang".
+            Judul & isi DIBEDAKAN tergantung status unggah scan (bug nyata
+            dari laporan user 2026-09-29 — sebelumnya selalu bilang "Seluruh
+            Persyaratan Telah Lengkap" padahal scan-nya sendiri belum
+            diunggah sama sekali, kontradiktif sama field upload di
+            atasnya). Unggah scan tetap boleh menyusul (lihat catatan
+            "dapat dilewati sementara"), tapi wordingnya harus jujur soal
+            status sebenarnya. */}
         {prasyarat.setuju_sk_cif_pemblokiran && pendaftaran.status !== 'active' && (
-          <Item done={false} label="Menunggu ACC Admin">
-            <div className="text-xs text-gray-400">Data Anda lagi direview admin. Gak perlu aksi apa-apa lagi di sini — kirim fisik SK-CIF & Surat Pemblokiran yang sudah TTD+materai ke kantor kalau belum, itu boleh menyusul.</div>
-          </Item>
+          <div className="bg-[#E8F0FB] border border-[#c9d9f0] rounded-xl p-4 text-center">
+            <div className="text-3xl mb-1">🙌</div>
+            {prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? (
+              <>
+                <div className="font-bold text-[#0E2F6E]">Seluruh Persyaratan Telah Lengkap</div>
+                <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
+                  Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan.
+                  Pastikan dokumen fisik asli (SK-CIF & Surat Pemblokiran) yang sudah ditandatangani di atas materai asli juga telah dikirim ke kantor JM Travel.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-bold text-[#0E2F6E]">Persyaratan Utama Telah Lengkap</div>
+                <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
+                  Data Anda sudah dapat ditinjau oleh admin. Agar proses aktivasi akun dapat diselesaikan, mohon segera unggah hasil pindai (scan) SK-CIF & Surat Pemblokiran pada bagian di atas, lalu kirim dokumen fisik aslinya ke kantor JM Travel.
+                </div>
+              </>
+            )}
+          </div>
         )}
 
         {pendaftaran.status === 'active' && (
