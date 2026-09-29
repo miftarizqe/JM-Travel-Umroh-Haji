@@ -2,15 +2,14 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasi } from '@/lib/notifikasi';
-import { apakahPerluMaterai, RANGKAP_SPKA_INS, RANGKAP_SPK_AK, RANGKAP_SPK_AK_NONIS } from '@/lib/materaiRule';
+import { apakahPerluMaterai, RANGKAP_SPKA_INS } from '@/lib/materaiRule';
 import { beliMaterai } from '@/lib/eMeterai';
 import { kirimUntukTtd, selesaikanTtd } from '@/lib/eSignature';
 import { renderSpkaInsPdf } from '@/lib/pdfDokumen/renderSpkaIns';
 import { renderJamaahPdf } from '@/lib/pdfDokumen/renderJamaah';
 import { renderFormulirPdf } from '@/lib/pdfDokumen/renderFormulir';
 import { renderInvoicePdf } from '@/lib/pdfDokumen/renderInvoice';
-import { renderSpkAkPdf } from '@/lib/pdfDokumen/renderSpkAk';
-import { renderSpkAkNonisPdf } from '@/lib/pdfDokumen/renderSpkAkNonis';
+import { generateSpkAkPdf } from '@/lib/pdfDokumen/spkAkOverlay';
 import { simpanPdfDokumenSignature, logoAbsolutePath } from '@/lib/pdfDokumen/simpanPdf';
 import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
@@ -23,11 +22,12 @@ import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
 // dokumen kayak sebelumnya.
 const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'formulir', 'invoice', 'spk_ak', 'sk_cif', 'surat_pemblokiran', 'spk_ak_nonis'];
 
-// SPKA-Ins & SPK-AK DUA-DUANYA 2 rangkap/2 materai (dikonfirmasi user
-// 2026-09-09, SPK-AK ikut skema SPKA-Ins persis) — signerPihak 'eksternal' =
-// pihak luar JM Travel yang TTD (Perwakilan buat spka_ins, Jamaah Sahabat
-// Baitullah buat spk_ak).
-const RANGKAP_PER_DOKUMEN = { spka_ins: RANGKAP_SPKA_INS, spk_ak: RANGKAP_SPK_AK, spk_ak_nonis: RANGKAP_SPK_AK_NONIS };
+// SPKA-Ins (Perwakilan, masih coming-soon) TETAP 2 rangkap/2 materai
+// terpisah (rangkap 'travel' ditandatangani Perwakilan, rangkap 'luar' TTD
+// JM Travel auto-selesai). SPK-AK/SPK-AK Non-Muslim PINDAH ke 1 rangkap
+// (dikonfirmasi user 2026-09-29) — lihat kirimSpkAkTunggalUntukTtd() di
+// bawah, BUKAN lagi lewat RANGKAP_PER_DOKUMEN/kirimDokumenRangkapUntukTtd.
+const RANGKAP_PER_DOKUMEN = { spka_ins: RANGKAP_SPKA_INS };
 
 async function ambilPengaturan() {
   const [[p]] = await pool.query('SELECT * FROM pengaturan WHERE id = 1');
@@ -44,7 +44,7 @@ async function ambilPengaturan() {
 // ditunggu, jadi begitu admin klik "Kirim TTD Digital", tanda tangan JM Travel
 // langsung dianggap selesai saat itu juga (persis alur fisik: JM Travel TTD
 // dulu sebelum dokumen dikirim ke perwakilan buat ditandatangani).
-async function prosesSatuSesiDigital({ dokumen, refId, rangkap, pdfBuffer, signer, perluMaterai, requestedBy, baseUrl, autoSelesai }) {
+async function prosesSatuSesiDigital({ dokumen, refId, rangkap, pdfBuffer, signer, materaiCount = 0, requestedBy, baseUrl, autoSelesai }) {
   const pdfAwalPath = await simpanPdfDokumenSignature(pdfBuffer, { dokumen, refId, tahap: `awal-${rangkap}` });
 
   await pool.query(
@@ -58,19 +58,35 @@ async function prosesSatuSesiDigital({ dokumen, refId, rangkap, pdfBuffer, signe
       materai_provider = NULL, materai_kode_unik = NULL, materai_dibeli_at = NULL,
       ttd_provider = NULL, ttd_provider_ref = NULL, completed_at = NULL,
       requested_by = VALUES(requested_by), requested_at = CURRENT_TIMESTAMP`,
-    [dokumen, refId, rangkap, perluMaterai ? 1 : 0, signer?.nama || null, signer?.email || null, signer?.wa || null, pdfAwalPath, requestedBy]
+    [dokumen, refId, rangkap, materaiCount > 0 ? 1 : 0, signer?.nama || null, signer?.email || null, signer?.wa || null, pdfAwalPath, requestedBy]
   );
   const [[sig]] = await pool.query('SELECT * FROM dokumen_signature WHERE dokumen = ? AND ref_id = ? AND rangkap = ?', [dokumen, refId, rangkap]);
 
   let pdfUntukTtd = pdfBuffer;
-  if (perluMaterai) {
-    const hasilMaterai = await beliMaterai({ dokumen, refId, pdfBuffer, baseUrl });
-    const pdfBermateraiPath = await simpanPdfDokumenSignature(hasilMaterai.pdfBuffer, { dokumen, refId, tahap: `bermaterai-${rangkap}` });
+  if (materaiCount > 0) {
+    // Bisa lebih dari 1x beli (dikonfirmasi user 2026-09-29 — SPK-AK sekarang
+    // 1 rangkap tapi tetap 2 materai, satu buat tiap pihak yang "TTD" di
+    // dokumen itu). Tiap panggilan beliMaterai() numpuk 1 halaman lampiran
+    // baru ke buffer yang sama (lihat tambahLampiranSertifikat) — kolom DB
+    // materai_kode_unik/provider di bawah cuma nyimpen 1 baris (skema lama,
+    // gak didesain multi-materai), jadi kalau >1x, nomor serinya digabung
+    // string dipisah " + " biar tetap ke-audit semua, bukan cuma yang
+    // terakhir doang.
+    const kodeUnikList = [];
+    let providerTerakhir = null;
+    let dibeliAtTerakhir = null;
+    for (let i = 0; i < materaiCount; i++) {
+      const hasilMaterai = await beliMaterai({ dokumen, refId, pdfBuffer: pdfUntukTtd, baseUrl });
+      pdfUntukTtd = hasilMaterai.pdfBuffer;
+      kodeUnikList.push(hasilMaterai.kodeUnik);
+      providerTerakhir = hasilMaterai.provider;
+      dibeliAtTerakhir = hasilMaterai.dibeliAt;
+    }
+    const pdfBermateraiPath = await simpanPdfDokumenSignature(pdfUntukTtd, { dokumen, refId, tahap: `bermaterai-${rangkap}` });
     await pool.query(
       `UPDATE dokumen_signature SET fase = 'materai_selesai', materai_provider = ?, materai_kode_unik = ?, materai_dibeli_at = ?, pdf_bermaterai_path = ? WHERE id = ?`,
-      [hasilMaterai.provider, hasilMaterai.kodeUnik, hasilMaterai.dibeliAt, pdfBermateraiPath, sig.id]
+      [providerTerakhir, kodeUnikList.join(' + '), dibeliAtTerakhir, pdfBermateraiPath, sig.id]
     );
-    pdfUntukTtd = hasilMaterai.pdfBuffer;
   }
 
   const hasilTtd = await kirimUntukTtd({ dokumen, refId, signer, pdfBuffer: pdfUntukTtd });
@@ -152,61 +168,10 @@ async function siapkanData(dokumen, refId) {
     };
   }
 
-  if (dokumen === 'spk_ak' || dokumen === 'spk_ak_nonis') {
-    const [rows] = await pool.query(
-      'SELECT id, name, nik, wa, email, alamat, alamat_ktp, kode_unik, role, agama, no_paspor, no_spk_ak, no_spk_ak_nonis, perekrut_id, bank, no_rekening, nama_pemilik_rekening, created_at FROM users WHERE id = ?',
-      [refId]
-    );
-    const user = rows[0];
-    if (!user) throw Object.assign(new Error('Akun tidak ditemukan'), { status: 404 });
-    if (user.role !== 'sahabat_baitullah') throw Object.assign(new Error('Dokumen ini hanya berlaku untuk Jamaah Sahabat Baitullah'), { status: 400 });
-    // spk_ak_nonis KHUSUS anggota non-Muslim (memberangkatkan orang lain,
-    // bukan berangkat sendiri) — spk_ak biasa KHUSUS anggota Muslim,
-    // dikonfirmasi user 2026-09-20. Dicek di server juga (bukan cuma
-    // dipilih di /pks), biar gak bisa disalahgunakan lewat panggilan API
-    // langsung.
-    if (dokumen === 'spk_ak_nonis' && user.agama !== 'non_islam') {
-      throw Object.assign(new Error('Surat Perjanjian Referral Non-Muslim cuma berlaku untuk anggota non-Muslim'), { status: 400 });
-    }
-    if (dokumen === 'spk_ak' && user.agama === 'non_islam') {
-      throw Object.assign(new Error('Anggota non-Muslim wajib pakai Surat Perjanjian Referral Non-Muslim'), { status: 400 });
-    }
-    // Bukti TF Rp1jt WAJIB duluan sebelum SPK-AK (urutan dibalik 2026-09-27,
-    // dulu SPK-AK duluan) — biar materai (nanti kalau provider Peruri beneran
-    // disambung) gak kebakar buat orang yang isi data terus ngilang tanpa
-    // pernah transfer. Dicek di server juga (bukan cuma gate UI), biar gak
-    // bisa dilewatin lewat panggilan API langsung.
-    const [[pendaftaranSahabat]] = await pool.query('SELECT bukti_tf_verified_at FROM sahabat_pendaftaran WHERE user_id = ?', [refId]);
-    if (!pendaftaranSahabat?.bukti_tf_verified_at) {
-      throw Object.assign(new Error('Unggah bukti transfer Rp1.000.000 terlebih dahulu sebelum tanda tangan SPK-AK'), { status: 400 });
-    }
-    user.alamat = user.alamat_ktp || user.alamat;
-
-    // PIHAK KETIGA — Head of Program (pengaturan.head_of_program_user_id),
-    // BUKAN perekrut_id generik lagi (dikonfirmasi user 2026-09-09, ganti
-    // dari struktur sementara 2026-08-29 yang miripin ke SPKA-Ins/Perekrut).
-    let hop = null;
-    if (pengaturan.head_of_program_user_id) {
-      const [hr] = await pool.query('SELECT name, nik, wa, alamat, alamat_ktp FROM users WHERE id = ?', [pengaturan.head_of_program_user_id]);
-      hop = hr[0] || null;
-      if (hop) hop.alamat = hop.alamat_ktp || hop.alamat;
-    }
-
-    const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
-    const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
-    const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
-    if (nomor) await pastikanSnapshot(pool, user.id, dokumen);
-    const { pasal, signer } = await ambilPasalUntukCetak(dokumen, user.id);
-    const [[target]] = await pool.query(
-      'SELECT target_minat, target_estimasi_harga FROM sahabat_pendaftaran WHERE user_id = ?', [user.id]
-    );
-    const generateFn = dokumen === 'spk_ak' ? renderSpkAkPdf : renderSpkAkNonisPdf;
-    return {
-      user, hop, jmSigner: signer,
-      generatePdf: (rangkapLabel) => generateFn({ user, hop, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel, target }),
-      signer: { nama: user.name, email: user.email, wa: user.wa },
-    };
-  }
+  // spk_ak/spk_ak_nonis SENGAJA gak ada branch di sini lagi (dikonfirmasi
+  // user 2026-09-29, pindah ke template PDF final) — ditangani sendiri oleh
+  // kirimSpkAkTunggalUntukTtd() di bawah, gak lewat siapkanData/
+  // generatePdf(rangkapLabel) generik ini lagi.
 
   // sk_cif SENGAJA tidak punya branch di sini — dokumen ini selalu 'fisik'
   // (dipaksa di POST di bawah), jadi jalur digital/generatePdf gak pernah
@@ -257,7 +222,7 @@ export async function kirimDokumenRangkapUntukTtd({ dokumen, refId, actorUser, b
       : { nama: data.jmSigner?.nama || 'JM Travel', email: null, wa: null };
     const row = await prosesSatuSesiDigital({
       dokumen, refId, rangkap: r.rangkap, pdfBuffer, signer: signerInfo,
-      perluMaterai: true, requestedBy, baseUrl, autoSelesai: r.signerPihak === 'jm',
+      materaiCount: 1, requestedBy, baseUrl, autoSelesai: r.signerPihak === 'jm',
     });
     hasil.push(row);
   }
@@ -284,6 +249,74 @@ export async function kirimDokumenRangkapUntukTtd({ dokumen, refId, actorUser, b
   // `rangkap`. Yang dikirim rangkap 'travel' (pihak eksternal yang beneran
   // perlu TTD, rangkap 'luar' udah auto-selesai duluan di atas).
   return { message: `${labelDokumen} dikirim untuk TTD digital (2 rangkap).`, rangkap: hasil, id: rangkapTravel?.id };
+}
+
+const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+// SPK-AK / SPK-AK Non-Muslim — 1 RANGKAP (dikonfirmasi user 2026-09-29,
+// beda dari SPKA-Ins yang tetap 2 rangkap terpisah). Wording SEKARANG dari
+// template PDF final (src/lib/pdfDokumen/spkAkOverlay.js), BUKAN lagi pasal
+// di database — nomor Muhammad Zaky & Mei Ling (Pihak Pertama) statis udah
+// baked-in di template, cuma pihak Jamaah/Agen yang beneran TTD digital.
+// TAPI tetap 2x beli e-materai (satu per pihak yang "TTD" di dokumen itu,
+// dikonfirmasi user), numpuk di 1 file yang sama lewat materaiCount:2 di
+// prosesSatuSesiDigital().
+export async function kirimSpkAkTunggalUntukTtd({ dokumen, refId, actorUser, baseUrl }) {
+  const [rows] = await pool.query(
+    'SELECT id, name, wa, email, alamat, alamat_ktp, role, agama, no_paspor, no_spk_ak, no_spk_ak_nonis FROM users WHERE id = ?',
+    [refId]
+  );
+  const user = rows[0];
+  if (!user) throw Object.assign(new Error('Akun tidak ditemukan'), { status: 404 });
+  if (user.role !== 'sahabat_baitullah') throw Object.assign(new Error('Dokumen ini hanya berlaku untuk Jamaah Sahabat Baitullah'), { status: 400 });
+  if (dokumen === 'spk_ak_nonis' && user.agama !== 'non_islam') {
+    throw Object.assign(new Error('Surat Perjanjian Referral Non-Muslim cuma berlaku untuk anggota non-Muslim'), { status: 400 });
+  }
+  if (dokumen === 'spk_ak' && user.agama === 'non_islam') {
+    throw Object.assign(new Error('Anggota non-Muslim wajib pakai Surat Perjanjian Referral Non-Muslim'), { status: 400 });
+  }
+  const [[pendaftaranSahabat]] = await pool.query('SELECT bukti_tf_verified_at FROM sahabat_pendaftaran WHERE user_id = ?', [refId]);
+  if (!pendaftaranSahabat?.bukti_tf_verified_at) {
+    throw Object.assign(new Error('Unggah bukti transfer Rp1.000.000 terlebih dahulu sebelum tanda tangan SPK-AK'), { status: 400 });
+  }
+  user.alamat = user.alamat_ktp || user.alamat;
+
+  const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
+  const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
+  const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
+
+  const sekarang = new Date();
+  const pdfBuffer = await generateSpkAkPdf({
+    dokumen, nomor,
+    nama: user.name, alamat: user.alamat || '-', noTelepon: user.wa || '-', noPaspor: user.no_paspor || '-',
+    namaTtd: user.name,
+    hari: HARI_ID[sekarang.getDay()],
+    tanggal: `${sekarang.getDate()} ${BULAN_ID[sekarang.getMonth()]} ${sekarang.getFullYear()}`,
+  });
+
+  const isAdmin = ['admin', 'super_admin'].includes(actorUser.role);
+  const requestedBy = isAdmin ? actorUser.id : null;
+  const row = await prosesSatuSesiDigital({
+    dokumen, refId, rangkap: 'tunggal', pdfBuffer,
+    signer: { nama: user.name, email: user.email, wa: user.wa },
+    materaiCount: 2, requestedBy, baseUrl, autoSelesai: false,
+  });
+
+  const labelDokumen = dokumen === 'spk_ak' ? 'SPK-AK' : 'Surat Perjanjian Referral Non-Muslim';
+  await catatAudit(pool, {
+    actor: actorUser, aksi: 'dokumen_signature_dikirim', target_type: dokumen, target_id: String(refId),
+    keterangan: `${labelDokumen} (1 rangkap, template final) dikirim untuk TTD digital (provider mock) — 2x materai, menunggu TTD Jamaah/Agen.`,
+  });
+  await kirimNotifikasi(pool, {
+    user_id: user.id,
+    tipe: 'dokumen_menunggu_ttd',
+    judul: `${labelDokumen} Menunggu Tanda Tangan Digital Anda`,
+    pesan: `${labelDokumen} Program Sahabat Baitullah menunggu tanda tangan digital Anda.`,
+    link: `/tanda-tangan/${row.id}`,
+  });
+
+  return { message: `${labelDokumen} dikirim untuk TTD digital.`, id: row.id };
 }
 
 // POST /api/admin/dokumen-signature  body: { dokumen, ref_id, metode }
@@ -350,13 +383,18 @@ export async function POST(request) {
       return Response.json(hasil);
     }
 
+    if (dokumen === 'spk_ak' || dokumen === 'spk_ak_nonis') {
+      const hasil = await kirimSpkAkTunggalUntukTtd({ dokumen, refId: ref_id, actorUser: auth.user, baseUrl });
+      return Response.json(hasil);
+    }
+
     // Dokumen 1-rangkap (jamaah/formulir/invoice)
     const data = await siapkanData(dokumen, ref_id);
     const pdfBuffer = await data.generatePdf();
     const perluMaterai = apakahPerluMaterai(dokumen, data.materaiCtx || {});
     const row = await prosesSatuSesiDigital({
       dokumen, refId: ref_id, rangkap: 'tunggal', pdfBuffer, signer: data.signer,
-      perluMaterai, requestedBy, baseUrl, autoSelesai: false,
+      materaiCount: perluMaterai ? 1 : 0, requestedBy, baseUrl, autoSelesai: false,
     });
 
     await catatAudit(pool, {

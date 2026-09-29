@@ -49,19 +49,20 @@ const SIGNER_SK_CIF_FIELDS = [
 const DOKUMEN_LIST = [
   { key: 'spka_ins', label: 'SPK-PWK (Perwakilan)' },
   { key: 'jamaah', label: 'SPJ (Perjanjian Jamaah)' },
-  { key: 'spk_ak', label: 'SPK-AK (Jamaah Sahabat Baitullah)' },
-  { key: 'spk_ak_nonis', label: 'Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
+  { key: 'spk_ak', label: '🔒 SPK-AK (Jamaah Sahabat Baitullah)' },
+  { key: 'spk_ak_nonis', label: '🔒 Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
   { key: 'sk_cif', label: '🔒 SK-CIF (Sahabat Baitullah)' },
   { key: 'surat_pemblokiran', label: '🔒 Surat Pemblokiran Rekening (Sahabat Baitullah)' },
 ];
 
-// Dikunci dari edit teks (dikonfirmasi user 2026-09-28) — wording resmi 2
-// dokumen ini sekarang SATU-SATUNYA dari template PDF final, bukan lagi
-// pasal di sini. Tab-nya tetap ada (buat lihat isi/preview yang masih
-// dipakai layar baca+centang-setuju jamaah), tapi Tambah/Edit/Hapus/Geser
-// dimatiin — server juga nolak lewat cekTerkunci() di
+// Dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
+// SPK-AK/SPK-AK Non-Muslim menyusul dikonfirmasi 2026-09-29) — wording
+// resmi ke-4 dokumen ini sekarang SATU-SATUNYA dari template PDF final,
+// bukan lagi pasal di sini. Tab-nya tetap ada (buat lihat isi/preview yang
+// masih dipakai layar baca+centang-setuju jamaah), tapi Tambah/Edit/Hapus/
+// Geser dimatiin — server juga nolak lewat cekTerkunci() di
 // src/app/api/admin/pasal/route.js kalau ada yang nekat panggil API langsung.
-const DOKUMEN_TERKUNCI = ['sk_cif', 'surat_pemblokiran'];
+const DOKUMEN_TERKUNCI = ['sk_cif', 'surat_pemblokiran', 'spk_ak', 'spk_ak_nonis'];
 
 // Judul & nomor contoh yang ditampilkan di atas Preview Dokumen Lengkap —
 // SAMA seperti judul yang muncul di halaman cetak beneran (cetak-pks-mitra,

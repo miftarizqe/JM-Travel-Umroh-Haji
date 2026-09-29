@@ -20,20 +20,17 @@ const FASE_WARNA = {
   materai_gagal: { bg: '#fef2f2', fg: '#b91c1c' },
   gagal: { bg: '#fef2f2', fg: '#b91c1c' },
 };
-// spka_ins & spk_ak DUA-DUANYA 2 rangkap (dikonfirmasi user 2026-09-09) —
-// label beda dikit tergantung siapa pihak eksternalnya (Perwakilan vs
-// Jamaah Sahabat Baitullah).
+// spka_ins (Perwakilan, masih coming-soon) TETAP 2 rangkap. spk_ak PINDAH
+// ke 1 rangkap (dikonfirmasi user 2026-09-29 — Pihak Pertama statis di
+// template, cuma Jamaah/Agen yang beneran TTD), jadi gak perlu label
+// rangkap lagi.
 const RANGKAP_LABEL = {
   spka_ins: {
     travel: 'Rangkap 1 — Untuk JM Travel (TTD Perwakilan)',
     luar: 'Rangkap 2 — Untuk Perwakilan (TTD JM Travel)',
   },
-  spk_ak: {
-    travel: 'Rangkap 1 — Untuk JM Travel (TTD Jamaah)',
-    luar: 'Rangkap 2 — Untuk Jamaah Sahabat Baitullah (TTD JM Travel)',
-  },
 };
-const RANGKAP_2X = ['spka_ins', 'spk_ak'];
+const RANGKAP_2X = ['spka_ins'];
 
 // 1 sesi = 1 baris dokumen_signature. spka_ins/spk_ak bisa punya 2 baris
 // sekaligus (rangkap 'travel'/'luar', lihat src/lib/materaiRule.js) —

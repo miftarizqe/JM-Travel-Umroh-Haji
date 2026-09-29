@@ -19,18 +19,14 @@ export async function GET(request) {
               u.dokumen_surat_pemblokiran_fisik_path,
               perekrut.name AS perekrut_nama,
               v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,
-              -- rangkap='travel' WAJIB (bukan sembarang baris) — SPK-AK
-              -- 2 rangkap, rangkap 'travel' yang beneran ditandatangani
-              -- JAMAAH (signerPihak 'eksternal'), rangkap 'luar' cuma
-              -- tanda tangan internal JM Travel yang auto-selesai begitu
-              -- sesi dibuat, BUKAN sinyal jamaah udah TTD (bug ditemukan
-              -- & diperbaiki 2026-09-19 — sebelumnya ORDER BY id DESC bisa
-              -- kejebak baris 'luar' yang selalu selesai duluan). Dokumen
+              -- SPK-AK sekarang 1 RANGKAP (rangkap='tunggal', dikonfirmasi
+              -- user 2026-09-29 — dulu 2 rangkap 'travel'/'luar' terpisah,
+              -- sekarang 1 file, Pihak Pertama statis di template). Dokumen
               -- key-nya beda buat anggota non-Muslim (spk_ak_nonis,
               -- dikonfirmasi user 2026-09-20).
-              (SELECT fase FROM dokumen_signature WHERE dokumen = IF(u.agama = 'non_islam', 'spk_ak_nonis', 'spk_ak') AND rangkap = 'travel' AND ref_id = kp.user_id
+              (SELECT fase FROM dokumen_signature WHERE dokumen = IF(u.agama = 'non_islam', 'spk_ak_nonis', 'spk_ak') AND rangkap = 'tunggal' AND ref_id = kp.user_id
                  ORDER BY id DESC LIMIT 1) AS spk_ak_fase,
-              (SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = IF(u.agama = 'non_islam', 'spk_ak_nonis', 'spk_ak') AND rangkap = 'travel' AND ref_id = kp.user_id
+              (SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = IF(u.agama = 'non_islam', 'spk_ak_nonis', 'spk_ak') AND rangkap = 'tunggal' AND ref_id = kp.user_id
                  ORDER BY id DESC LIMIT 1) AS spk_ak_pdf_path
        FROM sahabat_pendaftaran kp
        JOIN users u ON u.id = kp.user_id

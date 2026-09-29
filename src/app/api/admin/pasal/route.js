@@ -11,14 +11,16 @@ const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'sk_cif', 'surat_pembloki
 // 3-pihak.
 const SATU_PIHAK = ['surat_pemblokiran'];
 
-// Dikunci dari edit teks (dikonfirmasi user 2026-09-28) — wording resmi 2
-// dokumen ini SEKARANG SATU-SATUNYA dari template PDF final
-// (src/lib/pdfDokumen/templates/, lihat skCifOverlay.js &
-// suratPemblokiranOverlay.js). Update wording = kirim PDF baru buat ganti
-// template itu, BUKAN edit pasal di sini lagi. GET tetap boleh (masih
-// dipakai buat tampilan baca+scroll-gate+centang setuju di layar, yang
-// SENGAJA belum ikut diganti — level ringan, lihat diskusi 2026-09-28).
-const DOKUMEN_TERKUNCI = ['sk_cif', 'surat_pemblokiran'];
+// Dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
+// SPK-AK/SPK-AK Non-Muslim menyusul dikonfirmasi 2026-09-29) — wording
+// resmi 4 dokumen ini SEKARANG SATU-SATUNYA dari template PDF final
+// (src/lib/pdfDokumen/templates/, lihat skCifOverlay.js,
+// suratPemblokiranOverlay.js, spkAkOverlay.js). Update wording = kirim PDF
+// baru buat ganti template itu, BUKAN edit pasal di sini lagi. GET tetap
+// boleh (masih dipakai buat tampilan baca+scroll-gate+centang setuju di
+// layar /pks & status-pendaftaran-sahabat, yang SENGAJA belum ikut diganti
+// — level ringan, lihat diskusi 2026-09-28/29).
+const DOKUMEN_TERKUNCI = ['sk_cif', 'surat_pemblokiran', 'spk_ak', 'spk_ak_nonis'];
 function cekTerkunci(dokumen) {
   if (DOKUMEN_TERKUNCI.includes(dokumen)) {
     return Response.json({ error: 'Dokumen ini dikunci dari edit teks — wording resmi sekarang dari template PDF. Update lewat kirim PDF baru, bukan di sini.' }, { status: 403 });

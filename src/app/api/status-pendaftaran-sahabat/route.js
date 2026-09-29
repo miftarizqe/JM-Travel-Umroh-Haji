@@ -3,7 +3,7 @@ import { wajibLogin, wajibRole } from '@/lib/auth';
 import { pastikanKodeInviteSahabat } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { catatRekening } from '@/lib/rekeningLedger';
-import { kirimDokumenRangkapUntukTtd } from '@/app/api/admin/dokumen-signature/route';
+import { kirimSpkAkTunggalUntukTtd } from '@/app/api/admin/dokumen-signature/route';
 
 // Urutan step pendaftaran sahabat — LINEAR, beda bentuk dari perwakilan
 // (yang punya 2 cabang kantor/paket) makanya sengaja tabel & endpoint
@@ -51,12 +51,13 @@ export async function GET(request) {
     const pendaftaran = kp[0] || null;
 
     // Dokumen SPK-AK-nya beda buat anggota non-Muslim (spk_ak_nonis,
-    // dikonfirmasi user 2026-09-20) — rangkap='travel' WAJIB di dua-duanya
-    // (rangkap yang beneran ditandatangani JAMAAH, rangkap 'luar' internal
-    // JM Travel auto-selesai begitu sesi dibuat, bukan sinyal jamaah udah TTD).
+    // dikonfirmasi user 2026-09-20). SPK-AK sekarang 1 RANGKAP
+    // (rangkap='tunggal', dikonfirmasi user 2026-09-29 — dulu 2 rangkap
+    // 'travel'/'luar' terpisah, sekarang 1 file, Pihak Pertama statis di
+    // template, cuma Jamaah/Agen yang beneran TTD).
     const dokumenSpkAk = u.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
     const [[sigSpkAk]] = await pool.query(
-      `SELECT id, fase FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
+      `SELECT id, fase FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'tunggal' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
       [dokumenSpkAk, auth.user.id]
     );
 
@@ -195,14 +196,12 @@ export async function PATCH(request) {
         `SELECT kode_unik, cif_bsi, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
          FROM users WHERE id = ?`, [user_id]
       );
-      // rangkap='travel' WAJIB (bug ditemukan & diperbaiki 2026-09-19) —
-      // tanpa ini query bisa kejebak baris rangkap 'luar' (internal JM
-      // Travel, auto-selesai duluan) dan salah nolak ACC padahal jamaah
-      // udah beneran TTD rangkap miliknya sendiri. Dokumen SPK-AK-nya beda
-      // buat anggota non-Muslim (spk_ak_nonis, dikonfirmasi user 2026-09-20).
+      // SPK-AK sekarang 1 RANGKAP (rangkap='tunggal', dikonfirmasi user
+      // 2026-09-29). Dokumen SPK-AK-nya beda buat anggota non-Muslim
+      // (spk_ak_nonis, dikonfirmasi user 2026-09-20).
       const dokumenSpkAk = u.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
       const [[sigSpkAk]] = await pool.query(
-        `SELECT fase FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`, [dokumenSpkAk, user_id]
+        `SELECT fase FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'tunggal' AND ref_id = ? ORDER BY id DESC LIMIT 1`, [dokumenSpkAk, user_id]
       );
       const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_path;
 
@@ -235,14 +234,15 @@ export async function PATCH(request) {
 
         // Titik pemicu materai + sesi TTD digital SPK-AK yang SEBENARNYA
         // (dikonfirmasi user 2026-09-28) — begitu admin klik "Aktifkan" &
-        // semua syarat di atas lolos, di sinilah e-materai beneran dibeli
-        // (nanti kalau provider Peruri disambung) & PDF final SPK-AK
-        // diterbitkan. Guard `!spkAkSelesai` jaga-jaga dobel klik (upsert di
-        // prosesSatuSesiDigital bakal RESET sesi yang udah selesai kalau
-        // dipanggil ulang — jangan sampai kejadian).
+        // semua syarat di atas lolos, di sinilah 2x e-materai beneran dibeli
+        // (nanti kalau provider Mekari/Privy disambung) & PDF (dari template
+        // final, 1 rangkap) dikirim buat TTD digital Jamaah/Agen. Guard
+        // `!spkAkSelesai` jaga-jaga dobel klik (upsert di prosesSatuSesiDigital
+        // bakal RESET sesi yang udah selesai kalau dipanggil ulang — jangan
+        // sampai kejadian).
         if (!spkAkSelesai) {
           const baseUrl = new URL(request.url).origin;
-          await kirimDokumenRangkapUntukTtd({ dokumen: dokumenSpkAk, refId: user_id, actorUser: auth.user, baseUrl });
+          await kirimSpkAkTunggalUntukTtd({ dokumen: dokumenSpkAk, refId: user_id, actorUser: auth.user, baseUrl });
         }
       }
 

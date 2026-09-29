@@ -54,20 +54,10 @@ export const RANGKAP_SPKA_INS = [
   { rangkap: 'luar', label: 'Rangkap 2 — Untuk Perwakilan', signerPihak: 'jm' },
 ];
 
-// SPK-AK SEKARANG ikut skema 2 rangkap/2 materai persis SPKA-Ins
-// (dikonfirmasi user 2026-09-09) — Jamaah Sahabat Baitullah gantiin posisi
-// Perwakilan. Signer eksternal-nya SELALU jamaah (Pihak Kedua), BUKAN
-// Head of Program (Pihak Ketiga) — Head of Program di dokumen ini cuma
-// dicetak sebagai identitas pihak, gak perlu TTD digital terpisah, sama
-// kayak Perekrut di SPKA-Ins yang juga gak ikut sesi TTD digital.
-export const RANGKAP_SPK_AK = [
-  { rangkap: 'travel', label: 'Rangkap 1 — Untuk JM Travel', signerPihak: 'eksternal' },
-  { rangkap: 'luar', label: 'Rangkap 2 — Untuk Jamaah Sahabat Baitullah', signerPihak: 'jm' },
-];
-
-// spk_ak_nonis — struktur rangkap sama persis SPK-AK, signer eksternal-nya
-// jamaah non-Muslim yang bersangkutan (dikonfirmasi user 2026-09-20).
-export const RANGKAP_SPK_AK_NONIS = [
-  { rangkap: 'travel', label: 'Rangkap 1 — Untuk JM Travel', signerPihak: 'eksternal' },
-  { rangkap: 'luar', label: 'Rangkap 2 — Untuk Jamaah Sahabat Baitullah', signerPihak: 'jm' },
-];
+// SPK-AK/SPK-AK Non-Muslim SEMPAT ikut skema 2 rangkap/2 materai persis
+// SPKA-Ins (dikonfirmasi user 2026-09-09), tapi PINDAH ke 1 rangkap
+// (dikonfirmasi user 2026-09-29) — wording dari template PDF final, Pihak
+// Pertama (Ahmad Zaky + Mei Ling) statis di template, cuma Jamaah/Agen yang
+// beneran TTD digital. Tetap 2x beli materai (bukan 2 rangkap terpisah lagi)
+// — lihat kirimSpkAkTunggalUntukTtd() & prosesSatuSesiDigital()'s
+// `materaiCount` di src/app/api/admin/dokumen-signature/route.js.

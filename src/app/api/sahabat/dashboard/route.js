@@ -36,15 +36,13 @@ export async function GET(request) {
     const voucher = voucherRows[0] || null;
 
     // Dokumen yang sudah beres — link download PDF final (digital) atau
-    // scan fisik, dokumen mana pun yang lebih dulu ketemu. rangkap='travel'
-    // WAJIB buat spk_ak (bug ditemukan & diperbaiki 2026-09-19) — itu
-    // rangkap yang beneran ditandatangani jamaah sendiri, rangkap 'luar'
-    // cuma tanda tangan internal JM Travel yang auto-selesai duluan.
-    // Dokumen SPK-AK-nya beda buat anggota non-Muslim (spk_ak_nonis,
-    // dikonfirmasi user 2026-09-20).
+    // scan fisik, dokumen mana pun yang lebih dulu ketemu. SPK-AK sekarang
+    // 1 RANGKAP (rangkap='tunggal', dikonfirmasi user 2026-09-29 — dulu 2
+    // rangkap 'travel'/'luar' terpisah). Dokumen SPK-AK-nya beda buat
+    // anggota non-Muslim (spk_ak_nonis, dikonfirmasi user 2026-09-20).
     const dokumenSpkAk = akun.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
     const [[sigSpkAk]] = await pool.query(
-      `SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
+      `SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'tunggal' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
       [dokumenSpkAk, sahabatId]
     );
     const [[dokUser]] = await pool.query(

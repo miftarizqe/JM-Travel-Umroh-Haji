@@ -96,12 +96,13 @@ export async function GET(request) {
     // Dokumen SPK-AK/SK-CIF — dipindah dari /dashboard/sahabat ke sini
     // (dikonfirmasi user 2026-09-22, "Status Keanggotaan" sekarang di
     // Profil, bukan Beranda). Logic SAMA PERSIS /api/sahabat/dashboard:
-    // digital (dokumen_signature rangkap='travel') diprioritaskan, fallback
-    // scan fisik. SPK-AK beda dokumen buat anggota non-Muslim.
+    // digital (dokumen_signature rangkap='tunggal', 1 rangkap sejak
+    // 2026-09-29) diprioritaskan, fallback scan fisik. SPK-AK beda dokumen
+    // buat anggota non-Muslim.
     if (user.role === 'sahabat_baitullah') {
       const dokumenSpkAk = user.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
       const [[sigSpkAk]] = await pool.query(
-        `SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'travel' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
+        `SELECT pdf_final_path FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'tunggal' AND ref_id = ? ORDER BY id DESC LIMIT 1`,
         [dokumenSpkAk, userId]
       );
       user.dokumen = {
