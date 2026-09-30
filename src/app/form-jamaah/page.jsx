@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, validasiIsianJamaah } from '@/lib/dataJamaah';
 
 const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
 
@@ -70,6 +71,14 @@ function FormJamaahPageInner() {
   const [currentJ, setCurrentJ] = useState(0);
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  // Pilihan dropdown Hubungan kontak darurat — dari endpoint master, fallback
+  // ke daftar bawaan yang sama kalau fetch gagal.
+  const [hubunganList, setHubunganList] = useState(HUBUNGAN_KONTAK_DARURAT);
+  useEffect(() => {
+    fetch('/api/master/hubungan-kontak-darurat').then(r => r.json())
+      .then(d => { if (Array.isArray(d.hubungan) && d.hubungan.length) setHubunganList(d.hubungan); })
+      .catch(() => {});
+  }, []);
   const [riwayat, setRiwayat] = useState(null); // { data, sumber } dari /api/form-jamaah/cari-riwayat
   const [riwayatDiabaikan, setRiwayatDiabaikan] = useState(false);
   const [riwayatDipakai, setRiwayatDipakai] = useState(null); // sumber riwayat yang barusan dipakai — pengingat buat cek ulang
@@ -236,6 +245,9 @@ function FormJamaahPageInner() {
       alert('Tanggal berakhir paspor harus setelah tanggal mulai!');
       return false;
     }
+
+    const errFormat = validasiIsianJamaah(d);
+    if (errFormat) { alert(errFormat.replace(/^Jamaah: /, '')); return false; }
 
     const umurJ = hitungUmur(d.ttl);
     if (umurJ !== null && umurJ > 17) {
@@ -420,8 +432,8 @@ function FormJamaahPageInner() {
 
             <div>
               <label className={lbl}>No. Paspor *</label>
-              <input value={j.paspor} onChange={e => {
-                const v = e.target.value;
+              <input value={j.paspor} maxLength={PASPOR_MAKS} placeholder="Contoh: C1234567" onChange={e => {
+                const v = bersihkanPaspor(e.target.value);
                 setField('paspor', v);
                 // NIK tetap yang utama — paspor cuma dipakai buat cari riwayat
                 // kalau sudah pasti gak ada NIK (usia <=17 th, blm punya KTP).
@@ -531,7 +543,8 @@ function FormJamaahPageInner() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>No. WhatsApp *</label>
-                <input value={j.wa} onChange={e => setField('wa', e.target.value)} className={inp}/>
+                <input value={j.wa} onChange={e => setField('wa', hanyaAngka(e.target.value))}
+                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={inp}/>
               </div>
               <div>
                 <label className={lbl}>Email (opsional)</label>
@@ -576,12 +589,19 @@ function FormJamaahPageInner() {
               </div>
               <div>
                 <label className={lbl}>No. WA *</label>
-                <input value={j.kdwa} onChange={e => setField('kdwa', e.target.value)} className={inp}/>
+                <input value={j.kdwa} onChange={e => setField('kdwa', hanyaAngka(e.target.value))}
+                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={inp}/>
               </div>
             </div>
             <div>
               <label className={lbl}>Hubungan *</label>
-              <input value={j.kdhub} onChange={e => setField('kdhub', e.target.value)} className={inp}/>
+              <select value={j.kdhub} onChange={e => setField('kdhub', e.target.value)} className={inp}>
+                <option value="">-- Pilih Hubungan --</option>
+                {hubunganList.map(h => <option key={h} value={h}>{h}</option>)}
+                {/* Isian lama (teks bebas, mis. dari riwayat booking sebelumnya)
+                    tetap kelihatan biar jamaah sadar harus pilih ulang. */}
+                {j.kdhub && !hubunganList.includes(j.kdhub) && <option value={j.kdhub}>{j.kdhub} (pilih ulang)</option>}
+              </select>
             </div>
           </div>
 

@@ -170,7 +170,7 @@ export default function ProfilPage() {
 
   async function savePassword() {
     if (!pwForm.password_lama) { alert('Password lama wajib diisi!'); return; }
-    if (!pwForm.password_baru || pwForm.password_baru.length < 6) { alert('Password baru minimal 6 karakter!'); return; }
+    if (!pwForm.password_baru || pwForm.password_baru.length < 8) { alert('Password baru minimal 8 karakter!'); return; }
     if (pwForm.password_baru !== pwForm.konfirmasi) { alert('Konfirmasi password baru tidak cocok!'); return; }
     setSavingPw(true);
     try {

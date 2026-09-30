@@ -575,9 +575,9 @@ function AdminPageInner() {
   }
 
   async function resetPassword(u) {
-    const baru = prompt(`Password baru untuk ${u.name} (minimal 6 karakter):`);
+    const baru = prompt(`Password baru untuk ${u.name} (minimal 8 karakter):`);
     if (!baru) return;
-    if (baru.length < 6) { alert('Password minimal 6 karakter'); return; }
+    if (baru.length < 8) { alert('Password minimal 8 karakter'); return; }
     const res = await fetch('/api/profil/password', {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ user_id: u.id, password_baru: baru })
