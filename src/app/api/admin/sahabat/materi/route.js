@@ -83,20 +83,54 @@ export async function POST(request) {
     const tmpPdfPath = path.join(DIR, `_tmp_${materiId}_${Date.now()}.pdf`);
     await writeFile(tmpPdfPath, Buffer.from(await file.arrayBuffer()));
     const outPrefix = path.join(DIR, `_tmp_${materiId}_page`);
-    try {
-      await execFileAsync('pdftoppm', ['-png', '-r', String(RESOLUSI_DPI), tmpPdfPath, outPrefix]);
-    } catch (err) {
-      console.error('pdftoppm gagal mengonversi PDF materi:', err);
+    const prefixName = path.basename(outPrefix);
+    const bersihkanTmp = async () => {
       await unlink(tmpPdfPath).catch(() => {});
+      const sisa = await readdir(DIR).catch(() => []);
+      await Promise.all(sisa.filter(f => f.startsWith(`${prefixName}-`)).map(f => unlink(path.join(DIR, f)).catch(() => {})));
+    };
+
+    let totalHalaman = null;
+    try {
+      const { stdout } = await execFileAsync('pdfinfo', [tmpPdfPath]);
+      const m = stdout.match(/^Pages:\s+(\d+)/m);
+      totalHalaman = m ? Number(m[1]) : null;
+    } catch (err) {
+      console.error('pdfinfo gagal membaca PDF materi:', err);
+    }
+    if (!totalHalaman) {
+      await bersihkanTmp();
       await pool.query('DELETE FROM materi_sahabat WHERE id = ?', [materiId]);
       return Response.json({ error: 'Gagal memproses PDF — pastikan file tidak rusak atau terkunci password.' }, { status: 400 });
+    }
+
+    // Render SATU HALAMAN PER PROSES pdftoppm, bukan semua sekaligus — PDF
+    // berat (banyak foto resolusi tinggi per slide) bisa bikin memori
+    // menumpuk sampai container di-OOM-kill kalau dirender sekaligus
+    // (ditemukan 2026-09-30: PDF 60MB gagal, 1.6MB lancar). Per-halaman
+    // membatasi puncak memori ke 1 halaman berapa pun total slide-nya.
+    for (let p = 1; p <= totalHalaman; p++) {
+      try {
+        await execFileAsync('pdftoppm', ['-png', '-r', String(RESOLUSI_DPI), '-f', String(p), '-l', String(p), tmpPdfPath, outPrefix]);
+      } catch (err) {
+        console.error(`pdftoppm gagal mengonversi halaman ${p}:`, err);
+        await bersihkanTmp();
+        await pool.query('DELETE FROM materi_sahabat WHERE id = ?', [materiId]);
+        // Bedakan penyebab: ENOENT = binary pdftoppm belum terpasang di server
+        // (cek Dockerfile/poppler-utils), signal SIGKILL = proses dimatikan
+        // paksa (OOM di halaman ini) — dua-duanya BUKAN "file rusak", jangan
+        // disamaratakan supaya gampang didiagnosis dari log.
+        let pesan = `Gagal memproses PDF di halaman ${p} — pastikan file tidak rusak atau terkunci password.`;
+        if (err.code === 'ENOENT') pesan = 'Gagal memproses PDF — komponen konversi (pdftoppm) belum terpasang di server.';
+        else if (err.signal === 'SIGKILL') pesan = `Gagal memproses PDF di halaman ${p} — proses konversi dihentikan paksa server (halaman ini kemungkinan terlalu berat untuk memori server).`;
+        return Response.json({ error: pesan }, { status: 400 });
+      }
     }
     await unlink(tmpPdfPath).catch(() => {});
 
     // pdftoppm keluarin "<prefix>-<nomor halaman>.png" TANPA zero-padding
     // konsisten di semua versi poppler — jangan urut lexical (nomor 10 bisa
     // nyelip sebelum 2), parse angkanya & urut numerik.
-    const prefixName = path.basename(outPrefix);
     const semuaFile = await readdir(DIR);
     const halaman = semuaFile
       .map(f => {
