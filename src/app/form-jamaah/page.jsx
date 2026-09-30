@@ -3,6 +3,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, validasiIsianJamaah } from '@/lib/dataJamaah';
 
 const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
@@ -16,14 +17,8 @@ const emptyJamaah = () => ({
   doc_paspor: '', doc_kk: '', doc_ktp: '', doc_vaksin: '', doc_foto: ''
 });
 
-// Dokumen pendukung jamaah — semuanya opsional (lihat DOC_TIPE di bawah).
-const DOC_LIST = [
-  { key: 'doc_paspor', jenis: 'paspor', label: 'Scan Paspor' },
-  { key: 'doc_kk', jenis: 'kk', label: 'Kartu Keluarga' },
-  { key: 'doc_ktp', jenis: 'ktp', label: 'KTP' },
-  { key: 'doc_vaksin', jenis: 'vaksin', label: 'Bukti Vaksin Meningitis & Polio' },
-  { key: 'doc_foto', jenis: 'foto', label: 'Pas Foto' },
-];
+// Dokumen pendukung jamaah — semuanya opsional. Daftar + status verifikasi
+// admin ada di src/lib/dokumenPendukung.js.
 
 // Ambang 6 bulan — aturan umum imigrasi/maskapai (paspor wajib berlaku
 // minimal 6 bulan dari keberangkatan), dipakai sebagai pengingat generik di
@@ -87,6 +82,9 @@ function FormJamaahPageInner() {
   // baru dihapus SETELAH formulir berhasil disimpan (DELETE
   // /api/upload-dokumen-jamaah), biar booking gak pernah nunjuk file yang udah hilang.
   const dokumenDilepas = useRef(new Set());
+  // jamaah_data versi server — status verifikasi (doc_status) cuma valid buat
+  // path yang SAMA dengan yang tersimpan; upload baru = belum dikirim.
+  const [tersimpan, setTersimpan] = useState([]);
 
   useEffect(() => {
     // user null krn localStorage belum kebaca di render pertama — bukan
@@ -117,6 +115,7 @@ function FormJamaahPageInner() {
             // Kalau sudah pernah diisi sebelumnya, muat data lama
             if (Array.isArray(found.jamaah_data) && found.jamaah_data.length > 0) {
               found.jamaah_data.forEach((jd, i) => { if (i < list.length) list[i] = { ...list[i], ...jd }; });
+              setTersimpan(found.jamaah_data);
             }
 
             // Draft otomatis (localStorage) — jaga-jaga kalau sebelumnya
@@ -130,7 +129,9 @@ function FormJamaahPageInner() {
                 const draft = JSON.parse(draftRaw);
                 if (draft?.jamaahList?.length === list.length &&
                     confirm('Ditemukan draft formulir yang belum terkirim di perangkat ini. Lanjutkan mengedit draft tersebut?')) {
-                  finalList = draft.jamaahList;
+                  // doc_status di draft bisa basi (admin verifikasi setelah
+                  // draft dibuat) — selalu pakai yang dari server.
+                  finalList = draft.jamaahList.map((dj, i) => ({ ...dj, doc_status: list[i]?.doc_status }));
                   finalCurrentJ = draft.currentJ || 0;
                 } else {
                   localStorage.removeItem(draftKey(bookingId));
@@ -639,9 +640,24 @@ function FormJamaahPageInner() {
                     <div className="text-sm font-semibold text-gray-700">{doc.label}</div>
                     {perluUpdatePaspor ? (
                       <div className="text-xs text-yellow-700">⚠️ Perlu diperbarui (masa berlaku hampir/sudah habis)</div>
-                    ) : j[doc.key] ? (
-                      <a href={j[doc.key]} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 font-semibold hover:underline">✅ Terunggah — lihat file</a>
-                    ) : (
+                    ) : j[doc.key] ? (() => {
+                      const belumDikirim = j[doc.key] !== tersimpan[currentJ]?.[doc.key];
+                      const st = belumDikirim ? null : statusDokumen(j, doc.key);
+                      const info = st && STATUS_DOKUMEN[st.status];
+                      return (
+                        <div className="space-y-0.5">
+                          <a href={j[doc.key]} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1A4FA0] font-semibold hover:underline">Lihat file</a>
+                          {belumDikirim ? (
+                            <div className="text-[10px] text-gray-500">📤 Baru — terkirim saat klik Kirim Formulir</div>
+                          ) : info && (
+                            <div><span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${info.cls}`}>{info.ikon} {info.label}</span></div>
+                          )}
+                          {st?.status === 'ditolak' && st.alasan && (
+                            <div className="text-[10px] text-red-600">Alasan: {st.alasan} — silakan Ganti dengan file yang benar.</div>
+                          )}
+                        </div>
+                      );
+                    })() : (
                       <div className="text-xs text-gray-400">Belum diunggah</div>
                     )}
                   </div>

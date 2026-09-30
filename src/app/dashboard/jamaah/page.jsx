@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import DokumenSayaList from '@/app/components/DokumenSayaList';
+import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { STAGE_LABELS, formLengkap, getStage } from '@/lib/bookingStage';
@@ -258,12 +259,7 @@ export default function DashboardJamaah() {
                           (paspor/KTP/KK/vaksin/foto) opsional & boleh
                           disusulin, jamaah perlu jalan buat lanjutin upload
                           kapan aja selama booking masih aktif. */}
-                      <button
-                        onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
-                        className="w-full mt-2 text-xs text-[#1A4FA0] underline"
-                      >
-                        📎 Lengkapi/Update Dokumen Pendukung
-                      </button>
+                      <DokumenPendukungStatus booking={b} onEdit={() => router.push(`/form-jamaah?booking_id=${b.id}`)} />
 
                       {/* Info Manasik — sekadar info jadwal/lokasi (gak ada
                           gate/tracking kehadiran), muncul begitu DP confirmed

@@ -1,4 +1,6 @@
 import pool from '@/lib/db';
+import { terapkanStatusDokumen, DOC_KEYS } from '@/lib/dokumenPendukung';
+import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { wajibLogin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { ambilItemDikirimJamaah } from '@/lib/perlengkapan';
@@ -239,17 +241,44 @@ export async function PATCH(request, { params }) {
     // request edit paket di atas), biar gak ke-NULL-kan form_filled/
     // jamaah_data pas admin cuma mau edit paket doang.
     if (form_filled !== undefined) {
-      await pool.query(
-        `UPDATE bookings SET
-          form_filled = ?,
-          jamaah_data = ?
-        WHERE id = ?`,
-        [
-          form_filled,
-          jamaah_data ? JSON.stringify(jamaah_data) : null,
-          id,
-        ]
-      );
+      // Status verifikasi dokumen pendukung (doc_status) ditentukan server,
+      // bukan client — lihat terapkanStatusDokumen. Dikunci FOR UPDATE biar
+      // gak nimpa verifikasi admin yang jalan barengan
+      // (/api/admin/dokumen-pendukung, dikonfirmasi user 2026-10-01).
+      const conn = await pool.getConnection();
+      let adaDokumenBaru = false;
+      try {
+        await conn.beginTransaction();
+        const [[bkLama]] = await conn.query('SELECT jamaah_data FROM bookings WHERE id = ? FOR UPDATE', [id]);
+        let lama = bkLama?.jamaah_data;
+        if (typeof lama === 'string') { try { lama = JSON.parse(lama); } catch { lama = null; } }
+        const baru = terapkanStatusDokumen(jamaah_data, lama);
+        adaDokumenBaru = Array.isArray(baru) && baru.some((j, i) => DOC_KEYS.some(k =>
+          j?.[k] && j[k] !== (Array.isArray(lama) ? lama[i]?.[k] : undefined)));
+        await conn.query(
+          `UPDATE bookings SET
+            form_filled = ?,
+            jamaah_data = ?
+          WHERE id = ?`,
+          [form_filled, baru ? JSON.stringify(baru) : null, id]
+        );
+        await conn.commit();
+      } catch (e) {
+        await conn.rollback();
+        throw e;
+      } finally {
+        conn.release();
+      }
+      if (adaDokumenBaru) {
+        try {
+          await kirimNotifikasiAdmin(pool, {
+            tipe: 'dokumen_pendukung_baru',
+            judul: 'Dokumen Pendukung Menunggu Verifikasi',
+            pesan: `Ada dokumen pendukung jamaah baru/diganti di booking ${id}.`,
+            link: '/admin/dokumen-pendukung',
+          });
+        } catch (e) { console.error('Notif admin dokumen pendukung gagal:', e); }
+      }
     }
 
     // sumber_info, referral_kode, referral_perw_id sudah dicatat saat booking

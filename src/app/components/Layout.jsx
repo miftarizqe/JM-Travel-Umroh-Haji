@@ -407,6 +407,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   const adminGroups = [
     { icon: '📞', label: 'Operasional / CS', children: [
       { icon: '🧳', label: 'Database Jamaah', path: '/admin/database/jamaah' },
+      { icon: '📎', label: 'Verifikasi Dokumen Pendukung', path: '/admin/dokumen-pendukung' },
       { icon: '📋', label: 'Daftar Booking', path: '/admin?tab=bookings' },
       { icon: '💳', label: 'Pembayaran', path: '/admin?tab=payments' },
       { icon: '🚫', label: 'Pembatalan', path: '/admin?tab=pembatalan' },
