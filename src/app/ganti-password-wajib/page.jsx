@@ -53,6 +53,15 @@ export default function GantiPasswordWajibPage() {
     } catch { setError('Terjadi kesalahan, coba lagi.'); setSaving(false); }
   }
 
+  // Satu-satunya jalan keluar kalau tertahan di sini (salah akun / lupa
+  // password sementara) — halaman ini gak pakai Layout, jadi gak ada tombol
+  // Keluar bawaan. Sama dengan logout() di Layout.jsx.
+  async function keluar() {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+    localStorage.removeItem('user');
+    router.replace('/login');
+  }
+
   const inp = "w-full px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
 
   return (
@@ -84,6 +93,9 @@ export default function GantiPasswordWajibPage() {
         <button onClick={simpan} disabled={saving}
           className="w-full mt-5 bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white font-bold py-2.5 rounded-full">
           {saving ? 'Menyimpan...' : 'Simpan & Lanjutkan'}
+        </button>
+        <button onClick={keluar} className="w-full mt-3 text-xs font-semibold text-gray-400 hover:text-red-600">
+          Keluar
         </button>
       </div>
     </div>
