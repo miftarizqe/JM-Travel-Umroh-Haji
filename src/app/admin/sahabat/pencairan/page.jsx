@@ -29,7 +29,7 @@ const STATUS_WARNA = {
 export default function PencairanKomisiPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
-  const { isAdminOrHop, checked: hopChecked } = useIsHop(user);
+  const { isAdmin, isAdminOrHop, checked: hopChecked } = useIsHop(user);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pengajuan, setPengajuan] = useState([]);
@@ -37,7 +37,6 @@ export default function PencairanKomisiPage() {
   const [showForm, setShowForm] = useState(false);
   const [periodeMulai, setPeriodeMulai] = useState('');
   const [periodeSelesai, setPeriodeSelesai] = useState('');
-  const isSuperAdmin = user?.role === 'super_admin';
 
   function muat() {
     fetch('/api/admin/sahabat/pencairan-ringkasan').then(r => r.json()).then(d => {
@@ -141,7 +140,7 @@ export default function PencairanKomisiPage() {
               Baru" di bawah, biar gak ada gap ekspektasi. Progress "nunggu TF"
               tetap kelihatan per-batch di kartu Riwayat Pengajuan (badge TF X/Y). */}
 
-          {isSuperAdmin ? (
+          {isAdmin ? (
             <div className="mb-4">
               {!showForm ? (
                 <div className="flex gap-2">
@@ -184,7 +183,7 @@ export default function PencairanKomisiPage() {
             </div>
           ) : (
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center text-xs text-gray-400 mb-4">
-              Bikin pengajuan &amp; cetak rekap cuma bisa dilakukan super_admin.
+              Bikin pengajuan &amp; cetak rekap cuma bisa dilakukan admin/super_admin.
             </div>
           )}
 

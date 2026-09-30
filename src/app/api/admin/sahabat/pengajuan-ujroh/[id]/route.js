@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
-import { wajibSuperAdmin } from '@/lib/auth';
+import { wajibRole, wajibSuperAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
@@ -49,8 +49,15 @@ async function simpanBuktiTtd(file, id) {
 // (misal Pengajuan #3) — `bukti_ttd_path`-nya NULL selamanya kalau gak ada
 // jalan buat nyusulin. TIDAK mengubah status/diputuskan_at (keputusannya
 // udah diambil dulu, ini cuma melengkapi bukti fisiknya belakangan).
+// 'ajukan' cuma nyiapin dokumen buat TTD fisik bos (belum keputusan apa-apa)
+// — dibuka ke admin biasa (dikonfirmasi user 2026-09-30, kerjaan rutin
+// mingguan). 'setujui'/'tolak'/'lampirkan_bukti_ttd' itu KEPUTUSAN pencairan
+// beneran, tetap super_admin only — dicek manual di bawah karena actionnya
+// nentuin, bukan endpoint-nya.
+const AKSI_SUPER_ADMIN_ONLY = ['setujui', 'tolak', 'lampirkan_bukti_ttd'];
+
 export async function PATCH(request, { params }) {
-  const auth = wajibSuperAdmin(request);
+  const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
 
   try {
@@ -59,6 +66,10 @@ export async function PATCH(request, { params }) {
     const action = formData.get('action');
     const catatan = formData.get('catatan');
     const file = formData.get('file');
+
+    if (AKSI_SUPER_ADMIN_ONLY.includes(action) && auth.user.role !== 'super_admin') {
+      return Response.json({ error: 'Aksi ini cuma boleh dilakukan super_admin.' }, { status: 403 });
+    }
 
     const [[p]] = await pool.query('SELECT * FROM pengajuan_ujroh WHERE id = ?', [id]);
     if (!p) return Response.json({ error: 'Pengajuan tidak ditemukan' }, { status: 404 });

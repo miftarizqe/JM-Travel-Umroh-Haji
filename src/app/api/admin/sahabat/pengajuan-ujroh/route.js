@@ -1,5 +1,5 @@
 import pool from '@/lib/db';
-import { wajibSuperAdmin } from '@/lib/auth';
+import { wajibRole } from '@/lib/auth';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
 
 // Jenis yang ikut pengajuan mingguan — SAMA PERSIS /api/admin/sahabat/
@@ -36,8 +36,11 @@ export async function GET(request) {
 // periodenya tumpang tindih sama pengajuan lain yang MASIH berlaku (status
 // != 'ditolak' — yang ditolak periodenya bebas dipakai lagi, sama kayak
 // baris di dalamnya yang juga dilepas balik ke pending).
+// Bikin draft pengajuan mingguan — dibuka ke admin biasa (dikonfirmasi user
+// 2026-09-30, kerjaan rutin mingguan, belum keputusan pencairan apa-apa).
+// Keputusan 'setujui'/'tolak' di PATCH [id] tetap super_admin only.
 export async function POST(request) {
-  const auth = wajibSuperAdmin(request);
+  const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
 
   const { periode_mulai, periode_selesai } = await request.json();

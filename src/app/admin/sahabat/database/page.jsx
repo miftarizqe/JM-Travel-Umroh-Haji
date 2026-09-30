@@ -96,7 +96,7 @@ const PILIHAN_TAHUN = Array.from({ length: 5 }, (_, i) => TAHUN_SEKARANG - i);
 export default function DatabaseJamaahPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
-  const { isAdminOrHop, isHop, checked: hopChecked } = useIsHop(user);
+  const { isAdmin, isAdminOrHop, isHop, checked: hopChecked } = useIsHop(user);
   const [jamaah, setJamaah] = useState([]);
   const [loading, setLoading] = useState(true);
   const [cari, setCari] = useState('');
@@ -796,14 +796,14 @@ export default function DatabaseJamaahPage() {
                                     {k.bukti_tf_admin_path && (
                                       <a href={k.bukti_tf_admin_path} target="_blank" rel="noopener noreferrer" className="text-[10px] text-[#1A4FA0] font-bold">📎 Lihat Bukti</a>
                                     )}
-                                    {isSuperAdmin && (
+                                    {isAdmin && (
                                       <button disabled={busy} onClick={() => batalkanKonfirmasi(j.user_id, k.id)} className="text-[10px] text-gray-400 underline">
                                         Batalkan
                                       </button>
                                     )}
                                   </div>
                                 </div>
-                              ) : isSuperAdmin ? (
+                              ) : isAdmin ? (
                                 k.jenis === 'pemakaian_saldo_sahabat' ? (
                                   <button disabled={busy} onClick={() => konfirmasiDenganBukti(j.user_id, k.id, null)}
                                     className="text-[10px] font-bold text-white bg-[#1A4FA0] px-2.5 py-1.5 rounded-full shrink-0 whitespace-nowrap disabled:opacity-50">
@@ -823,8 +823,8 @@ export default function DatabaseJamaahPage() {
                           ))}
                         </div>
                       )}
-                      {!isSuperAdmin && (
-                        <div className="text-[10px] text-gray-400 mt-1.5">Konfirmasi transfer cuma bisa dilakukan super_admin.</div>
+                      {!isAdmin && (
+                        <div className="text-[10px] text-gray-400 mt-1.5">Konfirmasi transfer cuma bisa dilakukan admin/super_admin.</div>
                       )}
 
                       {/* Setoran mandiri jamaah — bukan ujroh/closing, gak

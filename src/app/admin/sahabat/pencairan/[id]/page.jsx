@@ -30,7 +30,7 @@ export default function PencairanDetailPage() {
   const id = params?.id;
   const router = useRouter();
   const [user] = useCurrentUser();
-  const { isAdminOrHop, checked: hopChecked } = useIsHop(user);
+  const { isAdmin, isAdminOrHop, checked: hopChecked } = useIsHop(user);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -128,7 +128,7 @@ export default function PencairanDetailPage() {
           <div className="text-gray-500">TF: <b className="text-green-600">{jumlahConfirmed}/{semuaItem.length}</b></div>
         </div>
 
-        {isSuperAdmin && (
+        {isAdmin && (
           <div className="flex gap-2 mt-3 flex-wrap">
             {/* Dikunci begitu bukti TTD terlampir (2026-09-02, dikonfirmasi
                 user) — dokumennya udah di-TTD & jadi rujukan resmi, cetak
@@ -139,20 +139,25 @@ export default function PencairanDetailPage() {
               className="bg-gray-100 text-gray-600 text-xs font-bold px-4 py-2 rounded-full disabled:opacity-40 disabled:cursor-not-allowed">
               🖨️ Cetak
             </button>
+            {/* 'ajukan' cuma nyiapin dokumen buat TTD fisik bos, belum
+                keputusan apa-apa — admin biasa boleh (dikonfirmasi user
+                2026-09-30, kerjaan rutin mingguan). Keputusan 'setujui'/
+                'tolak' TETAP super_admin only di bawah. */}
             {p.status === 'draft' && (
               <button disabled={busy} onClick={() => transisi('ajukan')} className="bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-full disabled:opacity-50">
                 Ajukan buat TTD Bos →
               </button>
             )}
-            {p.status === 'diajukan' && (
+            {isSuperAdmin && p.status === 'diajukan' && (
               <button disabled={busy} onClick={() => { if (confirm('Tolak pengajuan ini? Baris di dalamnya akan lepas & masuk pengajuan berikutnya.')) transisi('tolak'); }}
                 className="bg-gray-100 text-gray-500 text-xs font-bold px-4 py-2 rounded-full disabled:opacity-50">
                 Tolak
               </button>
             )}
             {/* Hapus cuma buat yang BELUM diputuskan (draft/diajukan) — begitu
-                disetujui/ditolak itu udah jadi keputusan tercatat, dikunci. */}
-            {['draft', 'diajukan'].includes(p.status) && (
+                disetujui/ditolak itu udah jadi keputusan tercatat, dikunci.
+                Tetap super_admin only (belum diminta dilonggarin). */}
+            {isSuperAdmin && ['draft', 'diajukan'].includes(p.status) && (
               <button disabled={busy} onClick={hapusPengajuan}
                 className="bg-red-50 text-red-600 text-xs font-bold px-4 py-2 rounded-full disabled:opacity-50">
                 🗑️ Hapus
@@ -249,7 +254,7 @@ export default function PencairanDetailPage() {
                 <span>Subtotal</span><span>{fmtRp(k.subtotal)}</span>
               </div>
 
-              {isSuperAdmin && p.status === 'disetujui' && !semuaConfirmed && (
+              {isAdmin && p.status === 'disetujui' && !semuaConfirmed && (
                 <div className="flex gap-2 items-center pt-1 border-t border-gray-100">
                   <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={busy}
                     onChange={e => setFileByPenerima(f => ({ ...f, [k.penerima_id]: e.target.files?.[0] || null }))}

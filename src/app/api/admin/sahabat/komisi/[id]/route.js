@@ -2,7 +2,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
-import { wajibSuperAdmin } from '@/lib/auth';
+import { wajibRole } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { catatRekening } from '@/lib/rekeningLedger';
@@ -11,14 +11,19 @@ const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 const MAKS = 10 * 1024 * 1024; // 10MB
 
 // PATCH /api/admin/sahabat/komisi/[id]  (multipart: confirmed, file?)
-// Checklist "udah ditransfer ke BSI & di-acc" — SENGAJA super_admin only
-// (dikonfirmasi user), bukan admin biasa. Guard `jenis IN (...)` biar
-// endpoint ini gak bisa dipakai ubah baris reseller_perwakilan (perwakilan).
+// Checklist "udah ditransfer ke BSI & di-acc" — DIBUKA ke admin biasa
+// (dikonfirmasi user 2026-09-30, ini kerjaan rutin sore hari cocokin nominal
+// tabungan, kelewat receh buat wajib super_admin). Sebelumnya super_admin
+// only; tetap AMAN dibuka karena gerbang approval di bawah (baris ~46) udah
+// nge-block confirm sebelum batch pengajuan_ujroh-nya 'disetujui' oleh
+// super_admin — admin biasa cuma bisa eksekusi TF yang udah di-ACC, gak bisa
+// bikin keputusan pencairan sendiri. Guard `jenis IN (...)` biar endpoint ini
+// gak bisa dipakai ubah baris reseller_perwakilan (perwakilan).
 // Transisi belum-confirmed -> confirmed WAJIB bawa bukti TF (dikonfirmasi
 // user 2026-08-29 — "biar semua ada tracknya"); unconfirm gak perlu file,
 // & file yang udah ada TETAP disimpan (histori) kalau nanti di-confirm ulang.
 export async function PATCH(request, { params }) {
-  const auth = wajibSuperAdmin(request);
+  const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
 
   try {
