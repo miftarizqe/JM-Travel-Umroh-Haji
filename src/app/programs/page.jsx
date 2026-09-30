@@ -45,7 +45,18 @@ function TombolAksi({ p, user, router, isPendingNewChoice, targetSuspended, eksk
       </button>
     );
   }
-  if (eksklusifBukanTarget || targetSuspended) {
+  // Eksklusif yang BUKAN target impian: cuma boleh dilihat, kartunya
+  // di-disable total (dikonfirmasi user 2026-09-30). Ganti target tetap bisa
+  // lewat tombol "🔄 Ganti Target Impian" di Beranda (dashboard/sahabat).
+  if (eksklusifBukanTarget) {
+    return (
+      <button disabled
+        className="w-full bg-gray-100 border-2 border-gray-200 text-gray-400 font-bold py-2.5 rounded-full cursor-not-allowed">
+        🔒 Bukan Target Impian Anda
+      </button>
+    );
+  }
+  if (targetSuspended) {
     return (
       <button onClick={() => router.push(`/program/${p.id}`)}
         className="w-full bg-white border-2 border-[#1A4FA0] group-hover:border-[#C9952A] text-[#1A4FA0] group-hover:text-[#C9952A] font-bold py-2.5 rounded-full transition-colors">
@@ -120,8 +131,12 @@ function KartuProgram({ p, user, router, isTarget, isPendingNewChoice, targetSus
 // (BadgeTarget/TombolAksi di atas).
 function KartuEksklusif({ p, user, router, isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
   const sisaSeat = p.total_seat - p.used_seat;
+  // Pending pilihan baru TETAP bisa diklik (itu pilihan Sahabat sendiri yang
+  // lagi nunggu ACC) — yang di-disable cuma eksklusif lain yang gak dipilih.
+  const nonaktif = eksklusifBukanTarget && !isPendingNewChoice;
   return (
-    <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0E2F6E] via-[#16408F] to-[#0E2F6E] text-white border-2 border-[#C9952A] shadow-xl">
+    <div aria-disabled={nonaktif || undefined}
+      className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0E2F6E] via-[#16408F] to-[#0E2F6E] text-white border-2 shadow-xl ${nonaktif ? 'border-gray-300 grayscale opacity-60 pointer-events-none select-none' : 'border-[#C9952A]'}`}>
       <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-[#C9952A]/20" aria-hidden="true" />
       <div className="absolute -left-10 -bottom-20 w-48 h-48 rounded-full bg-white/5" aria-hidden="true" />
       <div className="relative grid md:grid-cols-5 gap-5 p-6 md:p-8">
