@@ -4,7 +4,7 @@ import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung'
 // Ringkasan dokumen pendukung per jamaah di kartu booking (dashboard jamaah,
 // dikonfirmasi user 2026-10-01): status verifikasi admin tiap dokumen + tombol
 // lihat, dan tombol ke form-jamaah buat unggah/ganti/hapus.
-export default function DokumenPendukungStatus({ booking, onEdit }) {
+export default function DokumenPendukungStatus({ booking, onUnggah, onEdit }) {
   let jd = booking.jamaah_data;
   if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
   const jamaah = Array.isArray(jd) ? jd : [];
@@ -66,9 +66,16 @@ export default function DokumenPendukungStatus({ booking, onEdit }) {
           ))}
         </div>
       )}
-      <button onClick={onEdit} className="w-full mt-2 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] py-2 rounded-full">
-        ✏️ Unggah / Edit Dokumen Pendukung
-      </button>
+      {/* Dua tombol terpisah (dikonfirmasi user 2026-10-01): Unggah langsung
+          ke bagian dokumen di form, Edit buka form dari atas. */}
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <button onClick={onUnggah} className="text-xs font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] py-2 rounded-full">
+          📤 Unggah Dokumen
+        </button>
+        <button onClick={onEdit} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] py-2 rounded-full">
+          ✏️ Edit Dokumen
+        </button>
+      </div>
     </div>
   );
 }

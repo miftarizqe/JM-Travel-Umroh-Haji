@@ -259,7 +259,9 @@ export default function DashboardJamaah() {
                           (paspor/KTP/KK/vaksin/foto) opsional & boleh
                           disusulin, jamaah perlu jalan buat lanjutin upload
                           kapan aja selama booking masih aktif. */}
-                      <DokumenPendukungStatus booking={b} onEdit={() => router.push(`/form-jamaah?booking_id=${b.id}`)} />
+                      <DokumenPendukungStatus booking={b}
+                        onUnggah={() => router.push(`/form-jamaah?booking_id=${b.id}&ke=dokumen`)}
+                        onEdit={() => router.push(`/form-jamaah?booking_id=${b.id}`)} />
 
                       {/* Info Manasik — sekadar info jadwal/lokasi (gak ada
                           gate/tracking kehadiran), muncul begitu DP confirmed

@@ -59,6 +59,11 @@ function FormJamaahPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bookingId = searchParams.get('booking_id');
+  // ?ke=dokumen dari tombol "Unggah Dokumen" di dashboard jamaah — gulir
+  // langsung ke bagian Dokumen Pendukung begitu form selesai dimuat (sekali).
+  const keDokumen = searchParams.get('ke') === 'dokumen';
+  const dokumenRef = useRef(null);
+  const sudahGulir = useRef(false);
 
   const [user] = useCurrentUser();
   const [booking, setBooking] = useState(null);
@@ -85,6 +90,11 @@ function FormJamaahPageInner() {
   // jamaah_data versi server — status verifikasi (doc_status) cuma valid buat
   // path yang SAMA dengan yang tersimpan; upload baru = belum dikirim.
   const [tersimpan, setTersimpan] = useState([]);
+  useEffect(() => {
+    if (!keDokumen || sudahGulir.current || !dokumenRef.current || jamaahList.length === 0) return;
+    sudahGulir.current = true;
+    dokumenRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [keDokumen, jamaahList.length]);
 
   useEffect(() => {
     // user null krn localStorage belum kebaca di render pertama — bukan
@@ -626,7 +636,7 @@ function FormJamaahPageInner() {
 
           {/* Dokumen pendukung — OPSIONAL, gak menghalangi submit formulir.
               Boleh juga dikirim belakangan via WA kalau lebih gampang. */}
-          <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
+          <div ref={dokumenRef} className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3 scroll-mt-20">
             <div>
               <div className="font-bold text-[#0E2F6E]">📎 Dokumen Pendukung</div>
               <div className="text-xs text-gray-400 mt-0.5">Opsional — boleh diunggah di sini sekarang, atau dikirim menyusul via WhatsApp admin.</div>
