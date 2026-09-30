@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import PasswordInput from '@/app/components/PasswordInput';
+import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
 
 function getDashPath(role) {
   if (role === 'admin' || role === 'super_admin') return '/admin';
@@ -35,7 +36,8 @@ export default function GantiPasswordWajibPage() {
   async function simpan() {
     setError('');
     if (!passwordLama.trim()) { setError('Isi password sementara yang diberikan admin.'); return; }
-    if (passwordBaru.trim().length < 6) { setError('Password baru minimal 6 karakter.'); return; }
+    // Sama dengan form registrasi: min. 8 karakter wajib, indikator kekuatan cuma visual.
+    if (passwordBaru.trim().length < 8) { setError('Password baru minimal 8 karakter.'); return; }
     if (passwordBaru !== konfirmasi) { setError('Konfirmasi password tidak sama.'); return; }
 
     setSaving(true);
@@ -83,6 +85,7 @@ export default function GantiPasswordWajibPage() {
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Password Baru</label>
             <PasswordInput value={passwordBaru} onChange={e => setPasswordBaru(e.target.value)} className={inp} />
+            <PasswordStrengthMeter password={passwordBaru} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Konfirmasi Password Baru</label>
