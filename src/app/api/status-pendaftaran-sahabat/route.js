@@ -344,13 +344,20 @@ export async function PATCH(request) {
             if (ancestorManajemen) { current = null; rantaiAbis = true; }
           }
 
-          // Tabungan awal jemaah baru itu sendiri.
+          // Tabungan awal jemaah baru itu sendiri — LANGSUNG dikonfirmasi_at
+          // (dikonfirmasi user 2026-09-30, bukan lagi kewajiban TF JM Travel:
+          // jemaah buka rekening sendiri & setor Rp100rb sendiri ke rekening
+          // tabungan umroh mereka). Beda dari komisi_sahabat/HOP di atas yang
+          // beneran uang JM Travel keluar & masih lewat approval/TF mingguan
+          // — baris ini SENGAJA gak masuk JENIS_UJROH (pengajuan-ujroh/
+          // route.js) biar gak nyangkut nunggu ACC bos buat sesuatu yang
+          // gak pernah butuh TF beneran.
           const tabunganAwal = Number(pengaturan?.sahabat_tabungan_awal_nominal || 0);
           if (tabunganAwal > 0) {
             await pool.query(
-              `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
-               VALUES (NULL, ?, ?, ?, 'tabungan_awal_sahabat', 1, ?, ?)`,
-              [user_id, user_id, p.nama, tabunganAwal, 'Saldo awal tabungan umroh — pendaftaran Sahabat Baitullah']
+              `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, dikonfirmasi_at)
+               VALUES (NULL, ?, ?, ?, 'tabungan_awal_sahabat', 1, ?, ?, NOW())`,
+              [user_id, user_id, p.nama, tabunganAwal, 'Saldo awal tabungan umroh — pendaftaran Sahabat Baitullah (setor mandiri jemaah)']
             );
           }
 

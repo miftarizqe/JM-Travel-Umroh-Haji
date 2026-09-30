@@ -26,6 +26,11 @@ export async function GET(request) {
        JOIN users u ON u.id = kl.penerima_id
        WHERE ${pengajuanId ? 'kl.pengajuan_ujroh_id = ?' : "kl.dikonfirmasi_at IS NULL AND kl.pengajuan_ujroh_id IS NULL"}
          AND kl.jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi')
+       -- 'tabungan_awal_sahabat' TETAP di list ini (beda dari JENIS_UJROH di
+       -- pengajuan-ujroh/route.js) — dengan pengajuan_id, ini nampilin
+       -- SNAPSHOT batch LAMA yang mungkin masih punya baris tabungan_awal
+       -- dari sebelum 2026-09-30; tanpa pengajuan_id (preview live), baris
+       -- ini gak akan pernah lagi muncul karena lahir dikonfirmasi_at NOW().
        ORDER BY u.name ASC, kl.created_at ASC`,
       pengajuanId ? [pengajuanId] : []
     );

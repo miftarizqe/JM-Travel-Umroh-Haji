@@ -130,6 +130,13 @@ export default function DatabaseJamaahPage() {
   const [formData, setFormData] = useState({});
   const [savingData, setSavingData] = useState(false);
   const [komisiPerUser, setKomisiPerUser] = useState({}); // { [user_id]: rows[] }
+  // Pilih-banyak buat konfirmasi TF sekaligus (dikonfirmasi user 2026-09-30
+  // — biar admin gak klik satu-satu kalau 1 jamaah punya beberapa baris
+  // pending). ID komisi_ledger unik lintas jamaah, jadi array flat aman
+  // walau cuma 1 jamaah yang expand dalam satu waktu.
+  const [selectedKomisi, setSelectedKomisi] = useState([]);
+  const [bulkBuktiFile, setBulkBuktiFile] = useState(null);
+  const [konfirmasiBulkBusy, setKonfirmasiBulkBusy] = useState(false);
   const [rekapFor, setRekapFor] = useState(null);
   const [rekapFilter, setRekapFilter] = useState({ tahun: '', bulan: '', jenis: '' });
   const [rekapData, setRekapData] = useState([]);
@@ -263,6 +270,35 @@ export default function DatabaseJamaahPage() {
       muat();
     } catch { alert('Terjadi kesalahan'); }
     setBusy(false);
+  }
+
+  function toggleSelectKomisi(id) {
+    setSelectedKomisi(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id]);
+  }
+
+  // Konfirmasi beberapa baris pending sekaligus, 1 bukti dipakai buat semua
+  // baris yang butuh bukti (pola sama kayak konfirmasiPenerima di halaman
+  // detail pengajuan) — item yang gak butuh bukti (mis. pemakaian_saldo_
+  // sahabat) tetap ikut, bukti-nya cuma diabaikan server buat baris itu.
+  async function konfirmasiTerpilih(userId, items) {
+    if (items.length === 0) return;
+    const butuhBukti = items.some(it => !['pemakaian_saldo_sahabat', 'setoran_mandiri_sahabat', 'koreksi_saldo_sahabat'].includes(it.jenis));
+    if (butuhBukti && !bulkBuktiFile) { alert('Pilih bukti transfer dulu buat baris yang butuh bukti.'); return; }
+    setKonfirmasiBulkBusy(true);
+    try {
+      for (const it of items) {
+        const fd = new FormData();
+        fd.append('confirmed', 'true');
+        if (bulkBuktiFile) fd.append('file', bulkBuktiFile);
+        const res = await fetch(`/api/admin/sahabat/komisi/${it.id}`, { method: 'PATCH', body: fd });
+        if (!res.ok) { const d = await res.json(); alert(`"${it.keterangan}" gagal: ${d.error}`); setKonfirmasiBulkBusy(false); return; }
+      }
+      setSelectedKomisi(s => s.filter(id => !items.some(it => it.id === id)));
+      setBulkBuktiFile(null);
+      muatKomisi(userId);
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setKonfirmasiBulkBusy(false);
   }
 
   // Setoran mandiri — jamaah nabung sendiri ke tabungan umroh BSI mereka
@@ -514,6 +550,7 @@ export default function DatabaseJamaahPage() {
         <div className="space-y-2">
           {jamaah.map(j => {
             const persen = persenKesiapan(j.saldo_tabungan_umroh, j.target_estimasi_harga);
+            const pendingTerpilih = (komisiPerUser[j.user_id] || []).filter(k => !k.dikonfirmasi_at && selectedKomisi.includes(k.id));
             return (
               <div key={j.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="p-3">
@@ -783,10 +820,16 @@ export default function DatabaseJamaahPage() {
                         <div className="space-y-1.5">
                           {komisiPerUser[j.user_id].map(k => (
                             <div key={k.id} className="flex items-center justify-between bg-gray-50 rounded-lg p-2 border border-gray-100 gap-2">
-                              <div className="min-w-0">
-                                <div className="text-gray-700">{k.keterangan}</div>
-                                <div className={`font-bold ${k.nominal < 0 ? 'text-red-600' : 'text-[#0E2F6E]'}`}>
-                                  {k.nominal < 0 ? '-' : ''}{fmtRp(Math.abs(k.nominal))}
+                              <div className="flex items-center gap-2 min-w-0">
+                                {isAdmin && !k.dikonfirmasi_at && (
+                                  <input type="checkbox" checked={selectedKomisi.includes(k.id)} disabled={konfirmasiBulkBusy}
+                                    onChange={() => toggleSelectKomisi(k.id)} className="w-4 h-4 accent-[#1A4FA0] shrink-0" />
+                                )}
+                                <div className="min-w-0">
+                                  <div className="text-gray-700">{k.keterangan}</div>
+                                  <div className={`font-bold ${k.nominal < 0 ? 'text-red-600' : 'text-[#0E2F6E]'}`}>
+                                    {k.nominal < 0 ? '-' : ''}{fmtRp(Math.abs(k.nominal))}
+                                  </div>
                                 </div>
                               </div>
                               {k.dikonfirmasi_at ? (
@@ -821,6 +864,25 @@ export default function DatabaseJamaahPage() {
                               )}
                             </div>
                           ))}
+                        </div>
+                      )}
+                      {isAdmin && pendingTerpilih.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-100 space-y-1.5">
+                          {pendingTerpilih.some(it => !['pemakaian_saldo_sahabat', 'setoran_mandiri_sahabat', 'koreksi_saldo_sahabat'].includes(it.jenis)) && (
+                            <div className="text-[10px] text-gray-500">
+                              {bulkBuktiFile ? `📎 ${bulkBuktiFile.name}` : 'Bukti transfer (dipakai buat semua baris terpilih yang butuh bukti):'}
+                              {' '}
+                              <label className="text-[#1A4FA0] font-bold cursor-pointer underline">
+                                {bulkBuktiFile ? 'Ganti' : 'Pilih file'}
+                                <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={konfirmasiBulkBusy}
+                                  onChange={e => setBulkBuktiFile(e.target.files?.[0] || null)} />
+                              </label>
+                            </div>
+                          )}
+                          <button disabled={konfirmasiBulkBusy} onClick={() => konfirmasiTerpilih(j.user_id, pendingTerpilih)}
+                            className="text-[10px] font-bold text-white bg-green-600 px-3 py-1.5 rounded-full whitespace-nowrap disabled:opacity-50">
+                            {konfirmasiBulkBusy ? 'Memproses...' : `✅ Konfirmasi Terpilih (${pendingTerpilih.length})`}
+                          </button>
                         </div>
                       )}
                       {!isAdmin && (

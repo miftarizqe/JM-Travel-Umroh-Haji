@@ -2,11 +2,20 @@ import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
 
-// Jenis yang ikut pengajuan mingguan — SAMA PERSIS /api/admin/sahabat/
-// komisi-rekap (SENGAJA gak termasuk 'pemakaian_saldo_sahabat' — itu
-// penyesuaian internal checkout mandiri, bukan transfer eksternal ke
-// rekening umroh, gak lewat alur pengajuan mingguan sama sekali).
-const JENIS_UJROH = ['komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat', 'tabungan_awal_sahabat', 'head_of_program_registrasi'];
+// Jenis yang ikut pengajuan mingguan (SENGAJA gak termasuk
+// 'pemakaian_saldo_sahabat' — itu penyesuaian internal checkout mandiri,
+// bukan transfer eksternal ke rekening umroh, gak lewat alur pengajuan
+// mingguan sama sekali).
+//
+// TIDAK LAGI "sama persis" /api/admin/sahabat/komisi-rekap sejak 2026-09-30
+// (dikonfirmasi user) — 'tabungan_awal_sahabat' DIKELUARKAN di sini karena
+// bukan lagi kewajiban TF JM Travel (jemaah setor sendiri Rp100rb ke
+// rekening tabungan umroh mereka), lahir langsung dikonfirmasi_at (lihat
+// status-pendaftaran-sahabat/route.js), gak pernah perlu diajukan. Tapi
+// komisi-rekap TETAP menyertakannya di list-nya — dipakai juga buat nampilin
+// SNAPSHOT batch LAMA yang mungkin masih punya baris tabungan_awal dari
+// sebelum tanggal ini.
+const JENIS_UJROH = ['komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat', 'head_of_program_registrasi'];
 
 // GET /api/admin/sahabat/pengajuan-ujroh — daftar semua batch, dipakai
 // /admin/sahabat/pencairan.
