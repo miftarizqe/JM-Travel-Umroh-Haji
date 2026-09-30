@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -83,6 +83,10 @@ function FormJamaahPageInner() {
   const [riwayatDiabaikan, setRiwayatDiabaikan] = useState(false);
   const [riwayatDipakai, setRiwayatDipakai] = useState(null); // sumber riwayat yang barusan dipakai — pengingat buat cek ulang
   const [uploadingDoc, setUploadingDoc] = useState(null); // key dokumen yang lagi diunggah (buat spinner tombolnya aja)
+  // Tautan dokumen yang dilepas (Hapus) atau ditimpa (Ganti) — file fisiknya
+  // baru dihapus SETELAH formulir berhasil disimpan (DELETE
+  // /api/upload-dokumen-jamaah), biar booking gak pernah nunjuk file yang udah hilang.
+  const dokumenDilepas = useRef(new Set());
 
   useEffect(() => {
     // user null krn localStorage belum kebaca di render pertama — bukan
@@ -207,7 +211,11 @@ function FormJamaahPageInner() {
       fd.append('jenis', jenis);
       const res = await fetch('/api/upload-dokumen-jamaah', { method: 'POST', body: fd });
       const d = await res.json();
-      if (res.ok) setField(docKey, d.path);
+      if (res.ok) {
+        const lama = jamaahList[currentJ]?.[docKey];
+        if (lama) dokumenDilepas.current.add(lama);
+        setField(docKey, d.path);
+      }
       else alert(d.error || 'Gagal mengunggah dokumen');
     } catch { alert('Terjadi kesalahan saat mengunggah dokumen'); }
     setUploadingDoc(null);
@@ -316,6 +324,16 @@ function FormJamaahPageInner() {
       });
       if (res.ok) {
         try { localStorage.removeItem(draftKey(bookingId)); } catch {}
+        // Best-effort: gagal hapus file lama gak boleh ganggu formulir yang
+        // udah tersimpan. Server sendiri nolak kalau file masih dipakai booking lain.
+        const masihDipakai = new Set(jamaahList.flatMap(x => DOC_LIST.map(dc => x[dc.key]).filter(Boolean)));
+        await Promise.allSettled([...dokumenDilepas.current].filter(pth => !masihDipakai.has(pth)).map(pth =>
+          fetch('/api/upload-dokumen-jamaah', {
+            method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: pth }),
+          })
+        ));
+        dokumenDilepas.current.clear();
         alert('Formulir jamaah berhasil dikirim!');
         const tujuan = {
           admin: '/admin',
@@ -627,11 +645,29 @@ function FormJamaahPageInner() {
                       <div className="text-xs text-gray-400">Belum diunggah</div>
                     )}
                   </div>
-                  <label className="shrink-0 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-2 rounded-full cursor-pointer whitespace-nowrap">
-                    {uploadingDoc === doc.key ? 'Mengunggah...' : j[doc.key] ? 'Ganti' : 'Unggah'}
-                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={uploadingDoc === doc.key}
-                      onChange={e => uploadDoc(doc.key, doc.jenis, e.target.files?.[0])}/>
-                  </label>
+                  <div className="shrink-0 flex items-center gap-1.5">
+                    <label className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-2 rounded-full cursor-pointer whitespace-nowrap">
+                      {uploadingDoc === doc.key ? 'Mengunggah...' : j[doc.key] ? 'Ganti' : 'Unggah'}
+                      {/* value dikosongkan tiap klik biar file yang sama bisa dipilih lagi setelah dihapus */}
+                      <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={uploadingDoc === doc.key}
+                        onClick={e => { e.target.value = ''; }}
+                        onChange={e => uploadDoc(doc.key, doc.jenis, e.target.files?.[0])}/>
+                    </label>
+                    {/* Hapus = lepas tautan dokumen dari formulir (dikonfirmasi user
+                        2026-10-01); file fisiknya dihapus server setelah "Kirim
+                        Formulir" berhasil (lihat dokumenDilepas). */}
+                    {j[doc.key] && uploadingDoc !== doc.key && (
+                      <button type="button"
+                        onClick={() => {
+                          if (!confirm(`Hapus ${doc.label} dari formulir ini?`)) return;
+                          dokumenDilepas.current.add(j[doc.key]);
+                          setField(doc.key, '');
+                        }}
+                        className="text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-full whitespace-nowrap">
+                        Hapus
+                      </button>
+                    )}
+                  </div>
                 </div>
                 );
               })}
