@@ -81,6 +81,12 @@ export default function StatusPendaftaranSahabatPage() {
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
   const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
 
+  // Metode TTD fisik SEMENTARA (SPK-AK/SK-CIF/Surat Pemblokiran, vendor
+  // esign belum siap — dikonfirmasi user 2026-09-30). 'kantor' butuh tanggal
+  // rencana kunjungan, 'kirim' langsung lanjut print-scan-unggah seperti biasa.
+  const [tanggalKunjunganInput, setTanggalKunjunganInput] = useState('');
+  const [savingMetodeTtd, setSavingMetodeTtd] = useState(false);
+
   function muat() {
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
       // Sinkronkan status TERKINI ke localStorage (sama seperti
@@ -147,6 +153,21 @@ export default function StatusPendaftaranSahabatPage() {
     setSavingBlokirData(false);
   }
 
+  async function pilihMetodeTtd(metode) {
+    if (metode === 'kantor' && !tanggalKunjunganInput) { alert('Pilih tanggal rencana kunjungan dulu'); return; }
+    setSavingMetodeTtd(true);
+    try {
+      const res = await fetch('/api/sahabat/metode-ttd', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metode, tanggal_kunjungan: metode === 'kantor' ? tanggalKunjunganInput : undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSavingMetodeTtd(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setSavingMetodeTtd(false);
+  }
+
   // Buka preview pasal SK-CIF + Surat Pemblokiran SEKALIGUS (satu step baca
   // gabungan, dikonfirmasi user 2026-09-19) — masing-masing endpoint juga
   // yang mendaftarkan sesi dokumen_signature fisiknya & membekukan nomor
@@ -187,7 +208,9 @@ export default function StatusPendaftaranSahabatPage() {
   // pemicu lain buat muat ulang). POST ke /api/admin/dokumen-signature di
   // bukaPreviewGabungan idempotent, aman dipanggil ulang di sini.
   useEffect(() => {
-    if (data?.prasyarat?.setuju_sk_cif_pemblokiran && !skCif && !suratPemblokiran && !loadingPreview) {
+    // metode 'kantor' gak butuh preview cetak sama sekali (dikonfirmasi user
+    // 2026-09-30, TTD langsung di kantor) — skip biar gak nembak API sia-sia.
+    if (data?.prasyarat?.setuju_sk_cif_pemblokiran && data?.user?.metode_ttd_sahabat !== 'kantor' && !skCif && !suratPemblokiran && !loadingPreview) {
       bukaPreviewGabungan();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -309,12 +332,12 @@ export default function StatusPendaftaranSahabatPage() {
           {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Unggah bukti transfer dulu di atas.</div>}
           {prasyarat.bukti_tf_verified && !prasyarat.spk_ak_disetujui && (
             <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
-              Lanjut TTD Digital →
+              Baca & Setujui SPK-AK →
             </button>
           )}
           {prasyarat.spk_ak_disetujui && (
             <div className="text-xs text-gray-500">
-              Sudah disetujui.{!prasyarat.spk_ak_selesai && ' Materai & PDF final diterbitkan setelah akun diaktifkan admin.'}
+              Sudah disetujui.{!prasyarat.spk_ak_selesai && ' Tanda tangan fisiknya digabung dengan SK-CIF & Surat Pemblokiran di langkah selanjutnya.'}
             </div>
           )}
         </Item>
@@ -352,6 +375,75 @@ export default function StatusPendaftaranSahabatPage() {
             )
           )}
         </Item>
+
+        {/* SEMENTARA (dikonfirmasi user 2026-09-30) — vendor esign/e-materai
+            belum siap, jadi ketiga dokumen (SPK-AK, SK-CIF, Surat
+            Pemblokiran) TTD-nya fisik semua. Jamaah pilih SATU kali: datang
+            langsung ke kantor (bawa 2 materai buat SK-CIF+Pemblokiran,
+            materai SPK-AK disediakan kantor), atau print-scan-kirim sendiri
+            (pola existing buat SK-CIF/Pemblokiran; SPK-AK cetak lewat
+            /api/sahabat/unduh-spk-ak — reuse template PDF yang SAMA persis
+            dipakai jalur digital, BUKAN halaman /admin/cetak-spk-ak yang
+            templatenya beda & gak dukung varian non-Muslim). */}
+        <Item done={!!u.metode_ttd_sahabat} label="Metode Tanda Tangan Fisik (SPK-AK, SK-CIF & Surat Pemblokiran)">
+          {!prasyarat.rekening_umroh_terisi && <div className="text-xs text-gray-400">Isi dulu Rekening Tabungan Umroh di atas.</div>}
+          {prasyarat.rekening_umroh_terisi && !u.metode_ttd_sahabat && (
+            <div className="space-y-2">
+              <div className="text-xs text-gray-500">Pilih cara Anda menandatangani ketiga dokumen di atas materai asli:</div>
+              <button onClick={() => pilihMetodeTtd('kirim')} disabled={savingMetodeTtd}
+                className="w-full text-left text-xs bg-[#E8F0FB] text-[#1A4FA0] font-bold px-3 py-2.5 rounded-lg disabled:opacity-50">
+                📄 Cetak &amp; kirim sendiri — print, TTD di atas materai asli, scan, unggah, kirim fisik ke kantor
+              </button>
+              <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
+                <div className="text-xs font-bold text-[#1A4FA0]">🏢 Datang langsung ke Head Office</div>
+                <div className="text-[10px] text-gray-500">TTD ketiga dokumen di tempat. Wajib bawa 2 materai (SK-CIF & Surat Pemblokiran) — materai SPK-AK sudah disediakan kantor.</div>
+                <div className="flex gap-2">
+                  <input type="date" value={tanggalKunjunganInput} onChange={e => setTanggalKunjunganInput(e.target.value)}
+                    className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+                  <button onClick={() => pilihMetodeTtd('kantor')} disabled={savingMetodeTtd || !tanggalKunjunganInput}
+                    className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 whitespace-nowrap">
+                    {savingMetodeTtd ? '...' : 'Pilih Tanggal Ini'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {u.metode_ttd_sahabat === 'kantor' && (
+            <div className="text-xs text-gray-500 space-y-1">
+              <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD ketiga dokumen langsung.</div>
+              <div>Jangan lupa bawa 2 materai (SK-CIF &amp; Surat Pemblokiran) — materai SPK-AK sudah disediakan kantor.</div>
+              <button onClick={() => { setTanggalKunjunganInput(''); pilihMetodeTtd('kirim'); }} disabled={savingMetodeTtd}
+                className="text-[10px] text-gray-400 underline">Ganti jadi cetak &amp; kirim sendiri</button>
+            </div>
+          )}
+          {u.metode_ttd_sahabat === 'kirim' && (
+            <div className="text-xs text-gray-500">
+              📄 Cetak &amp; kirim sendiri — lanjutkan cetak SPK-AK &amp; SK-CIF/Surat Pemblokiran di bawah, TTD di atas materai asli, scan, unggah, lalu kirim fisik ke kantor.
+            </div>
+          )}
+        </Item>
+
+        {prasyarat.rekening_umroh_terisi && u.metode_ttd_sahabat === 'kirim' && prasyarat.spk_ak_disetujui && (
+          <Item done={prasyarat.spk_ak_selesai} label="Cetak & Unggah SPK-AK">
+            <div className="text-xs text-gray-500 space-y-2">
+              <div>Unduh &amp; cetak <b>2 rangkap</b>. Rangkap 1 (arsip Anda): tempel materai di kolom TTD Pihak Pertama (Manajemen). Rangkap 2 (dikirim ke kantor): tempel materai di kolom TTD Anda (Pihak Kedua). TTD Anda di KEDUA rangkap, lalu kirim keduanya ke kantor — nanti kami TTD sisi Manajemen &amp; kirim balik Rangkap 1 ke Anda.</div>
+              <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')}
+                className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
+                📄 Unduh Dokumen SPK-AK
+              </button>
+              <FieldUploadScan label="SPK-AK (2 rangkap, materai + TTD)"
+                uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
+                userId={user.id} path={u.dokumen_spk_ak_fisik_path}
+                extraFields={{ jenis: 'spk_ak' }} onUploaded={() => muat()} />
+              {prasyarat.spk_ak_selesai && !u.dokumen_spk_ak_dikirim_balik_at && (
+                <div className="text-[10px] text-amber-600">⏳ Menunggu kantor kirim balik Rangkap 1 yang sudah di-TTD &amp; bermaterai.</div>
+              )}
+              {u.dokumen_spk_ak_dikirim_balik_at && (
+                <div className="text-[10px] text-green-600">✅ Rangkap 1 sudah dikirim balik kantor pada {new Date(u.dokumen_spk_ak_dikirim_balik_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}.</div>
+              )}
+            </div>
+          </Item>
+        )}
 
         <Item done={prasyarat.setuju_sk_cif_pemblokiran} label="Baca & Setuju — Surat Kuasa CIF & Blokir Rekening">
           {!prasyarat.rekening_umroh_terisi && <div className="text-xs text-gray-400">Isi dulu Rekening Tabungan Umroh di atas.</div>}
@@ -465,7 +557,7 @@ export default function StatusPendaftaranSahabatPage() {
           )}
         </Item>
 
-        {prasyarat.setuju_sk_cif_pemblokiran && (
+        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && (
           <div className={`flex items-start gap-3 p-3 rounded-xl border ${prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
             <div className="text-lg leading-none mt-0.5">{prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai ? '✅' : '⏳'}</div>
             <div className="flex-1 min-w-0">
@@ -501,7 +593,7 @@ export default function StatusPendaftaranSahabatPage() {
             visibility). Tampilan on-screen tetap nyambung visual karena
             masih di dalam wrapper max-w-xl yang sama, cuma gak lagi
             senasib sama .no-print buat urusan print. */}
-        {prasyarat.setuju_sk_cif_pemblokiran && skCif && (
+        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && skCif && (
           <div className="sheet sheet-break bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
             <KopPasalDokumen pengaturan={pengaturan} />
             <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA</div>
@@ -512,7 +604,7 @@ export default function StatusPendaftaranSahabatPage() {
             <SignatureBlokKuasa namaPemberi={u.name} namaPenerima={skCif.mergeData?.nama_wakil} jabatanPenerima={skCif.mergeData?.jabatan_wakil} />
           </div>
         )}
-        {prasyarat.setuju_sk_cif_pemblokiran && suratPemblokiran && (
+        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && suratPemblokiran && (
           <div className="sheet bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
             <KopPasalDokumen pengaturan={pengaturan} />
             <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN</div>
@@ -528,7 +620,7 @@ export default function StatusPendaftaranSahabatPage() {
             keliatan kayak bagian dari surat itu sendiri padahal cuma UI
             upload. Sekarang dikonsolidasi jadi 1 kartu terpisah, style field
             polos + nama file (bukan lagi badge status). */}
-        {prasyarat.setuju_sk_cif_pemblokiran && (skCif || suratPemblokiran) && (
+        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && (skCif || suratPemblokiran) && (
           <div className="no-print bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <div>
               <div className="font-bold text-[#0E2F6E] text-sm">📤 Unggah Scan Dokumen</div>

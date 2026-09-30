@@ -796,6 +796,18 @@ export default function DatabaseJamaahPage() {
                       )}
                     </div>
 
+                    {/* SEMENTARA (dikonfirmasi user 2026-09-30) — vendor esign
+                        belum siap, jadi SPK-AK juga TTD fisik lewat pilihan
+                        'kantor'/'kirim' yang sama dengan SK-CIF/Pemblokiran. */}
+                    <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
+                      <span>Metode TTD Fisik</span>
+                      {j.metode_ttd_sahabat === 'kantor' ? (
+                        <span className="text-[#1A4FA0] font-bold">🏢 Datang kantor{j.rencana_kunjungan_kantor_at ? ` — ${fmtTanggal(j.rencana_kunjungan_kantor_at)}` : ''}</span>
+                      ) : j.metode_ttd_sahabat === 'kirim' ? (
+                        <span className="text-gray-600 font-bold">📄 Cetak & kirim sendiri</span>
+                      ) : <span className="text-gray-400">Belum dipilih jamaah</span>}
+                    </div>
+
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Scan SK-CIF (fisik + materai)</span>
                       {j.dokumen_sk_cif_fisik_path ? (
@@ -809,6 +821,33 @@ export default function DatabaseJamaahPage() {
                         <a href={j.dokumen_surat_pemblokiran_fisik_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat</a>
                       ) : <span className="text-gray-400">Belum diunggah</span>}
                     </div>
+
+                    <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
+                      <span>Scan SPK-AK (2 rangkap, materai silang)</span>
+                      {j.dokumen_spk_ak_fisik_path ? (
+                        <a href={j.dokumen_spk_ak_fisik_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat</a>
+                      ) : <span className="text-gray-400">Belum diunggah</span>}
+                    </div>
+
+                    {/* Cuma relevan buat metode 'kirim' — 'kantor' kelar di
+                        tempat, gak ada apa-apa buat "dikirim balik". */}
+                    {j.metode_ttd_sahabat !== 'kantor' && j.dokumen_spk_ak_fisik_path && (
+                      <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
+                        <span>SPK-AK Dikirim Balik ke Jamaah</span>
+                        {isHop ? (
+                          <span className={j.dokumen_spk_ak_dikirim_balik_at ? 'text-green-600 font-bold' : 'text-gray-400'}>
+                            {j.dokumen_spk_ak_dikirim_balik_at ? '✅ Sudah' : '⏳ Belum'}
+                          </span>
+                        ) : (
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={!!j.dokumen_spk_ak_dikirim_balik_at} disabled={busy}
+                              onChange={e => aksi({ action: 'toggle_spk_ak_dikirim_balik', user_id: j.user_id, value: e.target.checked })}
+                              className="w-4 h-4 accent-[#1A4FA0]" />
+                            Sudah
+                          </label>
+                        )}
+                      </div>
+                    )}
 
                     <div className="bg-white rounded-lg p-2 border border-gray-100">
                       <div className="font-bold text-[#0E2F6E] mb-1.5">💰 Riwayat Saldo Tabungan Umroh</div>

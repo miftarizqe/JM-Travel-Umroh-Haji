@@ -4,6 +4,7 @@ import { pastikanKodeInviteSahabat } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { kirimSpkAkTunggalUntukTtd } from '@/app/api/admin/dokumen-signature/route';
+import { SPK_AK_SEMENTARA_FISIK } from '@/lib/spkAkFlag';
 
 // Urutan step pendaftaran sahabat — LINEAR, beda bentuk dari perwakilan
 // (yang punya 2 cabang kantor/paket) makanya sengaja tabel & endpoint
@@ -38,7 +39,8 @@ export async function GET(request) {
       `SELECT id, name, role, status, terverifikasi, foto_path, setuju_pks, agama,
               cif_bsi, no_rekening_tabungan_umroh, setuju_sk_cif_pemblokiran_at,
               dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path,
-              dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir
+              dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
+              metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at
        FROM users WHERE id = ?`, [auth.user.id]
     );
     if (users.length === 0) return Response.json({ error: 'User tidak ditemukan' }, { status: 404 });
@@ -110,6 +112,8 @@ export async function GET(request) {
         dokumen_surat_pemblokiran_fisik_path: u.dokumen_surat_pemblokiran_fisik_path,
         nominal_blokir_tabungan: u.nominal_blokir_tabungan, jangka_waktu_blokir_hari: u.jangka_waktu_blokir_hari,
         tanggal_mulai_blokir: u.tanggal_mulai_blokir,
+        metode_ttd_sahabat: u.metode_ttd_sahabat, rencana_kunjungan_kantor_at: u.rencana_kunjungan_kantor_at,
+        dokumen_spk_ak_dikirim_balik_at: u.dokumen_spk_ak_dikirim_balik_at,
       },
       pendaftaran,
       steps: STEP_PENDAFTARAN_SAHABAT,
@@ -182,6 +186,18 @@ export async function PATCH(request) {
       return Response.json({ message: 'Status dokumen CIF fisik diperbarui.' });
     }
 
+    // Tracking "1 rangkap SPK-AK yang sudah di-TTD & di-materai kantor udah
+    // dikirim balik ke jamaah" (dikonfirmasi user 2026-09-30, cuma relevan
+    // buat jamaah yang pilih metode 'kirim' — kalau 'kantor' gak perlu
+    // kirim-balik apa2, semua kelar di tempat).
+    if (action === 'toggle_spk_ak_dikirim_balik') {
+      await pool.query(
+        'UPDATE users SET dokumen_spk_ak_dikirim_balik_at = ? WHERE id = ?',
+        [body.value ? new Date() : null, user_id]
+      );
+      return Response.json({ message: 'Status pengiriman balik SPK-AK diperbarui.' });
+    }
+
     if (action === 'advance') {
       const { status_baru } = body;
       const skrgIdx = STEP_PENDAFTARAN_SAHABAT.findIndex(s => s.key === p.status);
@@ -247,7 +263,12 @@ export async function PATCH(request) {
         // `!spkAkSelesai` jaga-jaga dobel klik (upsert di prosesSatuSesiDigital
         // bakal RESET sesi yang udah selesai kalau dipanggil ulang — jangan
         // sampai kejadian).
-        if (!spkAkSelesai) {
+        // SPK_AK_SEMENTARA_FISIK true -> SKIP dispatch digital sama sekali
+        // (dikonfirmasi user 2026-09-30, vendor esign belum siap). Jamaah
+        // TTD fisik nyusul setelah aktif (sama pola CIF/Pemblokiran di
+        // bawah) lewat /admin/cetak-spk-ak (self-service) atau datang kantor
+        // (metode_ttd_sahabat) — BUKAN gate wajib sebelum aktivasi.
+        if (!spkAkSelesai && !SPK_AK_SEMENTARA_FISIK) {
           const baseUrl = new URL(request.url).origin;
           await kirimSpkAkTunggalUntukTtd({ dokumen: dokumenSpkAk, refId: user_id, actorUser: auth.user, baseUrl });
         }

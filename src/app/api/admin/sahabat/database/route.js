@@ -98,6 +98,7 @@ export async function GET(request) {
        u.cif_bsi, u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
        u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
        u.dokumen_surat_pemblokiran_fisik_path,
+       u.dokumen_spk_ak_fisik_path, u.metode_ttd_sahabat, u.rencana_kunjungan_kantor_at, u.dokumen_spk_ak_dikirim_balik_at,
        perekrut.name AS perekrut_nama,
        v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,
        COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh,

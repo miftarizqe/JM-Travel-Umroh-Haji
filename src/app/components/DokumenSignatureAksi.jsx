@@ -79,7 +79,7 @@ function PanelSesi({ sig, dokumen, onSelesai, loading }) {
 // berubah) atau kirim TTD digital (alur baru, lihat
 // /api/admin/dokumen-signature). Nggak nge-hardcode logic per jenis dokumen,
 // cuma beda `dokumen`/`refId` yang dioper dari pemanggil.
-export default function DokumenSignatureAksi({ dokumen, refId, onCetakFisik, hideCetakFisik }) {
+export default function DokumenSignatureAksi({ dokumen, refId, onCetakFisik, hideCetakFisik, hideKirimDigital }) {
   const [sigs, setSigs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -130,10 +130,12 @@ export default function DokumenSignatureAksi({ dokumen, refId, onCetakFisik, hid
             🖨️ Cetak untuk TTD Fisik
           </button>
         )}
-        <button onClick={kirimDigital} disabled={loading || sudahDigital}
-          style={{ background: '#C9952A', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: loading ? 0.6 : 1 }}>
-          ✍️ Kirim TTD Digital{RANGKAP_2X.includes(dokumen) ? ' (2 Rangkap)' : ''}
-        </button>
+        {!hideKirimDigital && (
+          <button onClick={kirimDigital} disabled={loading || sudahDigital}
+            style={{ background: '#C9952A', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: loading ? 0.6 : 1 }}>
+            ✍️ Kirim TTD Digital{RANGKAP_2X.includes(dokumen) ? ' (2 Rangkap)' : ''}
+          </button>
+        )}
       </div>
 
       {error && <div style={{ color: '#dc2626', fontSize: 12, marginTop: 8 }}>{error}</div>}

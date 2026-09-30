@@ -5,6 +5,7 @@ import { renderPasalBlock, KopPasalDokumen, TtdBoxHtml, FONT_DOKUMEN, UKURAN_DOK
 import { usePengaturan } from '@/lib/usePengaturan';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
+import { SPK_AK_SEMENTARA_FISIK } from '@/lib/spkAkFlag';
 
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', "Jum'at", 'Sabtu'];
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
@@ -115,7 +116,7 @@ export default function CetakSpkAk() {
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <PrintBtn user={user} nomor={nomor} />
-      <DokumenSignatureAksi dokumen="spk_ak" refId={user.id} onCetakFisik={() => window.print()} hideCetakFisik />
+      <DokumenSignatureAksi dokumen="spk_ak" refId={user.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital={SPK_AK_SEMENTARA_FISIK} />
       <UploadScanDokumen label="Dokumen fisik (2 rangkap, materai silang)" uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
         userId={user.id} path={user.dokumen_spk_ak_fisik_path} uploadedAt={user.dokumen_spk_ak_fisik_uploaded_at}
         extraFields={{ jenis: 'spk_ak' }} onUploaded={tandaiTerunggah} />
