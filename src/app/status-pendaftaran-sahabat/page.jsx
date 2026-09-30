@@ -87,6 +87,14 @@ export default function StatusPendaftaranSahabatPage() {
   const [tanggalKunjunganInput, setTanggalKunjunganInput] = useState('');
   const [savingMetodeTtd, setSavingMetodeTtd] = useState(false);
 
+  // Sudah/belum punya rekening BSI (dikonfirmasi user 2026-09-30) — cuma
+  // pilihan tampilan lokal, gak perlu disimpan ke server. Yang UDAH PUNYA
+  // rekening BSI biasa cuma perlu panduan buka Tabungan Umroh (BSI Byond)
+  // aja. Yang BELUM PUNYA cuma perlu panduan buka Rekening BSI (biasa) —
+  // file itu SUDAH TERMASUK cara buka Tabungan Umroh-nya juga, jadi panduan
+  // Tabungan Umroh terpisah gak perlu ditampilkan lagi buat kasus ini.
+  const [sudahPunyaRekeningBsi, setSudahPunyaRekeningBsi] = useState(null);
+
   function muat() {
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
       // Sinkronkan status TERKINI ke localStorage (sama seperti
@@ -347,19 +355,32 @@ export default function StatusPendaftaranSahabatPage() {
           {prasyarat.spk_ak_disetujui && (
             prasyarat.rekening_umroh_terisi ? (
               <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}</div>
+            ) : sudahPunyaRekeningBsi === null ? (
+              <div className="space-y-2">
+                <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening BSI (biasa)?</div>
+                <div className="flex gap-2">
+                  <button onClick={() => setSudahPunyaRekeningBsi(true)}
+                    className="flex-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-2 rounded-lg">
+                    ✅ Sudah Punya
+                  </button>
+                  <button onClick={() => setSudahPunyaRekeningBsi(false)}
+                    className="flex-1 text-xs font-bold text-gray-600 bg-gray-100 px-3 py-2 rounded-lg">
+                    Belum Punya
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="space-y-2">
-                {(pengaturan?.panduan_buka_rekening_bsi_path || pengaturan?.panduan_buka_tabungan_umroh_path) && (
-                  <div className="flex gap-2">
-                    {pengaturan?.panduan_buka_rekening_bsi_path && (
-                      <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Rekening BSI</a>
-                    )}
-                    {pengaturan?.panduan_buka_tabungan_umroh_path && (
-                      <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-bold text-[#1A4FA0] underline">📘 Panduan Buka Tabungan Umroh</a>
-                    )}
-                  </div>
+                {/* Sudah punya rekening BSI -> cuma perlu buka Tabungan Umroh
+                    (BSI Byond). Belum punya -> panduan Buka Rekening BSI aja,
+                    filenya udah termasuk cara buka Tabungan Umroh juga. */}
+                {sudahPunyaRekeningBsi && pengaturan?.panduan_buka_tabungan_umroh_path && (
+                  <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
+                    className="text-xs font-bold text-[#1A4FA0] underline block">📘 Panduan Buka Tabungan Umroh (BSI Byond)</a>
+                )}
+                {!sudahPunyaRekeningBsi && pengaturan?.panduan_buka_rekening_bsi_path && (
+                  <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
+                    className="text-xs font-bold text-[#1A4FA0] underline block">📘 Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
                 )}
                 <div className="flex gap-2">
                   <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
@@ -371,6 +392,7 @@ export default function StatusPendaftaranSahabatPage() {
                     {savingRekUmroh ? '...' : 'Simpan'}
                   </button>
                 </div>
+                <button onClick={() => setSudahPunyaRekeningBsi(null)} className="text-[10px] text-gray-400 underline">← Ganti jawaban</button>
               </div>
             )
           )}

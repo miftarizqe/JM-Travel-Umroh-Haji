@@ -732,7 +732,7 @@ export default function AdminPengaturanDokumenPage() {
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
         <div className="font-bold text-[#0E2F6E] mb-1">📘 Panduan Sahabat Baitullah</div>
         <div className="text-xs text-gray-400 mb-3">
-          Panduan step-by-step (gambar atau PDF, maks 5MB) yang ditampilkan ke jamaah Sahabat Baitullah pas isi rekening — biar gak perlu ditanya manual satu-satu.
+          Panduan step-by-step (gambar atau PDF, maks 20MB) yang ditampilkan ke jamaah Sahabat Baitullah pas isi rekening — biar gak perlu ditanya manual satu-satu.
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>

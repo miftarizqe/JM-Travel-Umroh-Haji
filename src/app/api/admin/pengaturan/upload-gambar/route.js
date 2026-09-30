@@ -13,11 +13,12 @@ const KOLOM_OK = [
   'panduan_buka_rekening_bsi_path', 'panduan_buka_tabungan_umroh_path',
 ];
 // Panduan step-by-step (dikonfirmasi user 2026-09-20) boleh PDF juga — beda
-// dari TTD/cap yang emang selalu gambar. Ukuran maks dilonggarin dikit
-// (5MB) karena panduan bergambar/scan biasanya lebih berat dari tanda tangan.
+// dari TTD/cap yang emang selalu gambar. Ukuran maks dilonggarin (20MB,
+// dinaikkan dari 5MB 2026-09-30) karena panduan bergambar/scan banyak
+// halaman bisa lebih berat dari batas awal.
 const KOLOM_PANDUAN = ['panduan_buka_rekening_bsi_path', 'panduan_buka_tabungan_umroh_path'];
 const TIPE_OK_PANDUAN = [...TIPE_OK, 'application/pdf'];
-const MAKS_PANDUAN = 5 * 1024 * 1024;
+const MAKS_PANDUAN = 20 * 1024 * 1024;
 
 // POST /api/admin/pengaturan/upload-gambar (multipart: file, kolom)
 // Upload gambar TTD digital penandatangan keuangan ATAU cap perusahaan —
