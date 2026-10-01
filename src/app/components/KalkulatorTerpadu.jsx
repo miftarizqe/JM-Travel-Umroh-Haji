@@ -1284,78 +1284,82 @@ export default function KalkulatorTerpadu({
             </div>
 
             {!pakaiHotelMix ? (
-              <div className="overflow-x-auto">
+              <div>
                 {!pakaiUiPublikSederhana && (
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="text-left text-gray-400">
-                      <th className="p-2">Aktif</th>
-                      <th className="p-2">Bintang / Paket</th>
-                      <th className="p-2">Hotel 1</th>
-                      <th className="p-2">Rate Hotel 1 (Double/Triple/Quad)</th>
-                      <th className="p-2">Hotel 2</th>
-                      <th className="p-2">Rate Hotel 2 (Double/Triple/Quad)</th>
-                      <th className="p-2">Margin (Rp)</th>
-                      <th className="p-2">Komisi (Rp)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {PAKET.map((paket, i) => (
-                      <tr key={paket} className={`border-t border-gray-100 ${bintangAktif[paket] === false ? 'opacity-40' : ''}`}>
-                        <td className="p-2 text-center"><input type="checkbox" checked={bintangAktif[paket] !== false} onChange={() => toggleBintang(paket)} className="w-4 h-4 accent-[#1A4FA0]" title="Tampilkan bintang ini di Hasil HPP & PDF" /></td>
-                        <td className="p-2 font-semibold text-gray-600 whitespace-nowrap">Bintang {i + 3} ({PAKET_LABEL[paket]})</td>
-                        <td className="p-2"><input value={hotel[paket].mekkah_nama} onChange={e => setH(paket, { mekkah_nama: e.target.value })} placeholder="Nama hotel (mis. Mekkah)" className={inp} /></td>
-                        <td className="p-2">
-                          <div className="flex gap-1">
-                            <input type="number" value={hotel[paket].mekkah_rate_double} onChange={e => setH(paket, { mekkah_rate_double: e.target.value })} placeholder="Double" title="Rate Double" className={inp} />
-                            <input type="number" value={hotel[paket].mekkah_rate_triple} onChange={e => setH(paket, { mekkah_rate_triple: e.target.value })} placeholder="Triple" title="Rate Triple" className={inp} />
-                            <input type="number" value={hotel[paket].mekkah_rate_quad} onChange={e => setH(paket, { mekkah_rate_quad: e.target.value })} placeholder="Quad" title="Rate Quad" className={inp} />
-                            <select value={hotel[paket].mekkah_mata_uang} onChange={e => setH(paket, { mekkah_mata_uang: e.target.value })} className={inp}>
-                              <option value="SAR">SAR</option><option value="USD">USD</option><option value="IDR">IDR</option>
-                            </select>
-                          </div>
-                          {(() => {
-                            // showOpsiHotelAlternatif aktif (ada checklist "Opsi
-                            // Hotel Alternatif" di bawah) — dropdown ini CUMA
-                            // nampilin hotel yang UDAH dicentang di situ dulu,
-                            // gak langsung nunjukin semua Master Hotel (dikonfirmasi
-                            // user 2026-08-18). Costing Program (gak ada checklist
-                            // sama sekali) tetap kayak biasa, semua Master kebuka.
-                            const kandidat = masterHotel.filter(h => h.kota === 'mekkah' && h.aktif && h.bintang === i + 3 && (!showOpsiHotelAlternatif || opsiHotel(paket, 'mekkah').some(o => o.master_id === h.id)));
-                            return kandidat.length > 0 && (
-                              <select value="" onChange={e => isiHotelDariMaster(paket, 'mekkah', e.target.value)} className={`${inp} mt-1 text-[10px] text-[#1A4FA0]`}>
-                                <option value="">🔄 Isi dari Master (Bintang {i + 3})...</option>
-                                {kandidat.map(h => <option key={h.id} value={h.id}>{labelMasterHotel(h)}</option>)}
+                <div className="space-y-3">
+                  {PAKET.map((paket, i) => {
+                    // Blok 1 kota (Mekkah/Madinah) — dipakai 2x per kartu bintang,
+                    // HELPER FUNCTION biasa (bukan komponen JSX), biar gak
+                    // kena anti-pattern "component defined during render"
+                    // (dikonfirmasi tim desain 2026-10-01: tabel 8-kolom lama
+                    // kesempitan, 4 input rate + dropdown master numpuk di 1 sel).
+                    const renderBlokHotel = (kota, labelKota) => {
+                      const field = (suffix) => `${kota}_${suffix}`;
+                      const kandidat = masterHotel.filter(h => h.kota === kota && h.aktif && h.bintang === i + 3 && (!showOpsiHotelAlternatif || opsiHotel(paket, kota).some(o => o.master_id === h.id)));
+                      return (
+                        <div key={kota} className="bg-gray-50 rounded-lg p-3">
+                          <div className="text-[10px] font-bold text-gray-500 mb-1.5">🏨 Hotel {labelKota}</div>
+                          <input value={hotel[paket][field('nama')]} onChange={e => setH(paket, { [field('nama')]: e.target.value })}
+                            placeholder={`Nama hotel (mis. ${labelKota})`} className={`${inp} mb-2`} />
+                          <div className="grid grid-cols-4 gap-1.5">
+                            <div>
+                              <div className="text-[9px] text-gray-400 mb-0.5">Double</div>
+                              <input type="number" value={hotel[paket][field('rate_double')]} onChange={e => setH(paket, { [field('rate_double')]: e.target.value })} placeholder="0" className={inp} />
+                            </div>
+                            <div>
+                              <div className="text-[9px] text-gray-400 mb-0.5">Triple</div>
+                              <input type="number" value={hotel[paket][field('rate_triple')]} onChange={e => setH(paket, { [field('rate_triple')]: e.target.value })} placeholder="0" className={inp} />
+                            </div>
+                            <div>
+                              <div className="text-[9px] text-gray-400 mb-0.5">Quad</div>
+                              <input type="number" value={hotel[paket][field('rate_quad')]} onChange={e => setH(paket, { [field('rate_quad')]: e.target.value })} placeholder="0" className={inp} />
+                            </div>
+                            <div>
+                              <div className="text-[9px] text-gray-400 mb-0.5">Mata Uang</div>
+                              <select value={hotel[paket][field('mata_uang')]} onChange={e => setH(paket, { [field('mata_uang')]: e.target.value })} className={inp}>
+                                <option value="SAR">SAR</option><option value="USD">USD</option><option value="IDR">IDR</option>
                               </select>
-                            );
-                          })()}
-                        </td>
-                        <td className="p-2"><input value={hotel[paket].madinah_nama} onChange={e => setH(paket, { madinah_nama: e.target.value })} placeholder="Nama hotel (mis. Madinah)" className={inp} /></td>
-                        <td className="p-2">
-                          <div className="flex gap-1">
-                            <input type="number" value={hotel[paket].madinah_rate_double} onChange={e => setH(paket, { madinah_rate_double: e.target.value })} placeholder="Double" title="Rate Double" className={inp} />
-                            <input type="number" value={hotel[paket].madinah_rate_triple} onChange={e => setH(paket, { madinah_rate_triple: e.target.value })} placeholder="Triple" title="Rate Triple" className={inp} />
-                            <input type="number" value={hotel[paket].madinah_rate_quad} onChange={e => setH(paket, { madinah_rate_quad: e.target.value })} placeholder="Quad" title="Rate Quad" className={inp} />
-                            <select value={hotel[paket].madinah_mata_uang} onChange={e => setH(paket, { madinah_mata_uang: e.target.value })} className={inp}>
-                              <option value="SAR">SAR</option><option value="USD">USD</option><option value="IDR">IDR</option>
-                            </select>
+                            </div>
                           </div>
-                          {(() => {
-                            const kandidat = masterHotel.filter(h => h.kota === 'madinah' && h.aktif && h.bintang === i + 3 && (!showOpsiHotelAlternatif || opsiHotel(paket, 'madinah').some(o => o.master_id === h.id)));
-                            return kandidat.length > 0 && (
-                              <select value="" onChange={e => isiHotelDariMaster(paket, 'madinah', e.target.value)} className={`${inp} mt-1 text-[10px] text-[#1A4FA0]`}>
-                                <option value="">🔄 Isi dari Master (Bintang {i + 3})...</option>
-                                {kandidat.map(h => <option key={h.id} value={h.id}>{labelMasterHotel(h)}</option>)}
-                              </select>
-                            );
-                          })()}
-                        </td>
-                        <td className="p-2"><input type="number" value={margin[paket]} onChange={e => setMargin(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} /></td>
-                        <td className="p-2"><input type="number" value={komisi[paket]} onChange={e => setKomisi(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          {/* showOpsiHotelAlternatif aktif (ada checklist "Opsi
+                              Hotel Alternatif" di bawah) — dropdown ini CUMA
+                              nampilin hotel yang UDAH dicentang di situ dulu,
+                              gak langsung nunjukin semua Master Hotel (dikonfirmasi
+                              user 2026-08-18). Costing Program (gak ada checklist
+                              sama sekali) tetap kayak biasa, semua Master kebuka. */}
+                          {kandidat.length > 0 && (
+                            <select value="" onChange={e => isiHotelDariMaster(paket, kota, e.target.value)} className={`${inp} mt-1.5 text-[10px] text-[#1A4FA0]`}>
+                              <option value="">🔄 Isi dari Master (Bintang {i + 3})...</option>
+                              {kandidat.map(h => <option key={h.id} value={h.id}>{labelMasterHotel(h)}</option>)}
+                            </select>
+                          )}
+                        </div>
+                      );
+                    };
+                    return (
+                      <div key={paket} className={`border border-gray-200 rounded-xl p-3 ${bintangAktif[paket] === false ? 'opacity-40' : ''}`}>
+                        <div className="flex items-center gap-2 mb-3">
+                          <input type="checkbox" checked={bintangAktif[paket] !== false} onChange={() => toggleBintang(paket)} className="w-4 h-4 accent-[#1A4FA0]" title="Tampilkan bintang ini di Hasil HPP & PDF" />
+                          <div className="text-xs font-bold text-[#0E2F6E]">Bintang {i + 3} ({PAKET_LABEL[paket]})</div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                          {renderBlokHotel('mekkah', 'Mekkah')}
+                          {renderBlokHotel('madinah', 'Madinah')}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <div className="text-[10px] text-gray-400 mb-0.5">Margin (Rp)</div>
+                            <input type="number" value={margin[paket]} onChange={e => setMargin(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
+                          </div>
+                          <div>
+                            <div className="text-[10px] text-gray-400 mb-0.5">Komisi (Rp)</div>
+                            <input type="number" value={komisi[paket]} onChange={e => setKomisi(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
                 )}
 
                 {/* Opsi Hotel — OPSIONAL, cuma dipakai Kalkulator Estimasi
