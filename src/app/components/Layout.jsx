@@ -429,6 +429,8 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '🪪', label: 'Pendaftaran', path: '/admin/sahabat' },
         { icon: '💰', label: 'Database Jamaah', path: '/admin/sahabat/database' },
         { icon: '🎯', label: 'Pengajuan Ganti Target', path: '/admin/sahabat/ganti-target' },
+        { icon: '⚠️', label: 'Laporan Data dari HoP', path: '/admin/sahabat/laporan-data' },
+        { icon: '📊', label: 'Dashboard Head of Program', path: '/dashboard/sahabat/hop' },
         { icon: '💵', label: 'Pengajuan Setoran Mandiri', path: '/admin/sahabat/setoran-mandiri-pengajuan' },
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/sahabat/pencairan' },
@@ -559,6 +561,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       // read-only buat akun ini, tombol aksinya udah disembunyiin di
       // masing-masing halaman + endpoint tulisnya tetap admin-only di server.
       ...(isHop ? [{ icon: '🔍', label: 'Pengawasan Program', children: [
+        { icon: '📊', label: 'Dashboard Head of Program', path: '/dashboard/sahabat/hop' },
         { icon: '📝', label: 'Pendaftaran', path: '/admin/sahabat' },
         { icon: '🗂️', label: 'Database Anggota', path: '/admin/sahabat/database' },
         { icon: '📜', label: 'Riwayat Closing (Semua)', path: '/admin/sahabat/riwayat-closing' },

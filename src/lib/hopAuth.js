@@ -22,3 +22,22 @@ export async function wajibAdminAtauHopSahabat(request) {
 
   return { error: Response.json({ error: 'Akses ditolak.' }, { status: 403 }) };
 }
+
+// Cek apakah akun ini Head of Program Sahabat (pengaturan.head_of_program_user_id).
+export async function cekHopSahabat(userId) {
+  const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
+  return !!(pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(userId));
+}
+
+// KHUSUS aksi milik HoP sendiri (dikonfirmasi user 2026-10-01): menandai
+// "data bermasalah" + catatan ke admin. Ini satu-satunya "tulis" yang boleh
+// dilakukan HoP, dan cuma ke tabel laporannya sendiri (sahabat_laporan_data)
+// — HoP tetap TIDAK bisa mengubah data sahabat mana pun.
+export async function wajibHopSahabat(request) {
+  const user = verifikasiToken(request);
+  if (!user) {
+    return { error: Response.json({ error: 'Tidak terautentikasi. Silakan login terlebih dahulu.' }, { status: 401 }) };
+  }
+  if (await cekHopSahabat(user.id)) return { user };
+  return { error: Response.json({ error: 'Hanya Head of Program Sahabat yang bisa melakukan ini.' }, { status: 403 }) };
+}
