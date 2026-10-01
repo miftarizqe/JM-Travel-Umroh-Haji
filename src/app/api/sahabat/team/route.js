@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { persenKesiapan } from '@/lib/kesiapanTabungan';
+import { GEN_MAKS_DETAIL } from '@/lib/jaringan';
 
 const JENIS_SALDO = [
   'komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat',
@@ -26,9 +27,12 @@ export async function GET(request) {
     if (auth.error) return auth.error;
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
     const isPemilik = String(auth.user.id) === String(sahabatId);
-    if (!isAdmin && !isPemilik) {
+    let isHop = false;
+    if (!isAdmin) {
       const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
-      const isHop = pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(auth.user.id);
+      isHop = !!(pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(auth.user.id));
+    }
+    if (!isAdmin && !isPemilik) {
       if (!isHop) {
         return Response.json({ error: 'Akses ditolak. Anda hanya bisa mengakses data milik sendiri.' }, { status: 403 });
       }
@@ -40,7 +44,7 @@ export async function GET(request) {
     while (currentLevelIds.length > 0 && level <= 20) {
       const placeholders = currentLevelIds.map(() => '?').join(',');
       const [rows] = await pool.query(
-        `SELECT u.id, u.name, u.kode_unik, u.status, u.created_at, u.perekrut_id,
+        `SELECT u.id, u.name, u.kode_unik, u.wa, u.status, u.created_at, u.perekrut_id,
                 kp.status AS funnel_status, kp.target_estimasi_harga, kp.target_minat,
                 perekrut.name AS perekrut_nama
          FROM users u
@@ -75,7 +79,13 @@ export async function GET(request) {
       }
     }
 
-    return Response.json({ team: hasil });
+    // Aturan data per generasi (lihat src/lib/jaringan.js) — no. telepon cuma
+    // Gen1 untuk SEMUA penampil; untuk anggota biasa, Gen6+ dibuang dan
+    // diganti jumlah saja. Admin/HoP tetap lihat jaringan lengkap.
+    for (const h of hasil) if (h.level !== 1) delete h.wa;
+    if (isAdmin || isHop) return Response.json({ team: hasil });
+    const terlihat = hasil.filter(h => h.level <= GEN_MAKS_DETAIL);
+    return Response.json({ team: terlihat, jumlah_gen_lanjut: hasil.length - terlihat.length });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

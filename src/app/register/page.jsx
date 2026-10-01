@@ -50,7 +50,7 @@ function RegisterPageInner() {
     // akhirnya daftar Sahabat Baitullah (referral non-Muslim).
     agama:'',
     role: roleValid ? roleAwal : '',
-    perekrut_id:'',
+    perekrut_id:'', kode_undangan:'',
   });
   // Kalau role udah kebawa dari popup kemitraan, step 2 gak perlu nampilin
   // kartu pilihan lagi (kesannya disuruh milih ulang) — cukup ringkasan
@@ -213,29 +213,19 @@ function RegisterPageInner() {
         if (d.valid) {
           setKodeInviteSahabatDariLink(true);
           setTampilkanPilihan(false);
-          setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: d.id }));
+          // Yang dikirim ke server KODE undangannya — server sendiri yang
+          // menentukan perekrut (2026-10-01). perekrut_id cuma buat tampilan.
+          setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: d.id, kode_undangan: refCode }));
           setPerekrutTerkunciSahabat({ id: d.id, name: d.name, kode_unik: d.kode_unik });
           return;
         }
-        // Fallback kode_unik — dicek berurutan di sini (bukan pakai hasil
-        // effect lain) biar gak gantung ke timing effect lain. Nama dari
-        // cek-sahabat sudah disamarkan server.
-        return fetch('/api/referral-list/cek-sahabat', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ kode: refCode }),
-        })
-          .then(r => r.json())
-          .then(d2 => {
-            if (d2.valid) {
-              setTampilkanPilihan(false);
-              setForm(f => ({ ...f, role: 'sahabat_baitullah', perekrut_id: d2.id }));
-              setPerekrutTerkunciSahabat({ id: d2.id, name: d2.nama, kode_unik: d2.kode_unik });
-            } else {
-              setRefNotFound(true);
-              setTampilkanPilihan(true);
-              setForm(f => (f.role === 'sahabat_baitullah' ? { ...f, role: '' } : f));
-            }
-          });
+        // Kode akun (SBJM...) BUKAN lagi jalan masuk pendaftaran Sahabat —
+        // hanya kode undangan (dikonfirmasi user 2026-10-01: pendaftaran
+        // hanya via invitation link). Link kode akun tetap berlaku sebagai
+        // referral jamaah biasa (lihat refSahabatJamaahId di atas).
+        setRefNotFound(true);
+        setTampilkanPilihan(true);
+        setForm(f => (f.role === 'sahabat_baitullah' ? { ...f, role: '' } : f));
       })
       .catch(() => {});
   }, [refCode, roleAwal]);
@@ -279,7 +269,7 @@ function RegisterPageInner() {
         .then(r => r.json())
         .then(d => {
           if (d.valid) {
-            setForm(f => ({ ...f, perekrut_id: d.id }));
+            setForm(f => ({ ...f, perekrut_id: d.id, kode_undangan: kode }));
             setPerekrutTerkunciSahabat({ id: d.id, name: d.name, kode_unik: d.kode_unik });
             setKodeReferralSahabatInvalid(false);
           }
@@ -327,7 +317,7 @@ function RegisterPageInner() {
     if (form.role === 'perwakilan' && !form.perekrut_id && !pernahUmroh) {
       setError('Masukkan kode referral perwakilan yang valid untuk melanjutkan.'); return;
     }
-    if (form.role === 'sahabat_baitullah' && !form.perekrut_id) {
+    if (form.role === 'sahabat_baitullah' && !form.kode_undangan) {
       setError('Masukkan kode referral Sahabat Baitullah yang valid untuk melanjutkan.'); return;
     }
     // Captcha cuma wajib kalau widget-nya beneran dirender (site key udah
@@ -348,7 +338,10 @@ function RegisterPageInner() {
             ref_perwakilan_jamaah_id: refPerwakilanJamaahId || undefined,
             ref_sahabat_jamaah_id: refSahabatJamaahId || undefined,
             captchaToken }
-        : { ...form, captchaToken };
+        : form.role === 'sahabat_baitullah'
+          // Sahabat: kirim KODE undangan saja, perekrut ditentukan server.
+          ? { ...form, perekrut_id: undefined, captchaToken }
+          : { ...form, captchaToken };
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

@@ -76,7 +76,7 @@ function TeamTreeNode({ member, depth, childrenOf }) {
               {member.name}
               {punyaAnak && <span className="text-[10px] text-gray-400 font-normal ml-1.5">({anak.length} downline)</span>}
             </div>
-            <div className="text-[10px] text-gray-400 flex items-center gap-1.5">{member.kode_unik} · <GenBadge level={member.level} /></div>
+            <div className="text-[10px] text-gray-400 flex items-center gap-1.5">{member.kode_unik} · <GenBadge level={member.level} />{member.wa && <a href={`tel:${member.wa}`} className="text-[#1A4FA0] font-semibold">📞 {member.wa}</a>}</div>
             <ProgressKesiapan persen={member.persen_kesiapan} />
           </div>
         </div>
@@ -123,7 +123,7 @@ function LevelSection({ level, members }) {
             <tbody>
               {members.map((t, i) => (
                 <tr key={t.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-4 py-2.5 font-semibold text-[#0E2F6E]">{t.name}</td>
+                  <td className="px-4 py-2.5 font-semibold text-[#0E2F6E]">{t.name}{t.wa && <div className="text-[10px] font-normal"><a href={`tel:${t.wa}`} className="text-[#1A4FA0]">📞 {t.wa}</a></div>}</td>
                   <td className="px-4 py-2.5 text-gray-500">{t.kode_unik}</td>
                   <td className="px-4 py-2.5 text-gray-500">{t.perekrut_nama || '-'}</td>
                   <td className="px-4 py-2.5"><StatusBadge t={t} /></td>
@@ -167,6 +167,9 @@ function TeamContent() {
   const searchParams = useSearchParams();
   const [user] = useCurrentUser();
   const [team, setTeam] = useState([]);
+  // Jumlah anggota Gen6+ — untuk anggota biasa server cuma kirim angka ini
+  // (barisnya gak dikirim, aturan data per generasi 2026-10-01).
+  const [jumlahGenLanjut, setJumlahGenLanjut] = useState(0);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('pohon');
   const [targetInfo, setTargetInfo] = useState(null);
@@ -207,7 +210,7 @@ function TeamContent() {
     if (!targetId) return;
     fetch(`/api/sahabat/team?sahabat_id=${targetId}`)
       .then(r => r.json())
-      .then(d => { setTeam(d.team || []); setLoading(false); })
+      .then(d => { setTeam(d.team || []); setJumlahGenLanjut(Number(d.jumlah_gen_lanjut || 0)); setLoading(false); })
       .catch(() => setLoading(false));
     if (lihatJaringanOrangLain) {
       fetch(`/api/sahabat/downline/${targetId}`)
@@ -249,8 +252,8 @@ function TeamContent() {
       if (t.level <= GEN_MAX_UJROH_SAHABAT) perGen[t.level - 1]++;
       else gen6Plus++;
     }
-    return { perGen, gen6Plus };
-  }, [team]);
+    return { perGen, gen6Plus: gen6Plus + jumlahGenLanjut };
+  }, [team, jumlahGenLanjut]);
 
   if (!user || loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
@@ -374,7 +377,7 @@ function TeamContent() {
                   <tbody>
                     {team.map((t, i) => (
                       <tr key={t.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        <td className="px-4 py-3 font-semibold text-[#0E2F6E]">{t.name}</td>
+                        <td className="px-4 py-3 font-semibold text-[#0E2F6E]">{t.name}{t.wa && <div className="text-[10px] font-normal"><a href={`tel:${t.wa}`} className="text-[#1A4FA0]">📞 {t.wa}</a></div>}</td>
                         <td className="px-4 py-3 text-gray-500">{t.kode_unik}</td>
                         <td className="px-4 py-3">
                           <GenBadge level={t.level} />

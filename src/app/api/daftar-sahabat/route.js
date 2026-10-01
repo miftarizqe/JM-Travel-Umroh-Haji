@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { hargaTermurahProgram } from '@/lib/harga';
 
 // Formulir data diri pendaftaran sahabat (funnel "Program Sahabat Bisa
 // Umroh & Haji" kerja sama BSI) — tabel staging SENDIRI (sahabat_pendaftaran),
@@ -22,8 +23,9 @@ export async function POST(req) {
       pkj,
       no_paspor, tempat_keluar_paspor, masa_berlaku_paspor_dari, masa_berlaku_paspor_sampai, foto_paspor_path,
       bank, norek, pemilik,
-      perekrut_id,
-      target_minat, target_estimasi_harga, target_program_id,
+      // perekrut_id / target_minat / target_estimasi_harga SENGAJA gak dibaca
+      // dari body — ditentukan server (lihat di bawah, 2026-10-01).
+      target_program_id,
     } = body;
 
     // NIK/WA/Email SENGAJA gak diambil dari body sama sekali (dikonfirmasi
@@ -53,20 +55,24 @@ export async function POST(req) {
     // — target_minat/target_estimasi_harga sekarang diturunkan dari program
     // itu di frontend, target_program_id di sini cuma divalidasi ada &
     // valid publish_type-nya biar gak dipalsuin lewat body request langsung.
-    if (!target_program_id || !String(target_minat || '').trim() || !target_estimasi_harga) {
+    if (!target_program_id) {
       return NextResponse.json({ error: 'Target impian (Program Eksklusif) wajib dipilih' }, { status: 400 });
     }
-    // "0" (string) lolos cek di atas — tolak eksplisit, karena target Rp 0 bikin
-    // nominal blokir rekening ikut 0 & /api/sahabat/blokir-rekening menolak.
-    if (!(Number(target_estimasi_harga) > 0)) {
-      return NextResponse.json({ error: 'Harga program target belum tersedia — pilih program lain atau hubungi admin' }, { status: 400 });
-    }
     const [[programTarget]] = await db.query(
-      "SELECT id FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1",
+      "SELECT * FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1",
       [target_program_id]
     );
     if (!programTarget) {
       return NextResponse.json({ error: 'Program target tidak valid' }, { status: 400 });
+    }
+    // Nama & harga target DIHITUNG SERVER dari data program (dikonfirmasi user
+    // 2026-10-01: logika sensitif di BE) — target_minat/target_estimasi_harga
+    // kiriman client diabaikan. Rumus sama dengan tampilan FE (lib/harga.js).
+    // Harga dikunci di nilai saat memilih (aturan E), disimpan sekali di bawah.
+    const targetMinatServer = programTarget.name;
+    const targetHargaServer = hargaTermurahProgram(programTarget);
+    if (!(targetHargaServer > 0)) {
+      return NextResponse.json({ error: 'Harga program target belum tersedia — pilih program lain atau hubungi admin' }, { status: 400 });
     }
 
     const alamatOk = (j, nr, r, rw_, kl, kc, kt, p, n) =>
@@ -88,7 +94,28 @@ export async function POST(req) {
     // disubmit SEKALI (lihat guard `existing` di atas), jadi kalau body
     // kosong ke-terima mentah2 di sini, relasi referral bisa ke-NULL-in
     // permanen padahal user daftar pake link referral yang valid.
-    const perekrutIdFinal = perekrut_id || userSaatIni0?.perekrut_id || null;
+    //
+    // Upline TIDAK BISA DIGANTI (dikonfirmasi user 2026-10-01): selalu pakai
+    // perekrut yang tersimpan sejak register; perekrut_id kiriman client
+    // diabaikan. Akun lama yang belum punya upline wajib kirim kode undangan,
+    // dan server sendiri yang menentukan perekrutnya.
+    let perekrutIdFinal = userSaatIni0?.perekrut_id || null;
+    if (!perekrutIdFinal) {
+      const kodeUndangan = String(body.kode_undangan || '').trim().toUpperCase();
+      if (!kodeUndangan) {
+        return NextResponse.json({ error: 'Pendaftaran Sahabat Baitullah hanya bisa lewat link undangan. Akun Anda belum punya pengajak — hubungi admin JM Travel.' }, { status: 400 });
+      }
+      const [[pengundang]] = await db.query(
+        `SELECT id FROM users WHERE kode_invite_sahabat = ?
+           AND (role IN ('sahabat_baitullah','admin','super_admin') OR role_kedua = 'sahabat_baitullah')
+           AND status = 'active' LIMIT 1`,
+        [kodeUndangan]
+      );
+      if (!pengundang) {
+        return NextResponse.json({ error: 'Kode undangan tidak valid atau pemiliknya sedang tidak aktif.' }, { status: 400 });
+      }
+      perekrutIdFinal = pengundang.id;
+    }
 
     if (perekrutIdFinal) {
       const [p] = await db.query(
@@ -121,7 +148,7 @@ export async function POST(req) {
         alamatKtp, alamatKtp, alamatDomisili, kp || null, wa, email || null, pkj || null,
         no_paspor?.trim() || null, tempat_keluar_paspor || null, masa_berlaku_paspor_dari || null, masa_berlaku_paspor_sampai || null, foto_paspor_path || null,
         bank || null, norek || null, pemilik || null, foto_ktp_path || null, perekrutIdFinal,
-        target_minat || null, target_estimasi_harga ? Number(target_estimasi_harga) : null, target_program_id,
+        targetMinatServer, targetHargaServer, target_program_id,
       ]
     );
 

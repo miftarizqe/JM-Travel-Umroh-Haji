@@ -39,7 +39,11 @@ export async function POST(request) {
     // nulis ke kolom ini, walau body ngirim perekrut_id (mis. nyasar dari
     // switch role sahabat->jamaah di halaman register), biar gak ketuker
     // sama referral permanen jamaah di bawah (kolom terpisah).
-    const perekrutId = (body.perekrut_id && (role === 'perwakilan' || role === 'sahabat_baitullah'))
+    //
+    // sahabat_baitullah TIDAK PERNAH pakai perekrut_id dari body (dikonfirmasi
+    // user 2026-10-01: "pendaftaran hanya via invitation link, tidak bisa salah
+    // referral") — perekrutnya dicari SERVER dari kode undangan di bawah.
+    let perekrutId = (body.perekrut_id && role === 'perwakilan')
       ? String(body.perekrut_id).trim() : null;
 
     // Validasi field wajib
@@ -92,14 +96,24 @@ export async function POST(request) {
         return Response.json({ error: 'Perekrut tidak ditemukan atau sedang tidak aktif' }, { status: 400 });
       }
     }
-    if (perekrutId && role === 'sahabat_baitullah') {
-      const [p] = await pool.query(
-        `SELECT id FROM users WHERE id = ? AND (role IN ('sahabat_baitullah','admin','super_admin') OR role_kedua = 'sahabat_baitullah') AND status = 'active'`,
-        [perekrutId]
-      );
-      if (p.length === 0) {
-        return Response.json({ error: 'Perekrut tidak ditemukan atau sedang tidak aktif' }, { status: 400 });
+    // Sahabat Baitullah WAJIB lewat link undangan: kode_invite_sahabat (acak,
+    // gak bisa ditebak) milik anggota Sahabat aktif atau admin. Perekrut
+    // ditentukan server dari kode ini — tanpa kode, pendaftaran ditolak.
+    if (role === 'sahabat_baitullah') {
+      const kodeUndangan = String(body.kode_undangan || '').trim().toUpperCase();
+      if (!kodeUndangan) {
+        return Response.json({ error: 'Pendaftaran Sahabat Baitullah hanya bisa lewat link undangan dari anggota atau admin JM Travel.' }, { status: 400 });
       }
+      const [[p]] = await pool.query(
+        `SELECT id FROM users WHERE kode_invite_sahabat = ?
+           AND (role IN ('sahabat_baitullah','admin','super_admin') OR role_kedua = 'sahabat_baitullah')
+           AND status = 'active' LIMIT 1`,
+        [kodeUndangan]
+      );
+      if (!p) {
+        return Response.json({ error: 'Kode undangan tidak valid atau pemiliknya sedang tidak aktif. Minta link undangan terbaru.' }, { status: 400 });
+      }
+      perekrutId = p.id;
     }
 
     // Referral permanen jamaah (perwakilan/sahabat yg mereferensikan jamaah

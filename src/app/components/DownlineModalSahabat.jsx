@@ -72,7 +72,10 @@ export default function DownlineModalSahabat({ targetId: targetIdAwal, onClose }
           <div>
             <div className="font-bold text-[#0E2F6E] text-sm mb-2">👥 Rekrutan {data.target.name}</div>
             {data.rekrutan.length === 0 ? (
-              <div className="bg-gray-50 rounded-xl p-4 text-center text-xs text-gray-400">Belum ada rekrutan.</div>
+              // Gen6+: server cuma kirim jumlah (aturan data per generasi).
+              <div className="bg-gray-50 rounded-xl p-4 text-center text-xs text-gray-400">
+                {data.jumlah_rekrutan > 0 ? `${data.jumlah_rekrutan} rekrutan (di luar Gen5 — hanya jumlah yang ditampilkan).` : 'Belum ada rekrutan.'}
+              </div>
             ) : (
               <div className="space-y-2">
                 {data.rekrutan.map(r => (
@@ -80,7 +83,7 @@ export default function DownlineModalSahabat({ targetId: targetIdAwal, onClose }
                     className="flex items-center justify-between p-2.5 bg-gray-50 hover:bg-gray-100 rounded-lg text-sm cursor-pointer">
                     <div>
                       <div className="font-semibold text-[#0E2F6E]">{r.name}</div>
-                      <div className="text-[10px] text-gray-400">{r.kode_unik}</div>
+                      <div className="text-[10px] text-gray-400">{r.kode_unik}{r.wa ? <> · <a href={`tel:${r.wa}`} onClick={e => e.stopPropagation()} className="text-[#1A4FA0] font-semibold">📞 {r.wa}</a></> : null}</div>
                     </div>
                     <span className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2.5 py-1 rounded-full">
                       {r.funnel_status ? (FUNNEL_LABEL[r.funnel_status] || r.funnel_status) : (r.status === 'active' ? 'Aktif' : 'Menunggu')}
