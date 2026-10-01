@@ -1,10 +1,10 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import { renderPasalBlock, SignatureBlokBank, SignatureBlokKuasa, KopPasalDokumen, FONT_DOKUMEN, UKURAN_DOKUMEN } from '@/lib/pasalMarkup';
 
 // Field upload scan dokumen fisik — dipisah dari UploadScanDokumen (komponen
 // bersama, dipakai halaman lain juga) biar gaya tampilannya bisa beda
@@ -76,7 +76,6 @@ export default function StatusPendaftaranSahabatPage() {
   const [suratPemblokiran, setSuratPemblokiran] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sudahBacaGabungan, setSudahBacaGabungan] = useState(false);
-  const scrollGabunganRef = useRef(null);
   const [setujuGabungan, setSetujuGabungan] = useState(false);
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
   const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
@@ -206,40 +205,9 @@ export default function StatusPendaftaranSahabatPage() {
     setLoadingPreview(false);
   }
 
-  // Auto-muat ulang SK-CIF & Surat Pemblokiran kalau jamaah udah pernah
-  // setuju SEBELUMNYA (bug ditemukan & diperbaiki 2026-09-20) — `skCif`/
-  // `suratPemblokiran` cuma keisi lewat state lokal pas klik tombol "Baca
-  // SK-CIF..." di step baca-&-setuju. Begitu udah setuju, tombol itu gak
-  // muncul lagi (step-nya udah lewat) — jadi kalau jamaah reload halaman
-  // atau balik lagi belakangan CUMA buat cetak+unggah scan, state-nya balik
-  // null lagi dan section "Cetak & Unggah Scan" tampil KOSONG (gak ada
-  // pemicu lain buat muat ulang). POST ke /api/admin/dokumen-signature di
-  // bukaPreviewGabungan idempotent, aman dipanggil ulang di sini.
-  useEffect(() => {
-    // metode 'kantor' gak butuh preview cetak sama sekali (dikonfirmasi user
-    // 2026-09-30, TTD langsung di kantor) — skip biar gak nembak API sia-sia.
-    if (data?.prasyarat?.setuju_sk_cif_pemblokiran && data?.user?.metode_ttd_sahabat !== 'kantor' && !skCif && !suratPemblokiran && !loadingPreview) {
-      bukaPreviewGabungan();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
 
-  // Pasal salah satu surat belum diisi admin — jangan biarkan disetujui.
-  const pasalGabunganKosong = !!(skCif && suratPemblokiran) &&
-    (!(skCif.pasal || []).length || !(suratPemblokiran.pasal || []).length);
-
-  function cekScrollGabungan() {
-    const el = scrollGabunganRef.current;
-    if (!el || pasalGabunganKosong) return;
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setSudahBacaGabungan(true);
-  }
-
-  // Isi pendek (gak sampai bikin kotak bisa di-scroll) gak pernah memicu
-  // onScroll — cek sekali begitu kedua surat selesai dirender (sama seperti /pks).
-  useEffect(() => {
-    if (skCif && suratPemblokiran) cekScrollGabungan();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skCif, suratPemblokiran]);
+  // "Sudah baca" = PDF resmi gabungan (template, dikonfirmasi user 2026-10-01)
+  // selesai dimuat di bawah — teks pasal DB gak dipakai lagi buat dokumen ini.
 
   // PDF gabungan SK-CIF + Surat Pemblokiran dengan identitas terisi
   // otomatis (dikonfirmasi user 2026-09-28) — SATU file, samain kayak alur
@@ -535,29 +503,14 @@ export default function StatusPendaftaranSahabatPage() {
                 </button>
               ) : (
                 <>
-                  <div ref={scrollGabunganRef} onScroll={cekScrollGabungan}
-                    className="max-h-[350px] overflow-y-auto border border-gray-200 rounded-lg p-3 text-gray-600 space-y-4"
-                    style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
-                    <div>
-                      <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA KERJASAMA MULTI CIF</div>
-                      <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
-                      {(skCif.pasal || []).map(p => (<div key={`skcif-${p.nomor}`}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
-                      {!(skCif.pasal || []).length && (
-                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
-                      )}
-                    </div>
-                    <div className="pt-4 border-t border-gray-100">
-                      <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
-                      <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
-                      {(suratPemblokiran.pasal || []).map(p => (<div key={`pemblokiran-${p.nomor}`}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
-                      {!(suratPemblokiran.pasal || []).length && (
-                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
-                      )}
-                    </div>
-                  </div>
-                  {!sudahBacaGabungan && !pasalGabunganKosong && (
+                  {/* PDF resmi gabungan SK-CIF + Surat Pemblokiran (template final,
+                      identitas terisi) — sama persis dengan yang dicetak &
+                      ditandatangani (dikonfirmasi user 2026-10-01). */}
+                  <PdfDokumenResmi url="/api/sahabat/dokumen-legal/pdf-otomatis" method="POST"
+                    onSiap={() => setSudahBacaGabungan(true)} />
+                  {!sudahBacaGabungan && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-center text-xs text-yellow-700">
-                      ⬇️ Gulir ke bawah sampai selesai membaca kedua surat
+                      ⏳ Memuat kedua surat…
                     </div>
                   )}
                   <label className={`flex items-start gap-2 p-3 rounded-lg border-2 ${sudahBacaGabungan ? 'bg-white border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-50 cursor-not-allowed'}`}>
@@ -608,41 +561,15 @@ export default function StatusPendaftaranSahabatPage() {
         )}
         </div>
 
-        {/* Sheet dicetak DI LUAR div .no-print di atas (dikonfirmasi user
-            2026-09-20) — .sheet gak boleh jadi keturunan elemen yang
-            di-display:none-kan pas print, soalnya display:none di leluhur
-            gak bisa "dibatalkan" lagi sama CSS keturunannya (beda dari
-            visibility). Tampilan on-screen tetap nyambung visual karena
-            masih di dalam wrapper max-w-xl yang sama, cuma gak lagi
-            senasib sama .no-print buat urusan print. */}
-        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && skCif && (
-          <div className="sheet sheet-break bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
-            <KopPasalDokumen pengaturan={pengaturan} />
-            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA</div>
-            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>KERJASAMA MULTI CIF</div>
-            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>PADA LAYANAN BSI CASH MANAGEMENT</div>
-            <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
-            {(skCif.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
-            <SignatureBlokKuasa namaPemberi={u.name} namaPenerima={skCif.mergeData?.nama_wakil} jabatanPenerima={skCif.mergeData?.jabatan_wakil} />
-          </div>
-        )}
-        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && suratPemblokiran && (
-          <div className="sheet bg-white border border-gray-200 rounded-lg p-3 text-gray-600 space-y-2" style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
-            <KopPasalDokumen pengaturan={pengaturan} />
-            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN</div>
-            <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
-            <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
-            {(suratPemblokiran.pasal || []).map(p => (<div key={p.nomor}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
-            <SignatureBlokBank namaPemberi={u.name} />
-          </div>
-        )}
-
+        {/* Lembar cetak HTML SK-CIF & Surat Pemblokiran (dulu dirender dari
+            pasal DB) DIHAPUS (dikonfirmasi user 2026-10-01) — cetak lewat
+            tombol "📄 Unduh Dokumen" di atas yang pakai template PDF resmi. */}
         {/* Unggah scan dipisah dari .sheet di atas (dikonfirmasi tim desain
             2026-09-29) — sebelumnya nyelip di antara 2 halaman cetak surat,
             keliatan kayak bagian dari surat itu sendiri padahal cuma UI
             upload. Sekarang dikonsolidasi jadi 1 kartu terpisah, style field
             polos + nama file (bukan lagi badge status). */}
-        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && (skCif || suratPemblokiran) && (
+        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat !== 'kantor' && (
           <div className="no-print bg-white rounded-xl border border-gray-200 p-4 space-y-3">
             <div>
               <div className="font-bold text-[#0E2F6E] text-sm">📤 Unggah Scan Dokumen</div>

@@ -26,26 +26,11 @@ export async function GET(request) {
 
     const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SK-CIF', 'no_sk_cif');
     if (nomor) await pastikanSnapshot(pool, user.id, 'sk_cif');
-    const { pasal, signer } = await ambilPasalUntukCetak('sk_cif', user.id);
-
-    // SK-CIF 2-pihak (Pemberi Kuasa/jamaah vs Penerima Kuasa — penandatangan
-    // SENDIRI, BUKAN Head of Program, lihat signerKolom.js ambilSignerSkCif)
-    // — mergeData isi token {{...}} di isi pasal (lihat
-    // migration-sk-cif-samain-referensi.sql), pola sama persis
-    // surat_pemblokiran punya mergeData sendiri.
-    const [[pengaturan]] = await pool.query('SELECT alamat_kantor FROM pengaturan WHERE id = 1');
-    const mergeData = {
-      nama: user.name,
-      nik: user.nik || '-',
-      alamat: user.alamat || '-',
-      no_rekening: user.no_rekening_tabungan_umroh || '-',
-      alamat_kantor: pengaturan?.alamat_kantor || '-',
-      nama_wakil: signer?.nama || '-',
-      nik_wakil: signer?.nik || '-',
-      jabatan_wakil: signer?.jabatan || '-',
-    };
-
-    return Response.json({ user, nomor, pasal, signer, mergeData });
+    // Teks surat dari template PDF resmi (lihat src/lib/dokumenTemplate.js),
+    // jadi endpoint ini gak ngirim pasal/mergeData lagi — tugasnya tinggal
+    // bekukan nomor surat + penandatangan (dikonfirmasi user 2026-10-01).
+    const { signer } = await ambilPasalUntukCetak('sk_cif', user.id);
+    return Response.json({ user, nomor, signer });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

@@ -1,6 +1,9 @@
 import pool from '@/lib/db';
 
-const DOKUMEN_VALID = ['spka', 'spka_ins', 'spkl', 'jamaah', 'spk_ak', 'spk_ak_nonis', 'sk_cif', 'ganti_target_sahabat'];
+// sk_cif / spk_ak / spk_ak_nonis (dan surat_pemblokiran) SENGAJA gak ada —
+// teks resminya dari template PDF (src/lib/dokumenTemplate.js), 2026-10-01.
+// Catatan: route ini gak dipakai di prod (Caddy kirim /api/pasal ke Go).
+const DOKUMEN_VALID = ['spka', 'spka_ins', 'spkl', 'jamaah', 'ganti_target_sahabat'];
 
 // GET /api/pasal?dokumen=spka — PUBLIK. Dipakai /pks (baca sebelum setuju),
 // /admin/cetak-pks-mitra & /admin/cetak-perjanjian (cetak dokumen final).

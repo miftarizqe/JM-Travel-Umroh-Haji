@@ -5,8 +5,18 @@
 // endpoint dokumen-signature bisa pakai ulang tanpa fetch HTTP ke route lain.
 import pool from '@/lib/db';
 import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
+import { pakaiTemplate } from '@/lib/dokumenTemplate';
 
 export async function ambilPasalUntukCetak(dokumen, refId) {
+  // Dokumen ber-template: teksnya dari template PDF, BUKAN pasal DB
+  // (dikonfirmasi user 2026-10-01) — pasal selalu kosong. Signer cuma
+  // relevan buat SK-CIF (Penerima Kuasa): snapshot beku kalau ada, else live.
+  if (pakaiTemplate(dokumen)) {
+    if (dokumen !== 'sk_cif') return { pasal: [], signer: null };
+    const [[row]] = await pool.query('SELECT nama, nik, jabatan FROM dokumen_signer_snapshot WHERE ref_id = ? AND dokumen = ?', [refId, dokumen]);
+    return { pasal: [], signer: row ? { nama: row.nama, nik: row.nik, jabatan: row.jabatan } : await ambilSignerSkCif(pool) };
+  }
+
   const [snapshotRows] = await pool.query(
     'SELECT nomor, tipe, judul, isi FROM dokumen_pasal_snapshot WHERE ref_id = ? AND dokumen = ? ORDER BY nomor ASC',
     [refId, dokumen]

@@ -12,12 +12,15 @@ import { wajibRole } from '@/lib/auth';
 import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
 import { logoAbsolutePath } from '@/lib/pdfDokumen/simpanPdf';
 import { renderSpkaInsPdf } from '@/lib/pdfDokumen/renderSpkaIns';
-import { renderSpkAkPdf } from '@/lib/pdfDokumen/renderSpkAk';
 import { renderJamaahPdf } from '@/lib/pdfDokumen/renderJamaah';
-import { renderSkCifPdf } from '@/lib/pdfDokumen/renderSkCif';
-import { renderSuratPemblokiranPdf } from '@/lib/pdfDokumen/renderSuratPemblokiran';
+// SK-CIF, Surat Pemblokiran, SPK-AK & SPK-AK Non-Muslim: contoh dibuat dari
+// TEMPLATE PDF RESMI (bukan pasal DB) — sama dengan yang dibaca & ditandatangani
+// anggota (dikonfirmasi user 2026-10-01, lihat src/lib/dokumenTemplate.js).
+import { generateSkCifPdf } from '@/lib/pdfDokumen/skCifOverlay';
+import { generateSuratPemblokiranPdf } from '@/lib/pdfDokumen/suratPemblokiranOverlay';
+import { generateSpkAkPdf } from '@/lib/pdfDokumen/spkAkOverlay';
 
-const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'sk_cif', 'surat_pemblokiran'];
+const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'];
 
 // Data dummy — SAMA persis (nama/nik/alamat) dengan CONTOH_MERGE &
 // TTD_PREVIEW di admin/pengaturan/dokumen/page.jsx, JANGAN beda sendiri
@@ -27,7 +30,6 @@ const CONTOH_USER = {
   created_at: new Date(), bank: 'Bank Contoh', no_rekening: '000-000-0000', nama_pemilik_rekening: 'Nama Contoh',
 };
 const CONTOH_PEREKRUT = { name: 'Nama Perekrut Contoh', nik: '3171xxxxxxxxxxxx', alamat: 'Jl. Contoh No. 1, Jakarta', wa: '-' };
-const CONTOH_HOP = { name: 'Nama Head of Program Contoh', nik: '3171xxxxxxxxxxxx', alamat: 'Jl. Contoh No. 1, Jakarta', wa: '-' };
 const CONTOH_MERGE_ISIAN = {
   nama: 'Nama Contoh', nik: '3171xxxxxxxxxxxx', alamat: 'Jl. Contoh No. 1, Jakarta',
   no_rekening: '7080600000', nominal_blokir: '5.000.000', jangka_waktu_hari: '90', tanggal_mulai_blokir: '10 September 2026',
@@ -58,25 +60,26 @@ export async function GET(request) {
 
     let buffer;
     if (dokumen === 'sk_cif') {
-      // Ambil penandatangan SK-CIF (Penerima Kuasa) yang BENERAN dikonfigurasi
-      // admin — kalau belum diisi, fallback ke label contoh (bukan Head of
-      // Program lagi, dikoreksi 2026-09-10).
+      // Penerima Kuasa = penandatangan SK-CIF yang BENERAN dikonfigurasi admin.
       const skCifSigner = await ambilSignerSkCif(pool);
-      const mergeData = {
-        ...CONTOH_MERGE_ISIAN,
-        alamat_kantor: pengaturan?.alamat_kantor,
-        nama_wakil: skCifSigner?.nama || 'Nama Penandatangan SK-CIF Contoh',
-        nik_wakil: skCifSigner?.nik || '3171xxxxxxxxxxxx',
-        jabatan_wakil: skCifSigner?.jabatan || 'Direktur Utama',
-      };
-      buffer = await renderSkCifPdf({ nomor: '09.0001/JMT.SK-CIF.IX/2026 (contoh)', pasal, mergeData, pengaturan, logoPath });
+      buffer = await generateSkCifPdf({
+        nama: CONTOH_MERGE_ISIAN.nama, nik: CONTOH_MERGE_ISIAN.nik, alamat: CONTOH_MERGE_ISIAN.alamat,
+        noRekening: CONTOH_MERGE_ISIAN.no_rekening, namaWakil: skCifSigner?.nama || 'Nama Penandatangan SK-CIF Contoh',
+      });
     } else if (dokumen === 'surat_pemblokiran') {
-      const mergeData = { ...CONTOH_MERGE_ISIAN, alamat_kantor: pengaturan?.alamat_kantor };
-      buffer = await renderSuratPemblokiranPdf({ nomor: '09.0001/JMT.SURAT-PEMBLOKIRAN.IX/2026 (contoh)', pasal, mergeData, pengaturan, logoPath });
+      buffer = await generateSuratPemblokiranPdf({
+        nama: CONTOH_MERGE_ISIAN.nama, nik: CONTOH_MERGE_ISIAN.nik, alamat: CONTOH_MERGE_ISIAN.alamat,
+        noRekening: CONTOH_MERGE_ISIAN.no_rekening, nominalBlokir: CONTOH_MERGE_ISIAN.nominal_blokir,
+        jangkaWaktuHari: CONTOH_MERGE_ISIAN.jangka_waktu_hari, tanggalMulai: CONTOH_MERGE_ISIAN.tanggal_mulai_blokir,
+      });
+    } else if (dokumen === 'spk_ak' || dokumen === 'spk_ak_nonis') {
+      buffer = await generateSpkAkPdf({
+        dokumen, nomor: dokumen === 'spk_ak' ? '09.0001/JMT.JSB.IX/2026 (contoh)' : '09.0001/JMT.JSB-NM.IX/2026 (contoh)',
+        nama: CONTOH_USER.name, alamat: CONTOH_USER.alamat, noTelepon: '08xxxxxxxxxx', noPaspor: 'C1234567',
+        namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
+      });
     } else if (dokumen === 'spka_ins') {
       buffer = await renderSpkaInsPdf({ user: CONTOH_USER, perekrut: CONTOH_PEREKRUT, nomor: '09.0001/JMT.SPKA-Ins.IX/2026 (contoh)', pasal, signer: signerUntuk('spka_ins'), pengaturan, logoPath });
-    } else if (dokumen === 'spk_ak') {
-      buffer = await renderSpkAkPdf({ user: CONTOH_USER, hop: CONTOH_HOP, nomor: '09.0001/JMT.SPK-AK.IX/2026 (contoh)', pasal, signer: signerUntuk('spk_ak'), pengaturan, logoPath });
     } else if (dokumen === 'jamaah') {
       const booking = {
         id: 'BK-CONTOH', prog_name: 'Program Contoh',

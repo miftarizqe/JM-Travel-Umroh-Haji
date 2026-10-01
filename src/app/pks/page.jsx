@@ -2,6 +2,7 @@
 import { Suspense, useEffect, useState, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { renderPasalMarkup } from '@/lib/pasalMarkup';
 
@@ -58,11 +59,9 @@ function PKSPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (jenis !== 'sahabat_baitullah' || !pksUser) return;
-    fetch(`/api/pasal?dokumen=${dokumenKey}`).then(r => r.json()).then(d => setPasal(d.pasal || [])).catch(() => setPasal([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pksUser]);
+  // sahabat_baitullah (SPK-AK / SPK-AK Non-Muslim) SENGAJA gak ambil pasal
+  // DB lagi (dikonfirmasi user 2026-10-01) — yang dibaca = PDF template resmi
+  // yang sama persis dengan yang ditandatangani (lihat PdfDokumenResmi di bawah).
 
   // Wajib scroll sampai bawah sebelum bisa centang
   function cekScroll() {
@@ -165,6 +164,12 @@ function PKSPageInner() {
             <div className="text-sm font-bold mt-2">{judul}</div>
           </div>
 
+          {jenis === 'sahabat_baitullah' ? (
+            // Varian Muslim / Non-Muslim ditentukan server dari agama akun.
+            <div className="p-3">
+              <PdfDokumenResmi url="/api/sahabat/unduh-spk-ak" onSiap={() => setSudahBaca(true)} />
+            </div>
+          ) : (
           <div ref={scrollRef} onScroll={cekScroll}
             className="p-5 max-h-[400px] overflow-y-auto text-sm text-gray-600 space-y-4">
             {!pasal || menungguDataAwal ? (
@@ -187,10 +192,11 @@ function PKSPageInner() {
               Perjanjian ini mengikat para pihak sejak tanggal persetujuan diberikan secara elektronik.
             </div>
           </div>
+          )}
 
           {!sudahBaca && (
             <div className="bg-yellow-50 border-t border-yellow-200 p-2 text-center text-xs text-yellow-700">
-              ⬇️ Gulir ke bawah sampai selesai membaca
+              {jenis === 'sahabat_baitullah' ? '⏳ Memuat dokumen resmi…' : '⬇️ Gulir ke bawah sampai selesai membaca'}
             </div>
           )}
         </div>

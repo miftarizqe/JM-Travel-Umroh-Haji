@@ -2,13 +2,6 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
-import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
-
-const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
-
-function tglIndo(d) {
-  return `${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}`;
-}
 
 // GET /api/sahabat/surat-pemblokiran — data buat halaman print Surat
 // Pernyataan Kuasa Blokir Rekening & Instruksi Pemindahbukuan milik sendiri.
@@ -43,19 +36,9 @@ export async function GET(request) {
 
     const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SURAT-PEMBLOKIRAN', 'no_surat_pemblokiran');
     if (nomor) await pastikanSnapshot(pool, user.id, 'surat_pemblokiran');
-    const { pasal } = await ambilPasalUntukCetak('surat_pemblokiran', user.id);
-
-    const mergeData = {
-      nama: user.name,
-      nik: user.nik || '-',
-      alamat: user.alamat || '-',
-      no_rekening: user.no_rekening_tabungan_umroh,
-      nominal_blokir: Number(user.nominal_blokir_tabungan).toLocaleString('id-ID'),
-      jangka_waktu_hari: String(user.jangka_waktu_blokir_hari),
-      tanggal_mulai_blokir: tglIndo(new Date(user.tanggal_mulai_blokir)),
-    };
-
-    return Response.json({ user, nomor, pasal, mergeData });
+    // Teks surat dari template PDF resmi (lihat src/lib/dokumenTemplate.js) —
+    // gak ngirim pasal/mergeData lagi, cuma bekukan nomor surat (2026-10-01).
+    return Response.json({ user, nomor });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

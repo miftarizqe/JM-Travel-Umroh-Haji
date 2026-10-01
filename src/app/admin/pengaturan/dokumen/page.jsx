@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import {
   renderPasalBlock, renderBlockNode, renderListItemNode, parsePasalMarkup, SignatureBlokBank, SignatureBlokKuasa,
@@ -784,7 +785,7 @@ export default function AdminPengaturanDokumenPage() {
         ))}
       </div>
 
-      {!loadingPasal && (
+      {!loadingPasal && !DOKUMEN_TERKUNCI.includes(dokumen) && (
         <button onClick={() => setShowPreviewDokumen(v => !v)}
           className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-1.5 rounded-full mb-4">
           {showPreviewDokumen ? '▲ Sembunyikan Preview Dokumen Lengkap' : '👁️ Lihat Preview Dokumen Lengkap'}
@@ -793,17 +794,23 @@ export default function AdminPengaturanDokumenPage() {
 
       {DOKUMEN_TERKUNCI.includes(dokumen) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-          🔒 Wording resmi dokumen ini sekarang dari template PDF (bukan pasal di sini lagi) — kirim PDF baru buat update. Daftar di bawah cuma dipakai buat tampilan baca+centang-setuju jamaah, gak bisa diedit dari sini.
+          🔒 Teks resmi dokumen ini SATU-SATUNYA dari template PDF (src/lib/pdfDokumen/templates/) — dipakai sama persis di semua role: baca &amp; setuju anggota, cetak, unduh, dan tanda tangan. Pasal tidak dipakai lagi. Untuk mengubah teks, kirim file template PDF baru ke tim IT (perlu deploy). Di bawah ini contohnya dengan data dummy.
         </div>
       )}
       </div>
 
-      {!loadingPasal && showPreviewDokumen && signerForm && (
+      {DOKUMEN_TERKUNCI.includes(dokumen) && (
+        <div className="mb-6">
+          <PdfDokumenResmi key={dokumen} url={`/api/admin/pasal/contoh-pdf?dokumen=${dokumen}`} tinggi="80vh" />
+        </div>
+      )}
+
+      {!loadingPasal && showPreviewDokumen && signerForm && !DOKUMEN_TERKUNCI.includes(dokumen) && (
         <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
       )}
 
       <div className="no-print">
-      {loadingPasal ? (
+      {DOKUMEN_TERKUNCI.includes(dokumen) ? null : loadingPasal ? (
         <div className="text-center text-gray-400 py-12">Memuat...</div>
       ) : (
         <>

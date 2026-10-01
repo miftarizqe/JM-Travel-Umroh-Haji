@@ -1,4 +1,5 @@
 import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
+import { pakaiTemplate } from '@/lib/dokumenTemplate';
 
 // Bekukan isi pasal + penandatangan dokumen legal SEKALI per dokumen resmi.
 // Dipanggil dari titik "resmi jadi" yang sudah ada di kode:
@@ -8,6 +9,20 @@ import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
 // Idempotent: kalau snapshot buat (refId, dokumen) itu udah ada, gak
 // ditimpa — sekali beku, beku selamanya, biar aman dipanggil berkali-kali.
 export async function pastikanSnapshot(pool, refId, dokumen) {
+  // Dokumen ber-template (SK-CIF, Pemblokiran, SPK-AK, SPK-AK Non-Muslim):
+  // teks resminya dari template PDF, jadi pasal DB gak dibekukan lagi
+  // (dikonfirmasi user 2026-10-01). Yang tetap dibekukan cuma penandatangan
+  // JM Travel di SK-CIF (Penerima Kuasa) — sekali, gak ditimpa.
+  if (pakaiTemplate(dokumen)) {
+    if (dokumen !== 'sk_cif') return;
+    const skCifSigner = await ambilSignerSkCif(pool);
+    await pool.query(
+      'INSERT IGNORE INTO dokumen_signer_snapshot (ref_id, dokumen, nama, nik, jabatan) VALUES (?, ?, ?, ?, ?)',
+      [refId, dokumen, skCifSigner?.nama || null, skCifSigner?.nik || null, skCifSigner?.jabatan || null]
+    );
+    return;
+  }
+
   const [existing] = await pool.query(
     'SELECT 1 FROM dokumen_pasal_snapshot WHERE ref_id = ? AND dokumen = ? LIMIT 1',
     [refId, dokumen]

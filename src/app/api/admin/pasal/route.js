@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { pakaiTemplate } from '@/lib/dokumenTemplate';
 import { wajibRole } from '@/lib/auth';
 import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
 
@@ -42,6 +43,12 @@ export async function GET(request) {
   const refId = searchParams.get('ref_id');
   if (!DOKUMEN_VALID.includes(dokumen)) {
     return Response.json({ error: 'Parameter dokumen tidak valid' }, { status: 400 });
+  }
+  // Dokumen ber-template (SK-CIF, Pemblokiran, SPK-AK, SPK-AK Non-Muslim):
+  // teksnya dari template PDF, pasal DB gak dikirim lagi ke mana pun
+  // (dikonfirmasi user 2026-10-01). FE admin nampilin contoh-pdf.
+  if (pakaiTemplate(dokumen)) {
+    return Response.json({ pasal: [], signer: null, template: true });
   }
   try {
     if (!refId) {
