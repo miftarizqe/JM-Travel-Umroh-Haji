@@ -10,13 +10,18 @@ export async function GET(request) {
     const targetType = searchParams.get('target_type');
     const limit = Math.min(Number(searchParams.get('limit')) || 50, 200);
 
-    let query = 'SELECT * FROM audit_log WHERE 1=1';
+    // Filter khusus 'saldo_sahabat' = semua log perubahan saldo Sahabat
+    // (yang punya subjek & saldo sebelum/sesudah — catatan sistem ujroh #10).
+    let query = `SELECT a.*, s.name AS subjek_nama FROM audit_log a
+                 LEFT JOIN users s ON s.id = a.subjek_user_id WHERE 1=1`;
     const params = [];
-    if (targetType) {
-      query += ' AND target_type = ?';
+    if (targetType === 'saldo_sahabat') {
+      query += ' AND a.subjek_user_id IS NOT NULL';
+    } else if (targetType) {
+      query += ' AND a.target_type = ?';
       params.push(targetType);
     }
-    query += ' ORDER BY created_at DESC LIMIT ?';
+    query += ' ORDER BY a.created_at DESC LIMIT ?';
     params.push(limit);
 
     const [rows] = await pool.query(query, params);

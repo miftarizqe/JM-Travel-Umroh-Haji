@@ -1,16 +1,11 @@
 import pool from '@/lib/db';
 import { wajibSuperAdmin } from '@/lib/auth';
-import { catatAudit } from '@/lib/audit';
+import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 
 // Saldo confirmed saat ini — SAMA PERSIS list yang dipakai /api/sahabat/dashboard
 // buat nampilin "Saldo Tabungan Umroh" ke member (WAJIB tetap sinkron kalau
 // list itu berubah), dipakai buat nge-cap nominal koreksi biar gak bikin
 // saldo minus.
-const JENIS_SALDO = [
-  'komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat',
-  'tabungan_awal_sahabat', 'head_of_program_registrasi', 'pemakaian_saldo_sahabat',
-  'setoran_mandiri_sahabat', 'koreksi_saldo_sahabat',
-];
 
 // POST /api/admin/sahabat/koreksi-saldo — kurangi saldo tabungan umroh
 // seorang Jamaah Sahabat Baitullah secara manual (dikonfirmasi user
@@ -45,12 +40,7 @@ export async function POST(request) {
     const [[u]] = await pool.query('SELECT id, name FROM users WHERE id = ? AND role = ?', [user_id, 'sahabat_baitullah']);
     if (!u) return Response.json({ error: 'Akun Jamaah Sahabat Baitullah tidak ditemukan' }, { status: 404 });
 
-    const [saldoRows] = await pool.query(
-      `SELECT nominal FROM komisi_ledger WHERE penerima_id = ? AND dikonfirmasi_at IS NOT NULL
-       AND jenis IN (${JENIS_SALDO.map(() => '?').join(',')})`,
-      [user_id, ...JENIS_SALDO]
-    );
-    const saldoSaatIni = saldoRows.reduce((s, r) => s + Number(r.nominal || 0), 0);
+    const saldoSaatIni = await saldoSahabat(pool, user_id);
     if (nominalNum > saldoSaatIni) {
       return Response.json({
         error: `Nominal koreksi (Rp${nominalNum.toLocaleString('id-ID')}) melebihi saldo tabungan saat ini (Rp${saldoSaatIni.toLocaleString('id-ID')}). Tidak boleh membuat saldo minus.`,
@@ -64,8 +54,10 @@ export async function POST(request) {
       [user_id, user_id, u.name, -nominalNum, `Koreksi saldo (admin): ${keteranganTrim}`]
     );
 
-    await catatAudit(pool, {
+    await catatPerubahanSaldo(pool, {
       actor: auth.user,
+      userId: user_id,
+      saldoSebelum: saldoSaatIni,
       aksi: 'sahabat_koreksi_saldo',
       target_type: 'komisi_ledger',
       target_id: String(result.insertId),

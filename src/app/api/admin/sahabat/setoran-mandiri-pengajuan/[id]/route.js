@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
+import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 
 // PATCH /api/admin/sahabat/setoran-mandiri-pengajuan/[id]  body: { action, catatan_admin }
 // action: 'approve' | 'reject'. Approve = admin udah cocokkan nominal &
@@ -40,6 +41,7 @@ export async function PATCH(request, { params }) {
     }
 
     const [[u]] = await pool.query('SELECT name FROM users WHERE id = ?', [p.user_id]);
+    const saldoSebelum = await saldoSahabat(pool, p.user_id);
     const [result] = await pool.query(
       `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, dikonfirmasi_at)
        VALUES (NULL, ?, ?, ?, 'setoran_mandiri_sahabat', 1, ?, ?, NOW())`,
@@ -53,8 +55,9 @@ export async function PATCH(request, { params }) {
       [catatan_admin || null, auth.user.id, result.insertId, id]
     );
 
-    await catatAudit(pool, {
-      actor: auth.user, aksi: 'sahabat_setoran_mandiri_pengajuan_setujui',
+    await catatPerubahanSaldo(pool, {
+      actor: auth.user, userId: p.user_id, saldoSebelum, bukti_path: p.bukti_path,
+      aksi: 'sahabat_setoran_mandiri_pengajuan_setujui',
       target_type: 'setoran_mandiri_pengajuan', target_id: String(id),
       keterangan: `Setujui setoran mandiri Rp${Number(p.nominal).toLocaleString('id-ID')} untuk ${u?.name || p.user_id}`,
     });

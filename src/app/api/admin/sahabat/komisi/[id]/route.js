@@ -3,7 +3,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
-import { catatAudit } from '@/lib/audit';
+import { saldoSahabat, catatPerubahanSaldo, JENIS_SALDO_SAHABAT } from '@/lib/saldoSahabat';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { catatRekening } from '@/lib/rekeningLedger';
 
@@ -33,7 +33,7 @@ export async function PATCH(request, { params }) {
     const file = formData.get('file');
 
     const [rows] = await pool.query(
-      `SELECT id, jenis, nominal, booking_id, dikonfirmasi_at, pengajuan_ujroh_id FROM komisi_ledger
+      `SELECT id, jenis, nominal, booking_id, penerima_id, bukti_tf_admin_path, dikonfirmasi_at, pengajuan_ujroh_id FROM komisi_ledger
        WHERE id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
       [id]
     );
@@ -84,6 +84,9 @@ export async function PATCH(request, { params }) {
       buktiPath = `/api/dokumen/bukti-tf-komisi/${nama}`;
     }
 
+    const berpengaruhKeSaldo = JENIS_SALDO_SAHABAT.includes(rows[0].jenis) && !!rows[0].penerima_id;
+    const saldoSebelum = berpengaruhKeSaldo ? await saldoSahabat(pool, rows[0].penerima_id) : null;
+
     if (confirmed) {
       await pool.query(
         buktiPath
@@ -109,12 +112,15 @@ export async function PATCH(request, { params }) {
       });
     }
 
-    await catatAudit(pool, {
+    await catatPerubahanSaldo(pool, {
       actor: auth.user,
+      userId: berpengaruhKeSaldo ? rows[0].penerima_id : null,
+      saldoSebelum,
       aksi: confirmed ? 'komisi_sahabat_confirm' : 'komisi_sahabat_unconfirm',
       target_type: 'komisi_ledger',
       target_id: String(id),
-      keterangan: confirmed ? 'Ditandai sudah ditransfer & dikonfirmasi.' : 'Dibatalkan konfirmasinya.',
+      keterangan: `${confirmed ? 'Ditandai sudah ditransfer & dikonfirmasi' : 'Dibatalkan konfirmasinya'} — ${rows[0].jenis}, Rp${Number(rows[0].nominal || 0).toLocaleString('id-ID')}.`,
+      bukti_path: buktiPath || rows[0].bukti_tf_admin_path || null,
     });
 
     // Baris pemakaian saldo checkout-mandiri yang baru di-acc — cek apakah

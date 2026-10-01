@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
+import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 import { wajibLogin, wajibRole } from '@/lib/auth';
 import { pastikanKodeInviteSahabat } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
@@ -361,9 +362,9 @@ export async function PATCH(request) {
                 && (await statusKeaktifanUjroh(pool, ancestor.id)).aktif;
               if (ancestorAktif) {
                 await pool.query(
-                  `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
-                   VALUES (NULL, ?, ?, ?, 'komisi_sahabat', 1, ?, ?)`,
-                  [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (No. Akun: ${u.kode_unik || '-'})`]
+                  `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, level)
+                   VALUES (NULL, ?, ?, ?, 'komisi_sahabat', 1, ?, ?, ?)`,
+                  [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (No. Akun: ${u.kode_unik || '-'})`, gen + 1]
                 );
               } else {
                 operasionalTambahan += nominal;
@@ -382,11 +383,17 @@ export async function PATCH(request) {
           // gak pernah butuh TF beneran.
           const tabunganAwal = Number(pengaturan?.sahabat_tabungan_awal_nominal || 0);
           if (tabunganAwal > 0) {
-            await pool.query(
+            const saldoSebelum = await saldoSahabat(pool, user_id);
+            const [insTabungan] = await pool.query(
               `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, dikonfirmasi_at)
                VALUES (NULL, ?, ?, ?, 'tabungan_awal_sahabat', 1, ?, ?, NOW())`,
               [user_id, user_id, p.nama, tabunganAwal, 'Saldo awal tabungan umroh — pendaftaran Sahabat Baitullah (setor mandiri jemaah)']
             );
+            await catatPerubahanSaldo(pool, {
+              actor: auth.user, userId: user_id, saldoSebelum,
+              aksi: 'sahabat_tabungan_awal', target_type: 'komisi_ledger', target_id: String(insTabungan.insertId),
+              keterangan: `Saldo awal tabungan Rp${tabunganAwal.toLocaleString('id-ID')} saat akun ${p.nama} diaktifkan`,
+            });
           }
 
           // Komisi Head of Program (registrasi) — cuma kalau akunnya udah

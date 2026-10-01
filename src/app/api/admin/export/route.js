@@ -320,12 +320,14 @@ async function buildAudit(searchParams) {
   const to = searchParams.get('to');
   const params = [];
   let where = ' WHERE 1=1';
-  if (targetType) { where += ' AND target_type = ?'; params.push(targetType); }
-  where += rangeClause('created_at', from, to, params);
+  if (targetType === 'saldo_sahabat') where += ' AND a.subjek_user_id IS NOT NULL';
+  else if (targetType) { where += ' AND a.target_type = ?'; params.push(targetType); }
+  where += rangeClause('a.created_at', from, to, params);
 
   const [rows] = await pool.query(
-    `SELECT actor_nama, aksi, target_type, target_id, keterangan, created_at
-     FROM audit_log ${where} ORDER BY created_at DESC`,
+    `SELECT a.actor_nama, a.aksi, a.target_type, a.target_id, a.keterangan, a.created_at,
+            s.name AS subjek_nama, a.saldo_sebelum, a.saldo_sesudah, a.bukti_path
+     FROM audit_log a LEFT JOIN users s ON s.id = a.subjek_user_id ${where} ORDER BY a.created_at DESC`,
     params
   );
   return {
@@ -336,6 +338,10 @@ async function buildAudit(searchParams) {
       { header: 'Target Type', key: 'target_type', width: 14 },
       { header: 'Target ID', key: 'target_id', width: 16 },
       { header: 'Keterangan', key: 'keterangan', width: 36 },
+      { header: 'Anggota', key: 'subjek_nama', width: 20 },
+      { header: 'Saldo Sebelum', key: 'saldo_sebelum', width: 14 },
+      { header: 'Saldo Sesudah', key: 'saldo_sesudah', width: 14 },
+      { header: 'Bukti', key: 'bukti_path', width: 30 },
       { header: 'Waktu', key: 'created_at', width: 18 },
     ],
     rows,

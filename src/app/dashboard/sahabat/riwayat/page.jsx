@@ -276,8 +276,16 @@ function RiwayatSaldoContent() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${kat.warna}`}>{kat.label}</span>
+                    {r.level ? (
+                      <span className="ml-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F0FB] text-[#1A4FA0]">Level {r.level}</span>
+                    ) : null}
+                    {r.nama_pendaftar ? (
+                      <div className="text-sm font-semibold text-gray-800 mt-1">{r.nama_pendaftar}</div>
+                    ) : null}
                     <div className="text-sm text-gray-700 mt-1">{r.keterangan}</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">{fmtTanggalJam(r.created_at)}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">
+                      {fmtTanggalJam(r.created_at)} · ID Transaksi #{r.id}
+                    </div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className={`font-bold ${r.nominal < 0 ? 'text-red-600' : 'text-green-600'}`}>

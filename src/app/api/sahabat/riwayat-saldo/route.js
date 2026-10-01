@@ -5,6 +5,8 @@ import { wajibPemilikAtauAdmin } from '@/lib/auth';
 // tabungan umroh bergaya rekening koran (dipakai /dashboard/sahabat/riwayat).
 // Beda dari /api/sahabat/dashboard yang cuma kirim ringkasan angka — di sini
 // tiap baris dapet saldo berjalan (running balance), dihitung server-side.
+// Riwayat ujroh wajib tampil: tanggal, ID transaksi, level (Gen1-5), nama
+// lengkap pendaftar, nominal, status (catatan sistem ujroh #11).
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -15,10 +17,13 @@ export async function GET(request) {
     if (auth.error) return auth.error;
 
     const [rows] = await pool.query(
-      `SELECT id, jenis, ref_id, nominal, keterangan, dikonfirmasi_at, bukti_tf_admin_path, created_at
-       FROM komisi_ledger
-       WHERE penerima_id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')
-       ORDER BY created_at ASC`,
+      `SELECT kl.id, kl.jenis, kl.ref_id, kl.nominal, kl.keterangan, kl.dikonfirmasi_at, kl.bukti_tf_admin_path, kl.created_at,
+              kl.level, pendaftar.name AS nama_pendaftar
+       FROM komisi_ledger kl
+       LEFT JOIN users pendaftar
+         ON pendaftar.id = kl.ref_id AND kl.jenis IN ('komisi_sahabat','head_of_program_registrasi')
+       WHERE kl.penerima_id = ? AND kl.jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')
+       ORDER BY kl.created_at ASC, kl.id ASC`,
       [sahabatId]
     );
 

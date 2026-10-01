@@ -157,11 +157,16 @@ const AKSI_LABEL = {
   tambah_transaksi_cashflow: 'Tambah Transaksi Cashflow', edit_transaksi_cashflow: 'Edit Transaksi Cashflow',
   hapus_transaksi_cashflow: 'Hapus Transaksi Cashflow', transfer_antar_akun_cashflow: 'Transfer Antar Akun Cashflow',
   submit_cashflow: 'Submit Cashflow', buka_cashflow: 'Buka Kembali Cashflow',
+  komisi_sahabat_confirm: 'Konfirmasi Saldo Sahabat', komisi_sahabat_unconfirm: 'Batal Konfirmasi Saldo Sahabat',
+  sahabat_setoran_mandiri_pengajuan_setujui: 'Setujui Setoran Mandiri', sahabat_setoran_mandiri_pengajuan_tolak: 'Tolak Setoran Mandiri',
+  sahabat_setoran_mandiri_catat: 'Catat Setoran Mandiri', sahabat_koreksi_saldo: 'Koreksi Saldo Sahabat',
+  sahabat_koreksi_pembagian: 'Koreksi Pembagian Pendaftaran', sahabat_tabungan_awal: 'Saldo Awal Tabungan',
 };
 const TARGET_TYPE_LABEL = {
   payment: '💳 Pembayaran', booking: '📦 Booking', pembatalan: '🚫 Pembatalan',
   user: '👤 Akun', custom_harga: '💰 Custom Harga', voucher: '🎟️ Voucher',
   cashflow_transaksi: '💵 Cashflow Transaksi', cashflow_periode: '🔒 Cashflow Periode',
+  saldo_sahabat: '🕋 Perubahan Saldo Sahabat',
 };
 
 export default function AdminPage() {
@@ -2174,7 +2179,7 @@ function AdminPageInner() {
 
           {(() => {
             const auditRows = urutkan(
-              auditLog.filter(a => cocok(searchAudit, a.actor_nama, a.keterangan)),
+              auditLog.filter(a => cocok(searchAudit, a.actor_nama, a.keterangan, a.subjek_nama)),
               sortState.auditlog.field, sortState.auditlog.dir
             );
             return (
@@ -2194,6 +2199,8 @@ function AdminPageInner() {
                     <SortTh field="aksi" sort={sortState.auditlog} onSort={f => toggleSort('auditlog', f)}>Aksi</SortTh>
                     <SortTh field="target_type" sort={sortState.auditlog} onSort={f => toggleSort('auditlog', f)}>Target</SortTh>
                     <th className="px-4 py-3 text-left">Keterangan</th>
+                    <th className="px-4 py-3 text-left whitespace-nowrap">Saldo Sebelum → Sesudah</th>
+                    <th className="px-4 py-3 text-left">Bukti</th>
                   </tr></thead>
                   <tbody>
                     {auditRows.map((a, i) => (
@@ -2209,7 +2216,24 @@ function AdminPageInner() {
                           {TARGET_TYPE_LABEL[a.target_type] || a.target_type}
                           <div className="text-gray-400">{a.target_id}</div>
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-600">{a.keterangan || '-'}</td>
+                        <td className="px-4 py-3 text-xs text-gray-600">
+                          {a.subjek_nama && <div className="font-semibold text-[#0E2F6E]">{a.subjek_nama}</div>}
+                          {a.keterangan || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          {a.saldo_sebelum !== null && a.saldo_sebelum !== undefined ? (
+                            <>
+                              <span className="text-gray-500">Rp{Number(a.saldo_sebelum).toLocaleString('id-ID')}</span>
+                              {' → '}
+                              <span className="font-bold text-[#0E2F6E]">Rp{Number(a.saldo_sesudah ?? 0).toLocaleString('id-ID')}</span>
+                            </>
+                          ) : <span className="text-gray-300">-</span>}
+                        </td>
+                        <td className="px-4 py-3 text-xs">
+                          {a.bukti_path
+                            ? <a href={a.bukti_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold whitespace-nowrap">📎 Lihat</a>
+                            : <span className="text-gray-300">-</span>}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

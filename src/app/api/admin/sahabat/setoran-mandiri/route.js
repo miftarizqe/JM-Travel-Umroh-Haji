@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
-import { catatAudit } from '@/lib/audit';
+import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 
 // POST /api/admin/sahabat/setoran-mandiri — catat 1 transaksi setoran
 // mandiri jamaah ke tabungan umroh BSI mereka SENDIRI (bukan ujroh/closing
@@ -31,6 +31,7 @@ export async function POST(request) {
 
     const [[u]] = await pool.query('SELECT id, name FROM users WHERE id = ? AND role = ?', [user_id, 'sahabat_baitullah']);
     if (!u) return Response.json({ error: 'Akun Jamaah Sahabat Baitullah tidak ditemukan' }, { status: 404 });
+    const saldoSebelum = await saldoSahabat(pool, user_id);
 
     const [result] = await pool.query(
       `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, dikonfirmasi_at)
@@ -38,8 +39,10 @@ export async function POST(request) {
       [user_id, user_id, u.name, nominalNum, keterangan?.trim() || 'Setoran mandiri jamaah — dicatat dari cek mutasi rekening']
     );
 
-    await catatAudit(pool, {
+    await catatPerubahanSaldo(pool, {
       actor: auth.user,
+      userId: user_id,
+      saldoSebelum,
       aksi: 'sahabat_setoran_mandiri_catat',
       target_type: 'komisi_ledger',
       target_id: String(result.insertId),
