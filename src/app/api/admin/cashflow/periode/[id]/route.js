@@ -60,3 +60,41 @@ export async function GET(request, { params }) {
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
   }
 }
+
+// DELETE — hapus periode yang SALAH BIKIN (dikonfirmasi user 2026-10-01).
+// Dibatasi ketat biar gak ngerusak rantai saldo antar bulan:
+//  1. Harus masih 'draft' — yang sudah 'submitted' itu pembukuan terkunci,
+//     "Buka Kembali" dulu (POST .../submit DELETE) baru bisa dihapus.
+//  2. Gak boleh ada transaksi sama sekali — hapus transaksinya dulu manual,
+//     biar jelas apa yang hilang (bukan auto-cascade diam-diam).
+//  3. Harus periode PALING BARU (gak ada periode lain dengan `bulan` lebih
+//     besar) — periode setelahnya nyimpen SNAPSHOT saldo_awal dari saldo
+//     akhir periode ini; kalau dihapus, snapshot itu jadi basi & gak ada
+//     yang nyegerin ulang.
+export async function DELETE(request, { params }) {
+  const auth = wajibSuperAdmin(request);
+  if (auth.error) return auth.error;
+  try {
+    const { id } = await params;
+    const [[periode]] = await pool.query('SELECT * FROM cashflow_periode WHERE id = ?', [id]);
+    if (!periode) return Response.json({ error: 'Periode tidak ditemukan' }, { status: 404 });
+    if (periode.status !== 'draft') {
+      return Response.json({ error: 'Periode yang sudah disubmit gak bisa dihapus — "Buka Kembali" dulu.' }, { status: 400 });
+    }
+    const [[{ jumlah }]] = await pool.query('SELECT COUNT(*) AS jumlah FROM cashflow_transaksi WHERE periode_id = ?', [id]);
+    if (jumlah > 0) {
+      return Response.json({ error: 'Periode ini sudah punya transaksi — hapus semua transaksinya dulu sebelum hapus periode.' }, { status: 400 });
+    }
+    const [[lebihBaru]] = await pool.query('SELECT id FROM cashflow_periode WHERE bulan > ? LIMIT 1', [periode.bulan]);
+    if (lebihBaru) {
+      return Response.json({ error: 'Cuma periode paling baru yang bisa dihapus — ada periode setelah ini yang rantai saldonya nyambung ke sini.' }, { status: 400 });
+    }
+
+    await pool.query('DELETE FROM cashflow_saldo_awal WHERE periode_id = ?', [id]);
+    await pool.query('DELETE FROM cashflow_periode WHERE id = ?', [id]);
+    return Response.json({ message: 'Periode dihapus.' });
+  } catch (error) {
+    console.error(error);
+    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
+}

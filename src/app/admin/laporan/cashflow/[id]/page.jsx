@@ -563,6 +563,15 @@ function CashflowPeriodeInner() {
     setBusyAksi(false);
   }
 
+  async function hapusPeriode() {
+    if (!confirm(`Hapus periode ${namaBulan(periode.bulan)}? Cuma bisa dihapus kalau belum ada transaksi sama sekali. Tindakan ini gak bisa dibatalkan.`)) return;
+    setBusyAksi(true);
+    const res = await fetch(`/api/admin/cashflow/periode/${periodeId}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (!res.ok) { alert(d.error || 'Gagal menghapus periode'); setBusyAksi(false); return; }
+    router.push('/admin/laporan/cashflow');
+  }
+
   const topLevel = transaksi.filter(t => !t.settlement_induk_id);
   const anakDari = (indukId) => transaksi.filter(t => t.settlement_induk_id === indukId);
   const sisaSettlement = (t) => t.is_settlement ? Number(t.nominal) - anakDari(t.id).reduce((s, a) => s + Number(a.nominal), 0) : 0;
@@ -583,7 +592,12 @@ function CashflowPeriodeInner() {
           {terkunci ? (
             <button onClick={bukaKembali} disabled={busyAksi} className="bg-amber-100 hover:bg-amber-200 disabled:opacity-50 text-amber-700 text-sm font-bold px-4 py-2 rounded-xl">Buka Kembali</button>
           ) : (
-            <button onClick={mulaiSubmit} disabled={busyAksi} className="bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl">✅ Submit & Kunci</button>
+            <>
+              {transaksi.length === 0 && (
+                <button onClick={hapusPeriode} disabled={busyAksi} className="bg-red-50 hover:bg-red-100 disabled:opacity-50 text-red-600 text-sm font-bold px-4 py-2 rounded-xl">🗑️ Hapus Periode</button>
+              )}
+              <button onClick={mulaiSubmit} disabled={busyAksi} className="bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-sm font-bold px-4 py-2 rounded-xl">✅ Submit & Kunci</button>
+            </>
           )}
         </div>
       </div>
