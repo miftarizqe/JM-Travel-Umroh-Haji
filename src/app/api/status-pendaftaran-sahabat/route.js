@@ -384,7 +384,12 @@ export async function PATCH(request) {
           // Komisi Head of Program (registrasi) — cuma kalau akunnya udah
           // ditunjuk lewat pengaturan.
           const hopNominal = Number(pengaturan?.sahabat_head_of_program_nominal || 0);
-          if (pengaturan?.head_of_program_user_id && hopNominal > 0) {
+          // Jatah HoP cuma "terpakai" kalau HoP beneran sudah ditunjuk. Kalau
+          // belum, jatahnya MASUK ke Operasional Management di bawah — bukan
+          // ikut dipotong lalu gak tercatat di mana pun (bug 2026-10-01:
+          // pendaftaran adit 30 Sep cuma tercatat Rp900rb dari Rp1jt).
+          const hopTerpakai = (pengaturan?.head_of_program_user_id && hopNominal > 0) ? hopNominal : 0;
+          if (hopTerpakai > 0) {
             const [[hop]] = await pool.query('SELECT name FROM users WHERE id = ?', [pengaturan.head_of_program_user_id]);
             await pool.query(
               `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
@@ -402,7 +407,7 @@ export async function PATCH(request) {
           // karena ancestor-nya kebetulan Head of Program (yang tetap cuma
           // dapet flat 100rb) — dua-duanya balik kesini, bukan hilang.
           const sumGenNominal = genNominal.reduce((s, n) => s + Number(n || 0), 0);
-          const operasionalFlat = Math.max(0, 1000000 - sumGenNominal - hopNominal - tabunganAwal);
+          const operasionalFlat = Math.max(0, 1000000 - sumGenNominal - hopTerpakai - tabunganAwal);
           const operasionalTotal = operasionalFlat + operasionalTambahan;
           if (operasionalTotal > 0) {
             await pool.query(

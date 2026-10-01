@@ -34,7 +34,7 @@ const TEKS_KONFIRMASI_KOREKSI = 'KURANGI SALDO';
 // 2026-09-21) — "angka fatal" karena ngurangin duit member, sama level
 // proteksi kayak ubah nominal komisi di Pengaturan Komisi. Ditulis inline di
 // sini (bukan komponen shared) karena cuma dipakai 1 halaman ini.
-function ModalKoreksiSaldo({ nama, saldoSaatIni, nominal, keterangan, keManagement, onBatal, onKonfirmasi, saving }) {
+function ModalKoreksiSaldo({ nama, saldoSaatIni, nominal, keterangan, keManagement, danaTakTeralokasi, onBatal, onKonfirmasi, saving }) {
   const [teks, setTeks] = useState('');
   const cocok = teks.trim() === TEKS_KONFIRMASI_KOREKSI;
   return (
@@ -42,13 +42,21 @@ function ModalKoreksiSaldo({ nama, saldoSaatIni, nominal, keterangan, keManageme
       <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
         <div className="font-bold text-lg text-red-600 mb-1">⚠️ Konfirmasi Koreksi Saldo</div>
         <div className="text-sm text-gray-500 mb-4">
-          Tindakan ini MENGURANGI saldo tabungan umroh {nama} secara permanen{keManagement ? <>, dan nominal yang sama <b>dicatat masuk ke Operasional Management</b> (koreksi pembagian registrasi)</> : ''}. Riwayat tetap tercatat (append-only), tapi saldo yang tampil ke member langsung berubah.
+          {danaTakTeralokasi ? (
+            <>Tindakan ini MENAMBAH catatan <b>Operasional Management</b> dari pendaftaran {nama} untuk dana yang belum tercatat ke siapa pun. Saldo tabungan {nama} <b>tidak berubah</b>. Server menolak kalau total pembagian pendaftaran ini jadi lebih dari Rp1.000.000.</>
+          ) : (
+            <>Tindakan ini MENGURANGI saldo tabungan umroh {nama} secara permanen{keManagement ? <>, dan nominal yang sama <b>dicatat masuk ke Operasional Management</b> (koreksi pembagian registrasi)</> : ''}. Riwayat tetap tercatat (append-only), tapi saldo yang tampil ke member langsung berubah.</>
+          )}
         </div>
         <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 mb-4 space-y-1">
-          <div>Saldo saat ini: <b>{fmtRp(saldoSaatIni)}</b></div>
-          <div>Dikurangi: <b className="text-red-600">−{fmtRp(nominal)}</b></div>
-          {keManagement && <div>Operasional Management: <b className="text-green-700">+{fmtRp(nominal)}</b></div>}
-          <div>Saldo setelah: <b>{fmtRp(Math.max(0, saldoSaatIni - nominal))}</b></div>
+          {danaTakTeralokasi ? (
+            <div>Operasional Management: <b className="text-green-700">+{fmtRp(nominal)}</b></div>
+          ) : (<>
+            <div>Saldo saat ini: <b>{fmtRp(saldoSaatIni)}</b></div>
+            <div>Dikurangi: <b className="text-red-600">−{fmtRp(nominal)}</b></div>
+            {keManagement && <div>Operasional Management: <b className="text-green-700">+{fmtRp(nominal)}</b></div>}
+            <div>Saldo setelah: <b>{fmtRp(Math.max(0, saldoSaatIni - nominal))}</b></div>
+          </>)}
           <div className="pt-1 border-t border-gray-200 mt-1">Alasan: <b>{keterangan}</b></div>
         </div>
         <div className="text-xs text-gray-500 mb-1.5">
@@ -60,7 +68,7 @@ function ModalKoreksiSaldo({ nama, saldoSaatIni, nominal, keterangan, keManageme
           <button onClick={onBatal} className="flex-1 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl">Batal</button>
           <button onClick={onKonfirmasi} disabled={!cocok || saving}
             className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-40 text-white font-bold py-2.5 rounded-xl">
-            {saving ? 'Menyimpan...' : keManagement ? 'Konfirmasi & Pindahkan' : 'Konfirmasi & Kurangi'}
+            {saving ? 'Menyimpan...' : danaTakTeralokasi ? 'Konfirmasi & Tambahkan' : keManagement ? 'Konfirmasi & Pindahkan' : 'Konfirmasi & Kurangi'}
           </button>
         </div>
       </div>
@@ -348,10 +356,15 @@ export default function DatabaseJamaahPage() {
       // "Pindahkan ke Management" = koreksi pembagian registrasi (endpoint Go,
       // dikonfirmasi user 2026-10-01): saldo anggota -nominal & Operasional
       // Management +nominal dalam 1 transaksi. "Kurangi saja" = perilaku lama.
-      const url = f.tujuan === 'management' ? '/api/admin/sahabat/koreksi-pembagian' : '/api/admin/sahabat/koreksi-saldo';
+      // "Tambah ke Management" = mode dana_tak_teralokasi (bagian pendaftaran
+      // yang gak tercatat ke siapa pun, mis. jatah HoP saat HoP belum ada).
+      const keGo = f.tujuan === 'management' || f.tujuan === 'tambah_management';
+      const url = keGo ? '/api/admin/sahabat/koreksi-pembagian' : '/api/admin/sahabat/koreksi-saldo';
+      const body = { user_id: userId, nominal, keterangan: f.keterangan };
+      if (keGo) body.mode = f.tujuan === 'tambah_management' ? 'dana_tak_teralokasi' : 'dari_saldo';
       const res = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId, nominal, keterangan: f.keterangan }),
+        body: JSON.stringify(body),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setSavingKoreksi(null); return; }
@@ -969,6 +982,7 @@ export default function DatabaseJamaahPage() {
                             className="w-full mb-1.5 border border-gray-200 rounded-lg px-2 py-1 text-[10px]">
                             <option value="kurangi">Kurangi saja (saldo anggota berkurang)</option>
                             <option value="management">Pindahkan ke Operasional Management (koreksi pembagian registrasi)</option>
+                            <option value="tambah_management">Tambah ke Operasional Management (dana pendaftaran tak tercatat)</option>
                           </select>
                           <div className="flex gap-1.5">
                             <input type="number" placeholder="Nominal" value={koreksiForm[j.user_id]?.nominal || ''}
@@ -979,7 +993,7 @@ export default function DatabaseJamaahPage() {
                               className="flex-1 min-w-0 border border-gray-200 rounded-lg px-2 py-1 text-[10px]" />
                             <button disabled={savingKoreksi === j.user_id} onClick={() => bukaKoreksiModal(j.user_id)}
                               className="text-[10px] font-bold text-white bg-red-600 px-2.5 py-1 rounded-lg shrink-0 disabled:opacity-50">
-                              {koreksiForm[j.user_id]?.tujuan === 'management' ? 'Pindahkan' : 'Kurangi'}
+                              {koreksiForm[j.user_id]?.tujuan === 'management' ? 'Pindahkan' : koreksiForm[j.user_id]?.tujuan === 'tambah_management' ? 'Tambahkan' : 'Kurangi'}
                             </button>
                           </div>
                           {koreksiModalFor === j.user_id && (
@@ -989,6 +1003,7 @@ export default function DatabaseJamaahPage() {
                               nominal={Number(koreksiForm[j.user_id]?.nominal || 0)}
                               keterangan={koreksiForm[j.user_id]?.keterangan || ''}
                               keManagement={koreksiForm[j.user_id]?.tujuan === 'management'}
+                              danaTakTeralokasi={koreksiForm[j.user_id]?.tujuan === 'tambah_management'}
                               saving={savingKoreksi === j.user_id}
                               onBatal={() => setKoreksiModalFor(null)}
                               onKonfirmasi={() => konfirmasiKoreksi(j.user_id)}
