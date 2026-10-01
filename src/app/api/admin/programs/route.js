@@ -55,9 +55,18 @@ const CUSTOM_HOTEL = ['margin_mode', 'margin_persen', 'komisi_mode', 'komisi_per
 // boleh kosong (NULL) supaya fallback ke default (lihat src/lib/closing.js).
 const SAHABAT_CLOSING = ['sahabat_closing_langsung_hop_nominal', 'sahabat_closing_nominal_closer'];
 
+// Kolom bertipe DATE — string kosong dari form ('' = "gak diisi") WAJIB jadi
+// NULL, MariaDB nolak '' untuk DATE (bug 2026-10-02: simpan program dengan
+// tanggal manasik dikosongkan -> 500 "Incorrect date value").
+const KOLOM_DATE = ['tanggal_berangkat', 'manasik_tanggal'];
+
 // Nilai kolom untuk INSERT/UPDATE (dipakai POST & PUT biar konsisten)
 function mapVals(cols, body) {
   return cols.map(c => {
+    if (KOLOM_DATE.includes(c)) {
+      const v = body[c];
+      return v === undefined || v === null || String(v).trim() === '' ? null : v;
+    }
     if (
       c === 'name' || c === 'type' || c === 'jenis_program' || c === 'tanggal' || c === 'tanggal_berangkat' ||
       c === 'highlight' || c === 'publish_type' || c === 'kategori' ||
