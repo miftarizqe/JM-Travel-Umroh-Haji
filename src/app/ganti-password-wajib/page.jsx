@@ -7,6 +7,9 @@ import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
 
 function getDashPath(role) {
   if (role === 'admin' || role === 'super_admin') return '/admin';
+  // Dashboard Sahabat Baitullah ada di /dashboard/sahabat, bukan
+  // /dashboard/sahabat_baitullah (bug 404 setelah ganti password, 2026-10-01).
+  if (role === 'sahabat_baitullah') return '/dashboard/sahabat';
   return `/dashboard/${role}`;
 }
 
