@@ -84,6 +84,13 @@ export default function DashboardHopPage() {
   return (
     <Layout title="📊 Dashboard Head of Program">
       <div className="space-y-4">
+        {isHop && (
+          <div className="flex items-center justify-between gap-2 bg-[#E8F0FB] rounded-xl px-3 py-2">
+            <span className="text-xs font-bold text-[#0E2F6E]">👑 Anda Head of Program Sahabat</span>
+            <button onClick={() => router.push('/dashboard/sahabat?mode=pribadi')}
+              className="text-[11px] font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">👤 Dashboard Sahabat Saya →</button>
+          </div>
+        )}
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: 'Sahabat aktif', val: r?.total_sahabat_aktif, cls: 'text-green-700' },

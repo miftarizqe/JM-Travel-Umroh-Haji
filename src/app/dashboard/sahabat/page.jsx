@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { useIsHop } from '@/lib/useIsHop';
 import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
 import TombolWA from '@/app/components/TombolWA';
 
@@ -87,6 +88,17 @@ export default function DashboardSahabatPage() {
     muat();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Head of Program Sahabat mendarat di Dashboard HoP (dikonfirmasi user
+  // 2026-10-01) — termasuk setelah login & ganti password. Dashboard Sahabat
+  // pribadinya tetap bisa dibuka lewat ?mode=pribadi (menu "Dashboard
+  // Sahabat Saya"), karena HoP juga anggota dengan jaringan & ujroh sendiri.
+  const { isHop, checked: hopChecked } = useIsHop(user);
+  useEffect(() => {
+    if (!hopChecked || !isHop) return;
+    if (new URLSearchParams(window.location.search).get('mode') === 'pribadi') return;
+    router.replace('/dashboard/sahabat/hop');
+  }, [isHop, hopChecked, router]);
 
   if (loading || !data?.akun) return <Layout title="🤝 Dashboard Sahabat Baitullah"><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
 

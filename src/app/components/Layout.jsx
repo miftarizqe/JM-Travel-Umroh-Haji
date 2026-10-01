@@ -549,7 +549,10 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],
     sahabat: [
-      { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat' },
+      // HoP: Beranda = Dashboard Head of Program (dikonfirmasi user 2026-10-01).
+      isHop
+        ? { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat/hop' }
+        : { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat' },
       { icon: '🕌', label: 'Program', path: '/programs' },
       { icon: '🌳', label: 'Team', path: '/dashboard/sahabat/team' },
       { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/sahabat/riwayat-closing' },
@@ -562,6 +565,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       // masing-masing halaman + endpoint tulisnya tetap admin-only di server.
       ...(isHop ? [{ icon: '🔍', label: 'Pengawasan Program', children: [
         { icon: '📊', label: 'Dashboard Head of Program', path: '/dashboard/sahabat/hop' },
+        { icon: '👤', label: 'Dashboard Sahabat Saya', path: '/dashboard/sahabat?mode=pribadi' },
         { icon: '📝', label: 'Pendaftaran', path: '/admin/sahabat' },
         { icon: '🗂️', label: 'Database Anggota', path: '/admin/sahabat/database' },
         { icon: '📜', label: 'Riwayat Closing (Semua)', path: '/admin/sahabat/riwayat-closing' },
