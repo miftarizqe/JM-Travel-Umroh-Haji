@@ -1,4 +1,4 @@
-export const KOSONG_MASTER = { id: null, kelompok: '', nama: '', keterangan: '', harga_default: '', mata_uang: 'IDR', basis_default: 'jamaah', trigger_kunci: '', modul_negara_id: null, urutan: 0, aktif: true };
+export const KOSONG_MASTER = { id: null, kelompok: '', nama: '', keterangan: '', harga_default: '', mata_uang: 'IDR', basis_default: 'jamaah', trigger_kunci: '', modul_negara_id: null, urutan: 0, aktif: true, frekuensi: '' };
 // Urutan kelompok sesuai sheet "Master" asli — kelompok baru yang belum ada
 // di daftar ini (dibuat lewat "+ Tambah Kategori Baru") otomatis nempel di
 // belakang, urut alfabet.

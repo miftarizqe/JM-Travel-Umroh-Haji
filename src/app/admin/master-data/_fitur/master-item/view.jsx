@@ -1,5 +1,5 @@
 'use client';
-import { BasisPicker, TRIGGER_KUNCI_LIST } from '@/app/components/KalkulatorBiaya';
+import { BasisPicker, TRIGGER_KUNCI_LIST, FREKUENSI_LIST } from '@/app/components/KalkulatorBiaya';
 import { inp, lbl, MATA_UANG_LIST } from '../util';
 
 // Form tambah/edit Master Item — dipakai baik buat "+ Tambah Item" (di atas
@@ -67,6 +67,12 @@ function FormMasterItem({ value, onChange, onSimpan, onBatal, kelompokMaster, mo
             <label className={lbl}>Trigger (kapan item ini ke-hitung otomatis)</label>
             <select value={value.trigger_kunci || ''} onChange={e => onChange({ ...value, trigger_kunci: e.target.value })} className={inp}>
               {TRIGGER_KUNCI_LIST.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className={lbl}>Frekuensi</label>
+            <select value={value.frekuensi || ''} onChange={e => onChange({ ...value, frekuensi: e.target.value })} className={inp}>
+              {FREKUENSI_LIST.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
             </select>
           </div>
         </>

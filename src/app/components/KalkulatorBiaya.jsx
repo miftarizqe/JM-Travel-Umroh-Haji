@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BASIS_KATEGORI, toggleBasisToken, nilaiItem, itemAktif, cariTierModulNegara, dimsUntukModul, TRIGGER_KUNCI_LIST, tlShareTiket, tlShareVisa } from '@/lib/kalkulatorBiaya';
+import { BASIS_KATEGORI, toggleBasisToken, nilaiItem, itemAktif, cariTierModulNegara, dimsUntukModul, TRIGGER_KUNCI_LIST, FREKUENSI_LIST, tlShareTiket, tlShareVisa } from '@/lib/kalkulatorBiaya';
 
 // Kalkulator biaya/budgeting program v2 — selaras ke Master Sheet Costing
 // asli (multi-currency + daftar harga acuan yang bisa dipilih ulang, bukan
@@ -20,7 +20,7 @@ import { BASIS_KATEGORI, toggleBasisToken, nilaiItem, itemAktif, cariTierModulNe
 // bisa dipanggil dari API route server-side) — di-re-export apa adanya dari
 // sini di bawah, supaya import existing di file lain TIDAK berubah.
 export {
-  KAPASITAS_KAMAR, bulatkanKeAtas, TRIGGER_KUNCI_LIST, KOSONG_BREAKDOWN,
+  KAPASITAS_KAMAR, bulatkanKeAtas, TRIGGER_KUNCI_LIST, FREKUENSI_LIST, KOSONG_BREAKDOWN,
   modulTambahanArray, dimsUntukModul, BASIS_KATEGORI, toggleBasisToken, itemAktif,
   cariTierModulNegara, totalAddonModul, rincianAddonModul, paxBerbayarModul, nilaiTarifModul,
   nilaiItem, totalModulNegaraTerpilih, totalTiketPesawat, hitungHppKamar, tlShareTiket, tlShareVisa,
@@ -119,7 +119,7 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
     autoSeedBersih.current = true;
     onChange({
       ...value,
-      items: baseline.map(m => ({ master_item_id: m.id, kelompok: m.kelompok, nama: m.nama, nominal: m.harga_default, mata_uang: m.mata_uang, basis: m.basis_default || 'jamaah', trigger_kunci: m.trigger_kunci || null, modul_negara_id: m.modul_negara_id || null })),
+      items: baseline.map(m => ({ master_item_id: m.id, kelompok: m.kelompok, nama: m.nama, nominal: m.harga_default, mata_uang: m.mata_uang, basis: m.basis_default || 'jamaah', trigger_kunci: m.trigger_kunci || null, modul_negara_id: m.modul_negara_id || null, frekuensi: m.frekuensi || null })),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [masterList, katalogJenisProgram, value.jenis_program]);
@@ -138,7 +138,7 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
     const m = masterList.find(x => String(x.id) === String(masterItemId));
     if (!m) return;
     autoSeedBersih.current = false;
-    onChange({ ...value, items: [...value.items, { master_item_id: m.id, kelompok: m.kelompok, nama: m.nama, nominal: m.harga_default, mata_uang: m.mata_uang, basis: m.basis_default || 'jamaah', trigger_kunci: m.trigger_kunci || null, modul_negara_id: m.modul_negara_id || null }] });
+    onChange({ ...value, items: [...value.items, { master_item_id: m.id, kelompok: m.kelompok, nama: m.nama, nominal: m.harga_default, mata_uang: m.mata_uang, basis: m.basis_default || 'jamaah', trigger_kunci: m.trigger_kunci || null, modul_negara_id: m.modul_negara_id || null, frekuensi: m.frekuensi || null }] });
     setTambahKelompok(prev => ({ ...prev, [kelompok]: '' }));
   }
 
@@ -243,6 +243,9 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
                         </span>
                         <select value={it.trigger_kunci || ''} onChange={e => ubahItem(it.idx, { trigger_kunci: e.target.value || null })} className={inpSm} title="Trigger yang nentuin item ini ke-hitung atau enggak">
                           {TRIGGER_KUNCI_LIST.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                        </select>
+                        <select value={it.frekuensi || ''} onChange={e => ubahItem(it.idx, { frekuensi: e.target.value || null })} className={inpSm} title="Flat (1x) atau Per Hari (dikali Total Hari Program) — kosong = otomatis dari nama (/Hari)">
+                          {FREKUENSI_LIST.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                         </select>
                         {it.trigger_kunci && (
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${aktifTrigger ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-500'}`}>

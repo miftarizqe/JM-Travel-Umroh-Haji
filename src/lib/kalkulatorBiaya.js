@@ -40,6 +40,19 @@ export const TRIGGER_KUNCI_LIST = [
   { value: 'jenis_umroh_plus', label: 'Khusus Jenis Program: Umroh Plus' },
 ];
 
+// Frekuensi item — dikonfirmasi user 2026-10-01: sebelumnya SATU-SATUNYA cara
+// bikin item kekali Total Hari Program itu akhiran nama "/Day"/"/Hari"
+// (lihat itemPerHari di bawah), gak ada kontrol eksplisit. '' (kosong/null,
+// default) = pakai heuristik nama lama itu APA ADANYA, item existing TIDAK
+// berubah perilakunya. 'flat'/'per_hari' = override eksplisit, menang di atas
+// nama apa pun — dipakai admin buat item baru biar gak kejebak harus
+// nge-embed "/Hari" di nama buat dapet efeknya.
+export const FREKUENSI_LIST = [
+  { value: '', label: '— Otomatis dari nama item (default) —' },
+  { value: 'flat', label: 'Flat (1x, berapa pun lama programnya)' },
+  { value: 'per_hari', label: 'Per Hari (dikali Total Hari Program)' },
+];
+
 // Jenis program yang dilayani kalkulator ini. "Umroh Plus" itu SATU payung
 // buat semua negara/vendor tambahan (Dubai, Turkey, dan negara lain nanti) —
 // pembeda negara/vendornya ada di modul_negara (dropdown "Pilih Modul
@@ -423,7 +436,11 @@ export function nilaiItem(it, state, katalogModul = null) {
   // total_hari_program, gak berubah perilakunya sama sekali.
   const pakaiMutawwifHari = (it.basis || '').split('_').includes('mutawwif') && state.mutawwif_hari != null;
   const totalHari = pakaiMutawwifHari ? (Number(state.mutawwif_hari) || 0) : (Number(state.total_hari_program) || 0);
-  return konversi(it.nominal, it.mata_uang, state) * qty * (itemPerHari(it.nama) ? totalHari : 1);
+  // it.frekuensi eksplisit MENANG di atas heuristik nama kalau diisi —
+  // kosong/null (item lama, belum pernah diisi) tetap fallback ke itemPerHari
+  // (nama), gak berubah perilakunya sama sekali (dikonfirmasi user 2026-10-01).
+  const perHariAktif = it.frekuensi === 'per_hari' ? true : it.frekuensi === 'flat' ? false : itemPerHari(it.nama);
+  return konversi(it.nominal, it.mata_uang, state) * qty * (perHariAktif ? totalHari : 1);
 }
 
 // Total cost SEMUA modul negara yang lagi dipilih (bisa lebih dari 1 negara

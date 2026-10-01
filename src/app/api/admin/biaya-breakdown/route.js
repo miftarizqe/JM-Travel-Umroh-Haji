@@ -141,8 +141,8 @@ export async function POST(request) {
     for (const [i, item] of (body.items || []).entries()) {
       if (!item.nama?.trim()) continue;
       await pool.query(
-        'INSERT INTO biaya_breakdown_item (breakdown_id, master_item_id, kelompok, nama, nominal, mata_uang, basis, trigger_kunci, modul_negara_id, urutan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [breakdownId, item.master_item_id || null, item.kelompok?.trim() || 'Lain-lain', item.nama.trim(), Number(item.nominal) || 0, item.mata_uang || 'IDR', item.basis || 'jamaah', item.trigger_kunci || null, item.modul_negara_id || null, i]
+        'INSERT INTO biaya_breakdown_item (breakdown_id, master_item_id, kelompok, nama, nominal, mata_uang, basis, trigger_kunci, modul_negara_id, urutan, frekuensi) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [breakdownId, item.master_item_id || null, item.kelompok?.trim() || 'Lain-lain', item.nama.trim(), Number(item.nominal) || 0, item.mata_uang || 'IDR', item.basis || 'jamaah', item.trigger_kunci || null, item.modul_negara_id || null, i, item.frekuensi || null]
       );
     }
 
@@ -188,8 +188,8 @@ export async function PUT(request) {
     for (const [i, item] of (body.items || []).entries()) {
       if (!item.nama?.trim()) continue;
       await pool.query(
-        'INSERT INTO biaya_breakdown_item (breakdown_id, master_item_id, kelompok, nama, nominal, mata_uang, basis, trigger_kunci, modul_negara_id, urutan) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, item.master_item_id || null, item.kelompok?.trim() || 'Lain-lain', item.nama.trim(), Number(item.nominal) || 0, item.mata_uang || 'IDR', item.basis || 'jamaah', item.trigger_kunci || null, item.modul_negara_id || null, i]
+        'INSERT INTO biaya_breakdown_item (breakdown_id, master_item_id, kelompok, nama, nominal, mata_uang, basis, trigger_kunci, modul_negara_id, urutan, frekuensi) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [id, item.master_item_id || null, item.kelompok?.trim() || 'Lain-lain', item.nama.trim(), Number(item.nominal) || 0, item.mata_uang || 'IDR', item.basis || 'jamaah', item.trigger_kunci || null, item.modul_negara_id || null, i, item.frekuensi || null]
       );
     }
 
