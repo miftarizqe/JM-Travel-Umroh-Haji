@@ -75,6 +75,7 @@ function RegisterPageInner() {
   // ilang kalau user klik "Ubah" ganti pilihan role di step 2.
   const [refPerwakilanJamaahId, setRefPerwakilanJamaahId] = useState(null);
   const [refSahabatJamaahId, setRefSahabatJamaahId] = useState(null);
+  const [setujuDataPribadi, setSetujuDataPribadi] = useState(false);
   // Nama (disamarkan server) pemilik refSahabatJamaahId — daftar anggota
   // Sahabat gak di-fetch lagi (ditutup 2026-09-28), jadi namanya disimpan
   // langsung dari respons /api/referral-list/cek-sahabat.
@@ -317,6 +318,9 @@ function RegisterPageInner() {
     if (form.role === 'perwakilan' && !form.perekrut_id && !pernahUmroh) {
       setError('Masukkan kode referral perwakilan yang valid untuk melanjutkan.'); return;
     }
+    if (form.role === 'sahabat_baitullah' && !setujuDataPribadi) {
+      setError('Centang persetujuan data pribadi terlebih dahulu.'); return;
+    }
     if (form.role === 'sahabat_baitullah' && !form.kode_undangan) {
       setError('Masukkan kode referral Sahabat Baitullah yang valid untuk melanjutkan.'); return;
     }
@@ -340,7 +344,7 @@ function RegisterPageInner() {
             captchaToken }
         : form.role === 'sahabat_baitullah'
           // Sahabat: kirim KODE undangan saja, perekrut ditentukan server.
-          ? { ...form, perekrut_id: undefined, captchaToken }
+          ? { ...form, perekrut_id: undefined, setuju_data_pribadi: setujuDataPribadi, captchaToken }
           : { ...form, captchaToken };
       const res = await fetch('/api/auth/register', {
         method: 'POST',
@@ -661,6 +665,17 @@ function RegisterPageInner() {
                 );
               })()}
 
+              {form.role === 'sahabat_baitullah' && (
+                // Persetujuan data pribadi (dikonfirmasi user 2026-10-02) —
+                // wajib, dicek ulang di server (/api/auth/register).
+                <label className="flex items-start gap-2 p-3 rounded-xl border-2 border-gray-200 cursor-pointer">
+                  <input type="checkbox" checked={setujuDataPribadi} onChange={e => setSetujuDataPribadi(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
+                  <span className="text-xs text-gray-600 leading-relaxed">
+                    Saya setuju <b>nama</b>, <b>no. telepon</b> (hanya untuk pengajak langsung saya), dan <b>progres tabungan umroh</b> saya dapat dilihat oleh pengajak (upline) saya di Program Sahabat Baitullah.
+                  </span>
+                </label>
+              )}
               <RecaptchaCheckbox onChange={setCaptchaToken} />
 
               {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">⚠️ {error}</div>}

@@ -114,6 +114,11 @@ export async function POST(request) {
         return Response.json({ error: 'Kode undangan tidak valid atau pemiliknya sedang tidak aktif. Minta link undangan terbaru.' }, { status: 400 });
       }
       perekrutId = p.id;
+      // Persetujuan data pribadi WAJIB (dikonfirmasi user 2026-10-02): nama,
+      // no. telepon (untuk upline langsung) & progres terlihat oleh upline.
+      if (body.setuju_data_pribadi !== true) {
+        return Response.json({ error: 'Centang persetujuan data pribadi terlebih dahulu.' }, { status: 400 });
+      }
     }
 
     // Referral permanen jamaah (perwakilan/sahabat yg mereferensikan jamaah
@@ -189,7 +194,8 @@ export async function POST(request) {
           // (action 'verifikasi_akun' di /api/admin/users). Sebelum itu
           // cekPemesanBolehOrder & prasyarat daftar-perwakilan menahan akun.
           `INSERT INTO users (name, email, wa, nik, agama, password, role, kode_unik, status, terverifikasi, perekrut_id,
-            perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id, setuju_data_pribadi_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, ${role === 'sahabat_baitullah' ? 'NOW()' : 'NULL'})`,
           [name, email, wa, nik, agama, hashedPassword, role, kodeUnik, status, terverifikasi, perekrutId,
             perekrutPerwJamaahId, perekrutKopJamaahId]
         );

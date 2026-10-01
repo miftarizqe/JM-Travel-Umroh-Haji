@@ -40,3 +40,15 @@ export async function kedalamanDownline(pool, atasanId, targetId) {
 //   Gen6+  : jumlah saja (baris & nama tidak dikirim sama sekali)
 // Admin/super_admin & Head of Program tidak lewat filter ini.
 export const GEN_MAKS_DETAIL = 5;
+
+// Persetujuan data pribadi (dikonfirmasi user 2026-10-02): anggota yang BELUM
+// menyetujui (users.setuju_data_pribadi_at NULL) tidak ditampilkan nama, no.
+// telepon, maupun progresnya ke upline — cuma posisi & status di jaringan.
+// Dipakai /api/sahabat/team & /api/sahabat/downline untuk penampil anggota biasa.
+export function samarkanTanpaPersetujuan(row) {
+  const setuju = !!row.setuju_data_pribadi_at;
+  delete row.setuju_data_pribadi_at;
+  if (setuju) return row;
+  delete row.wa;
+  return { ...row, name: 'Anggota (belum menyetujui berbagi data)', persen_kesiapan: null, data_disembunyikan: true };
+}

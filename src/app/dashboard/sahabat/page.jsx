@@ -28,6 +28,7 @@ export default function DashboardSahabatPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
   const [data, setData] = useState(null);
+  const [menyimpanPersetujuan, setMenyimpanPersetujuan] = useState(false);
   const [loading, setLoading] = useState(true);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [drillDownId, setDrillDownId] = useState(null);
@@ -41,6 +42,17 @@ export default function DashboardSahabatPage() {
   const [loadingProgramEksklusif, setLoadingProgramEksklusif] = useState(false);
   const [pilihanProgramId, setPilihanProgramId] = useState(null);
   const [pembatalanLoading, setPembatalanLoading] = useState(false);
+
+  async function setujuDataPribadi() {
+    setMenyimpanPersetujuan(true);
+    try {
+      const res = await fetch('/api/sahabat/setuju-data-pribadi', { method: 'POST' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d.error || 'Gagal menyimpan persetujuan'); setMenyimpanPersetujuan(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setMenyimpanPersetujuan(false);
+  }
 
   function muat() {
     fetch(`/api/sahabat/dashboard?sahabat_id=${user.id}`)
@@ -102,6 +114,34 @@ export default function DashboardSahabatPage() {
 
   if (loading || !data?.akun) return <Layout title="🤝 Dashboard Sahabat Baitullah"><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
 
+  // Persetujuan data pribadi untuk akun lama (dikonfirmasi user 2026-10-02) —
+  // ditanya sekali sebelum dashboard terbuka. Selama belum setuju, server tidak
+  // menampilkan nama/telepon/progres akun ini ke upline (lihat lib/jaringan.js).
+  // Disimpan lewat endpoint Go POST /api/sahabat/setuju-data-pribadi.
+  if (!data.akun.setuju_data_pribadi_at && String(data.akun.id) === String(user?.id)) {
+    return (
+      <Layout title="🤝 Dashboard Sahabat Baitullah">
+        <div className="max-w-md mx-auto bg-white rounded-2xl border border-[#e0e8f0] p-6 space-y-4">
+          <div className="text-3xl text-center">🔐</div>
+          <div className="font-bold text-[#0E2F6E] text-center">Persetujuan Data Pribadi</div>
+          <div className="text-sm text-gray-600 leading-relaxed">
+            Di Program Sahabat Baitullah, pengajak (upline) Anda dapat melihat:
+            <ul className="list-disc list-inside mt-2 space-y-1">
+              <li><b>Nama</b> Anda</li>
+              <li><b>No. telepon</b> Anda — hanya untuk pengajak langsung Anda</li>
+              <li><b>Progres tabungan umroh</b> Anda (persentase menuju target)</li>
+            </ul>
+            <div className="mt-2 text-xs text-gray-400">Tujuannya agar pengajak bisa berkomunikasi &amp; mendampingi Anda. Nominal saldo Anda tidak pernah ditampilkan.</div>
+          </div>
+          <button onClick={setujuDataPribadi} disabled={menyimpanPersetujuan}
+            className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full disabled:opacity-50">
+            {menyimpanPersetujuan ? 'Menyimpan...' : '✅ Saya Setuju'}
+          </button>
+        </div>
+      </Layout>
+    );
+  }
+
   // Kode invite BEDA dari kode akun (kode_unik) — khusus buat mengundang
   // orang jadi Jamaah Sahabat Baitullah BARU (dikonfirmasi user 2026-09-03,
   // mirror kode_invite_perwakilan). Link referral berbasis kode_unik
@@ -134,6 +174,19 @@ export default function DashboardSahabatPage() {
     <Layout title="🤝 Dashboard Sahabat Baitullah">
       <div className="max-w-2xl mx-auto space-y-4">
 
+        {/* Status keaktifan ujroh (aturan 6 bulan, dihitung server —
+            lib/keaktifanSahabat.js, dikonfirmasi user 2026-10-02). */}
+        {data.keaktifan_ujroh?.berlaku_sampai && (
+          data.keaktifan_ujroh.aktif ? (
+            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs text-green-700">
+              ✅ <b>Ujroh aktif</b> sampai {new Date(data.keaktifan_ujroh.berlaku_sampai).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}. Ajak minimal 1 Sahabat baru (Gen1) sebelum tanggal itu supaya ujroh tetap masuk.
+            </div>
+          ) : (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700">
+              ⏸️ <b>Ujroh baru sedang berhenti</b> — sudah lebih dari 6 bulan tanpa Sahabat baru (Gen1). Ajak 1 Sahabat baru untuk mengaktifkan kembali. Saldo Anda yang sudah ada tidak terpengaruh.
+            </div>
+          )
+        )}
         <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] rounded-xl p-4 text-white">
           <div className="flex items-start justify-between gap-2">
             <div className="text-sm opacity-80">{data.akun.name} · {data.akun.kode_unik}</div>

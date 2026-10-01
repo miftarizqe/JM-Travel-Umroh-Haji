@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 import { wajibPemilikAtauAdmin } from '@/lib/auth';
 import { groupJamaahAktif } from '@/lib/jamaahHarga';
 
@@ -17,7 +18,8 @@ export async function GET(request) {
     if (auth.error) return auth.error;
 
     const [rows] = await pool.query(
-      `SELECT id, name, kode_unik, kode_invite_sahabat, status, agama, akun_bsi_status, tabungan_haji_status
+      `SELECT id, name, kode_unik, kode_invite_sahabat, status, agama, akun_bsi_status, tabungan_haji_status,
+              setuju_data_pribadi_at
        FROM users WHERE id = ? AND role = ?`,
       [sahabatId, 'sahabat_baitullah']
     );
@@ -318,7 +320,10 @@ export async function GET(request) {
     const closingLangsungConfirmed = closingLangsung.filter(c => c.dikonfirmasi_at).reduce((s, c) => s + Number(c.nominal || 0), 0);
     const closingLangsungPending = closingLangsung.filter(c => !c.dikonfirmasi_at).reduce((s, c) => s + Number(c.nominal || 0), 0);
 
+    // Status keaktifan ujroh (aturan 6 bulan, lib/keaktifanSahabat.js) — dihitung server.
+    const keaktifan = await statusKeaktifanUjroh(pool, akun.id);
     return Response.json({
+      keaktifan_ujroh: keaktifan,
       akun,
       voucher,
       dokumen,
