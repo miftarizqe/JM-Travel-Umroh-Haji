@@ -37,7 +37,7 @@ export async function GET(request) {
   try {
     const [users] = await pool.query(
       `SELECT id, name, role, status, terverifikasi, foto_path, setuju_pks, agama,
-              cif_bsi, no_rekening_tabungan_umroh, setuju_sk_cif_pemblokiran_at,
+              no_rekening_tabungan_umroh, setuju_sk_cif_pemblokiran_at,
               dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path,
               dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
               metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at
@@ -86,7 +86,6 @@ export async function GET(request) {
       spk_ak_disetujui: !!u.setuju_pks,
       spk_ak_selesai: spkAkSelesai,
       rekening_umroh_terisi: !!u.no_rekening_tabungan_umroh,
-      cif_bsi_terisi: !!u.cif_bsi,
       blokir_data_terisi: !!(u.nominal_blokir_tabungan && u.jangka_waktu_blokir_hari && u.tanggal_mulai_blokir),
       setuju_sk_cif_pemblokiran: !!u.setuju_sk_cif_pemblokiran_at,
       sk_cif_selesai: skCifSelesai,
@@ -106,7 +105,7 @@ export async function GET(request) {
       user: {
         id: u.id, name: u.name, role: u.role, status: u.status,
         terverifikasi: !!u.terverifikasi, foto_path: u.foto_path, setuju_pks: !!u.setuju_pks,
-        cif_bsi: u.cif_bsi, no_rekening_tabungan_umroh: u.no_rekening_tabungan_umroh,
+        no_rekening_tabungan_umroh: u.no_rekening_tabungan_umroh,
         setuju_sk_cif_pemblokiran_at: u.setuju_sk_cif_pemblokiran_at,
         dokumen_spk_ak_fisik_path: u.dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path: u.dokumen_sk_cif_fisik_path,
         dokumen_surat_pemblokiran_fisik_path: u.dokumen_surat_pemblokiran_fisik_path,
@@ -170,7 +169,7 @@ export async function PATCH(request) {
         "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru) VALUES ('sahabat_baitullah', ?, 'menunggu_sk_cif')",
         [user_id]
       );
-      return Response.json({ message: 'Bukti transfer diverifikasi, lanjut isi CIF BSI & data blokir rekening.' });
+      return Response.json({ message: 'Bukti transfer diverifikasi, lanjut isi data blokir rekening.' });
     }
 
     if (action === 'toggle_cif_fisik') {
@@ -216,7 +215,7 @@ export async function PATCH(request) {
       // terverifikasi) — satu-satunya transisi admin yang tersisa di sini
       // adalah ke 'active'.
       const [[u]] = await pool.query(
-        `SELECT kode_unik, cif_bsi, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
+        `SELECT kode_unik, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
          FROM users WHERE id = ?`, [user_id]
       );
       // SPK-AK sekarang 1 RANGKAP (rangkap='tunggal', dikonfirmasi user

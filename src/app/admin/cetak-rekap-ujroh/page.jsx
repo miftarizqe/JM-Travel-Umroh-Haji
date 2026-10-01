@@ -112,7 +112,6 @@ function CetakRekapUjrohInner() {
                         {k.penerima_nama} ({k.kode_unik})
                         <div style={{ fontWeight: 400, fontSize: 9, color: '#555', marginTop: 2 }}>
                           TF ke No. Rek. Tabungan Umroh: <b>{k.no_rekening_tabungan_umroh || 'BELUM DIISI JAMAAH'}</b> a.n. <b>{k.penerima_nama}</b>
-                          {k.cif_bsi ? ` · CIF BSI: ${k.cif_bsi}` : ''}
                         </div>
                       </td>
                     </tr>

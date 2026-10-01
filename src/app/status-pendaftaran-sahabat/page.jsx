@@ -304,7 +304,7 @@ export default function StatusPendaftaranSahabatPage() {
         </div>
 
         {/* Urutan FINAL (dikonfirmasi user 2026-09-27): Bukti TF -> SPK-AK ->
-            Rekening Tabungan Umroh -> CIF & Blokir — TANPA gate admin di
+            Rekening Tabungan Umroh -> Data Blokir — TANPA gate admin di
             tengah lagi (dibalik dari urutan lama SPK-AK dulu baru TF).
             Alasannya: materai SPK-AK (nanti kalau provider Peruri beneran
             disambung, sekarang masih mock/gratis) cuma boleh kebakar buat

@@ -85,7 +85,7 @@ export async function POST(request) {
       keterangan: `Setoran pendaftaran Rp1.000.000 — ${auth.user.name || auth.user.id}`,
     });
 
-    return Response.json({ message: 'Bukti transfer berhasil diunggah, lanjut isi CIF BSI & data blokir rekening!', path: publicPath });
+    return Response.json({ message: 'Bukti transfer berhasil diunggah, lanjut isi data blokir rekening!', path: publicPath });
   } catch (error) {
     console.error('Upload bukti TF sahabat gagal:', error);
     return Response.json({ error: 'Gagal mengunggah bukti transfer' }, { status: 500 });

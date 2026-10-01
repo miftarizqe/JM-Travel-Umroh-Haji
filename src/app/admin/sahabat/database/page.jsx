@@ -707,7 +707,6 @@ export default function DatabaseJamaahPage() {
                         <div>WA: <b className="text-gray-700">{j.wa}</b></div>
                         <div>NIK: <b className="text-gray-700">{j.nik}</b></div>
                         <div>Bank: <b className="text-gray-700">{j.bank} - {j.no_rekening}</b></div>
-                        <div>CIF BSI: <b className="text-gray-700">{j.cif_bsi || '-'}</b></div>
                         <div>Rek. BSI Biasa: <b className="text-gray-700">{j.no_rekening_bsi_biasa || '-'}</b></div>
                         <div>Rek. Tabungan Umroh: <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
                         <div>Perekrut: <b className="text-gray-700">{j.perekrut_nama || '-'}</b></div>

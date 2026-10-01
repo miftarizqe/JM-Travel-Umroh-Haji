@@ -17,7 +17,7 @@ export async function GET(request) {
     if (auth.error) return auth.error;
 
     const [rows] = await pool.query(
-      `SELECT id, name, kode_unik, kode_invite_sahabat, status, cif_bsi, agama, akun_bsi_status, tabungan_haji_status
+      `SELECT id, name, kode_unik, kode_invite_sahabat, status, agama, akun_bsi_status, tabungan_haji_status
        FROM users WHERE id = ? AND role = ?`,
       [sahabatId, 'sahabat_baitullah']
     );

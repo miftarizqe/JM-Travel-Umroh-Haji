@@ -41,7 +41,7 @@ export async function GET(request) {
               u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
-              u.kode_invite_perwakilan, u.tabungan_haji_status, u.cif_bsi, u.agama,
+              u.kode_invite_perwakilan, u.tabungan_haji_status, u.agama,
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_surat_pemblokiran_fisik_path, u.terverifikasi
        FROM users u
        LEFT JOIN users p ON p.id = u.perekrut_id
@@ -141,7 +141,7 @@ export async function GET(request) {
 // PATCH /api/profil — update nama, email, wa (wajib), + field data-diri/
 // rekening opsional (diperluas 2026-08-30, berlaku semua role — reuse buat
 // koreksi mandiri field yang tadinya cuma bisa diisi sekali lewat endpoint
-// khusus, mis. /api/sahabat/rekening-bsi, /api/sahabat/cif-bsi).
+// khusus, mis. /api/sahabat/rekening-bsi).
 export async function PATCH(request) {
   try {
     const body = await request.json();

@@ -28,7 +28,7 @@ const MS_PER_HARI = 24 * 60 * 60 * 1000;
 // keberangkatannya.
 // Dipakai buat isi Surat Pernyataan Kuasa Blokir Rekening (surat_pemblokiran).
 // Cuma boleh diisi SEKALI (WHERE nominal_blokir_tabungan IS NULL) — pola
-// sama persis /api/sahabat/cif-bsi, biar surat yang sudah
+// isi-sekali yang sama dengan /api/sahabat/rekening-bsi, biar surat yang sudah
 // dibekukan/ditandatangani jangan sampai gak nyambung sama angka yang tercatat.
 export async function PATCH(request) {
   const auth = wajibLogin(request);

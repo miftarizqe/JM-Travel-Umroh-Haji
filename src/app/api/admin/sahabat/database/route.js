@@ -95,7 +95,7 @@ export async function GET(request) {
     `;
     const selectCols = `
        kp.*, u.kode_unik, u.role, u.role_kedua, u.status AS user_status, u.email AS user_email, u.wa AS user_wa,
-       u.cif_bsi, u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
+       u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
        u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
        u.dokumen_surat_pemblokiran_fisik_path,
        u.dokumen_spk_ak_fisik_path, u.metode_ttd_sahabat, u.rencana_kunjungan_kantor_at, u.dokumen_spk_ak_dikirim_balik_at,

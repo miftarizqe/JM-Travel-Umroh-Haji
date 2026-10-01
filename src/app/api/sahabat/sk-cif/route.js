@@ -16,7 +16,7 @@ export async function GET(request) {
 
   try {
     const [rows] = await pool.query(
-      'SELECT id, name, nik, wa, email, alamat, alamat_ktp, kode_unik, role, cif_bsi, no_rekening_tabungan_umroh, no_sk_cif FROM users WHERE id = ?',
+      'SELECT id, name, nik, wa, email, alamat, alamat_ktp, kode_unik, role, no_rekening_tabungan_umroh, no_sk_cif FROM users WHERE id = ?',
       [auth.user.id]
     );
     const user = rows[0];

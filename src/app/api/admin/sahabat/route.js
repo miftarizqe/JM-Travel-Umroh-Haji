@@ -14,7 +14,7 @@ export async function GET(request) {
     // relevan buat diagregasi) biar re-issue lama gak numpuk jadi row ganda.
     const [rows] = await pool.query(
       `SELECT kp.*, u.kode_unik, u.role AS user_role, u.status AS user_status, u.agama,
-              u.cif_bsi, u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
+              u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
               u.dokumen_surat_pemblokiran_fisik_path,
               perekrut.name AS perekrut_nama,

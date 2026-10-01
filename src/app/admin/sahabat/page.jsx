@@ -35,7 +35,6 @@ function syaratBelum(p) {
   if (p.status === 'menunggu_sk_cif') {
     return [
       !p.spk_ak_selesai && 'SPK-AK',
-      !p.cif_bsi && 'Nomor CIF',
       !p.setuju_sk_cif_pemblokiran_at && 'Baca & Setuju SK-CIF/Surat Blokir',
     ].filter(Boolean);
   }
@@ -237,10 +236,6 @@ export default function AdminSahabatPage() {
                 {detail.no_rekening_tabungan_umroh ? (
                   <span className="text-green-600 font-bold">✅ {detail.no_rekening_tabungan_umroh}</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diisi jamaah</span>}
-              </div>
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Nomor CIF BSI</span>
-                <span className={detail.cif_bsi ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>{detail.cif_bsi || '⏳ Belum diisi'}</span>
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Baca & Setuju SK-CIF/Surat Kuasa Blokir</span>

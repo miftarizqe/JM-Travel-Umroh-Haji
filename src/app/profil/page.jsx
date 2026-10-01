@@ -271,17 +271,12 @@ export default function ProfilPage() {
         {user.role === 'sahabat_baitullah' && (
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 mb-4">
             <div className="font-bold text-[#0E2F6E] mb-3">📋 Status Keanggotaan</div>
-            <div className="grid grid-cols-2 gap-2 text-center mb-3">
-              <div className="bg-gray-50 rounded-lg p-2">
-                <div className="text-lg">{user.tabungan_haji_status ? '✅' : '⏳'}</div>
-                <div className="text-[10px] text-gray-500 mt-0.5">Tabungan Umroh</div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-2">
-                <div className="text-lg">{user.cif_bsi ? '✅' : '⏳'}</div>
-                <div className="text-[10px] text-gray-500 mt-0.5">CIF BSI</div>
-              </div>
+            {/* Nomor CIF BSI dihapus total (dikonfirmasi user 2026-10-01 —
+                data rahasia bank, gak diinput siapa pun lagi). */}
+            <div className="bg-gray-50 rounded-lg p-2 text-center mb-3">
+              <div className="text-lg">{user.tabungan_haji_status ? '✅' : '⏳'}</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">Tabungan Umroh</div>
             </div>
-            {user.cif_bsi && <div className="text-xs text-gray-400 mb-3">Nomor CIF: <b className="text-gray-600">{user.cif_bsi}</b></div>}
             {(user.dokumen?.spk_ak || user.dokumen?.sk_cif || user.dokumen?.surat_pemblokiran) && (
               <div className="space-y-1 mb-3">
                 <div className="text-[10px] text-gray-400">Dokumen yang sudah ditandatangani (scan):</div>

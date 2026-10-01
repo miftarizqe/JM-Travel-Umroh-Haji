@@ -12,7 +12,7 @@ const FIELD_KE_STATUS = {
 // manual admin lama yang gak ada cara diverifikasi selain nunggu info luar
 // sistem). Begitu keisi, status terkait OTOMATIS jadi aktif — TANPA aksi
 // admin sama sekali (dikonfirmasi user). Isi SEKALI (WHERE ... IS NULL,
-// pola sama persis /api/sahabat/cif-bsi) — perubahan setelahnya lewat
+// isi-sekali, WHERE ... IS NULL) — perubahan setelahnya lewat
 // PATCH /api/profil (diaudit + notifikasi admin), bukan endpoint ini.
 export async function PATCH(request) {
   const auth = wajibLogin(request);

@@ -21,7 +21,7 @@ export async function GET(request) {
     const [rows] = await pool.query(
       `SELECT kl.id, kl.jenis, kl.nominal, kl.keterangan, kl.created_at, kl.dikonfirmasi_at, kl.bukti_tf_admin_path,
               u.id AS penerima_id, u.name AS penerima_nama, u.kode_unik,
-              u.bank, u.no_rekening, u.nama_pemilik_rekening, u.cif_bsi, u.no_rekening_tabungan_umroh
+              u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_rekening_tabungan_umroh
        FROM komisi_ledger kl
        JOIN users u ON u.id = kl.penerima_id
        WHERE ${pengajuanId ? 'kl.pengajuan_ujroh_id = ?' : "kl.dikonfirmasi_at IS NULL AND kl.pengajuan_ujroh_id IS NULL"}
@@ -45,7 +45,6 @@ export async function GET(request) {
           bank: r.bank,
           no_rekening: r.no_rekening,
           nama_pemilik_rekening: r.nama_pemilik_rekening,
-          cif_bsi: r.cif_bsi,
           no_rekening_tabungan_umroh: r.no_rekening_tabungan_umroh,
           items: [],
           subtotal: 0,
