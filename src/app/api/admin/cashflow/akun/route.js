@@ -20,17 +20,20 @@ export async function GET(request) {
   }
 }
 
-// POST — tambah akun baru
+// POST — tambah akun baru. saldo_awal (dikonfirmasi user 2026-10-01) cuma
+// dipakai sebagai STARTING POINT akun ini (fallback periode pertama akun ini
+// belum punya saldo_akhir periode sebelumnya) — lihat POST .../periode &
+// pastikanPeriode() di src/lib/cashflow.js.
 export async function POST(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
-    const { nama, tipe, urutan } = await request.json();
+    const { nama, tipe, urutan, saldo_awal } = await request.json();
     if (!nama?.trim()) return Response.json({ error: 'Nama akun wajib diisi' }, { status: 400 });
     const tipeFinal = TIPE_VALID.includes(tipe) ? tipe : 'lainnya';
     const [result] = await pool.query(
-      'INSERT INTO cashflow_akun (nama, tipe, urutan) VALUES (?, ?, ?)',
-      [nama.trim(), tipeFinal, Number(urutan) || 0]
+      'INSERT INTO cashflow_akun (nama, tipe, urutan, saldo_awal) VALUES (?, ?, ?, ?)',
+      [nama.trim(), tipeFinal, Number(urutan) || 0, Number(saldo_awal) || 0]
     );
     return Response.json({ message: 'Akun ditambahkan!', id: result.insertId });
   } catch (error) {
@@ -39,17 +42,20 @@ export async function POST(request) {
   }
 }
 
-// PUT — update nama/tipe/urutan/aktif
+// PUT — update nama/tipe/urutan/aktif/saldo_awal. Edit saldo_awal di sini
+// CUMA mempengaruhi periode BARU yang belum dibuat buat akun ini — periode
+// yang sudah pernah dibuat gak kebaca ulang (rantai saldo_akhir antar bulan
+// yang udah terlanjur jalan TETAP gak bisa "disunat" lewat sini).
 export async function PUT(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
-    const { id, nama, tipe, urutan, aktif } = await request.json();
+    const { id, nama, tipe, urutan, aktif, saldo_awal } = await request.json();
     if (!id || !nama?.trim()) return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     const tipeFinal = TIPE_VALID.includes(tipe) ? tipe : 'lainnya';
     const [result] = await pool.query(
-      'UPDATE cashflow_akun SET nama = ?, tipe = ?, urutan = ?, aktif = ? WHERE id = ?',
-      [nama.trim(), tipeFinal, Number(urutan) || 0, aktif ? 1 : 0, id]
+      'UPDATE cashflow_akun SET nama = ?, tipe = ?, urutan = ?, aktif = ?, saldo_awal = ? WHERE id = ?',
+      [nama.trim(), tipeFinal, Number(urutan) || 0, aktif ? 1 : 0, Number(saldo_awal) || 0, id]
     );
     if (result.affectedRows === 0) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
     return Response.json({ message: 'Akun diperbarui!' });

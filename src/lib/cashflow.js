@@ -100,9 +100,13 @@ export async function pastikanPeriode(pool, bulan, actorId) {
 
   const [result] = await pool.query('INSERT INTO cashflow_periode (bulan, created_by) VALUES (?, ?)', [bulan, actorId || null]);
   for (const akun of akunAktif) {
+    // Belum pernah punya periode sebelumnya (akun baru ditambah belakangan,
+    // bukan cuma "bulan pertama sistem") -> fallback ke saldo_awal yang diisi
+    // admin pas bikin akun ini, BUKAN langsung 0 (dikonfirmasi user 2026-10-01).
+    const saldoAwal = Number(saldoPerAkun[akun.id] ?? akun.saldo_awal ?? 0);
     await pool.query(
       'INSERT INTO cashflow_saldo_awal (periode_id, akun_id, saldo_awal) VALUES (?, ?, ?)',
-      [result.insertId, akun.id, saldoPerAkun[akun.id] || 0]
+      [result.insertId, akun.id, saldoAwal]
     );
   }
   const [[created]] = await pool.query('SELECT * FROM cashflow_periode WHERE id = ?', [result.insertId]);

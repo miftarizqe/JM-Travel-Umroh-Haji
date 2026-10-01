@@ -19,7 +19,7 @@ function labelBulan(b) {
 const SUMBER_LABEL = {
   setoran_pendaftaran: 'Setoran Pendaftaran', ujroh_tf: 'Ujroh Sahabat Baitullah (keluar)',
   payment_dp: 'DP Booking', payment_lunas: 'Pelunasan Booking', ujroh_tf_perwakilan: 'Ujroh Perwakilan (keluar)',
-  operasional_sahabat: 'Alokasi Operasional/Management',
+  operasional_sahabat: 'Alokasi Operasional/Management', saldo_awal_manual: 'Saldo Awal (input manual)',
 };
 
 // Dashboard 3 rekening JM Travel (2026-09-02, dikonfirmasi user):
@@ -33,15 +33,51 @@ export default function RekeningDashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expand, setExpand] = useState(null); // 'alkhalid' | 'sahabat_baitullah' | null
+  const [editSaldoAwal, setEditSaldoAwal] = useState(null); // { kode, nominal, tanggal } | null
+  const [savingSaldoAwal, setSavingSaldoAwal] = useState(false);
+
+  function muat() {
+    fetch(`/api/admin/finance/rekening?bulan=${bulan}`).then(r => r.json()).then(d => {
+      setData(d);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+  }
+
+  async function bukaEditSaldoAwal(kode) {
+    setEditSaldoAwal({ kode, nominal: '', tanggal: new Date().toISOString().slice(0, 10) });
+    try {
+      const res = await fetch(`/api/admin/finance/rekening/saldo-awal?rekening=${kode}`);
+      const d = await res.json();
+      if (res.ok && d.saldo_awal) {
+        setEditSaldoAwal({
+          kode, nominal: String(d.saldo_awal.nominal),
+          tanggal: new Date(d.saldo_awal.created_at).toISOString().slice(0, 10),
+        });
+      }
+    } catch {}
+  }
+
+  async function simpanSaldoAwal() {
+    setSavingSaldoAwal(true);
+    try {
+      const res = await fetch('/api/admin/finance/rekening/saldo-awal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rekening: editSaldoAwal.kode, nominal: editSaldoAwal.nominal, tanggal: editSaldoAwal.tanggal }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSavingSaldoAwal(false); return; }
+      setEditSaldoAwal(null);
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setSavingSaldoAwal(false);
+  }
 
   useEffect(() => {
     if (!user) return;
     if (user.role !== 'super_admin') { router.replace('/admin'); return; }
     setLoading(true);
-    fetch(`/api/admin/finance/rekening?bulan=${bulan}`).then(r => r.json()).then(d => {
-      setData(d);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    muat();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, bulan]);
 
   if (!user || user.role !== 'super_admin') {
@@ -71,9 +107,39 @@ export default function RekeningDashboardPage() {
               <div className="text-[9px] text-gray-400">Keluar</div>
             </div>
           </div>
-          <button onClick={() => setExpand(isOpen ? null : kode)} className="text-xs font-bold text-[#1A4FA0] mt-3">
-            {isOpen ? 'Tutup rincian ▲' : `Lihat ${ringkasan.transaksi.length} transaksi ▼`}
-          </button>
+          <div className="flex items-center justify-between mt-3">
+            <button onClick={() => setExpand(isOpen ? null : kode)} className="text-xs font-bold text-[#1A4FA0]">
+              {isOpen ? 'Tutup rincian ▲' : `Lihat ${ringkasan.transaksi.length} transaksi ▼`}
+            </button>
+            <button onClick={() => bukaEditSaldoAwal(kode)} className="text-xs font-bold text-gray-400 hover:text-[#1A4FA0]">
+              ⚙️ Set Saldo Awal
+            </button>
+          </div>
+          {editSaldoAwal?.kode === kode && (
+            <div className="mt-3 pt-3 border-t border-gray-100 bg-gray-50 rounded-lg p-3 space-y-2">
+              <div className="text-[10px] text-gray-500">
+                Saldo awal rekening ini (akan kehitung mulai tanggal yang dipilih). Kalau sudah pernah diisi, nilai lama otomatis tampil &amp; bisa dikoreksi.
+              </div>
+              <div className="flex gap-2">
+                <input type="number" value={editSaldoAwal.nominal} placeholder="0"
+                  onChange={e => setEditSaldoAwal(s => ({ ...s, nominal: e.target.value }))}
+                  className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+                <input type="date" value={editSaldoAwal.tanggal}
+                  onChange={e => setEditSaldoAwal(s => ({ ...s, tanggal: e.target.value }))}
+                  className="px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={simpanSaldoAwal} disabled={savingSaldoAwal}
+                  className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50">
+                  {savingSaldoAwal ? 'Menyimpan...' : 'Simpan'}
+                </button>
+                <button onClick={() => setEditSaldoAwal(null)} disabled={savingSaldoAwal}
+                  className="bg-gray-100 text-gray-500 text-xs font-bold px-3 py-1.5 rounded-lg">
+                  Batal
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         {isOpen && (
           <div className="border-t border-gray-100 px-4 py-3 space-y-1.5 bg-gray-50/50">

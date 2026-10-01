@@ -20,7 +20,7 @@ const TIPE_AKUN_LIST = [
   { value: 'lainnya', label: 'Lainnya' },
 ];
 
-const KOSONG_AKUN = { id: null, nama: '', tipe: 'bank', urutan: 0, aktif: true };
+const KOSONG_AKUN = { id: null, nama: '', tipe: 'bank', urutan: 0, aktif: true, saldo_awal: 0 };
 const KOSONG_KATEGORI = { id: null, nama: '', tipe: 'out', urutan: 0, aktif: true, termasuk_laba_rugi: true };
 
 const inp = "w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
@@ -46,8 +46,17 @@ function FormAkun({ value, onChange, onSimpan, onBatal }) {
         <label className={lbl}>Urutan Kolom</label>
         <input type="number" value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
       </div>
+      <div>
+        <label className={lbl}>Saldo Awal{value.id ? ' (akun lama)' : ''}</label>
+        <input type="number" value={value.saldo_awal ?? 0} onChange={e => onChange({ ...value, saldo_awal: e.target.value })} className={inp} />
+      </div>
       <button onClick={onSimpan} className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-5 py-2.5 rounded-xl">💾 Simpan</button>
       <button onClick={onBatal} className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold px-5 py-2.5 rounded-xl">Batal</button>
+      {value.id && (
+        <div className="w-full text-[10px] text-gray-400">
+          Ubah saldo awal di sini cuma berlaku buat periode BARU yang belum dibuat — periode yang sudah ada gak berubah.
+        </div>
+      )}
     </div>
   );
 }
@@ -274,9 +283,10 @@ export default function CashflowHubPage() {
                 <div className="text-sm font-semibold text-gray-700">
                   {a.nama} <span className="text-xs font-normal text-gray-400">({TIPE_AKUN_LIST.find(t => t.value === a.tipe)?.label})</span>
                   {!a.aktif && <span className="ml-2 text-[10px] font-bold text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">NONAKTIF</span>}
+                  <div className="text-[10px] font-normal text-gray-400">Saldo awal: {rp(a.saldo_awal)}</div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <button onClick={() => setFormAkun({ id: a.id, nama: a.nama, tipe: a.tipe, urutan: a.urutan, aktif: !!a.aktif })} className="text-xs font-bold text-[#1A4FA0] hover:underline">Edit</button>
+                  <button onClick={() => setFormAkun({ id: a.id, nama: a.nama, tipe: a.tipe, urutan: a.urutan, aktif: !!a.aktif, saldo_awal: a.saldo_awal })} className="text-xs font-bold text-[#1A4FA0] hover:underline">Edit</button>
                   <button onClick={() => toggleAktifAkun(a)} className="text-xs font-bold text-amber-600 hover:underline">{a.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button>
                 </div>
               </div>

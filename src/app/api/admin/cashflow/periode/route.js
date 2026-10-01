@@ -21,10 +21,11 @@ export async function GET(request) {
 }
 
 // POST { bulan: 'YYYY-MM', saldo_awal_manual?: { [akun_id]: number } }
-// saldo_awal_manual cuma dipakai kalau belum ada periode sebelumnya sama sekali
-// (bulan pertama pakai sistem ini) — selain itu saldo awal SELALU ditarik
-// otomatis dari saldo akhir periode sebelumnya, gak boleh diutak-atik manual,
-// supaya rantai saldo antar bulan gak bisa "disunat".
+// Urutan prioritas saldo awal per akun: (1) saldo_akhir periode sebelumnya
+// (rantai normal, gak bisa "disunat"), (2) saldo_awal_manual kalau dikirim
+// (override eksplisit saat bikin periode ini), (3) cashflow_akun.saldo_awal
+// (diisi admin pas bikin akun itu — dikonfirmasi user 2026-10-01, dulu
+// fallback-nya 0 kalau akun ini belum pernah punya periode sebelumnya).
 export async function POST(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
@@ -40,13 +41,12 @@ export async function POST(request) {
     const akunAktif = await ambilAkunAktif(pool);
     const sebelumnya = await ambilPeriodeSebelumnya(pool, bulan);
 
-    let saldoPerAkun = {};
+    let saldoAkhirSebelumnyaMap = {};
     if (sebelumnya) {
       const saldoAkhirSebelumnya = await hitungSaldoAkhirPeriode(pool, sebelumnya.id);
-      saldoAkhirSebelumnya.forEach(s => { saldoPerAkun[s.akun_id] = s.saldo_akhir; });
-    } else if (saldo_awal_manual && typeof saldo_awal_manual === 'object') {
-      saldoPerAkun = saldo_awal_manual;
+      saldoAkhirSebelumnya.forEach(s => { saldoAkhirSebelumnyaMap[s.akun_id] = s.saldo_akhir; });
     }
+    const override = saldo_awal_manual && typeof saldo_awal_manual === 'object' ? saldo_awal_manual : {};
 
     const [result] = await pool.query(
       'INSERT INTO cashflow_periode (bulan, status, created_by) VALUES (?, ?, ?)',
@@ -55,7 +55,7 @@ export async function POST(request) {
     const periodeId = result.insertId;
 
     for (const akun of akunAktif) {
-      const saldoAwal = Number(saldoPerAkun[akun.id] || 0);
+      const saldoAwal = Number(saldoAkhirSebelumnyaMap[akun.id] ?? override[akun.id] ?? akun.saldo_awal ?? 0);
       await pool.query(
         'INSERT INTO cashflow_saldo_awal (periode_id, akun_id, saldo_awal) VALUES (?, ?, ?)',
         [periodeId, akun.id, saldoAwal]
