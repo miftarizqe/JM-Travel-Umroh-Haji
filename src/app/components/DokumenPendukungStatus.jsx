@@ -1,79 +1,35 @@
 'use client';
-import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
+import { DOC_LIST, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung';
 
-// Ringkasan dokumen pendukung per jamaah di kartu booking (dashboard jamaah,
-// dikonfirmasi user 2026-10-01): status verifikasi admin tiap dokumen + tombol
-// lihat, dan tombol ke form-jamaah buat unggah/ganti/hapus.
+// Tombol aksi dokumen pendukung di kartu booking (dashboard jamaah). Daftar
+// dokumen + statusnya SENGAJA gak ditampilkan di sini lagi (kepanjangan,
+// dikonfirmasi user 2026-10-01) — pindah ke "📄 Dokumen Saya"
+// (DokumenSayaList, tombol Lihat Dokumen). Di sini cuma:
+//  - peringatan kalau ada dokumen yang ditolak admin,
+//  - "Lengkapi Dokumen" HANYA kalau masih ada yang belum diunggah,
+//  - "Edit Data & Dokumen" (buka form-jamaah dengan data lama terisi).
 export default function DokumenPendukungStatus({ booking, onUnggah, onEdit }) {
-  let jd = booking.jamaah_data;
-  if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
-  const jamaah = Array.isArray(jd) ? jd : [];
-
+  const jamaah = parseJamaahData(booking.jamaah_data);
   const total = jamaah.length * DOC_LIST.length;
   const terunggah = jamaah.reduce((n, j) => n + DOC_LIST.filter(d => j?.[d.key]).length, 0);
+  const belumLengkap = total === 0 || terunggah < total;
   const ditolak = jamaah.some(j => DOC_LIST.some(d => statusDokumen(j, d.key)?.status === 'ditolak'));
 
   return (
-    <div className="mt-3 bg-gray-50 rounded-xl p-3">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs font-bold text-[#0E2F6E]">📎 Dokumen Pendukung</div>
-        {total > 0 && <div className="text-[10px] text-gray-500">{terunggah}/{total} terunggah</div>}
-      </div>
+    <div className="mt-2 space-y-2">
       {ditolak && (
-        <div className="text-[10px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-2 py-1.5 mb-2">
-          Ada dokumen yang ditolak admin — silakan ganti lewat tombol Edit di bawah.
+        <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+          ❌ Ada dokumen pendukung yang ditolak admin — lihat alasannya di "Dokumen Saya", lalu ganti lewat Edit.
         </div>
       )}
-      {jamaah.length === 0 ? (
-        <div className="text-xs text-gray-400">Formulir jamaah belum diisi.</div>
-      ) : (
-        <div className="space-y-2">
-          {jamaah.map((j, idx) => (
-            <div key={idx}>
-              {jamaah.length > 1 && <div className="text-[11px] font-semibold text-gray-600 mb-1">{j?.nama || `Jamaah ${idx + 1}`}</div>}
-              <div className="space-y-1">
-                {DOC_LIST.map(d => {
-                  const st = statusDokumen(j, d.key);
-                  const info = st && STATUS_DOKUMEN[st.status];
-                  return (
-                    <div key={d.key} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-gray-600 truncate">{d.label}</span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {info ? (
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${info.cls}`}
-                            title={st.status === 'ditolak' && st.alasan ? `Alasan: ${st.alasan}` : undefined}>
-                            {info.ikon} {info.label}
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-gray-400 whitespace-nowrap">Belum diunggah</span>
-                        )}
-                        {j?.[d.key] && (
-                          <a href={j[d.key]} target="_blank" rel="noopener noreferrer"
-                            className="text-[10px] font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">Lihat</a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {DOC_LIST.map(d => {
-                const st = statusDokumen(j, d.key);
-                return st?.status === 'ditolak' && st.alasan
-                  ? <div key={d.key} className="text-[10px] text-red-600 mt-0.5">{d.label} ditolak: {st.alasan}</div>
-                  : null;
-              })}
-            </div>
-          ))}
-        </div>
-      )}
-      {/* Dua tombol terpisah (dikonfirmasi user 2026-10-01): Unggah langsung
-          ke bagian dokumen di form, Edit buka form dari atas. */}
-      <div className="grid grid-cols-2 gap-2 mt-2">
-        <button onClick={onUnggah} className="text-xs font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] py-2 rounded-full">
-          📤 Unggah Dokumen
-        </button>
+      <div className={`grid gap-2 ${belumLengkap ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        {belumLengkap && (
+          <button onClick={onUnggah} className="text-xs font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] py-2 rounded-full">
+            📤 Lengkapi Dokumen{total > 0 ? ` (${terunggah}/${total})` : ''}
+          </button>
+        )}
         <button onClick={onEdit} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] py-2 rounded-full">
-          ✏️ Edit Dokumen
+          ✏️ Edit Data & Dokumen
         </button>
       </div>
     </div>

@@ -319,7 +319,7 @@ export default function DashboardJamaah() {
                         </div>
                       )}
 
-                      <DokumenSayaList bookingId={b.id} />
+                      <DokumenSayaList bookingId={b.id} booking={b} />
 
                       <button
                         onClick={() => router.push(`/batalkan-program?booking_id=${b.id}`)}
@@ -387,7 +387,7 @@ export default function DashboardJamaah() {
                         </span>
                       </div>
                     )}
-                    {expandRiwayat === b.id && <DokumenSayaList bookingId={b.id} />}
+                    {expandRiwayat === b.id && <DokumenSayaList bookingId={b.id} booking={b} />}
                   </div>
                 </div>
                 );

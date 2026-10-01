@@ -10,6 +10,14 @@
 // Status HANYA ditentukan server: diunggah/diganti -> 'menunggu', admin ->
 // 'diverifikasi' / 'ditolak'. Nilai doc_status kiriman client selalu diabaikan.
 
+// bookings.jamaah_data kolomnya LONGTEXT — mysql2 balikin STRING JSON, bukan
+// array. Selalu lewat sini sebelum dipakai (bug 2026-10-01: form-jamaah dulu
+// cuma cek Array.isArray, jadi data lama gak pernah kemuat pas Edit).
+export function parseJamaahData(jd) {
+  if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { return []; } }
+  return Array.isArray(jd) ? jd : [];
+}
+
 export const DOC_LIST = [
   { key: 'doc_paspor', jenis: 'paspor', label: 'Scan Paspor' },
   { key: 'doc_kk', jenis: 'kk', label: 'Kartu Keluarga' },

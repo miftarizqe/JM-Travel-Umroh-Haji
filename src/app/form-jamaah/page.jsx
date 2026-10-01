@@ -3,7 +3,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
-import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
+import { DOC_LIST, STATUS_DOKUMEN, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung';
 import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, validasiIsianJamaah } from '@/lib/dataJamaah';
 
 const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
@@ -123,9 +123,12 @@ function FormJamaahPageInner() {
               };
             }
             // Kalau sudah pernah diisi sebelumnya, muat data lama
-            if (Array.isArray(found.jamaah_data) && found.jamaah_data.length > 0) {
-              found.jamaah_data.forEach((jd, i) => { if (i < list.length) list[i] = { ...list[i], ...jd }; });
-              setTersimpan(found.jamaah_data);
+            // jamaah_data dari API berupa string JSON (kolom LONGTEXT) — wajib
+            // di-parse, kalau enggak data lama gak pernah kemuat (form kosong).
+            const dataLama = parseJamaahData(found.jamaah_data);
+            if (dataLama.length > 0) {
+              dataLama.forEach((jd, i) => { if (i < list.length) list[i] = { ...list[i], ...jd }; });
+              setTersimpan(dataLama);
             }
 
             // Draft otomatis (localStorage) — jaga-jaga kalau sebelumnya
