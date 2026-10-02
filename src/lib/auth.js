@@ -87,7 +87,10 @@ export function wajibRole(request, rolesDiizinkan = []) {
       ),
     };
   }
-  if (!cocokRole(user.role, rolesDiizinkan)) {
+  // HoP is management. It can inspect Admin pages backed by ordinary admin
+  // reads, but every non-GET request remains admin-only at the API boundary.
+  const hopReadOnly = user.role === 'hop' && request.method === 'GET' && rolesDiizinkan.includes('admin');
+  if (!hopReadOnly && !cocokRole(user.role, rolesDiizinkan)) {
     return {
       error: Response.json(
         { error: 'Akses ditolak. Anda tidak berhak melakukan tindakan ini.' },

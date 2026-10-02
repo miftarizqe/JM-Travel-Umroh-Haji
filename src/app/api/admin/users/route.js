@@ -35,7 +35,7 @@ export async function GET(req) {
     // bisa ke-intip lewat DevTools/manipulasi ?role= (dikonfirmasi user
     // 2026-08-21). super_admin tetap bisa lihat semua kayak sebelumnya.
     if (auth.user.role !== 'super_admin') {
-      query += " AND u.role NOT IN ('admin','super_admin')";
+      query += " AND u.role NOT IN ('admin','super_admin','hop')";
     }
     if (role) { query += ' AND u.role = ?'; params.push(role); }
     if (status) { query += ' AND u.status = ?'; params.push(status); }

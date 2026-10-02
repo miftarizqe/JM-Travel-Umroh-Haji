@@ -4,14 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import PasswordInput from '@/app/components/PasswordInput';
 import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
-
-function getDashPath(role) {
-  if (role === 'admin' || role === 'super_admin') return '/admin';
-  // Dashboard Sahabat Baitullah ada di /dashboard/sahabat, bukan
-  // /dashboard/sahabat_baitullah (bug 404 setelah ganti password, 2026-10-01).
-  if (role === 'sahabat_baitullah') return '/dashboard/sahabat';
-  return `/dashboard/${role}`;
-}
+import { dashboardPathForRole } from '@/lib/dashboardPath';
 
 // Halaman WAJIB buat akun yang password-nya baru di-reset admin (lihat
 // /api/profil/password) — dicek di Layout.jsx, semua halaman
@@ -29,7 +22,7 @@ export default function GantiPasswordWajibPage() {
 
   useEffect(() => {
     if (!user) return;
-    if (!user.wajib_ganti_password) router.replace(getDashPath(user.role));
+    if (!user.wajib_ganti_password) router.replace(dashboardPathForRole(user.role));
   }, [user]);
 
   if (!user || !user.wajib_ganti_password) {
@@ -54,7 +47,7 @@ export default function GantiPasswordWajibPage() {
 
       const updated = { ...user, wajib_ganti_password: false };
       localStorage.setItem('user', JSON.stringify(updated));
-      router.replace(getDashPath(user.role));
+      router.replace(dashboardPathForRole(user.role));
     } catch { setError('Terjadi kesalahan, coba lagi.'); setSaving(false); }
   }
 

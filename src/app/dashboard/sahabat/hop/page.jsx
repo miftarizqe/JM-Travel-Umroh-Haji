@@ -31,12 +31,13 @@ export default function DashboardHopPage() {
   const [catatan, setCatatan] = useState('');
   const [mengirim, setMengirim] = useState(false);
 
+  const isManagementHop = user?.role === 'hop';
   const boleh = isAdmin || isHop;
 
   useEffect(() => {
     if (!user) return;
-    if (!isAdmin && checked && !isHop) router.replace('/dashboard/sahabat');
-  }, [user, isAdmin, isHop, checked, router]);
+    if (!isAdmin && !isManagementHop && checked && !isHop) router.replace('/dashboard/sahabat');
+  }, [user, isAdmin, isManagementHop, isHop, checked, router]);
 
   function muatLaporan() {
     fetch('/api/hop/laporan').then(r => r.json()).then(d => setLaporan(d.laporan || [])).catch(() => {});

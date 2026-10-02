@@ -8,6 +8,7 @@ import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { useLandingTeks } from '@/lib/useLandingTeks';
 import Slideshow from '@/app/components/Slideshow';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
+import { dashboardPathForRole } from '@/lib/dashboardPath';
 
 interface Program {
   id: string;
@@ -230,12 +231,6 @@ export default function Home() {
     });
   }
 
-  function getDashPath(role: string) {
-    if (role === 'admin' || role === 'super_admin') return '/admin';
-    if (role === 'sahabat_baitullah') return '/dashboard/sahabat';
-    return `/dashboard/${role}`;
-  }
-
   return (
     <div className="min-h-screen bg-[#eef1f8] font-sans">
 
@@ -268,7 +263,7 @@ export default function Home() {
                   👤 {user.name.split(' ')[0]}
                 </span>
                 <button
-                  onClick={() => router.push(getDashPath(user.role))}
+                  onClick={() => router.push(dashboardPathForRole(user.role))}
                   className="bg-[#C9952A] text-white text-xs font-bold px-4 py-1.5 rounded-full hover:bg-yellow-600 transition-colors">
                   Dashboard →
                 </button>

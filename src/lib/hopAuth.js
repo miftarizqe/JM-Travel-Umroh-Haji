@@ -16,8 +16,15 @@ export async function wajibAdminAtauHopSahabat(request) {
   }
   if (['admin', 'super_admin'].includes(user.role)) return { user };
 
+  // New management HoP is independent from the Sahabat user selected for
+  // Sahabat commission attribution. Read access only; the dedicated admin
+  // role guard rejects all writes for this role.
+  if (user.role === 'hop' && request.method === 'GET') return { user };
+
   const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
-  const isHop = pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(user.id);
+  const isHop = user.role === 'sahabat_baitullah'
+    && pengaturan?.head_of_program_user_id
+    && String(pengaturan.head_of_program_user_id) === String(user.id);
   if (isHop) return { user };
 
   return { error: Response.json({ error: 'Akses ditolak.' }, { status: 403 }) };
@@ -25,8 +32,17 @@ export async function wajibAdminAtauHopSahabat(request) {
 
 // Cek apakah akun ini Head of Program Sahabat (pengaturan.head_of_program_user_id).
 export async function cekHopSahabat(userId) {
-  const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
-  return !!(pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(userId));
+  const [[pengaturan]] = await pool.query(
+    `SELECT p.head_of_program_user_id, u.role
+     FROM pengaturan p LEFT JOIN users u ON u.id = ? WHERE p.id = 1`, [userId]
+  );
+  return !!(pengaturan?.role === 'sahabat_baitullah'
+    && pengaturan.head_of_program_user_id
+    && String(pengaturan.head_of_program_user_id) === String(userId));
+}
+
+export function isHopRole(user) {
+  return user?.role === 'hop';
 }
 
 // KHUSUS aksi milik HoP sendiri (dikonfirmasi user 2026-10-01): menandai
@@ -38,6 +54,6 @@ export async function wajibHopSahabat(request) {
   if (!user) {
     return { error: Response.json({ error: 'Tidak terautentikasi. Silakan login terlebih dahulu.' }, { status: 401 }) };
   }
-  if (await cekHopSahabat(user.id)) return { user };
+  if (isHopRole(user) || await cekHopSahabat(user.id)) return { user };
   return { error: Response.json({ error: 'Hanya Head of Program Sahabat yang bisa melakukan ini.' }, { status: 403 }) };
 }

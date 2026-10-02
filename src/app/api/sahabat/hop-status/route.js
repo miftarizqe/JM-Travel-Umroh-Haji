@@ -8,6 +8,7 @@ import { wajibLogin } from '@/lib/auth';
 export async function GET(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
+  if (auth.user.role !== 'sahabat_baitullah') return Response.json({ isHop: false });
 
   try {
     const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
