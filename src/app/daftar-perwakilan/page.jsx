@@ -4,9 +4,11 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { usePengaturan } from '@/lib/usePengaturan';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
+import { labelPerekrut } from '@/lib/labelPerekrut';
 
 const emptyForm = () => ({
   nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
@@ -33,6 +35,7 @@ export default function DaftarPerwakilanPage() {
   const [cek, setCek] = useState(null); // prasyarat
   const [uploadingKtp, setUploadingKtp] = useState(false);
   const [profil, setProfil] = useState(null);
+  const [pengaturan] = usePengaturan();
 
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim() || !!form.pkj.trim();
   useUnsavedGuard(isDirty);
@@ -296,7 +299,7 @@ export default function DaftarPerwakilanPage() {
               {user?.role === 'perwakilan' ? (
                 <>
                   <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">
-                    {profil?.perekrut_nama || '-- Tidak ada / daftar mandiri --'}
+                    {labelPerekrut(profil, pengaturan) || '-- Tidak ada / daftar mandiri --'}
                   </div>
                   <div className="text-[10px] text-gray-400 mt-1">
                     Sudah dipilih waktu Anda mendaftar akun, tidak bisa diubah di sini.
@@ -335,7 +338,7 @@ export default function DaftarPerwakilanPage() {
                 ['WhatsApp', form.wa], ['Email', form.email],
                 ['Kota', form.kota], ['Bank', `${form.bank} - ${form.norek}`],
                 ['Perekrut', user?.role === 'perwakilan'
-                  ? (profil?.perekrut_nama || 'Tidak ada')
+                  ? (labelPerekrut(profil, pengaturan) || 'Tidak ada')
                   : profil?.perekrut_perwakilan_jamaah_id
                     ? profil.perekrut_perwakilan_jamaah_nama
                     : (perekrutList.find(a=>String(a.id)===String(form.perekrut_id))?.name || 'Tidak ada')],
