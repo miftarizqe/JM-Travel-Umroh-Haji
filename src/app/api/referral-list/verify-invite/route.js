@@ -34,7 +34,7 @@ export async function POST(request) {
     // sama, cuma pemiliknya role admin/super_admin, bukan role/kolom ini.
     const [rows] = await pool.query(
       `SELECT id, name, role, kode_unik FROM users
-       WHERE role IN (?, 'admin', 'super_admin') AND status = 'active' AND ${kolom} = ?`,
+       WHERE role IN (?, 'admin', 'super_admin', 'hop') AND status = 'active' AND ${kolom} = ?`,
       [role, kodeTrim]
     );
     if (rows.length === 0) {
@@ -49,7 +49,7 @@ export async function POST(request) {
     // buat tampilan "siapa yang merekrut Anda" setelah akun dibuat).
     const r = rows[0];
     let nama = r.name;
-    if (['admin', 'super_admin'].includes(r.role)) {
+    if (['admin', 'super_admin', 'hop'].includes(r.role)) {
       nama = 'Management Team';
     } else {
       const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');

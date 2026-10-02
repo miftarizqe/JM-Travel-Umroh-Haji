@@ -3,7 +3,6 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import { useCurrentUser } from '@/lib/useCurrentUser';
-import { useIsHop } from '@/lib/useIsHop';
 
 const DEFAULT_CONFIRM_MSG = 'Yakin ingin keluar? Perubahan yang belum disimpan akan hilang.';
 
@@ -284,13 +283,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const user = mounted ? rawUser : null;
-  // Head of Program (akun sahabat_baitullah biasa yang ditunjuk admin) —
-  // dikonfirmasi user 2026-09-27: sebelumnya udah bisa INTIP (read-only)
-  // halaman admin Sahabat Baitullah lewat API, tapi gak ada link buat
-  // nemuinnya dari sidebar sama sekali. Ditambahin di bawah (grup
-  // "Pengawasan Program"), CUMA link — gak nambah hak akses baru,
-  // wewenangnya di endpoint masih persis kayak sebelumnya (liat doang).
-  const { isHop } = useIsHop(user);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Collapse sidebar desktop (beda dari sidebarOpen yang buat drawer mobile)
   // — admin bisa sembunyikan sementara buat lapangin layar, preferensinya
@@ -549,10 +541,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],
     sahabat: [
-      // HoP: Beranda = Dashboard Head of Program (dikonfirmasi user 2026-10-01).
-      isHop
-        ? { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat/hop' }
-        : { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat' },
+      { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat' },
       { icon: '🕌', label: 'Program', path: '/programs' },
       { icon: '🌳', label: 'Team', path: '/dashboard/sahabat/team' },
       { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/sahabat/riwayat-closing' },
@@ -560,23 +549,22 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '🎞️', label: 'Materi Presentasi', path: '/dashboard/sahabat/materi' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },
-      // Head of Program doang (lihat useIsHop di atas) — semua halaman ini
-      // read-only buat akun ini, tombol aksinya udah disembunyiin di
-      // masing-masing halaman + endpoint tulisnya tetap admin-only di server.
-      ...(isHop ? [{ icon: '🔍', label: 'Pengawasan Program', children: [
-        { icon: '📊', label: 'Dashboard Head of Program', path: '/dashboard/sahabat/hop' },
-        { icon: '👤', label: 'Dashboard Sahabat Saya', path: '/dashboard/sahabat?mode=pribadi' },
-        { icon: '📝', label: 'Pendaftaran', path: '/admin/sahabat' },
-        { icon: '🗂️', label: 'Database Anggota', path: '/admin/sahabat/database' },
-        { icon: '📜', label: 'Riwayat Closing (Semua)', path: '/admin/sahabat/riwayat-closing' },
-        { icon: '💸', label: 'Pencairan', path: '/admin/sahabat/pencairan' },
-        { icon: '🎞️', label: 'Materi Presentasi (Kelola)', path: '/admin/sahabat/materi' },
-        { icon: '⚙️', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
-      ] }] : []),
     ],
+    // Head of Program = management di bawah admin (dikonfirmasi user
+    // 2026-10-03): Dashboard HoP + Ringkasan Admin + halaman Sahabat
+    // Baitullah, SEMUANYA baca saja (tombol aksi disembunyikan via useIsHop,
+    // endpoint tulis tetap admin-only di server).
     hop: [
       { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat/hop' },
-      { icon: '🛡️', label: 'Dashboard Admin (Baca)', path: '/admin' },
+      { icon: '🛡️', label: 'Ringkasan Admin', path: '/admin' },
+      { icon: '🤝', label: 'Sahabat Baitullah', children: [
+        { icon: '📝', label: 'Pendaftaran', path: '/admin/sahabat' },
+        { icon: '🗂️', label: 'Database Anggota', path: '/admin/sahabat/database' },
+        { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
+        { icon: '💸', label: 'Pencairan', path: '/admin/sahabat/pencairan' },
+        { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
+        { icon: '⚙️', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
+      ] },
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],
   };
@@ -598,7 +586,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   // pertama ("Beranda") jadi dashboardItem yang dipin di atas divider, sisanya
   // dibungkus jadi "grup 1-anak" biar SidebarNav render flat (bukan accordion)
   // — reuse persis komponen yang sama, gak bikin komponen sidebar baru.
-  const useSidebar = isAdminNav || ['jamaah', 'perwakilan', 'sahabat'].includes(navRole);
+  const useSidebar = isAdminNav || ['jamaah', 'perwakilan', 'sahabat', 'hop'].includes(navRole);
   const sidebarDashboardItem = isAdminNav ? dashboardItem : (items[0] || dashboardItem);
   const sidebarGroups = isAdminNav ? adminGroups : items.slice(1).map(it => ({ icon: it.icon, label: it.label, children: it.children || [it] }));
 
@@ -608,7 +596,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       <img src="/logo/jm-travel-icon.png" alt="JM Travel" className="w-8 h-8 object-contain" />
       <div>
         <div className="font-bold text-sm leading-tight">JM Travel</div>
-        <div className="text-[10px] opacity-70">{isAdminNav ? 'Admin Panel' : 'Umroh & Haji'}</div>
+        <div className="text-[10px] opacity-70">{isAdminNav ? 'Admin Panel' : navRole === 'hop' ? 'Head of Program' : 'Umroh & Haji'}</div>
       </div>
     </div>
   );

@@ -356,7 +356,8 @@ export async function PATCH(request) {
             } else {
               rantaiAbis = true;
             }
-            const ancestorManajemen = ancestor && ['admin', 'super_admin'].includes(ancestor.role);
+            // HoP role 'hop' = management (2026-10-03), diperlakukan sama seperti admin.
+            const ancestorManajemen = ancestor && ['admin', 'super_admin', 'hop'].includes(ancestor.role);
             if (nominal > 0) {
               const ancestorAktif = ancestor && !ancestorManajemen && !(hopUserId && ancestor.id === hopUserId)
                 && (await statusKeaktifanUjroh(pool, ancestor.id)).aktif;

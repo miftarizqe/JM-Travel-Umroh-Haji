@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { isHopRole } from '@/lib/hopAuth';
 import { persenKesiapan } from '@/lib/kesiapanTabungan';
 import { GEN_MAKS_DETAIL, samarkanTanpaPersetujuan } from '@/lib/jaringan';
 
@@ -27,11 +28,8 @@ export async function GET(request) {
     if (auth.error) return auth.error;
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
     const isPemilik = String(auth.user.id) === String(sahabatId);
-    let isHop = false;
-    if (!isAdmin) {
-      const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
-      isHop = !!(pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(auth.user.id));
-    }
+    // HoP = management (role 'hop', 2026-10-03) — lihat seluruh jaringan.
+    const isHop = isHopRole(auth.user);
     if (!isAdmin && !isPemilik) {
       if (!isHop) {
         return Response.json({ error: 'Akses ditolak. Anda hanya bisa mengakses data milik sendiri.' }, { status: 403 });

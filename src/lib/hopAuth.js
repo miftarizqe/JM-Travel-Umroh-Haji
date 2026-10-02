@@ -1,44 +1,23 @@
-import pool from './db';
-import { verifikasiToken } from './auth';
+import { verifikasiToken } from './auth.js';
 
-// Head of Program (dikonfirmasi user 2026-09-07) — boleh LIHAT semua yang
-// admin bisa lihat di bagian Sahabat Baitullah (Pendaftaran/Database/
-// Riwayat Closing/Pencairan/Materi/Pengaturan Komisi), TAPI GAK BOLEH
-// ACTION apa pun kayak admin. Makanya helper ini CUMA dipakai gantiin
-// wajibRole(['admin'])/wajibSuperAdmin di endpoint GET/read-only. Endpoint
-// yang nulis/aksi (POST/PUT/PATCH/DELETE) TETAP pakai wajibRole/wajibSuperAdmin
-// biasa apa adanya — JANGAN pernah diganti helper ini, itu satu-satunya
-// pagar yang bikin HOP beneran gak bisa action walau tau endpoint-nya.
+// Head of Program (HoP) = MANAGEMENT, role 'hop', di bawah admin (dikonfirmasi
+// user 2026-10-03) — BUKAN lagi anggota Sahabat Baitullah yang ditunjuk.
+// pengaturan.head_of_program_user_id tetap dipakai, tapi cuma untuk menentukan
+// siapa penerima jatah HoP per pendaftaran Sahabat (lihat
+// status-pendaftaran-sahabat), bukan untuk hak akses.
+//
+// HoP boleh LIHAT semua yang admin lihat di bagian Sahabat Baitullah, TAPI
+// GAK BOLEH ACTION apa pun. Helper ini CUMA dipakai di endpoint GET/read-only.
+// Endpoint yang nulis/aksi (POST/PUT/PATCH/DELETE) TETAP pakai
+// wajibRole/wajibSuperAdmin biasa — JANGAN pernah diganti helper ini.
 export async function wajibAdminAtauHopSahabat(request) {
   const user = verifikasiToken(request);
   if (!user) {
     return { error: Response.json({ error: 'Tidak terautentikasi. Silakan login terlebih dahulu.' }, { status: 401 }) };
   }
   if (['admin', 'super_admin'].includes(user.role)) return { user };
-
-  // New management HoP is independent from the Sahabat user selected for
-  // Sahabat commission attribution. Read access only; the dedicated admin
-  // role guard rejects all writes for this role.
-  if (user.role === 'hop' && request.method === 'GET') return { user };
-
-  const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
-  const isHop = user.role === 'sahabat_baitullah'
-    && pengaturan?.head_of_program_user_id
-    && String(pengaturan.head_of_program_user_id) === String(user.id);
-  if (isHop) return { user };
-
+  if (isHopRole(user) && request.method === 'GET') return { user };
   return { error: Response.json({ error: 'Akses ditolak.' }, { status: 403 }) };
-}
-
-// Cek apakah akun ini Head of Program Sahabat (pengaturan.head_of_program_user_id).
-export async function cekHopSahabat(userId) {
-  const [[pengaturan]] = await pool.query(
-    `SELECT p.head_of_program_user_id, u.role
-     FROM pengaturan p LEFT JOIN users u ON u.id = ? WHERE p.id = 1`, [userId]
-  );
-  return !!(pengaturan?.role === 'sahabat_baitullah'
-    && pengaturan.head_of_program_user_id
-    && String(pengaturan.head_of_program_user_id) === String(userId));
 }
 
 export function isHopRole(user) {
@@ -54,6 +33,6 @@ export async function wajibHopSahabat(request) {
   if (!user) {
     return { error: Response.json({ error: 'Tidak terautentikasi. Silakan login terlebih dahulu.' }, { status: 401 }) };
   }
-  if (isHopRole(user) || await cekHopSahabat(user.id)) return { user };
-  return { error: Response.json({ error: 'Hanya Head of Program Sahabat yang bisa melakukan ini.' }, { status: 403 }) };
+  if (isHopRole(user)) return { user };
+  return { error: Response.json({ error: 'Hanya Head of Program yang bisa melakukan ini.' }, { status: 403 }) };
 }

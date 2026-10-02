@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
-import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
+import { wajibAdminAtauHopSahabat, isHopRole } from '@/lib/hopAuth';
+import { pastikanKodeInviteSahabat } from '@/lib/kodeInvitePerwakilan';
 import { relasiSemuaSahabat } from '@/lib/jaringanSahabat';
 
 // GET /api/hop/sahabat?q=  — dashboard Head of Program Sahabat (dikonfirmasi
@@ -23,7 +24,12 @@ export async function GET(request) {
       .map(s => ({ ...s, laporan_terbuka: laporanPer.get(s.id) || 0 }))
       .sort((a, b) => b.total - a.total || String(a.name).localeCompare(String(b.name)));
 
+    // Link rekrut milik HoP sendiri (HoP = management, boleh mengajak Sahabat
+    // baru seperti admin; rantai ujroh berhenti di HoP).
+    const kodeUndangan = isHopRole(auth.user) ? await pastikanKodeInviteSahabat(pool, auth.user.id) : null;
+
     return Response.json({
+      kode_undangan: kodeUndangan,
       ringkasan: {
         total_sahabat_aktif: semua.filter(s => s.status === 'active').length,
         total_dalam_proses: semua.filter(s => s.status !== 'active').length,

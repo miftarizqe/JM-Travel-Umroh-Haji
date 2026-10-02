@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { isHopRole } from '@/lib/hopAuth';
 import { apakahDalamJaringan, kedalamanDownline, GEN_MAKS_DETAIL, samarkanTanpaPersetujuan } from '@/lib/jaringan';
 
 // GET /api/sahabat/downline/[user_id] — drill-down rekursif jaringan
@@ -18,11 +19,7 @@ export async function GET(request, { params }) {
     // SIAPAPUN & tidak kena batas data per generasi. Dicek selalu (bukan cuma
     // kalau target di luar jaringannya) biar aturan Gen1/Gen2-5/Gen6+ di bawah
     // gak keliru dikenakan ke HoP.
-    let isHop = false;
-    if (!isAdmin) {
-      const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
-      isHop = !!(pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(auth.user.id));
-    }
+    const isHop = isHopRole(auth.user);
     if (!isAdmin && !isHop && auth.user.id !== user_id) {
       const dalamJaringan = await apakahDalamJaringan(pool, auth.user.id, user_id);
       if (!dalamJaringan) return Response.json({ error: 'Anda tidak berwenang melihat jaringan ini' }, { status: 403 });

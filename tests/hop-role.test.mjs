@@ -36,6 +36,17 @@ test('Sahabat does not gain Admin read or write access', () => {
   assert.equal(wajibRole(requestFor('sahabat_baitullah', 'POST'), ['admin']).error.status, 403);
 });
 
+test('HoP Sahabat pages: role hop reads only, Sahabat is never treated as HoP', async () => {
+  process.env.JWT_SECRET = secret;
+  const { wajibAdminAtauHopSahabat, wajibHopSahabat } = await import('../src/lib/hopAuth.js');
+  assert.equal((await wajibAdminAtauHopSahabat(requestFor('hop', 'GET'))).user.role, 'hop');
+  assert.equal((await wajibAdminAtauHopSahabat(requestFor('hop', 'POST'))).error.status, 403);
+  assert.equal((await wajibAdminAtauHopSahabat(requestFor('sahabat_baitullah', 'GET'))).error.status, 403);
+  assert.equal((await wajibAdminAtauHopSahabat(requestFor('admin', 'POST'))).user.role, 'admin');
+  assert.equal((await wajibHopSahabat(requestFor('hop', 'POST'))).user.role, 'hop');
+  assert.equal((await wajibHopSahabat(requestFor('sahabat_baitullah', 'POST'))).error.status, 403);
+});
+
 test('HoP lands on its dedicated dashboard while other roles keep their dashboards', () => {
   assert.equal(dashboardPathForRole('hop'), '/dashboard/sahabat/hop');
   assert.equal(dashboardPathForRole('admin'), '/admin');

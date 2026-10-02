@@ -53,6 +53,24 @@ const PERLENGKAPAN_STATUS_WARNA = {
 };
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+
+// Teks 1 baris item di cluster "Perlu Perhatian" — dipakai dashboard admin
+// & Ringkasan Admin versi Head of Program biar formatnya identik.
+function labelItemCluster(key, it) {
+  return (
+    key==='pembayaran' ? `${it.nama||'User'} — ${it.booking_id} (${(it.type||'').toUpperCase()})`
+    : key==='program_umroh' ? `${it.pemesan||'User'} — ${it.prog_name} (${it.form_filled}/${it.form_total} form)`
+    : key==='custom_harga' ? `${it.pengaju_nama||'User'} — ${it.prog_name} (${rp(it.harga_diajukan)})`
+    : key==='perlengkapan' ? `${it.nama} — ${it.prog_name} (${it.status.replace('_',' ')})`
+    : key==='kalkulator_lead' ? (it.tipe === 'custom' ? `${it.user_nama||'User'} — 🎨 Custom: ${(it.catatan_custom||'').slice(0,60)}` : `${it.user_nama||'User'} — ${it.template_nama} (${rp(it.harga_jual)})`)
+    : key==='ttu_belum_dikirim' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id||'-'} (${rp(it.nominal)})`
+    : key==='perjanjian_belum_selesai' ? `${it.nama||'User'} — ${it.prog_name||it.id} (${!it.setuju_pks ? 'belum setuju' : it.sig_metode==='fisik' ? 'menunggu scan fisik' : 'TTD digital belum selesai'})`
+    : key==='penyesuaian_harga_pending' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.harga_lama)} → ${rp(it.harga_baru)})`
+    : key==='refund_belum_ditransfer' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.refund_nominal)})`
+    : key==='kalkulator_perwakilan_pending' ? `${it.perwakilan_nama||'Perwakilan'} — ${it.nama_quote||it.template_nama} (${rp(it.harga_jual_perwakilan)})`
+    : `${it.name} — ${it.email||it.wa||''}`
+  );
+}
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', {day:'2-digit',month:'short',year:'numeric'}) : '-';
 const tglJam = (t) => t ? new Date(t).toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '-';
 
@@ -769,46 +787,69 @@ function AdminPageInner() {
     {key:'kalkulator_perwakilan_pending', label:'Ajuan Kalkulator Perwakilan', icon:'🧮', color:'border-teal-200 bg-teal-50', items: pending.kalkulator_perwakilan_pending||[]},
   ];
 
-  // Management HoP gets a dedicated, non-interactive view of Admin dashboard
-  // data. Admin workflows and their action controls are not rendered here.
+  // Head of Program = management di bawah admin (dikonfirmasi user
+  // 2026-10-03): lihat Ringkasan Admin yang MIRIP dashboard admin (angka &
+  // antrian "Perlu Perhatian"), tapi TANPA tombol/aksi apa pun. Endpoint
+  // tulis tetap admin-only di server (lihat wajibRole di src/lib/auth.js).
   if (user.role === 'hop') {
+    const totalPending = clusters.reduce((n, c) => n + c.items.length, 0);
+    const urut = [...clusters].sort((a, b) => (b.items.length > 0) - (a.items.length > 0));
     return (
       <Layout>
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 mb-5 text-sm text-blue-900">
-          Mode baca saja untuk Head of Program. Perubahan data hanya dapat dilakukan Admin.
-        </div>
-        <div className="bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-2xl p-6 mb-6">
-          <h2 className="text-xl md:text-2xl font-bold">🛡️ Dashboard Admin — Baca Saja</h2>
-          <p className="text-sm opacity-75 mt-1">Ringkasan operasional JM Travel</p>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          {[
-            { label: 'Jamaah', value: stat.jamaah || 0 },
-            { label: 'Jamaah Sahabat Baitullah', value: stat.sahabat || 0 },
-            { label: 'Perwakilan', value: stat.perwakilan || 0 },
-            { label: 'Program Aktif', value: stat.program || 0 },
-          ].map((item) => (
-            <div key={item.label} className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">
-              <div className="text-xs text-gray-500">{item.label}</div>
-              <div className="font-black text-xl text-gray-800">{item.value}</div>
+        <div className="space-y-5">
+          <div className="bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-2xl p-5 md:p-6">
+            <div className="text-xs font-semibold opacity-75">🛡️ Head of Program · Baca saja</div>
+            <h2 className="text-xl md:text-2xl font-bold mt-1">Ringkasan Admin</h2>
+            <p className="text-sm opacity-75 mt-1">Kondisi operasional JM Travel hari ini. Tindak lanjut dilakukan oleh admin.</p>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Jamaah', val: stat.jamaah || 0, color: 'text-green-700', bg: 'bg-green-50' },
+              { label: 'Jamaah Sahabat Baitullah', val: stat.sahabat || 0, color: 'text-amber-700', bg: 'bg-amber-50', path: '/admin/sahabat/database' },
+              { label: 'Perwakilan', val: stat.perwakilan || 0, color: 'text-purple-700', bg: 'bg-purple-50' },
+              { label: 'Program Aktif', val: stat.program || 0, color: 'text-[#C9952A]', bg: 'bg-[#FEF3DC]' },
+            ].map(k => (
+              <div key={k.label} onClick={k.path ? () => router.push(k.path) : undefined}
+                className={`${k.bg} rounded-xl p-4 ${k.path ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>
+                <div className="text-xs text-gray-500 mb-1">{k.label}</div>
+                <div className={`font-black text-xl ${k.color}`}>{k.val}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-red-600">🔴 Perlu Perhatian</h3>
+              <span className={`text-xs font-black px-2.5 py-1 rounded-full ${totalPending > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500'}`}>{totalPending} item</span>
             </div>
-          ))}
-        </div>
-        <div className="space-y-4">
-          {clusters.map((cluster) => (
-            <section key={cluster.key} className={`rounded-xl border p-4 ${cluster.color}`}>
-              <h3 className="font-bold text-gray-800">{cluster.icon} {cluster.label} <span className="text-gray-500">({cluster.items.length})</span></h3>
-              {cluster.items.length === 0 ? <p className="text-sm text-gray-500 mt-2">Tidak ada data.</p> : (
-                <ul className="mt-2 divide-y divide-gray-200/70">
-                  {cluster.items.map((item, index) => (
-                    <li key={item.id || index} className="py-2 text-sm text-gray-700">
-                      {item.nama || item.name || item.pemesan || item.user_nama || item.prog_name || item.judul || `Data #${item.id || index + 1}`}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          ))}
+            <div className="grid md:grid-cols-2 gap-2">
+              {urut.map(c => {
+                const isOpen = expandCluster === c.key;
+                const tampil = isOpen ? c.items : c.items.slice(0, 3);
+                return (
+                  <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
+                      <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
+                    </div>
+                    {c.items.length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {tampil.map((it, idx) => (
+                          <div key={idx} className="text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate">{labelItemCluster(c.key, it)}</div>
+                        ))}
+                        {c.items.length > 3 && (
+                          <button onClick={() => setExpandCluster(isOpen ? null : c.key)} className="text-[11px] text-gray-500 underline pl-1">
+                            {isOpen ? 'Tutup ▲' : `+${c.items.length - 3} lainnya`}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </Layout>
     );
@@ -816,11 +857,6 @@ function AdminPageInner() {
 
   return (
     <Layout>
-      {user?.role === 'hop' && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 mb-5 text-sm text-blue-900">
-          Mode baca saja untuk Head of Program. Perubahan data hanya dapat dilakukan Admin.
-        </div>
-      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-2xl p-6 mb-6">
         <h2 className="text-xl md:text-2xl font-bold">⚙️ Admin Panel — JM Travel</h2>
@@ -877,17 +913,7 @@ function AdminPageInner() {
                         <div key={idx}
                           onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : undefined}
                           className={`text-xs text-gray-500 bg-white/60 rounded px-2 py-1 ${c.key==='perlengkapan' || c.key==='kalkulator_lead' || c.key==='ttu_belum_dikirim' || c.key==='perjanjian_belum_selesai' || c.key==='penyesuaian_harga_pending' || c.key==='refund_belum_ditransfer' || c.key==='kalkulator_perwakilan_pending' ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
-                          {c.key==='pembayaran' ? `${it.nama||'User'} — ${it.booking_id} (${(it.type||'').toUpperCase()})`
-                            : c.key==='program_umroh' ? `${it.pemesan||'User'} — ${it.prog_name} (${it.form_filled}/${it.form_total} form)`
-                            : c.key==='custom_harga' ? `${it.pengaju_nama||'User'} — ${it.prog_name} (${rp(it.harga_diajukan)})`
-                            : c.key==='perlengkapan' ? `${it.nama} — ${it.prog_name} (${it.status.replace('_',' ')})`
-                            : c.key==='kalkulator_lead' ? (it.tipe === 'custom' ? `${it.user_nama||'User'} — 🎨 Custom: ${(it.catatan_custom||'').slice(0,60)}` : `${it.user_nama||'User'} — ${it.template_nama} (${rp(it.harga_jual)})`)
-                            : c.key==='ttu_belum_dikirim' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id||'-'} (${rp(it.nominal)})`
-                            : c.key==='perjanjian_belum_selesai' ? `${it.nama||'User'} — ${it.prog_name||it.id} (${!it.setuju_pks ? 'belum setuju' : it.sig_metode==='fisik' ? 'menunggu scan fisik' : 'TTD digital belum selesai'})`
-                            : c.key==='penyesuaian_harga_pending' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.harga_lama)} → ${rp(it.harga_baru)})`
-                            : c.key==='refund_belum_ditransfer' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.refund_nominal)})`
-                            : c.key==='kalkulator_perwakilan_pending' ? `${it.perwakilan_nama||'Perwakilan'} — ${it.nama_quote||it.template_nama} (${rp(it.harga_jual_perwakilan)})`
-                            : `${it.name} — ${it.email||it.wa||''}`}
+                          {labelItemCluster(c.key, it)}
                         </div>
                       ))}
                       {c.items.length>3 && (
