@@ -3,6 +3,7 @@ import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PasswordInput from '@/app/components/PasswordInput';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
+import { dashboardPathForRole } from '@/lib/dashboardPath';
 
 export default function LoginPage() {
   return (
@@ -53,10 +54,7 @@ function LoginPageInner() {
       const redirect = searchParams.get('redirect');
       if (redirect) {
         router.push(redirect);
-      } else if (role === 'admin' || role === 'super_admin') router.push('/admin');
-      else if (role === 'perwakilan') router.push('/dashboard/perwakilan');
-      else if (role === 'sahabat_baitullah') router.push('/dashboard/sahabat');
-      else router.push('/dashboard/jamaah');
+      } else router.push(dashboardPathForRole(role));
     } catch (e) {
       setError('Terjadi kesalahan, coba lagi.');
     } finally {

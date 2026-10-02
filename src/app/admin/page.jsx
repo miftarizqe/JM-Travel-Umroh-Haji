@@ -299,7 +299,7 @@ function AdminPageInner() {
     // masih null, jadi admin yang beneran login malah kelempar ke '/'.
     // Tunggu render berikutnya pas user beneran keisi.
     if (!user) return;
-    if (!['admin','super_admin'].includes(user.role)) { router.push('/'); return; }
+    if (!['admin','super_admin','hop'].includes(user.role)) { router.push('/'); return; }
     loadAll();
   }, [user]);
 
@@ -769,8 +769,58 @@ function AdminPageInner() {
     {key:'kalkulator_perwakilan_pending', label:'Ajuan Kalkulator Perwakilan', icon:'🧮', color:'border-teal-200 bg-teal-50', items: pending.kalkulator_perwakilan_pending||[]},
   ];
 
+  // Management HoP gets a dedicated, non-interactive view of Admin dashboard
+  // data. Admin workflows and their action controls are not rendered here.
+  if (user.role === 'hop') {
+    return (
+      <Layout>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 mb-5 text-sm text-blue-900">
+          Mode baca saja untuk Head of Program. Perubahan data hanya dapat dilakukan Admin.
+        </div>
+        <div className="bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-2xl p-6 mb-6">
+          <h2 className="text-xl md:text-2xl font-bold">🛡️ Dashboard Admin — Baca Saja</h2>
+          <p className="text-sm opacity-75 mt-1">Ringkasan operasional JM Travel</p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[
+            { label: 'Jamaah', value: stat.jamaah || 0 },
+            { label: 'Jamaah Sahabat Baitullah', value: stat.sahabat || 0 },
+            { label: 'Perwakilan', value: stat.perwakilan || 0 },
+            { label: 'Program Aktif', value: stat.program || 0 },
+          ].map((item) => (
+            <div key={item.label} className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">
+              <div className="text-xs text-gray-500">{item.label}</div>
+              <div className="font-black text-xl text-gray-800">{item.value}</div>
+            </div>
+          ))}
+        </div>
+        <div className="space-y-4">
+          {clusters.map((cluster) => (
+            <section key={cluster.key} className={`rounded-xl border p-4 ${cluster.color}`}>
+              <h3 className="font-bold text-gray-800">{cluster.icon} {cluster.label} <span className="text-gray-500">({cluster.items.length})</span></h3>
+              {cluster.items.length === 0 ? <p className="text-sm text-gray-500 mt-2">Tidak ada data.</p> : (
+                <ul className="mt-2 divide-y divide-gray-200/70">
+                  {cluster.items.map((item, index) => (
+                    <li key={item.id || index} className="py-2 text-sm text-gray-700">
+                      {item.nama || item.name || item.pemesan || item.user_nama || item.prog_name || item.judul || `Data #${item.id || index + 1}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
+      {user?.role === 'hop' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 mb-5 text-sm text-blue-900">
+          Mode baca saja untuk Head of Program. Perubahan data hanya dapat dilakukan Admin.
+        </div>
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-2xl p-6 mb-6">
         <h2 className="text-xl md:text-2xl font-bold">⚙️ Admin Panel — JM Travel</h2>
@@ -2257,7 +2307,7 @@ function AdminPageInner() {
               <div className="text-center text-red-500 py-10">{detailUser.error}</div>
             ) : (() => {
               const u = detailUser.user;
-              const roleLabel = {perwakilan:'🏢 Perwakilan', jamaah:'🧳 Jamaah', admin:'⚙️ Admin', super_admin:'🔒 Super Admin'}[u.role] || u.role;
+              const roleLabel = {perwakilan:'🏢 Perwakilan', jamaah:'🧳 Jamaah', admin:'⚙️ Admin', super_admin:'🔒 Super Admin', hop:'🛡️ Head of Program'}[u.role] || u.role;
               return (
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">

@@ -9,26 +9,28 @@ import { useEffect, useState } from 'react';
 // diklik). `checked` jadi true begitu status HOP-nya udah dipastikan
 // (dipakai buat nunda keputusan redirect sampai kita YAKIN dia bukan HOP).
 export function useIsHop(user) {
-  const [isHop, setIsHop] = useState(false);
+  const [isHopState, setIsHop] = useState(false);
   const [checked, setChecked] = useState(false);
 
   useEffect(() => {
     if (!user) return;
+    if (user.role === 'hop') return;
     // Dipanggil dari Layout.jsx (dipakai SEMUA role di SETIAP halaman) —
     // cuma akun sahabat_baitullah yang mungkin ditunjuk HOP, jamaah/
     // perwakilan gak akan pernah, jadi skip fetch-nya total buat mereka
     // (bug performa ditemukan & diperbaiki 2026-09-27 — sebelumnya nembak
     // /api/sahabat/hop-status di TIAP halaman buat SEMUA orang, nambah
     // beban DB gak perlu).
-    if (user.role !== 'sahabat_baitullah') { setChecked(true); return; }
-    setChecked(false);
+    if (user.role !== 'sahabat_baitullah') return;
     fetch('/api/sahabat/hop-status').then(r => r.json())
       .then(d => setIsHop(!!d.isHop))
       .catch(() => setIsHop(false))
       .finally(() => setChecked(true));
   }, [user]);
 
+  const isHop = !!(user && (user.role === 'hop' || (user.role === 'sahabat_baitullah' && isHopState)));
+  const checkedForUser = !!user && (user.role !== 'sahabat_baitullah' || checked);
   const isAdmin = !!(user && ['admin', 'super_admin'].includes(user.role));
   const isAdminOrHop = isAdmin || isHop;
-  return { isHop, isAdmin, isAdminOrHop, checked };
+  return { isHop, isAdmin, isAdminOrHop, checked: checkedForUser };
 }

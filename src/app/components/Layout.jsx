@@ -574,6 +574,11 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '⚙️', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
       ] }] : []),
     ],
+    hop: [
+      { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat/hop' },
+      { icon: '🛡️', label: 'Dashboard Admin (Baca)', path: '/admin' },
+      { icon: '👤', label: 'Profil', path: '/profil' },
+    ],
   };
 
   // super_admin superset dari admin — pakai sidebar yang sama (grup2 di atas
