@@ -157,8 +157,17 @@ export default function KalkulatorBiayaHubPage() {
         if (!res.ok) { alert(d.error || 'Gagal menyimpan'); setBusy(false); return; }
         if (!existingId && d.id) setTemplateBreakdownId(prev => ({ ...prev, [paket]: d.id }));
       }
-      setEditorTerbuka(false);
+      // Editor DULU langsung ditutup balik ke daftar tanpa konfirmasi apa pun
+      // (dikonfirmasi user 2026-10-02: kerasa kayak "gak kesimpen, balik
+      // lagi ke sebelumnya") — sekarang tetap di editor & state-nya di-
+      // refresh LANGSUNG dari server (bukan state lokal yang sempat diedit),
+      // biar yang keliatan PERSIS yang baru kesimpen. Ini juga yang
+      // nyelesain keluhan "frekuensi/item kadang keliatan balik ke lama" —
+      // sebelumnya editor ketutup tanpa reload, jadi admin gak pernah lihat
+      // konfirmasi bahwa perubahannya BENERAN nyampe ke server.
+      alert('Template tersimpan!');
       muat();
+      await bukaTemplate(templateGroup);
     } catch { alert('Terjadi kesalahan'); }
     setBusy(false);
   }
