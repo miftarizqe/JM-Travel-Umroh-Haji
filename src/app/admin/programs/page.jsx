@@ -809,6 +809,34 @@ export default function ProgramsPage() {
         payload[`harga_${paket}_${kamar}`] = 0;
         continue;
       }
+      // Recompute LANGSUNG dari kalkulatorState (sumber yang SAMA PERSIS
+      // dipakai tabel preview "Hasil HPP & Harga Jual") pas tombol Simpan
+      // diklik — bukan baca ulang payload.hpp_*/ujroh_* yang ditulis
+      // useEffect fan-out terpisah, yang bisa aja ketinggalan 1 tick dari
+      // kalkulatorState begitu baru buka program lama (dikonfirmasi user
+      // 2026-10-02: preview & yang kesimpen beda padahal gak ngubah apa
+      // pun). Ini jamin apa yang KELIATAN di preview = apa yang BENERAN
+      // kesimpen, titik, gak peduli ada race di effect atau enggak.
+      const stateUntukPaket = kalkulatorDimuat ? kalkulatorState[paket] : null;
+      if (stateUntukPaket) {
+        const hppFresh = hitungHppKamar(stateUntukPaket, katalogModulUntukKalkulator);
+        const pembulatanFresh = Number(stateUntukPaket.pembulatan) || 0;
+        // publish_type 'perwakilan' TIDAK pernah bakar ujroh ke harga_* di
+        // sini (sama kayak onUbahKalkulator) — markup-nya diisi terpisah di
+        // "Detail Harga" per perwakilan, bukan di kolom harga_* bawaan ini.
+        if (editing?.publish_type === 'perwakilan') {
+          const hargaPerwakilan = bulatkanKeAtas(hppFresh[kamar] || 0, pembulatanFresh);
+          payload[`hpp_${paket}_${kamar}`] = hargaPerwakilan;
+          payload[`harga_${paket}_${kamar}`] = hargaPerwakilan;
+          continue;
+        }
+        const ujrohFresh = Number(stateUntukPaket.komisi_rate) || 0;
+        const hargaPublikasi = bulatkanKeAtas((hppFresh[kamar] || 0) + ujrohFresh, pembulatanFresh);
+        payload[`hpp_${paket}_${kamar}`] = hargaPublikasi - ujrohFresh;
+        payload[`ujroh_${paket}_${kamar}`] = ujrohFresh;
+        payload[`harga_${paket}_${kamar}`] = hargaPublikasi;
+        continue;
+      }
       const hpp = Number(payload[`hpp_${paket}_${kamar}`] || 0);
       const ujroh = Number(payload[`ujroh_${paket}_${kamar}`] || 0);
       payload[`harga_${paket}_${kamar}`] = hpp + ujroh;
