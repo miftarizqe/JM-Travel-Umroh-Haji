@@ -23,11 +23,11 @@ export async function POST(request) {
   const auth = wajibRole(request, ['super_admin']);
   if (auth.error) return auth.error;
   try {
-    const { kelompok, nama, keterangan, harga_default, mata_uang, basis_default, trigger_kunci, modul_negara_id, urutan, frekuensi } = await request.json();
+    const { kelompok, nama, keterangan, harga_default, mata_uang, basis_default, trigger_kunci, modul_negara_id, urutan, frekuensi, baseline_umroh, baseline_wisata } = await request.json();
     if (!kelompok?.trim() || !nama?.trim()) return Response.json({ error: 'Kelompok & nama wajib diisi' }, { status: 400 });
     const [result] = await pool.query(
-      'INSERT INTO biaya_master_item (kelompok, nama, keterangan, harga_default, mata_uang, basis_default, trigger_kunci, modul_negara_id, urutan, frekuensi) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [kelompok.trim(), nama.trim(), keterangan?.trim() || null, Number(harga_default) || 0, mata_uang || 'IDR', basis_default || 'jamaah', trigger_kunci || null, modul_negara_id || null, Number(urutan) || 0, frekuensi || null]
+      'INSERT INTO biaya_master_item (kelompok, nama, keterangan, harga_default, mata_uang, basis_default, trigger_kunci, modul_negara_id, urutan, frekuensi, baseline_umroh, baseline_wisata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [kelompok.trim(), nama.trim(), keterangan?.trim() || null, Number(harga_default) || 0, mata_uang || 'IDR', basis_default || 'jamaah', trigger_kunci || null, modul_negara_id || null, Number(urutan) || 0, frekuensi || null, baseline_umroh ? 1 : 0, baseline_wisata ? 1 : 0]
     );
     return Response.json({ message: 'Item master ditambahkan!', id: result.insertId });
   } catch (error) {
@@ -41,11 +41,11 @@ export async function PUT(request) {
   const auth = wajibRole(request, ['super_admin']);
   if (auth.error) return auth.error;
   try {
-    const { id, kelompok, nama, keterangan, harga_default, mata_uang, basis_default, trigger_kunci, modul_negara_id, urutan, aktif, frekuensi } = await request.json();
+    const { id, kelompok, nama, keterangan, harga_default, mata_uang, basis_default, trigger_kunci, modul_negara_id, urutan, aktif, frekuensi, baseline_umroh, baseline_wisata } = await request.json();
     if (!id || !kelompok?.trim() || !nama?.trim()) return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     const [result] = await pool.query(
-      'UPDATE biaya_master_item SET kelompok = ?, nama = ?, keterangan = ?, harga_default = ?, mata_uang = ?, basis_default = ?, trigger_kunci = ?, modul_negara_id = ?, urutan = ?, aktif = ?, frekuensi = ? WHERE id = ?',
-      [kelompok.trim(), nama.trim(), keterangan?.trim() || null, Number(harga_default) || 0, mata_uang || 'IDR', basis_default || 'jamaah', trigger_kunci || null, modul_negara_id || null, Number(urutan) || 0, aktif ? 1 : 0, frekuensi || null, id]
+      'UPDATE biaya_master_item SET kelompok = ?, nama = ?, keterangan = ?, harga_default = ?, mata_uang = ?, basis_default = ?, trigger_kunci = ?, modul_negara_id = ?, urutan = ?, aktif = ?, frekuensi = ?, baseline_umroh = ?, baseline_wisata = ? WHERE id = ?',
+      [kelompok.trim(), nama.trim(), keterangan?.trim() || null, Number(harga_default) || 0, mata_uang || 'IDR', basis_default || 'jamaah', trigger_kunci || null, modul_negara_id || null, Number(urutan) || 0, aktif ? 1 : 0, frekuensi || null, baseline_umroh ? 1 : 0, baseline_wisata ? 1 : 0, id]
     );
     if (result.affectedRows === 0) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
     return Response.json({ message: 'Item master diperbarui!' });

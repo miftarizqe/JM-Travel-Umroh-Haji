@@ -75,6 +75,19 @@ function FormMasterItem({ value, onChange, onSimpan, onBatal, kelompokMaster, mo
               {FREKUENSI_LIST.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
             </select>
           </div>
+          <div>
+            <label className={lbl}>Otomatis Masuk Kalkulator Baru (Baseline)</label>
+            <div className="flex gap-4 mt-1">
+              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input type="checkbox" checked={!!value.baseline_umroh} onChange={e => onChange({ ...value, baseline_umroh: e.target.checked })} />
+                Program Umroh
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-gray-700">
+                <input type="checkbox" checked={!!value.baseline_wisata} onChange={e => onChange({ ...value, baseline_wisata: e.target.checked })} />
+                Program Wisata
+              </label>
+            </div>
+          </div>
         </>
       )}
 

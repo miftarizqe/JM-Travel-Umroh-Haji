@@ -29,26 +29,21 @@ export {
 } from '@/lib/kalkulatorBiaya';
 const MATA_UANG_LIST = ['IDR', 'SAR', 'USD'];
 
-// Kelompok yang SELALU ada di susunan item tiap kalkulator baru — auto-narik
-// semua item aktif dari Master begitu kalkulator dibuat (lihat useEffect
-// auto-seed di bawah), gak perlu admin klik "+ Tambah dari Master" manual.
-// Program Wisata (non-umroh, murni cost per-negara) cuma butuh Cost Jakarta
-// — Cost Saudi/Transportation/Handling Alfiyah semuanya komponen Umroh yang
-// gak relevan buat trip tanpa Mekkah/Madinah.
-export const KELOMPOK_BASELINE = ['Cost Saudi (Via Mutawwif)', 'Cost Jakarta (Via Management)', 'Cost Transportation', 'Handling Alfiyah', 'Cost Tour Leader'];
-const KELOMPOK_BASELINE_WISATA = ['Cost Jakarta (Via Management)'];
-// Item Cost Jakarta yang murni Umroh (manasik, akses Haramain, perlengkapan
-// jamaah) — di-exclude dari auto-seed Program Wisata (dikonfirmasi user
-// 2026-07-27: cuma "Keberangkatan Jakarta - Manasik (Breakfast/Lunch)",
-// "Kedatangan Jakarta - Nasi Box + Mineral", "Handling Jakarta", "Asuransi",
-// & opsional "Fee Tour Leader" yang kepake). Cuma ngatur auto-seed, bukan
-// ngubah trigger_kunci item aslinya — admin tetap bisa tambah/hapus manual.
-const ITEM_JAKARTA_KHUSUS_UMROH = ['Fee Ustad Manasik Umroh', 'Akses Mekkah - Madinnah - Haramain Express', 'Perlengkapan Jamaah'];
+// Item mana yang SELALU ada di susunan item tiap kalkulator baru — auto-narik
+// item aktif dari Master begitu kalkulator dibuat (lihat useEffect auto-seed
+// di bawah) & tombol "Sinkronkan dari Master", gak perlu admin klik "+ Tambah
+// dari Master" manual. DULU ditentukan dari HARDCODE nama kelompok
+// (KELOMPOK_BASELINE), diganti 2026-10-02 (dikonfirmasi user) jadi FLAG
+// EKSPLISIT per item (`baseline_umroh`/`baseline_wisata`, diisi admin sendiri
+// di form Master Item) — nama kelompok itu teks bebas yang admin bisa bikin
+// sendiri kapan saja, gak bisa diandalkan buat di-hardcode di kode (terbukti:
+// data produksi pakai ejaan beda dari yang dihardcode, bikin auto-seed gagal
+// total buat kelompok yang ejaannya beda).
 // `punyaUmroh` = flag jenis_program_master (dulu string-compare `=== 'wisata'`
 // — sekarang admin bisa nambah kategori "tanpa Umroh" lain di luar 'wisata',
 // jadi harus lookup flag, bukan hardcode 1 nilai).
-function kelompokBaselineUntuk(punyaUmroh) {
-  return punyaUmroh === false ? KELOMPOK_BASELINE_WISATA : KELOMPOK_BASELINE;
+function itemBaselineUntuk(m, punyaUmroh) {
+  return punyaUmroh === false ? !!m.baseline_wisata : !!m.baseline_umroh;
 }
 
 // Pill toggle compact buat pilih basis — dipakai di baris Item (tight inline
@@ -102,20 +97,18 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
     fetch('/api/admin/jenis-program').then(r => r.json()).then(d => setKatalogJenisProgram(d.jenis_program || [])).catch(() => {});
   }, []);
 
-  // Auto-narik semua item aktif dari kelompok baseline (beda-beda per Jenis
-  // Program, lihat kelompokBaselineUntuk) begitu kalkulator BENER2 baru
-  // dibuat atau begitu admin ganti Jenis Program SEBELUM item apapun
-  // disentuh manual — biar admin gak perlu klik "+ Tambah dari Master"
-  // satu-satu buat item2 standar ini.
+  // Auto-narik semua item aktif yang ditandai baseline (beda-beda per Jenis
+  // Program, lihat itemBaselineUntuk) begitu kalkulator BENER2 baru dibuat
+  // atau begitu admin ganti Jenis Program SEBELUM item apapun disentuh
+  // manual — biar admin gak perlu klik "+ Tambah dari Master" satu-satu
+  // buat item2 standar ini.
   useEffect(() => {
     if (masterList.length === 0 || katalogJenisProgram.length === 0) return;
     if (value.items.length > 0 && !autoSeedBersih.current) return; // sudah dikustomisasi manual, jangan ditimpa
     if (seededUntuk.current === value.jenis_program) return; // udah pas, gak perlu seed ulang
     seededUntuk.current = value.jenis_program;
     const punyaUmroh = katalogJenisProgram.find(j => j.value === value.jenis_program)?.punya_umroh !== false;
-    const grup = kelompokBaselineUntuk(punyaUmroh);
-    const baseline = masterList.filter(m => grup.includes(m.kelompok) && m.aktif
-      && !(!punyaUmroh && ITEM_JAKARTA_KHUSUS_UMROH.includes(m.nama)));
+    const baseline = masterList.filter(m => m.aktif && itemBaselineUntuk(m, punyaUmroh));
     autoSeedBersih.current = true;
     onChange({
       ...value,
@@ -157,11 +150,8 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
   // menghapus/menimpa item yang udah dikustomisasi manual.
   function sinkronDariMaster() {
     const punyaUmroh = katalogJenisProgram.find(j => j.value === value.jenis_program)?.punya_umroh !== false;
-    const grup = kelompokBaselineUntuk(punyaUmroh);
     const idYangSudahAda = new Set(value.items.map(it => it.master_item_id).filter(Boolean));
-    const baru = masterList.filter(m => grup.includes(m.kelompok) && m.aktif
-      && !(!punyaUmroh && ITEM_JAKARTA_KHUSUS_UMROH.includes(m.nama))
-      && !idYangSudahAda.has(m.id));
+    const baru = masterList.filter(m => m.aktif && itemBaselineUntuk(m, punyaUmroh) && !idYangSudahAda.has(m.id));
     if (baru.length === 0) { alert('Semua item aktif dari Master (kelompok baseline) sudah ada di kalkulator ini.'); return; }
     onChange({
       ...value,
