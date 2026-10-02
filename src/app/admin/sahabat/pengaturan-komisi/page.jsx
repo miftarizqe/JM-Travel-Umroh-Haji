@@ -140,7 +140,7 @@ export default function PengaturanKomisiSahabatBaitullahPage() {
               dropdown biasa di halaman ini. head_of_program_user_id juga
               gak diikutkan lagi di payload Simpan di bawah. */}
           <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">{namaHop}</div>
-          <div className="text-[10px] text-gray-400 mt-1">Wajib akun Jamaah Sahabat Baitullah aktif (bukan staff). Dapat komisi 2x: tiap ada jemaah baru aktif (nominal di atas), DAN dari closing langsung (checkout diri sendiri = margin penuh harga jual dikurangi HPP, otomatis; closing-in jamaah lain = nominal fix, diatur per-program di Costing Program). Sebagai HOP, dia juga bisa lihat SELURUH jaringan Sahabat Baitullah dari dashboard akunnya sendiri (bukan cuma downline dia).</div>
+          <div className="text-[10px] text-gray-400 mt-1">Head of Program = management (di bawah admin), bukan anggota Sahabat Baitullah. Jatah HoP per pendaftaran Sahabat (nominal di atas) dicatat atas nama akun ini dan ditransfer manual oleh admin. HoP bisa melihat seluruh jaringan & data Sahabat Baitullah (baca saja).</div>
         </div>
         {!isHop && (
           <button onClick={() => setKonfirmasi('sahabat')}

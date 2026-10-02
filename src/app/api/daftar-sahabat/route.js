@@ -107,7 +107,7 @@ export async function POST(req) {
       }
       const [[pengundang]] = await db.query(
         `SELECT id FROM users WHERE kode_invite_sahabat = ?
-           AND (role IN ('sahabat_baitullah','admin','super_admin') OR role_kedua = 'sahabat_baitullah')
+           AND (role IN ('sahabat_baitullah','admin','super_admin','hop') OR role_kedua = 'sahabat_baitullah')
            AND status = 'active' LIMIT 1`,
         [kodeUndangan]
       );

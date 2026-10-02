@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { isHopRole } from '@/lib/hopAuth';
 import { persenKesiapan } from '@/lib/kesiapanTabungan';
 
 const JENIS_SALDO = [
@@ -29,9 +30,7 @@ export async function GET(request) {
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
     const isPemilik = String(auth.user.id) === String(sahabatId);
     if (!isAdmin && !isPemilik) {
-      const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
-      const isHop = pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(auth.user.id);
-      if (!isHop) {
+      if (!isHopRole(auth.user)) {
         return Response.json({ error: 'Akses ditolak. Anda hanya bisa mengakses data milik sendiri.' }, { status: 403 });
       }
     }

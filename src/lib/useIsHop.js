@@ -1,36 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
 
-// Head of Program (dikonfirmasi user 2026-09-07) — dipakai di halaman-halaman
-// admin/sahabat/* biar HOP (akun role sahabat_baitullah biasa, BUKAN admin)
-// bisa MASUK & LIHAT halaman itu, tapi read-only (tombol aksi harus dicek
-// `!isHop` sebelum ditampilin — endpoint aksinya sendiri tetap admin-only di
-// server, ini cuma buat UX biar HOP gak lihat tombol yang bakal 403 kalau
-// diklik). `checked` jadi true begitu status HOP-nya udah dipastikan
-// (dipakai buat nunda keputusan redirect sampai kita YAKIN dia bukan HOP).
+// Head of Program = management, role 'hop' (dikonfirmasi user 2026-10-03) —
+// dipakai di halaman admin/sahabat/* biar HoP bisa MASUK & LIHAT, tapi
+// read-only: tombol aksi wajib dicek `!isHop` sebelum ditampilkan. Endpoint
+// aksinya tetap admin-only di server; ini cuma UX biar HoP gak lihat tombol
+// yang bakal 403. Status HoP cukup dari role di token, jadi `checked` langsung
+// true begitu user terbaca (gak perlu fetch apa pun).
 export function useIsHop(user) {
-  const [isHopState, setIsHop] = useState(false);
-  const [checked, setChecked] = useState(false);
-
-  useEffect(() => {
-    if (!user) return;
-    if (user.role === 'hop') return;
-    // Dipanggil dari Layout.jsx (dipakai SEMUA role di SETIAP halaman) —
-    // cuma akun sahabat_baitullah yang mungkin ditunjuk HOP, jamaah/
-    // perwakilan gak akan pernah, jadi skip fetch-nya total buat mereka
-    // (bug performa ditemukan & diperbaiki 2026-09-27 — sebelumnya nembak
-    // /api/sahabat/hop-status di TIAP halaman buat SEMUA orang, nambah
-    // beban DB gak perlu).
-    if (user.role !== 'sahabat_baitullah') return;
-    fetch('/api/sahabat/hop-status').then(r => r.json())
-      .then(d => setIsHop(!!d.isHop))
-      .catch(() => setIsHop(false))
-      .finally(() => setChecked(true));
-  }, [user]);
-
-  const isHop = !!(user && (user.role === 'hop' || (user.role === 'sahabat_baitullah' && isHopState)));
-  const checkedForUser = !!user && (user.role !== 'sahabat_baitullah' || checked);
+  const isHop = user?.role === 'hop';
   const isAdmin = !!(user && ['admin', 'super_admin'].includes(user.role));
-  const isAdminOrHop = isAdmin || isHop;
-  return { isHop, isAdmin, isAdminOrHop, checked: checkedForUser };
+  return { isHop, isAdmin, isAdminOrHop: isAdmin || isHop, checked: !!user };
 }
