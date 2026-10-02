@@ -236,7 +236,39 @@ export async function DELETE(request) {
       return Response.json({ error: 'Program sudah punya booking, tidak bisa dihapus. Nonaktifkan saja.' }, { status: 400 });
     }
 
-    await pool.query('DELETE FROM programs WHERE id = ?', [id]);
+    // Tabel yang FK-nya RESTRICT ke programs (bug 2026-10-02: hapus program
+    // yang dibuat pakai Costing -> 500 karena biaya_breakdown masih nempel).
+    // Data penting (target Sahabat, cashflow, ujroh perwakilan) = tolak dengan
+    // pesan jelas; breakdown costing milik program ikut dihapus; ajuan
+    // Kalkulator Perwakilan cuma dilepas tautannya.
+    const [[ref]] = await pool.query(
+      `SELECT (SELECT COUNT(*) FROM sahabat_pendaftaran WHERE program_id = ?) AS sahabat,
+              (SELECT COUNT(*) FROM cashflow_transaksi WHERE program_id = ?) AS cashflow,
+              (SELECT COUNT(*) FROM pengajuan_ujroh_perwakilan WHERE prog_id = ?) AS ujroh`,
+      [id, id, id]
+    );
+    const pemakai = [
+      ref.sahabat > 0 && 'target umroh Jamaah Sahabat Baitullah',
+      ref.cashflow > 0 && 'transaksi cashflow',
+      ref.ujroh > 0 && 'pengajuan ujroh perwakilan',
+    ].filter(Boolean);
+    if (pemakai.length) {
+      return Response.json({ error: `Program masih dipakai di ${pemakai.join(', ')}, tidak bisa dihapus. Nonaktifkan saja.` }, { status: 400 });
+    }
+
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await conn.query('DELETE FROM biaya_breakdown WHERE program_id = ? AND is_template = 0', [id]);
+      await conn.query('UPDATE kalkulator_perwakilan_lead SET program_id = NULL WHERE program_id = ?', [id]);
+      await conn.query('DELETE FROM programs WHERE id = ?', [id]);
+      await conn.commit();
+    } catch (e) {
+      await conn.rollback();
+      throw e;
+    } finally {
+      conn.release();
+    }
     return Response.json({ message: 'Program berhasil dihapus!' });
   } catch (error) {
     console.error(error);
