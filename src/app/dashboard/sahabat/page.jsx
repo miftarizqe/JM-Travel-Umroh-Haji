@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import { useCurrentUser } from '@/lib/useCurrentUser';
-import { useIsHop } from '@/lib/useIsHop';
+import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
 import TombolWA from '@/app/components/TombolWA';
 
@@ -67,7 +67,11 @@ export default function DashboardSahabatPage() {
     if (programEksklusif.length === 0) {
       setLoadingProgramEksklusif(true);
       fetch('/api/programs').then(r => r.json())
-        .then(d => setProgramEksklusif((d.programs || []).filter(p => p.publish_type === 'sahabat_baitullah')))
+        .then(d => {
+          const hariIni = hariIniWib();
+          setProgramEksklusif((d.programs || []).filter(p => p.publish_type === 'sahabat_baitullah'
+            && (!keTanggal(p.tanggal_berangkat) || keTanggal(p.tanggal_berangkat) >= hariIni)));
+        })
         .catch(() => setProgramEksklusif([]))
         .finally(() => setLoadingProgramEksklusif(false));
     }
@@ -101,16 +105,21 @@ export default function DashboardSahabatPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Head of Program Sahabat mendarat di Dashboard HoP (dikonfirmasi user
-  // 2026-10-01) — termasuk setelah login & ganti password. Dashboard Sahabat
-  // pribadinya tetap bisa dibuka lewat ?mode=pribadi (menu "Dashboard
-  // Sahabat Saya"), karena HoP juga anggota dengan jaringan & ujroh sendiri.
-  const { isHop, checked: hopChecked } = useIsHop(user);
+  // Catatan SYSTEM UJROH E3: jadwal keberangkatan target lewat (atau program
+  // target dinonaktifkan) sebelum target tercapai -> WAJIB pilih program lain.
+  // Popup Ganti Target dibuka otomatis sekali per sesi browser.
+  const wajibGantiTarget = !!(data?.target && !(data.target.nominal > 0 && data.ringkasan?.saldo_tabungan_umroh >= data.target.nominal)
+    && (data.target.jadwal_terlewat || !data.target.program_aktif)
+    && !['diajukan', 'pembatalan_diajukan'].includes(data.target.ganti_status));
   useEffect(() => {
-    if (!hopChecked || !isHop) return;
-    if (new URLSearchParams(window.location.search).get('mode') === 'pribadi') return;
-    router.replace('/dashboard/sahabat/hop');
-  }, [isHop, hopChecked, router]);
+    if (!wajibGantiTarget) return;
+    try {
+      if (sessionStorage.getItem('popupWajibGantiTarget')) return;
+      sessionStorage.setItem('popupWajibGantiTarget', '1');
+    } catch { /* storage diblokir — tetap tampilkan popup */ }
+    bukaGantiPopup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wajibGantiTarget]);
 
   if (loading || !data?.akun) return <Layout title="🤝 Dashboard Sahabat Baitullah"><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
 
@@ -245,7 +254,20 @@ export default function DashboardSahabatPage() {
             targetnya somehow dinonaktifkan admin, tombol diganti pesan
             hubungi admin (bukan disembunyikan diam-diam). */}
         {target && (
-          <div className="bg-white rounded-xl border-2 border-[#e0e8f0] p-4">
+          <div className={`bg-white rounded-xl border-2 p-4 ${wajibGantiTarget ? 'border-red-300' : 'border-[#e0e8f0]'}`}>
+            {wajibGantiTarget && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-xs text-red-700">
+                <div className="font-bold text-sm mb-1">⏰ Wajib Pilih Program Lain</div>
+                {target.jadwal_terlewat
+                  ? <>Jadwal keberangkatan <b>{target.program_name}</b>{target.tanggal_berangkat ? ` (${new Date(target.tanggal_berangkat).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })})` : ''} sudah lewat sebelum target tabungan Anda tercapai.</>
+                  : <>Program <b>{target.program_name}</b> sudah tidak aktif sebelum target tabungan Anda tercapai.</>}
+                {' '}Silakan pilih program lain — target akan mengikuti harga program baru setelah disetujui admin. Saldo Anda tetap aman.
+                <button onClick={bukaGantiPopup}
+                  className="mt-2 w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-full">
+                  🔄 Pilih Program Lain
+                </button>
+              </div>
+            )}
             <div className="text-xs text-gray-400 mb-1">🎯 Progress Tabungan — {target.program_name || 'Target Impian'}</div>
             <div className="flex items-end justify-between mb-2">
               <div className="text-xl font-black text-[#0E2F6E]">{fmtRp(data.ringkasan.saldo_tabungan_umroh)}</div>
@@ -286,7 +308,7 @@ export default function DashboardSahabatPage() {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700 mt-3">
                 ⏳ Pembatalan sedang menunggu ACC admin — target sementara masih <b>{target.program_name}</b>.
               </div>
-            ) : (
+            ) : !wajibGantiTarget && (
               <button onClick={bukaGantiPopup}
                 className="mt-3 w-full text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d9e6f7] px-4 py-2 rounded-full">
                 🔄 Ganti Target Impian
@@ -303,6 +325,7 @@ export default function DashboardSahabatPage() {
                 <button onClick={() => setGantiPopupOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
               </div>
               <div className="text-xs text-gray-500 bg-[#E8F0FB] rounded-lg p-3 mb-3">
+                {wajibGantiTarget && <b className="block text-red-600 mb-1">Jadwal target Anda sudah lewat — wajib pilih program lain.</b>}
                 Mengganti Target Impian akan menonaktifkan sementara program aktif Anda saat ini sampai disetujui admin. Pilih dulu program tujuannya di bawah — detail syarat & konfirmasi ada di halaman program tersebut.
               </div>
               {loadingProgramEksklusif ? (

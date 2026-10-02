@@ -9,6 +9,7 @@ import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan } from '@/lib/usePengaturan';
 import { urutkan, cocok } from '@/lib/sortTable';
+import { statusJadwalTarget } from '@/lib/jadwalTarget';
 import { downloadExcel as downloadExcelFile } from '@/lib/downloadExcel';
 import { downloadDokumenZip } from '@/lib/downloadDokumenZip';
 import SortTh from '@/app/components/SortTh';
@@ -414,6 +415,14 @@ function AdminPageInner() {
   }), [sahabatJamaahDb]);
   const sahabatDibawahProgress = useMemo(() => sahabatJamaahDb.filter(j =>
     j.status === 'active' && diBawahProgress(j.saldo_tabungan_umroh, j.target_estimasi_harga, j.target_bulan, j.target_set_at)
+  ), [sahabatJamaahDb]);
+  // Catatan SYSTEM UJROH E3: jadwal target lewat (atau program dinonaktifkan)
+  // sebelum target tercapai -> anggota wajib pilih program lain.
+  const sahabatJadwalTerlewat = useMemo(() => sahabatJamaahDb.filter(j =>
+    j.status === 'active' && j.program_id && statusJadwalTarget({
+      tanggal_berangkat: j.target_tanggal_berangkat, program_aktif: !!j.target_program_aktif,
+      saldo: j.saldo_tabungan_umroh, target: j.target_estimasi_harga,
+    }).wajib_ganti
   ), [sahabatJamaahDb]);
   const sahabatUjrohBelumDiajukan = sahabatPencairan?.belum_diajukan_count || 0;
   const perwakilanUjrohBelumDiajukan = perwakilanPencairan?.belum_diajukan_count || 0;
@@ -982,6 +991,7 @@ function AdminPageInner() {
                 {[
                   { key: 'siap', icon: '🎯', color: 'border-amber-200 bg-amber-50', label: 'Siap Berangkat (≥80%)', rows: sahabatSiapBerangkat },
                   { key: 'bawah', icon: '⚠️', color: 'border-orange-200 bg-orange-50', label: 'Di Bawah Progress Tabungan', rows: sahabatDibawahProgress },
+                  { key: 'jadwal', icon: '⏰', color: 'border-red-200 bg-red-50', label: 'Jadwal Target Terlewat (wajib pilih program lain)', rows: sahabatJadwalTerlewat },
                 ].map(c => (
                   <div key={c.key} className={`border ${c.color} rounded-xl overflow-hidden`}>
                     <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setOpenSahabatCluster(o => o === c.key ? null : c.key)}>

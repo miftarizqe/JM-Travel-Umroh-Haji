@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 import { wajibPemilikAtauAdmin } from '@/lib/auth';
 import { groupJamaahAktif } from '@/lib/jamaahHarga';
+import { keTanggal, jadwalSudahLewat } from '@/lib/jadwalTarget';
 
 // GET /api/sahabat/dashboard?sahabat_id=xxx
 // Jauh lebih simpel dari dashboard perwakilan — sahabat gak punya
@@ -72,7 +73,7 @@ export async function GET(request) {
     // Impian" & badge "Menunggu ACC Admin" sekarang di Beranda (dipindah
     // dari Profil, dikonfirmasi user 2026-09-29), dibarengin kartu ini.
     const [[targetRow]] = await pool.query(
-      `SELECT sp.program_id, sp.target_estimasi_harga, p.name AS program_name, p.active AS program_aktif,
+      `SELECT sp.program_id, sp.target_estimasi_harga, p.name AS program_name, p.active AS program_aktif, p.tanggal_berangkat,
               sp.target_ganti_status, pg.name AS target_ganti_program_name
        FROM sahabat_pendaftaran sp
        LEFT JOIN programs p ON p.id = sp.program_id
@@ -84,6 +85,10 @@ export async function GET(request) {
       program_id: targetRow.program_id,
       program_name: targetRow.program_name,
       program_aktif: !!targetRow.program_aktif,
+      tanggal_berangkat: keTanggal(targetRow.tanggal_berangkat),
+      // Catatan SYSTEM UJROH E3: jadwal lewat sebelum target tercapai ->
+      // wajib pilih program lain (FE pakai bareng saldo untuk wajib_ganti).
+      jadwal_terlewat: jadwalSudahLewat(targetRow.tanggal_berangkat),
       nominal: Number(targetRow.target_estimasi_harga || 0),
       ganti_status: targetRow.target_ganti_status || null,
       ganti_program_name: targetRow.target_ganti_program_name || null,
