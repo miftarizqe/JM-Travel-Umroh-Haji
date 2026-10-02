@@ -55,14 +55,59 @@ export async function PUT(request) {
   }
 }
 
-// DELETE ?id=X
+// DELETE ?id=X&paksa=1 — hard delete beneran (dikonfirmasi user 2026-10-02,
+// sebelumnya UI cuma punya "Nonaktifkan"). biaya_breakdown_item.nominal/nama
+// SNAPSHOT independen (bukan live-join ke master item), jadi harga program
+// yang SUDAH DIBUAT (biaya_breakdown.program_id IS NOT NULL) gak pernah
+// kesentuh walau master item-nya diedit/dihapus — FK master_item_id ke situ
+// cuma SET NULL (lepas link traceability-nya doang, lihat migrasi 205).
+//
+// Baris breakdown milik DRAFT/TEMPLATE (program_id IS NULL) beda — itu
+// IKUT DIHAPUS beneran, bukan cuma lepas link (dikonfirmasi user, draft
+// emang boleh berubah). Tanpa `paksa=1`, kalau item ini masih dipakai di
+// mana pun (draft atau published), balas 409 + jumlah pemakaian dulu biar
+// FE bisa kasih reminder sebelum beneran hapus.
 export async function DELETE(request) {
   const auth = wajibRole(request, ['super_admin']);
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
     const id = Number(searchParams.get('id'));
+    const paksa = searchParams.get('paksa') === '1';
     if (!id) return Response.json({ error: 'Parameter id wajib diisi' }, { status: 400 });
+
+    const [[item]] = await pool.query('SELECT id, nama FROM biaya_master_item WHERE id = ?', [id]);
+    if (!item) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
+
+    const [[usage]] = await pool.query(
+      `SELECT
+         SUM(CASE WHEN bb.program_id IS NULL THEN 1 ELSE 0 END) AS draft_count,
+         SUM(CASE WHEN bb.program_id IS NOT NULL THEN 1 ELSE 0 END) AS published_count
+       FROM biaya_breakdown_item bbi
+       JOIN biaya_breakdown bb ON bb.id = bbi.breakdown_id
+       WHERE bbi.master_item_id = ?`,
+      [id]
+    );
+    const draftCount = Number(usage?.draft_count || 0);
+    const publishedCount = Number(usage?.published_count || 0);
+
+    if ((draftCount > 0 || publishedCount > 0) && !paksa) {
+      return Response.json({
+        confirm_required: true,
+        draft_count: draftCount,
+        published_count: publishedCount,
+      }, { status: 409 });
+    }
+
+    if (draftCount > 0) {
+      await pool.query(
+        `DELETE bbi FROM biaya_breakdown_item bbi
+         JOIN biaya_breakdown bb ON bb.id = bbi.breakdown_id
+         WHERE bbi.master_item_id = ? AND bb.program_id IS NULL`,
+        [id]
+      );
+    }
+
     const [result] = await pool.query('DELETE FROM biaya_master_item WHERE id = ?', [id]);
     if (result.affectedRows === 0) return Response.json({ error: 'Data tidak ditemukan' }, { status: 404 });
     return Response.json({ message: 'Item master dihapus!' });

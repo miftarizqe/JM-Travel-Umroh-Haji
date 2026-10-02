@@ -456,10 +456,13 @@ export default function ProgramsPage() {
       // ditinggal tanpa diapa-apain. Buang diem-diem, jangan ditanyain (bikin
       // bingung kalau "ditemukan draft" padahal belum pernah ngetik apa-apa).
       if (!draftEditing?.name?.trim()) { localStorage.removeItem(key); return fallback; }
-      if (confirm('Ditemukan draft program yang belum disimpan di perangkat ini. Lanjutkan mengedit draft tersebut?')) {
-        return { editing: draftEditing, formsMap: draft.formsMap || {}, opsiTambahanBaru: draft.opsiTambahanBaru || [] };
-      }
-      localStorage.removeItem(key);
+      // Dulu nanya dulu lewat confirm() sebelum restore — dicabut
+      // (dikonfirmasi user 2026-10-02, popup-nya muncul tiap buka form
+      // yang masih ada sisa draft, keliatan "selalu kayak gini" & ganggu).
+      // Sekarang restore LANGSUNG diam-diam — tetap jaga dari kehilangan
+      // isian 30+ field kalau gak sengaja nutup/pindah tanpa Simpan, cuma
+      // tanpa interupsi popup lagi.
+      return { editing: draftEditing, formsMap: draft.formsMap || {}, opsiTambahanBaru: draft.opsiTambahanBaru || [] };
     } catch {}
     return fallback;
   }

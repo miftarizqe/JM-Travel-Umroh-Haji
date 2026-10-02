@@ -101,7 +101,7 @@ function FormMasterItem({ value, onChange, onSimpan, onBatal, kelompokMaster, mo
 
 export default function MasterItemView({
   masterList, modulList, kelompokMaster, formMaster,
-  onBukaTambahItem, onBukaTambahKategori, onPilihEdit, onChangeForm, onSimpan, onBatal, onToggleAktif,
+  onBukaTambahItem, onBukaTambahKategori, onPilihEdit, onChangeForm, onSimpan, onBatal, onToggleAktif, onHapus,
 }) {
   return (
     <>
@@ -141,6 +141,7 @@ export default function MasterItemView({
                   <div className="flex gap-2 shrink-0">
                     <button onClick={() => onPilihEdit(m)} className="text-xs font-bold text-[#1A4FA0] hover:underline">Edit</button>
                     <button onClick={() => onToggleAktif(m)} className="text-xs font-bold text-amber-600 hover:underline">{m.aktif ? 'Nonaktifkan' : 'Aktifkan'}</button>
+                    <button onClick={() => onHapus(m)} className="text-xs font-bold text-red-600 hover:underline">Hapus</button>
                   </div>
                 </div>
               )
