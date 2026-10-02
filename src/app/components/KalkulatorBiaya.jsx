@@ -147,6 +147,29 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
     onChange({ ...value, items: [...value.items, { master_item_id: null, kelompok, nama: '', nominal: '', mata_uang: 'IDR', basis: 'jamaah', trigger_kunci: null }] });
   }
 
+  // Tombol manual buat kalkulator LAMA yang udah dikustomisasi (autoSeedBersih
+  // sudah false, jadi useEffect auto-seed di atas gak jalan lagi) — item
+  // Master BARU yang ditambahkan BELAKANGAN (kategori baru, atau item dengan
+  // trigger baru kayak city_tour_mekkah/handling_jeddah) gak pernah otomatis
+  // nongol di kalkulator yang udah ada isinya (dikonfirmasi user 2026-10-02:
+  // "trigger-nya kurang nyambung" di program LAMA). Ini cuma NAMBAH item
+  // Master yang belum ada (match by master_item_id) — TIDAK pernah
+  // menghapus/menimpa item yang udah dikustomisasi manual.
+  function sinkronDariMaster() {
+    const punyaUmroh = katalogJenisProgram.find(j => j.value === value.jenis_program)?.punya_umroh !== false;
+    const grup = kelompokBaselineUntuk(punyaUmroh);
+    const idYangSudahAda = new Set(value.items.map(it => it.master_item_id).filter(Boolean));
+    const baru = masterList.filter(m => grup.includes(m.kelompok) && m.aktif
+      && !(!punyaUmroh && ITEM_JAKARTA_KHUSUS_UMROH.includes(m.nama))
+      && !idYangSudahAda.has(m.id));
+    if (baru.length === 0) { alert('Semua item aktif dari Master (kelompok baseline) sudah ada di kalkulator ini.'); return; }
+    onChange({
+      ...value,
+      items: [...value.items, ...baru.map(m => ({ master_item_id: m.id, kelompok: m.kelompok, nama: m.nama, nominal: m.harga_default, mata_uang: m.mata_uang, basis: m.basis_default || 'jamaah', trigger_kunci: m.trigger_kunci || null, modul_negara_id: m.modul_negara_id || null, frekuensi: m.frekuensi || null }))],
+    });
+    alert(`${baru.length} item baru dari Master ditambahkan (item yang udah ada gak diubah/dihapus).`);
+  }
+
   const kelompokList = [...new Set([...masterList.map(m => m.kelompok), ...value.items.map(it => it.kelompok)])];
   if (kelompokList.length === 0) kelompokList.push('Lain-lain');
   // Tiket Flight & Visa TL DIHITUNG OTOMATIS dari pax_tl (bukan item Master
@@ -199,6 +222,14 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
           </div>
         </div>
       </div>}
+
+      <div className="flex justify-end">
+        <button type="button" onClick={sinkronDariMaster}
+          title="Tambahin item Master yang belum ada di kalkulator ini (gak ngubah/hapus item yang udah ada)"
+          className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-blue-100">
+          🔄 Sinkronkan Item Baru dari Master
+        </button>
+      </div>
 
       {kelompokList.map(kelompok => {
         const itemsKelompok = value.items.map((it, idx) => ({ ...it, idx })).filter(it => it.kelompok === kelompok);
