@@ -805,7 +805,28 @@ export default function ProgramsPage() {
   function buildPayload() {
     const payload = { ...editing };
     payload.type = jenisProgramList.find(j => j.value === payload.jenis_program)?.tipe_program || 'Umroh';
+    // Paket yang dimatikan via toggle "Bintang X" di KalkulatorTerpadu
+    // (kalkulatorShared.bintang_aktif[paket] === false, EKSPLISIT — beda
+    // dari kalkulatorAktif[paket] yang cuma nandain "ada baris
+    // biaya_breakdown tersimpan", TETAP true walau bintang-nya dimatikan,
+    // breakdown row-nya sendiri emang gak pernah dihapus) WAJIB di-nolkan
+    // hpp/ujroh/harga-nya di sini, bukan cuma dibiarin "gak diupdate" — kalau
+    // dibiarin, nilai LAMA dari sebelum dimatikan tetap nyangkut di editing
+    // (dimuat apa adanya dari DB) dan kebawa lolos terus tiap Simpan, bikin
+    // hargaTermurahProgram() masih nganggep paket itu "termurah" padahal
+    // udah dimatikan (bug nyata dilaporkan user 2026-10-02 — harga Deluxe
+    // basi Rp25,5jt tetap muncul jadi "Mulai dari" walau Deluxe-nya sendiri
+    // udah gak ada lagi di tabel hasil Costing). bintang_aktif cuma kebaca
+    // akurat buat super_admin (lihat gate `user.role !== 'super_admin'` di
+    // editProgram) — admin biasa gak kena ini biar perilaku lama gak berubah.
+    const kalkulatorDimuat = user?.role === 'super_admin';
     for (const paket of PAKET) for (const kamar of KAMAR) {
+      if (kalkulatorDimuat && kalkulatorShared.bintang_aktif?.[paket] === false) {
+        payload[`hpp_${paket}_${kamar}`] = 0;
+        payload[`ujroh_${paket}_${kamar}`] = 0;
+        payload[`harga_${paket}_${kamar}`] = 0;
+        continue;
+      }
       const hpp = Number(payload[`hpp_${paket}_${kamar}`] || 0);
       const ujroh = Number(payload[`ujroh_${paket}_${kamar}`] || 0);
       payload[`harga_${paket}_${kamar}`] = hpp + ujroh;
