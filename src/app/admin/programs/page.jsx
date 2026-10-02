@@ -9,6 +9,25 @@ import { kamarKeyOf } from '@/app/components/CartPaketKamar';
 import { resolveJamaahHarga } from '@/lib/jamaahHarga';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
+// Kolom JSON (modul_tambahan/bintang_aktif/tiket_pesawat_list) kadang balik
+// dari API sebagai string JSON mentah (bukan sudah di-parse) — ketemu
+// nyata di production: admin/programs crash begitu buka Costing program
+// lama karena `b.bintang_aktif || {...}` nganggep string non-kosong itu
+// truthy, dipakai apa adanya (bukan di-parse), lalu spread/akses properti
+// di belakangnya meledak. Dua helper ini jaga-jaga terima dua bentuk
+// (sudah objek/array ATAU masih string JSON), fallback ke kosong kalau
+// parse gagal.
+const keArray = (v) => {
+  if (Array.isArray(v)) return v;
+  if (typeof v === 'string') { try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; } catch { return []; } }
+  return [];
+};
+const keObjek = (v) => {
+  if (v && typeof v === 'object' && !Array.isArray(v)) return v;
+  if (typeof v === 'string') { try { const p = JSON.parse(v); return p && typeof p === 'object' && !Array.isArray(p) ? p : {}; } catch { return {}; } }
+  return {};
+};
+
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KAMAR = ['quad', 'triple', 'double'];
@@ -319,9 +338,9 @@ export default function ProgramsPage() {
       if (!shared) {
         shared = {
           nama: b.nama, paket: '',
-          jenis_program: b.jenis_program || 'umroh_regular', modul_tambahan: b.modul_tambahan || {},
+          jenis_program: b.jenis_program || 'umroh_regular', modul_tambahan: keObjek(b.modul_tambahan),
           hotel_mode: b.hotel_mode || 'fix', hotel_list: b.hotel_list || [],
-          bintang_aktif: b.bintang_aktif || { deluxe: true, eksekutif: true, signature: true },
+          bintang_aktif: { deluxe: true, eksekutif: true, signature: true, ...keObjek(b.bintang_aktif) },
           pembulatan: Number(b.pembulatan) || 0, umroh_dulu: b.umroh_dulu !== 0 && b.umroh_dulu !== false,
           include_items: b.include_items || '', exclude_items: b.exclude_items || '', itinerary: b.itinerary || [], itinerary_modul: b.itinerary_modul || [],
           pax_jamaah: b.pax_jamaah, pax_tl: b.pax_tl, pax_mutawwif: b.pax_mutawwif, pax_mutawwifah: b.pax_mutawwifah, pax_driver: b.pax_driver,
@@ -330,7 +349,7 @@ export default function ProgramsPage() {
           city_tour_mekkah: b.city_tour_mekkah, city_tour_madinah: b.city_tour_madinah, city_tour_thaif: b.city_tour_thaif,
           transportasi_pilihan: b.transportasi_pilihan,
           kurs_usd_idr: b.kurs_usd_idr, kurs_sar_idr: b.kurs_sar_idr,
-          tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: b.tiket_pesawat_list || [],
+          tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: keArray(b.tiket_pesawat_list),
           visa_rate: b.visa_rate, visa_mata_uang: b.visa_mata_uang,
           biaya_lain_lain: b.biaya_lain_lain, biaya_lain_lain_mata_uang: b.biaya_lain_lain_mata_uang,
           margin_mode: b.margin_mode || 'flat', margin_persen: b.margin_persen,
@@ -537,9 +556,9 @@ export default function ProgramsPage() {
         if (!shared) {
           shared = {
             nama: b.nama, paket: '',
-            jenis_program: b.jenis_program || 'umroh_regular', modul_tambahan: b.modul_tambahan || {},
+            jenis_program: b.jenis_program || 'umroh_regular', modul_tambahan: keObjek(b.modul_tambahan),
             hotel_mode: b.hotel_mode || 'fix', hotel_list: b.hotel_list || [],
-          bintang_aktif: b.bintang_aktif || { deluxe: true, eksekutif: true, signature: true },
+          bintang_aktif: { deluxe: true, eksekutif: true, signature: true, ...keObjek(b.bintang_aktif) },
           pembulatan: Number(b.pembulatan) || 0, umroh_dulu: b.umroh_dulu !== 0 && b.umroh_dulu !== false,
             include_items: b.include_items || '', exclude_items: b.exclude_items || '', itinerary: b.itinerary || [], itinerary_modul: b.itinerary_modul || [],
             pax_jamaah: b.pax_jamaah, pax_tl: b.pax_tl, pax_mutawwif: b.pax_mutawwif, pax_mutawwifah: b.pax_mutawwifah, pax_driver: b.pax_driver,
@@ -548,7 +567,7 @@ export default function ProgramsPage() {
             city_tour_mekkah: b.city_tour_mekkah, city_tour_madinah: b.city_tour_madinah, city_tour_thaif: b.city_tour_thaif,
             transportasi_pilihan: b.transportasi_pilihan,
             kurs_usd_idr: b.kurs_usd_idr, kurs_sar_idr: b.kurs_sar_idr,
-            tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: b.tiket_pesawat_list || [],
+            tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: keArray(b.tiket_pesawat_list),
             visa_rate: b.visa_rate, visa_mata_uang: b.visa_mata_uang,
             biaya_lain_lain: b.biaya_lain_lain, biaya_lain_lain_mata_uang: b.biaya_lain_lain_mata_uang,
             margin_mode: b.margin_mode || 'flat', margin_persen: b.margin_persen,
