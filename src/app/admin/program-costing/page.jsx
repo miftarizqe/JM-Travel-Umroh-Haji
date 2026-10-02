@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { KOSONG_BREAKDOWN } from '@/app/components/KalkulatorBiaya';
 import KalkulatorTerpadu from '@/app/components/KalkulatorTerpadu';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { keArray, keObjek } from '@/lib/jsonKolomAman';
 
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KALKULATOR_HOTEL_KOSONG = { mekkah_nama: '', mekkah_rate_double: '', mekkah_rate_triple: '', mekkah_rate_quad: '', mekkah_mata_uang: 'SAR', madinah_nama: '', madinah_rate_double: '', madinah_rate_triple: '', madinah_rate_quad: '', madinah_mata_uang: 'SAR' };
@@ -96,18 +97,18 @@ export default function KalkulatorBiayaHubPage() {
       if (!shared) {
         shared = {
           nama: b.nama, paket: '',
-          jenis_program: b.jenis_program || 'umroh_regular', modul_tambahan: b.modul_tambahan || {},
-          hotel_mode: b.hotel_mode || 'fix', hotel_list: b.hotel_list || [],
-          bintang_aktif: b.bintang_aktif || { deluxe: true, eksekutif: true, signature: true },
+          jenis_program: b.jenis_program || 'umroh_regular', modul_tambahan: keObjek(b.modul_tambahan),
+          hotel_mode: b.hotel_mode || 'fix', hotel_list: keArray(b.hotel_list),
+          bintang_aktif: { deluxe: true, eksekutif: true, signature: true, ...keObjek(b.bintang_aktif) },
           pembulatan: Number(b.pembulatan) || 0, umroh_dulu: b.umroh_dulu !== 0 && b.umroh_dulu !== false,
-          include_items: b.include_items || '', exclude_items: b.exclude_items || '', itinerary: b.itinerary || [],
+          include_items: b.include_items || '', exclude_items: b.exclude_items || '', itinerary: keArray(b.itinerary),
           pax_jamaah: b.pax_jamaah, pax_tl: b.pax_tl, pax_mutawwif: b.pax_mutawwif, pax_mutawwifah: b.pax_mutawwifah, pax_driver: b.pax_driver,
           total_hari_program: b.total_hari_program, manasik_umroh: b.manasik_umroh,
           perlengkapan_jamaah: b.perlengkapan_jamaah, haramain_express: b.haramain_express, handling_jeddah: b.handling_jeddah,
           city_tour_mekkah: b.city_tour_mekkah, city_tour_madinah: b.city_tour_madinah, city_tour_thaif: b.city_tour_thaif,
           transportasi_pilihan: b.transportasi_pilihan,
           kurs_usd_idr: b.kurs_usd_idr, kurs_sar_idr: b.kurs_sar_idr,
-          tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: b.tiket_pesawat_list || [],
+          tiket_pesawat_rate: b.tiket_pesawat_rate, tiket_pesawat_mata_uang: b.tiket_pesawat_mata_uang, tiket_pesawat_list: keArray(b.tiket_pesawat_list),
           visa_rate: b.visa_rate, visa_mata_uang: b.visa_mata_uang,
           biaya_lain_lain: b.biaya_lain_lain, biaya_lain_lain_mata_uang: b.biaya_lain_lain_mata_uang,
           margin_mode: b.margin_mode || 'flat', margin_persen: b.margin_persen,
