@@ -700,7 +700,9 @@ export default function ProgramsPage() {
   }
 
   function setF(key, val) { setEditing(prev => ({ ...prev, [key]: val })); }
-  function setNum(key, val) { setEditing(prev => ({ ...prev, [key]: Number(String(val).replace(/\D/g, '')) })); }
+  // Bagian setelah koma desimal (format id-ID, mis. paste "26.250.000,00")
+  // dibuang dulu — kalau gak, ",00" ikut jadi digit dan angkanya membengkak.
+  function setNum(key, val) { setEditing(prev => ({ ...prev, [key]: Number(String(val).split(',')[0].replace(/\D/g, '')) })); }
 
   // Ujroh dibedakan dari KELAS (paket) saja, bukan tipe kamar — jadi 1
   // input per paket, berlaku sama ke semua tipe kamar paket itu.

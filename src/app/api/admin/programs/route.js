@@ -60,6 +60,32 @@ const SAHABAT_CLOSING = ['sahabat_closing_langsung_hop_nominal', 'sahabat_closin
 // tanggal manasik dikosongkan -> 500 "Incorrect date value").
 const KOLOM_DATE = ['tanggal_berangkat', 'manasik_tanggal'];
 
+// Batas wajar nominal rupiah per kolom (Rp100 miliar). Bug 2026-10-02: input
+// HPP yang diketik/di-paste di atas angka yang sudah ada bikin digitnya
+// nyambung (mis. 26250000000161997000) -> MariaDB "Out of range" -> 500.
+// Sekarang ditolak 400 dengan nama kolomnya.
+const NOMINAL_MAKS = 100_000_000_000;
+// HPP dicek duluan: harga = HPP + ujroh dihitung FE, jadi yang diketik user itu HPP-nya.
+const KOLOM_NOMINAL = [...HPP_COLS, ...UJROH_COLS, ...HARGA_COLS, 'dp', 'sahabat_closing_langsung_hop_nominal', 'sahabat_closing_nominal_closer'];
+const LABEL_PAKET = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
+function labelKolom(c) {
+  const m = c.match(/^(harga|hpp|ujroh)_(deluxe|eksekutif|signature)_(quad|triple|double)$/);
+  if (!m) return c;
+  const jenis = { harga: 'Harga', hpp: 'HPP', ujroh: 'Ujroh' }[m[1]];
+  return `${jenis} ${LABEL_PAKET[m[2]]} ${m[3][0].toUpperCase()}${m[3].slice(1)}`;
+}
+function cekNominal(body) {
+  for (const c of KOLOM_NOMINAL) {
+    const v = body[c];
+    if (v === undefined || v === null || v === '') continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0 || n > NOMINAL_MAKS) {
+      return `Nilai ${labelKolom(c)} tidak wajar (${String(v).slice(0, 25)}). Periksa lagi angkanya — maksimal Rp${NOMINAL_MAKS.toLocaleString('id-ID')}.`;
+    }
+  }
+  return null;
+}
+
 // Nilai kolom untuk INSERT/UPDATE (dipakai POST & PUT biar konsisten)
 function mapVals(cols, body) {
   return cols.map(c => {
@@ -155,6 +181,9 @@ export async function POST(request) {
       return Response.json({ error: 'Tanggal keberangkatan wajib diisi' }, { status: 400 });
     }
 
+    const salahNominal = cekNominal(body);
+    if (salahNominal) return Response.json({ error: salahNominal }, { status: 400 });
+
     // programs.id adalah UUID (DEFAULT uuid()), bukan auto_increment — generate
     // eksplisit di sini biar bisa langsung dikembalikan ke frontend
     // (result.insertId TIDAK berlaku untuk kolom UUID, selalu 0).
@@ -206,6 +235,9 @@ export async function PUT(request) {
     if (!body.tanggal_berangkat) {
       return Response.json({ error: 'Tanggal keberangkatan wajib diisi' }, { status: 400 });
     }
+
+    const salahNominal = cekNominal(body);
+    if (salahNominal) return Response.json({ error: salahNominal }, { status: 400 });
 
     const cols = [...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL, ...CUSTOM_HOTEL, ...MANASIK, ...SAHABAT_CLOSING];
     const setClause = cols.map(c => `${c} = ?`).join(', ');
