@@ -69,7 +69,7 @@ export async function GET(request) {
     // Akun baru (semua role non-staff) yang belum diverifikasi admin —
     // pengganti OTP registrasi. Yang sudah ditolak gak ikut.
     const pendingVerifikasi = users.filter(u =>
-      !u.terverifikasi && !['admin', 'super_admin'].includes(u.role) && u.status !== 'rejected'
+      !u.terverifikasi && !['admin', 'super_admin', 'hop'].includes(u.role) && u.status !== 'rejected'
     );
 
     // 6. Perlengkapan yang belum dikirim (DP confirmed, status belum
