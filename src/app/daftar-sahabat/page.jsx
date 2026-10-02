@@ -9,14 +9,15 @@ import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
 
 // Perekrut admin/super_admin ATAU Head of Program tercatat sebagai
-// "Management" (dikonfirmasi user 2026-09-27) — bukan "Tidak ada" (perekrut-nya
+// "Management Team" (dikonfirmasi user 2026-09-27, wording diupdate
+// 2026-10-02) — bukan "Tidak ada" (perekrut-nya
 // TETAP ada, cuma bukan sesama anggota sahabat). Selain itu tampilin nama
 // sahabat yang beneran merekrut apa adanya.
 function labelPerekrut(profil, pengaturan) {
   if (!profil?.perekrut_id) return '— Tidak ada —';
   const isManagement = ['admin', 'super_admin'].includes(profil.perekrut_role)
     || (pengaturan?.head_of_program_user_id && String(profil.perekrut_id) === String(pengaturan.head_of_program_user_id));
-  if (isManagement) return 'Management';
+  if (isManagement) return 'Management Team';
   return profil.perekrut_nama || '— Tidak ada —';
 }
 
