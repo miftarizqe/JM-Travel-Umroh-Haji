@@ -25,7 +25,10 @@ const errStatus = (message, status) => Object.assign(new Error(message), { statu
 /** @returns {Promise<{ pdfBuffer: Uint8Array, nomor: string, dokumen: string }>} */
 export async function buatPdfSpkAkUntukUser(pool, userId) {
   const [[user]] = await pool.query(
-    'SELECT id, name, wa, email, alamat, alamat_ktp, role, agama, no_paspor, metode_ttd_sahabat FROM users WHERE id = ?',
+    `SELECT id, name, wa, email, alamat, alamat_ktp, role, agama, no_paspor, metode_ttd_sahabat,
+            alamat_ktp_jalan, alamat_ktp_no_rumah, alamat_ktp_rt, alamat_ktp_rw,
+            alamat_ktp_kelurahan, alamat_ktp_kecamatan, alamat_ktp_kota, alamat_ktp_provinsi, alamat_ktp_negara
+     FROM users WHERE id = ?`,
     [userId]
   );
   if (!user) throw errStatus('Akun tidak ditemukan', 404);

@@ -155,12 +155,18 @@ export async function POST(req) {
               reg_metode = NULL, reg_jadwal = NULL, perekrut_id = ?,
               tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?,
               alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?, pekerjaan = ?,
+              alamat_ktp_jalan = ?, alamat_ktp_no_rumah = ?, alamat_ktp_rt = ?, alamat_ktp_rw = ?,
+              alamat_ktp_kelurahan = ?, alamat_ktp_kecamatan = ?, alamat_ktp_kota = ?,
+              alamat_ktp_provinsi = ?, alamat_ktp_negara = ?,
               bank = ?, no_rekening = ?, nama_pemilik_rekening = ?, foto_ktp_path = ?
        WHERE id = ?`,
       [
         perekrutIdFinal,
         tempat_lahir || null, tl, jk, ibu,
         alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null, pkj || null,
+        jalan || null, norumah || null, rt || null, rw || null,
+        kel || null, kec || null, kota || null,
+        provinsi || null, negara || null,
         bank, norek, pemilik, foto_ktp_path,
         user_id,
       ]

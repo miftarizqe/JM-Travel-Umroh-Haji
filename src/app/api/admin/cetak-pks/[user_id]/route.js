@@ -18,6 +18,8 @@ export async function GET(request, { params }) {
     const { user_id } = await params;
     const [rows] = await pool.query(
       `SELECT id, name, nik, wa, email, alamat, alamat_ktp, alamat_domisili, role, kode_unik,
+              alamat_ktp_jalan, alamat_ktp_no_rumah, alamat_ktp_rt, alamat_ktp_rw,
+              alamat_ktp_kelurahan, alamat_ktp_kecamatan, alamat_ktp_kota, alamat_ktp_provinsi, alamat_ktp_negara,
               no_perjanjian_kerjasama, perekrut_id, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu,
               pekerjaan, kode_pos, bank, no_rekening, nama_pemilik_rekening, created_at,
               dokumen_pks_fisik_path, dokumen_pks_fisik_uploaded_at,
@@ -38,7 +40,13 @@ export async function GET(request, { params }) {
 
     let perekrut = null;
     if (u.perekrut_id) {
-      const [pr] = await pool.query('SELECT name, nik, wa, alamat, alamat_ktp FROM users WHERE id = ?', [u.perekrut_id]);
+      const [pr] = await pool.query(
+        `SELECT name, nik, wa, alamat, alamat_ktp,
+                alamat_ktp_jalan, alamat_ktp_no_rumah, alamat_ktp_rt, alamat_ktp_rw,
+                alamat_ktp_kelurahan, alamat_ktp_kecamatan, alamat_ktp_kota, alamat_ktp_provinsi, alamat_ktp_negara
+         FROM users WHERE id = ?`,
+        [u.perekrut_id]
+      );
       perekrut = pr[0] || null;
       if (perekrut) perekrut.alamat = perekrut.alamat_ktp || perekrut.alamat;
     }

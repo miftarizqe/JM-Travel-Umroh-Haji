@@ -161,12 +161,18 @@ export async function POST(req) {
     await db.query(
       `UPDATE users SET perekrut_id = ?, tempat_lahir = ?, tanggal_lahir = ?,
               jenis_kelamin = ?, nama_ibu = ?, alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?,
+              alamat_ktp_jalan = ?, alamat_ktp_no_rumah = ?, alamat_ktp_rt = ?, alamat_ktp_rw = ?,
+              alamat_ktp_kelurahan = ?, alamat_ktp_kecamatan = ?, alamat_ktp_kota = ?,
+              alamat_ktp_provinsi = ?, alamat_ktp_negara = ?,
               pekerjaan = ?, bank = ?, no_rekening = ?, nama_pemilik_rekening = ?,
               no_paspor = ?, tempat_keluar_paspor = ?, masa_berlaku_paspor_dari = ?, masa_berlaku_paspor_sampai = ?, foto_paspor_path = ?
        WHERE id = ?`,
       [
         perekrutIdFinal, tempat_lahir || null, tl || null,
         jk || null, ibu || null, alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null,
+        jalan || null, norumah || null, rt || null, rw || null,
+        kel || null, kec || null, kota || null,
+        provinsi || null, negara || null,
         pkj || null, bank || null, norek || null, pemilik || null,
         no_paspor?.trim() || null, tempat_keluar_paspor || null, masa_berlaku_paspor_dari || null, masa_berlaku_paspor_sampai || null, foto_paspor_path || null,
         user_id,
