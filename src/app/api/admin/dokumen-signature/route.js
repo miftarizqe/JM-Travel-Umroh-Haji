@@ -211,7 +211,7 @@ export async function kirimDokumenRangkapUntukTtd({ dokumen, refId, actorUser, b
   const requestedBy = isAdmin ? actorUser.id : null;
   const data = await siapkanData(dokumen, refId);
 
-  const labelDokumen = dokumen === 'spka_ins' ? 'SPKA-Ins' : dokumen === 'spk_ak' ? 'SPK-AK' : 'Surat Perjanjian Referral Non-Muslim';
+  const labelDokumen = dokumen === 'spka_ins' ? 'SPKA-Ins' : dokumen === 'spk_ak' ? 'Surat Perjanjian Jamaah Sahabat Baitullah' : 'Surat Perjanjian Referral Non-Muslim';
   const namaEksternal = dokumen === 'spka_ins' ? 'Perwakilan' : 'Jamaah Sahabat Baitullah';
 
   const hasil = [];
@@ -278,7 +278,7 @@ export async function kirimSpkAkTunggalUntukTtd({ dokumen, refId, actorUser, bas
   }
   const [[pendaftaranSahabat]] = await pool.query('SELECT bukti_tf_verified_at FROM sahabat_pendaftaran WHERE user_id = ?', [refId]);
   if (!pendaftaranSahabat?.bukti_tf_verified_at) {
-    throw Object.assign(new Error('Unggah bukti transfer Rp1.000.000 terlebih dahulu sebelum tanda tangan SPK-AK'), { status: 400 });
+    throw Object.assign(new Error('Unggah bukti transfer Rp1.000.000 terlebih dahulu sebelum tanda tangan Surat Perjanjian Jamaah Sahabat Baitullah'), { status: 400 });
   }
   user.alamat = user.alamat_ktp || user.alamat;
 
@@ -303,7 +303,7 @@ export async function kirimSpkAkTunggalUntukTtd({ dokumen, refId, actorUser, bas
     materaiCount: 2, requestedBy, baseUrl, autoSelesai: false,
   });
 
-  const labelDokumen = dokumen === 'spk_ak' ? 'SPK-AK' : 'Surat Perjanjian Referral Non-Muslim';
+  const labelDokumen = dokumen === 'spk_ak' ? 'Surat Perjanjian Jamaah Sahabat Baitullah' : 'Surat Perjanjian Referral Non-Muslim';
   await catatAudit(pool, {
     actor: actorUser, aksi: 'dokumen_signature_dikirim', target_type: dokumen, target_id: String(refId),
     keterangan: `${labelDokumen} (1 rangkap, template final) dikirim untuk TTD digital (provider mock) — 2x materai, menunggu TTD Jamaah/Agen.`,

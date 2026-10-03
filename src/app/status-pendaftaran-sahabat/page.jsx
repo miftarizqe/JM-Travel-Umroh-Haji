@@ -265,10 +265,10 @@ export default function StatusPendaftaranSahabatPage() {
             BUKAN spk_ak_selesai (materai+TTD beneran, baru diproses server
             pas admin klik "Aktifkan" di ujung, dikonfirmasi user 2026-09-28
             biar e-materai gak kebakar duluan). */}
-        <Item done={prasyarat.spk_ak_disetujui} label="SPK-AK — Surat Perjanjian Jamaah Sahabat Baitullah">
+        <Item done={prasyarat.spk_ak_disetujui} label="Surat Perjanjian Jamaah Sahabat Baitullah">
           {!prasyarat.spk_ak_disetujui && (
             <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
-              Baca & Setujui SPK-AK →
+              Baca & Setujui Surat Perjanjian Jamaah Sahabat Baitullah →
             </button>
           )}
           {prasyarat.spk_ak_disetujui && (
@@ -279,7 +279,7 @@ export default function StatusPendaftaranSahabatPage() {
         </Item>
 
         <Item done={prasyarat.bukti_tf_verified} label={prasyarat.bukti_tf_verified ? 'Bukti transfer terunggah' : 'Unggah bukti transfer Rp1.000.000'}>
-          {!prasyarat.spk_ak_disetujui && <div className="text-xs text-gray-400">Baca & setujui SPK-AK dulu di atas.</div>}
+          {!prasyarat.spk_ak_disetujui && <div className="text-xs text-gray-400">Baca & setujui Surat Perjanjian Jamaah Sahabat Baitullah dulu di atas.</div>}
           {prasyarat.spk_ak_disetujui && !prasyarat.bukti_tf_uploaded && (
             <div className="space-y-2">
               {rekeningSahabat.length > 0 && (
@@ -470,20 +470,24 @@ export default function StatusPendaftaranSahabatPage() {
             gabungan "pilih metode TTD" + "cetak & kirim/unggah ketiga
             dokumen" (SPK-AK, SK-CIF, Surat Pemblokiran) jadi SATU step,
             biar jamaah gak bolak-balik ke 2 tempat kayak sebelumnya (SPK-AK
-            dulu dicetak terpisah dari SK-CIF+Pemblokiran). SPK-AK sekarang
-            CUMA 1 rangkap dari sisi jamaah (TTD + materai di kolom Pihak
-            Kedua/jamaah sendiri) — skema 2 rangkap + "kirim balik dari
-            kantor" yang lama DICABUT dari tampilan jamaah, itu sekarang
-            murni urusan arsip internal kantor. Ketiga dokumen jadi SATU
-            tempat baca/unduh via /api/sahabat/dokumen-legal/unduh-lengkap
-            (gabungan 3 file), SELAIN unduhan terpisah yang sudah ada. */}
-        <Item done={metodeTtdSelesai} label="Metode TTD & Kirim Dokumen (SPK-AK, SK-CIF & Surat Pemblokiran)">
+            dulu dicetak terpisah dari SK-CIF+Pemblokiran). SPK-AK (Muslim)
+            BALIK LAGI jadi 2 RANGKAP fisik (dikonfirmasi user 2026-10-03,
+            supersede catatan "1 rangkap" 2026-10-02 di atas) — 1 rangkap
+            materai+TTD di sisi JAMAAH (ujungnya disimpan kantor), 1 rangkap
+            materai+TTD di sisi MANAGEMENT (ujungnya balik ke jamaah),
+            digabung otomatis jadi 1 file PDF 12 halaman lewat
+            buatPdfSpkAkUntukUser (lihat spkAkUntukUser.js) — SPK-AK
+            Non-Muslim belum dapat template 2-rangkap, masih 1 dokumen.
+            Ketiga jenis dokumen tetap jadi SATU tempat baca/unduh via
+            /api/sahabat/dokumen-legal/unduh-lengkap, SELAIN unduhan
+            terpisah yang sudah ada. */}
+        <Item done={metodeTtdSelesai} label="Metode TTD & Kirim Dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran)">
           {!prasyarat.setuju_sk_cif_pemblokiran && <div className="text-xs text-gray-400">Baca & setujui SK-CIF & Surat Kuasa Blokir Rekening dulu di atas.</div>}
 
           {prasyarat.setuju_sk_cif_pemblokiran && (
             <div className="space-y-3">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
-                📌 Siapkan <b>3 lembar Materai Rp10.000</b> — masing-masing 1 untuk SPK-AK, SK-CIF, dan Surat Pemblokiran.
+                📌 Siapkan <b>3 lembar Materai Rp10.000</b> — masing-masing 1 untuk Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF, dan Surat Pemblokiran.
               </div>
 
               {/* Metode TTD WAJIB dipilih DULU (dikonfirmasi user 2026-10-03)
@@ -516,7 +520,7 @@ export default function StatusPendaftaranSahabatPage() {
               {u.metode_ttd_sahabat === 'kantor' && (
                 <div className="text-xs text-gray-500 space-y-1">
                   <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD ketiga dokumen langsung.</div>
-                  <div>Jangan lupa bawa 3 materai (SPK-AK, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.</div>
+                  <div>Jangan lupa bawa 3 materai (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.</div>
                   <button onClick={() => { setTanggalKunjunganInput(''); pilihMetodeTtd('kirim'); }} disabled={savingMetodeTtd}
                     className="text-[10px] text-gray-400 underline">Ganti jadi cetak &amp; kirim sendiri</button>
                 </div>
@@ -526,7 +530,7 @@ export default function StatusPendaftaranSahabatPage() {
                 <div className="space-y-3">
                   <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
                     <div className="text-xs font-bold text-[#0E2F6E]">📑 Dokumen Lengkap Sahabat Baitullah</div>
-                    <div className="text-[10px] text-gray-500">Ketiga dokumen (SPK-AK, SK-CIF, Surat Pemblokiran) bisa dibaca & diunduh di sini kapan saja.</div>
+                    <div className="text-[10px] text-gray-500">Ketiga dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF, Surat Pemblokiran) bisa dibaca & diunduh di sini kapan saja.</div>
                     <PdfDokumenResmi url="/api/sahabat/dokumen-legal/unduh-lengkap" tinggi="50vh" />
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
                       <button onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
@@ -534,7 +538,7 @@ export default function StatusPendaftaranSahabatPage() {
                         ⬇️ Unduh Dokumen Lengkap (3 Dokumen)
                       </button>
                       <span className="text-[10px] text-gray-400">atau unduh terpisah:</span>
-                      <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline">SPK-AK</button>
+                      <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline">Surat Perjanjian Jamaah Sahabat Baitullah</button>
                       <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50">
                         {generatingPdfSkCif ? 'Membuat...' : 'SK-CIF & Surat Pemblokiran'}
                       </button>
@@ -548,7 +552,7 @@ export default function StatusPendaftaranSahabatPage() {
                   <div className="text-xs text-gray-500">
                     📄 Print, TTD di atas materai asli pada kolom TTD Anda, lalu kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.
                   </div>
-                  <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum JM Travel, saya membutuhkan bantuan terkait SPK-AK, SK-CIF & Surat Pemblokiran.') || '#'}
+                  <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum JM Travel, saya membutuhkan bantuan terkait Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran.') || '#'}
                     target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs">
                     Hubungi Admin via WhatsApp
                   </a>
@@ -579,14 +583,14 @@ export default function StatusPendaftaranSahabatPage() {
                 <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
                   {u.metode_ttd_sahabat === 'kantor'
                     ? `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan setelah Anda TTD ketiga dokumen langsung di kantor pada tanggal yang dipilih.`
-                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Dokumen fisik asli (SPK-AK, SK-CIF & Surat Pemblokiran) yang Anda kirim sudah diterima & dikonfirmasi oleh kantor JM Travel.`}
+                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran) yang Anda kirim sudah diterima & dikonfirmasi oleh kantor JM Travel.`}
                 </div>
               </>
             ) : (
               <>
                 <div className="font-bold text-[#0E2F6E]">Persyaratan Utama Telah Lengkap</div>
                 <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
-                  Data Anda sudah dapat ditinjau oleh admin. Agar proses aktivasi akun dapat diselesaikan, pastikan Anda sudah mengirim dokumen fisik asli (SPK-AK, SK-CIF & Surat Pemblokiran) yang sudah ditandatangani di atas materai asli ke kantor JM Travel — akun akan diaktifkan setelah kantor mengonfirmasi dokumen tersebut diterima.
+                  Data Anda sudah dapat ditinjau oleh admin. Agar proses aktivasi akun dapat diselesaikan, pastikan Anda sudah mengirim dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran) yang sudah ditandatangani di atas materai asli ke kantor JM Travel — akun akan diaktifkan setelah kantor mengonfirmasi dokumen tersebut diterima.
                 </div>
               </>
             )}

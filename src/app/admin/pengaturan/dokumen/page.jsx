@@ -50,7 +50,7 @@ const SIGNER_SK_CIF_FIELDS = [
 const DOKUMEN_LIST = [
   { key: 'spka_ins', label: 'SPK-PWK (Perwakilan)' },
   { key: 'jamaah', label: 'SPJ (Perjanjian Jamaah)' },
-  { key: 'spk_ak', label: 'SPK-AK (Jamaah Sahabat Baitullah)' },
+  { key: 'spk_ak', label: 'Surat Perjanjian Jamaah Sahabat Baitullah' },
   { key: 'spk_ak_nonis', label: 'Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
   { key: 'sk_cif', label: 'SK-CIF (Sahabat Baitullah)' },
   { key: 'surat_pemblokiran', label: 'Surat Pemblokiran Rekening (Sahabat Baitullah)' },
@@ -602,7 +602,7 @@ export default function AdminPengaturanDokumenPage() {
           efek samping kayak absolute positioning. */}
       <div className="no-print">
       <div className="text-xs text-gray-400 mb-4">
-        Kumpulan pengaturan buat dokumen legal (SPK-PWK/SPJ/SPK-AK/SK-CIF) — penandatangan & isi pasal, gak perlu ubah kode lagi.
+        Kumpulan pengaturan buat dokumen legal (SPK-PWK/SPJ/Surat Perjanjian Jamaah Sahabat Baitullah/SK-CIF) — penandatangan & isi pasal, gak perlu ubah kode lagi.
       </div>
 
       {/* PENANDATANGAN */}
@@ -655,9 +655,9 @@ export default function AdminPengaturanDokumenPage() {
 
         <hr className="border-gray-100 my-4" />
 
-        <div className="font-bold text-[#0E2F6E] mb-1">🤝 Penandatangan SPK-AK (Sahabat Baitullah)</div>
+        <div className="font-bold text-[#0E2F6E] mb-1">🤝 Penandatangan Surat Perjanjian Jamaah Sahabat Baitullah</div>
         <div className="text-xs text-gray-400 mb-3">
-          Pihak Management JM Travel (Pihak Pertama) di SPK-AK maupun Surat Perjanjian Referral Non-Muslim (dipakai bersama, sama-sama Pihak Pertama) — Pihak Ketiga (Head of Program) diatur terpisah lewat halaman Pengaturan Komisi Sahabat.
+          Pihak Management JM Travel (Pihak Pertama) di Surat Perjanjian Jamaah Sahabat Baitullah maupun Surat Perjanjian Referral Non-Muslim (dipakai bersama, sama-sama Pihak Pertama) — Pihak Ketiga (Head of Program) diatur terpisah lewat halaman Pengaturan Komisi Sahabat.
         </div>
         <div className="grid sm:grid-cols-2 gap-3 mb-3">
           {SIGNER_SPK_AK_FIELDS.map(f => (

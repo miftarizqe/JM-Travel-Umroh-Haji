@@ -34,7 +34,7 @@ function syaratBelum(p) {
   // Sinkron sama validasi PATCH /api/status-pendaftaran-sahabat action=advance.
   if (p.status === 'menunggu_sk_cif') {
     return [
-      !p.spk_ak_selesai && 'SPK-AK',
+      !p.spk_ak_selesai && 'Surat Perjanjian Jamaah Sahabat Baitullah',
       !p.setuju_sk_cif_pemblokiran_at && 'Baca & Setuju SK-CIF/Surat Blokir',
     ].filter(Boolean);
   }
@@ -222,7 +222,7 @@ export default function AdminSahabatPage() {
                 ) : <span className="text-red-500 font-bold">⏳ Belum diunggah</span>}
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>{detail.agama === 'non_islam' ? 'Surat Perjanjian Referral Non-Muslim' : 'SPK-AK'} selesai ditandatangani</span>
+                <span>{detail.agama === 'non_islam' ? 'Surat Perjanjian Referral Non-Muslim' : 'Surat Perjanjian Jamaah Sahabat Baitullah'} selesai ditandatangani</span>
                 {detail.spk_ak_selesai ? (
                   detail.spk_ak_doc_path ? (
                     <a href={detail.spk_ak_doc_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
@@ -250,7 +250,7 @@ export default function AdminSahabatPage() {
                   buat metode 'kirim' — 'kantor' gak butuh ini sama sekali,
                   dokumennya diserahkan & ditandatangani langsung di tempat. */}
               {detail.metode_ttd_sahabat === 'kirim' && [
-                { label: 'Dokumen Fisik SPK-AK Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik' },
+                { label: 'Dokumen Fisik Surat Perjanjian Jamaah Sahabat Baitullah Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik' },
                 { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik' },
                 { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik' },
               ].map(({ label, field, action }) => (

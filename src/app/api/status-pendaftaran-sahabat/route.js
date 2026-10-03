@@ -210,7 +210,7 @@ export async function PATCH(request) {
         'UPDATE users SET dokumen_spk_ak_fisik_diterima_at = ? WHERE id = ?',
         [body.value ? new Date() : null, user_id]
       );
-      return Response.json({ message: 'Status dokumen SPK-AK fisik diperbarui.' });
+      return Response.json({ message: 'Status dokumen Surat Perjanjian Jamaah Sahabat Baitullah fisik diperbarui.' });
     }
 
     // Tracking "1 rangkap SPK-AK yang sudah di-TTD & di-materai kantor udah
@@ -222,7 +222,7 @@ export async function PATCH(request) {
         'UPDATE users SET dokumen_spk_ak_dikirim_balik_at = ? WHERE id = ?',
         [body.value ? new Date() : null, user_id]
       );
-      return Response.json({ message: 'Status pengiriman balik SPK-AK diperbarui.' });
+      return Response.json({ message: 'Status pengiriman balik Surat Perjanjian Jamaah Sahabat Baitullah diperbarui.' });
     }
 
     if (action === 'advance') {
@@ -271,7 +271,7 @@ export async function PATCH(request) {
         // lagi (dikonfirmasi user 2026-09-28) — itu justru baru DIPROSES di
         // titik ini (lihat pemanggilan kirimDokumenRangkapUntukTtd di bawah).
         // Syaratnya sekarang cuma "udah setuju" (checkbox di /pks).
-        if (!u.setuju_pks) return Response.json({ error: 'SPK-AK belum disetujui jamaah' }, { status: 400 });
+        if (!u.setuju_pks) return Response.json({ error: 'Surat Perjanjian Jamaah Sahabat Baitullah belum disetujui jamaah' }, { status: 400 });
         if (!p.bukti_tf_verified_at) return Response.json({ error: 'Bukti transfer belum diverifikasi' }, { status: 400 });
         if (!u.no_rekening_tabungan_umroh) return Response.json({ error: 'Rekening Tabungan Umroh belum diisi' }, { status: 400 });
         // No. CIF BSI DICABUT dari syarat (dikonfirmasi user 2026-09-27) —

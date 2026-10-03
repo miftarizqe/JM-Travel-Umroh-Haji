@@ -5,7 +5,14 @@
 // HoP). Varian dipilih dari agama akun, nomor surat dibekukan sekali
 // (ambilAtauBuatNomorSurat, idempotent). Jalur TTD digital punya generator
 // sendiri di /api/admin/dokumen-signature tapi template-nya sama persis.
-import { generateSpkAkPdf } from './spkAkOverlay';
+//
+// SPK-AK (Muslim) SEKARANG 2 RANGKAP (dikonfirmasi user 2026-10-03) — hasil
+// akhir fungsi ini buat dokumen='spk_ak' adalah GABUNGAN 2 PDF (rangkap
+// jamaah + rangkap management) jadi SATU file berurutan, lihat
+// generateSpkAkRangkapPdf di spkAkOverlay.js. SPK-AK Non-Muslim BELUM dapat
+// template 2-rangkap baru, tetap 1 dokumen seperti sebelumnya.
+import { generateSpkAkPdf, generateSpkAkRangkapPdf } from './spkAkOverlay';
+import { mergePdfBuffers } from './dokumenSahabatGabungan';
 import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -28,13 +35,38 @@ export async function buatPdfSpkAkUntukUser(pool, userId) {
   const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
 
   const sekarang = new Date();
-  const pdfBuffer = await generateSpkAkPdf({
-    dokumen, nomor,
+  const dataUmum = {
+    nomor,
     nama: user.name, alamat: user.alamat_ktp || user.alamat || '-', noTelepon: user.wa || '-', noPaspor: user.no_paspor || '-',
     namaTtd: user.name,
     hari: HARI_ID[sekarang.getDay()],
     tanggal: `${sekarang.getDate()} ${BULAN_ID[sekarang.getMonth()]} ${sekarang.getFullYear()}`,
-  });
+  };
+
+  if (dokumen === 'spk_ak') {
+    // Target Impian (program + harga) WAJIB diisi jamaah sejak pendaftaran
+    // (lihat daftar-sahabat/page.jsx) — program_id SELALU ada di titik ini.
+    const [[pendaftaran]] = await pool.query(
+      `SELECT sp.target_estimasi_harga, p.tanggal_berangkat
+       FROM sahabat_pendaftaran sp LEFT JOIN programs p ON p.id = sp.program_id
+       WHERE sp.user_id = ? ORDER BY sp.id DESC LIMIT 1`,
+      [userId]
+    );
+    const berangkat = pendaftaran?.tanggal_berangkat ? new Date(pendaftaran.tanggal_berangkat) : null;
+    const dataRangkap = {
+      ...dataUmum,
+      targetBulanTahun: berangkat ? `${BULAN_ID[berangkat.getMonth()]} ${berangkat.getFullYear()}` : '-',
+      nominalTarget: pendaftaran?.target_estimasi_harga ? Number(pendaftaran.target_estimasi_harga).toLocaleString('id-ID') : '-',
+    };
+    const [rangkapJamaah, rangkapManagement] = await Promise.all([
+      generateSpkAkRangkapPdf('jamaah', dataRangkap),
+      generateSpkAkRangkapPdf('management', dataRangkap),
+    ]);
+    const pdfBuffer = await mergePdfBuffers([rangkapJamaah, rangkapManagement]);
+    return { pdfBuffer, nomor, dokumen };
+  }
+
+  const pdfBuffer = await generateSpkAkPdf({ dokumen, ...dataUmum });
   return { pdfBuffer, nomor, dokumen };
 }
 

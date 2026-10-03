@@ -282,7 +282,7 @@ export default function ProfilPage() {
                 <div className="text-[10px] text-gray-400">Dokumen yang sudah ditandatangani (scan):</div>
                 {user.dokumen?.spk_ak && (
                   <a href={user.dokumen.spk_ak} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-bold text-green-700">✅ SPK-AK (PKS) →</a>
+                    className="flex items-center gap-1.5 text-xs font-bold text-green-700">✅ Surat Perjanjian Jamaah Sahabat Baitullah →</a>
                 )}
                 {user.dokumen?.sk_cif && (
                   <a href={user.dokumen.sk_cif} target="_blank" rel="noopener noreferrer"

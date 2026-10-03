@@ -781,7 +781,7 @@ export default function DatabaseJamaahPage() {
                         halaman Pendaftaran yang beda konteks — "SPK-AK
                         selesai ditandatangani", bukan setuju_pks). */}
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
-                      <span>Baca & Setuju Surat Perjanjian Kerjasama (SPK-AK)</span>
+                      <span>Baca & Setuju Surat Perjanjian Jamaah Sahabat Baitullah</span>
                       {j.setuju_pks ? (
                         <span className="text-green-600 font-bold">✅ Ya</span>
                       ) : <span className="text-gray-400">⏳ Belum</span>}
@@ -848,7 +848,7 @@ export default function DatabaseJamaahPage() {
                     {j.metode_ttd_sahabat === 'kirim' && (
                       <>
                         {[
-                          { label: 'Dokumen Fisik SPK-AK Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik' },
+                          { label: 'Dokumen Fisik Surat Perjanjian Jamaah Sahabat Baitullah Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik' },
                           { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik' },
                           { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik' },
                         ].map(({ label, field, action }) => (
@@ -875,7 +875,7 @@ export default function DatabaseJamaahPage() {
                         tempat, gak ada apa-apa buat "dikirim balik". */}
                     {j.metode_ttd_sahabat !== 'kantor' && j.dokumen_spk_ak_fisik_path && (
                       <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
-                        <span>SPK-AK Dikirim Balik ke Jamaah</span>
+                        <span>Surat Perjanjian Jamaah Sahabat Baitullah Dikirim Balik ke Jamaah</span>
                         {isHop ? (
                           <span className={j.dokumen_spk_ak_dikirim_balik_at ? 'text-green-600 font-bold' : 'text-gray-400'}>
                             {j.dokumen_spk_ak_dikirim_balik_at ? '✅ Sudah' : '⏳ Belum'}

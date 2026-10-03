@@ -42,8 +42,8 @@ export async function PATCH(request) {
       tipe: 'sahabat_metode_ttd',
       judul: metode === 'kantor' ? 'Jamaah Sahabat Baitullah Mau Datang ke Kantor' : 'Jamaah Sahabat Baitullah Pilih Cetak & Kirim Sendiri',
       pesan: metode === 'kantor'
-        ? `${user.name} rencana datang ke kantor pada ${new Date(tanggal_kunjungan).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} untuk TTD SPK-AK, SK-CIF & Surat Pemblokiran — siapkan dokumennya (bisa dicetak dari Database Jamaah).`
-        : `${user.name} akan cetak & kirim sendiri SPK-AK, SK-CIF & Surat Pemblokiran yang sudah ditandatangani.`,
+        ? `${user.name} rencana datang ke kantor pada ${new Date(tanggal_kunjungan).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} untuk TTD Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran — siapkan dokumennya (bisa dicetak dari Database Jamaah).`
+        : `${user.name} akan cetak & kirim sendiri Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran yang sudah ditandatangani.`,
       link: '/admin/sahabat/database',
     }).catch(() => {});
 

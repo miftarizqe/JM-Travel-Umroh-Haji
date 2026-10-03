@@ -9,7 +9,7 @@ import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 export default function CetakSpkAk() {
   const params = useParams();
   return (
-    <Layout title="🖨️ SPK-AK (Dokumen Resmi)" showBack>
+    <Layout title="🖨️ Surat Perjanjian Jamaah Sahabat Baitullah (Dokumen Resmi)" showBack>
       <PdfDokumenResmi url={`/api/admin/cetak-spk-ak/${params.user_id}`} tinggi="80vh" />
     </Layout>
   );
