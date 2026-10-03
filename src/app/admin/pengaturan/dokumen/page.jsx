@@ -2,6 +2,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import {
   renderPasalBlock, renderBlockNode, renderListItemNode, parsePasalMarkup, SignatureBlokBank, SignatureBlokKuasa,
@@ -62,9 +63,16 @@ const DOKUMEN_LIST = [
 // LAGI (dikonfirmasi user 2026-10-03), PDF di iframe gak kebaca di
 // Android/Samsung Browser buat layar baca+setuju jamaah. Isi pasal di sini
 // sekarang KHUSUS buat layar baca jamaah — cetak/TTD fisik TETAP pakai
-// template PDF resmi (tombol "Download PDF Template" tetap ada di preview
-// dokumen lengkap di bawah), gak kesentuh.
+// template PDF resmi, gak kesentuh.
 const DOKUMEN_TERKUNCI = [];
+
+// Ke-4 dokumen ini TETAP dicetak/diunduh orang pakai template PDF resmi
+// (dikonfirmasi user 2026-10-03, bukan pasal) — jadi tombol "Lihat Preview
+// Dokumen Lengkap" buat dokumen ini HARUS nampilin PDF asli itu juga (bukan
+// PreviewDokumenLengkap yang WYSIWYG dari pasal ketikan admin), biar admin
+// gak ketuker preview-nya dengan dokumen yang beneran dicetak/ditandatangani.
+// Pasal yang diketik di tab ini TETAP cuma buat layar baca jamaah.
+const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'];
 
 // Judul & nomor contoh yang ditampilkan di atas Preview Dokumen Lengkap —
 // SAMA seperti judul yang muncul di halaman cetak beneran (cetak-pks-mitra,
@@ -763,6 +771,12 @@ export default function AdminPengaturanDokumenPage() {
         ))}
       </div>
 
+      {!loadingPasal && DOKUMEN_PDF_RESMI.includes(dokumen) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
+          ℹ️ Dokumen resmi yang DICETAK/DIUNDUH orang (jamaah, admin) buat dokumen ini TETAP PDF template (dibuat developer) — pasal di bawah ini CUMA dipakai buat layar baca &amp; setuju jamaah (biar kebaca jelas di HP, termasuk Android), tidak menggantikan PDF resminya.
+        </div>
+      )}
+
       {!loadingPasal && !DOKUMEN_TERKUNCI.includes(dokumen) && (
         <button onClick={() => setShowPreviewDokumen(v => !v)}
           className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-1.5 rounded-full mb-4">
@@ -772,8 +786,14 @@ export default function AdminPengaturanDokumenPage() {
 
       </div>
 
-      {!loadingPasal && showPreviewDokumen && signerForm && !DOKUMEN_TERKUNCI.includes(dokumen) && (
-        <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
+      {!loadingPasal && showPreviewDokumen && signerForm && (
+        DOKUMEN_PDF_RESMI.includes(dokumen) ? (
+          <div className="mb-6">
+            <PdfDokumenResmi key={dokumen} url={`/api/admin/pasal/contoh-pdf?dokumen=${dokumen}`} tinggi="80vh" />
+          </div>
+        ) : (
+          <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
+        )
       )}
 
       <div className="no-print">
