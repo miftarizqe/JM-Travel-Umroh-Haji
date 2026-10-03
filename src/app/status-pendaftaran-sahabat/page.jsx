@@ -585,7 +585,7 @@ export default function StatusPendaftaranSahabatPage() {
               {u.metode_ttd_sahabat === 'kantor' && (
                 <div className="text-xs text-gray-500 space-y-1">
                   <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD ketiga dokumen langsung.</div>
-                  <div>Jangan lupa bawa 3 materai (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.</div>
+                  <div>Jangan lupa bawa 3 materai (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.{u.bantuan_bsi_manual_disetujui_at && <> Formulir Pendaftaran Rekening BSI ikut disiapkan juga, gak perlu materai.</>}</div>
                   <button onClick={() => { setTanggalKunjunganInput(''); pilihMetodeTtd('kirim'); }} disabled={savingMetodeTtd}
                     className="text-[10px] text-gray-400 underline">Ganti jadi cetak &amp; kirim sendiri</button>
                 </div>
@@ -595,12 +595,16 @@ export default function StatusPendaftaranSahabatPage() {
                 <div className="space-y-3">
                   <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
                     <div className="text-xs font-bold text-[#0E2F6E]">📑 Dokumen Lengkap Sahabat Baitullah</div>
-                    <div className="text-[10px] text-gray-500">Ketiga dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF, Surat Pemblokiran) bisa dibaca & diunduh di sini kapan saja.</div>
+                    <div className="text-[10px] text-gray-500">
+                      {u.bantuan_bsi_manual_disetujui_at
+                        ? 'Keempat dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF, Surat Pemblokiran, Formulir Pendaftaran Rekening BSI) bisa dibaca & diunduh di sini kapan saja.'
+                        : 'Ketiga dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF, Surat Pemblokiran) bisa dibaca & diunduh di sini kapan saja.'}
+                    </div>
                     <PdfDokumenResmi url="/api/sahabat/dokumen-legal/unduh-lengkap" tinggi="50vh" />
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
                       <button onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
                         className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
-                        ⬇️ Unduh Dokumen Lengkap (3 Dokumen)
+                        ⬇️ Unduh Dokumen Lengkap ({u.bantuan_bsi_manual_disetujui_at ? 4 : 3} Dokumen)
                       </button>
                       <span className="text-[10px] text-gray-400">atau unduh terpisah:</span>
                       <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline">Surat Perjanjian Jamaah Sahabat Baitullah</button>
