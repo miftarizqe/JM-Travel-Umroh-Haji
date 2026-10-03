@@ -114,11 +114,15 @@ export async function GET(request) {
     // perilaku lama, cuma sekarang lewat query agregat ringan, bukan
     // dari array penuh yang di-fetch ke client.
     const [ringkasanRows] = await pool.query(
-      `SELECT u.status AS user_status, kp.target_estimasi_harga, COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh
+      `SELECT u.status AS user_status, u.kode_unik, kp.target_estimasi_harga, COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh
        ${baseFrom}`
     );
-    const ringkasan = { total: ringkasanRows.length, aktif: 0, proses: 0, siap_berangkat: 0 };
+    const ringkasan = { total: 0, aktif: 0, proses: 0, siap_berangkat: 0 };
     for (const r of ringkasanRows) {
+      // "Total" cuma yang beneran punya kode_unik (dikonfirmasi user
+      // 2026-10-03) -- kode_unik baru keluar begitu akun 'active', jadi
+      // yang ditolak/masih proses (belum punya nomor) gak ikut dihitung.
+      if (r.kode_unik) ringkasan.total++;
       if (r.user_status === 'active') ringkasan.aktif++;
       if (r.user_status === 'pending') ringkasan.proses++;
       const p = persenKesiapan(r.saldo_tabungan_umroh, r.target_estimasi_harga);

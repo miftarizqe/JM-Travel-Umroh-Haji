@@ -511,7 +511,7 @@ export default function DatabaseJamaahPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
         <button onClick={() => setFilterStatus('semua')} className="bg-white rounded-xl border border-gray-200 p-3 text-center hover:border-[#1A4FA0] transition-colors">
           <div className="text-xl font-bold text-[#0E2F6E]">{ringkasan.total}</div>
-          <div className="text-[10px] text-gray-400">Total Jamaah</div>
+          <div className="text-[10px] text-gray-400">Total Jamaah Sahabat Baitullah</div>
         </button>
         <button onClick={() => setFilterStatus('active')} className="bg-white rounded-xl border border-gray-200 p-3 text-center hover:border-[#1A4FA0] transition-colors">
           <div className="text-xl font-bold text-green-600">{ringkasan.aktif}</div>
