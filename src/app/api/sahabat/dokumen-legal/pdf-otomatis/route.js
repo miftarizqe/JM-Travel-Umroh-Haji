@@ -20,7 +20,7 @@ export async function POST(request) {
   try {
     const pdfBuffer = await buatPdfSkCifPemblokiranUntukUser(pool, auth.user.id);
     return new Response(pdfBuffer, {
-      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="SK-CIF-dan-Surat-Pemblokiran.pdf"' },
+      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="SK-CIF-dan-Surat-Pemblokiran.pdf"', 'Cache-Control': 'no-store' },
     });
   } catch (error) {
     if (error.status) return Response.json({ error: error.message }, { status: error.status });

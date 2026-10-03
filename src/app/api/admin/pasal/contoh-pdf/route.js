@@ -93,6 +93,7 @@ export async function GET(request) {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `inline; filename="contoh-${dokumen}.pdf"`,
+        'Cache-Control': 'no-store',
       },
     });
   } catch (error) {

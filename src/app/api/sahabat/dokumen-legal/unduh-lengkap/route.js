@@ -36,7 +36,10 @@ export async function GET(request) {
     const gabungan = await mergePdfBuffers([spkAkBuffer, skCifPemblokiranBuffer]);
 
     return new Response(gabungan, {
-      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="Dokumen-Lengkap-Sahabat-Baitullah.pdf"' },
+      // no-store wajib — tanpa ini browser bisa nge-cache PDF dinamis ini
+      // (bug nyata 2026-10-03: admin masih lihat versi lama walau server
+      // udah dideploy ulang).
+      headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="Dokumen-Lengkap-Sahabat-Baitullah.pdf"', 'Cache-Control': 'no-store' },
     });
   } catch (error) {
     if (error.status) return Response.json({ error: error.message }, { status: error.status });

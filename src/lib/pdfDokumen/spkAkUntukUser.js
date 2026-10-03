@@ -75,6 +75,11 @@ export function responsPdfSpkAk({ pdfBuffer, nomor }) {
     headers: {
       'Content-Type': 'application/pdf',
       'Content-Disposition': `inline; filename="SPK-AK-${String(nomor).replace(/\//g, '-')}.pdf"`,
+      // Tanpa ini browser bebas nge-cache PDF yang di-generate dinamis
+      // (gak ada versioning di URL-nya) — bug nyata 2026-10-03: admin masih
+      // lihat template/identitas LAMA walau server udah dideploy ulang,
+      // sampai hard-refresh manual.
+      'Cache-Control': 'no-store',
     },
   });
 }
