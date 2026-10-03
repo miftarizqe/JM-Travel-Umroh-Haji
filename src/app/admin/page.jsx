@@ -552,6 +552,26 @@ function AdminPageInner() {
     await patchUser(u.id, 'set_status', { new_status: to });
   }
 
+  // Hapus akun lewat Go (DELETE /api/admin/users/{id}, super_admin) — ujroh & kas pendaftarannya
+  // ikut dibersihkan. Jangan hapus akun manual dari DB: ujrohnya jadi nyangkut di Pengajuan
+  // Pencairan Ujroh (kasus 2026-10-03).
+  async function hapusAkun(u) {
+    const cek = await fetch(`/api/admin/users/${u.id}/cek-hapus`).then(r => r.json()).catch(() => null);
+    if (!cek || cek.error) { alert(cek?.error || 'Gagal mengecek akun.'); return; }
+    if (!cek.boleh_dihapus) {
+      alert(`Akun ${u.name} belum bisa dihapus:\n\n• ${cek.penghalang.join('\n• ')}`);
+      return;
+    }
+    const rincian = cek.akan_dihapus.map(it => `• ${it.label}: ${it.jumlah}`).join('\n');
+    const ujroh = cek.nominal_ujroh > 0 ? `\n\nUjroh yang ikut terhapus: Rp${Number(cek.nominal_ujroh).toLocaleString('id-ID')}` : '';
+    const pengajuan = cek.pengajuan_draft.length ? `\nPengajuan ujroh draft yang dihitung ulang: #${cek.pengajuan_draft.join(', #')}` : '';
+    if (!confirm(`HAPUS PERMANEN akun ${u.name}?\n\nData yang ikut terhapus:\n${rincian || '• (tidak ada)'}${ujroh}${pengajuan}\n\nTidak bisa dibatalkan.`)) return;
+    const res = await fetch(`/api/admin/users/${u.id}`, { method: 'DELETE' });
+    const d = await res.json().catch(() => ({}));
+    alert(res.ok ? d.message : (d.error || 'Gagal menghapus akun.'));
+    if (res.ok) loadAll();
+  }
+
   function toggleHierarkiNode(id, isExpanded) {
     setExpandedNodes(prev => ({ ...prev, [id]: !isExpanded }));
   }
@@ -1592,6 +1612,12 @@ function AdminPageInner() {
                                 {u.status==='active'?'Nonaktifkan':'Aktifkan'}
                               </button>
                             ) : <span className="text-xs text-gray-400">-</span>}
+                            {user.role === 'super_admin' && (
+                              <button onClick={() => hapusAkun(u)}
+                                className="block mt-1 text-[11px] font-bold text-red-500 hover:text-red-700 whitespace-nowrap">
+                                🗑 Hapus Akun
+                              </button>
+                            )}
                           </td>
                           {isMitra && (
                             <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
