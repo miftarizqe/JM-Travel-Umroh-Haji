@@ -95,6 +95,16 @@ const KOORDINAT = {
 // koordinat ini dipakai buat dua-duanya. Dokumen 6 halaman (bukan 7 lagi —
 // konten dipadatkan di template baru). Font 12 Times New Roman (dikonfirmasi
 // user 2026-10-03, beda dari FONT_SIZE=11 template SPK-AK lama di atas).
+//
+// Template diupdate LAGI (2026-10-03 sore) — baris "Alamat" sekarang 2 baris
+// (baris 1: jalan/no rumah/RT-RW, baris 2: kelurahan/kecamatan/kota/provinsi)
+// biar alamat gak kepotong/numpuk. 1 baris kosong nambah di antara Alamat &
+// No. Telepon di halaman 1 (nama/alamatBaris1 TIDAK geser, noTelepon/noPaspor
+// geser turun 14pt), dan isi dokumen keseluruhan ikut geser turun ~27-28pt
+// mulai halaman 3 (reflow dari baris baru itu). Diukur ulang pakai
+// `pdftotext -bbox` lagi, bandingin posisi SEBELUM/SESUDAH tiap anchor teks
+// statis (label field, kata "bulan"/"yang", "Jakarta,", garis tanda tangan)
+// buat dapetin pergeserannya, BUKAN diukur dari nol.
 const FONT_SIZE_RANGKAP = 12;
 const KOORDINAT_RANGKAP = {
   jumlahHalaman: 6,
@@ -103,9 +113,10 @@ const KOORDINAT_RANGKAP = {
     hari:      { x: 142, y: 642, maxWidth: 64 },
     tanggal:   { x: 253, y: 642, maxWidth: 88 },
     nama:      { x: 190, y: 468, maxWidth: 334 },
-    alamat:    { x: 190, y: 454, maxWidth: 334 },
-    noTelepon: { x: 190, y: 440, maxWidth: 334 },
-    noPaspor:  { x: 190, y: 426, maxWidth: 334 },
+    alamatBaris1: { x: 190, y: 454, maxWidth: 334 },
+    alamatBaris2: { x: 190, y: 440, maxWidth: 334 },
+    noTelepon: { x: 190, y: 426, maxWidth: 334 },
+    noPaspor:  { x: 190, y: 412, maxWidth: 334 },
   },
   // PASAL 4 "Total biaya perjalanan umroh bulan ___ ... sebesar: Rp ___"
   // — halaman 3 (index 2), BARU di template rangkap ini (gak ada di SPK-AK
@@ -114,12 +125,12 @@ const KOORDINAT_RANGKAP = {
     // Blank-nya di ANTARA "bulan" (x≈266) dan "yang" (x≈374) — maxWidth
     // DIBATASI biar kotak penutup-blank gak nimpa teks statis "yang" di
     // belakangnya (bug nyata: maxWidth 128 dulu nimpa "yang" sampai hilang).
-    targetBulanTahun: { x: 270, y: 138, maxWidth: 100 },
-    nominalTarget:    { x: 190, y: 124, maxWidth: 334 },
+    targetBulanTahun: { x: 270, y: 110, maxWidth: 100 },
+    nominalTarget:    { x: 190, y: 96, maxWidth: 334 },
   },
   p6: {
-    tanggalPenutup: { x: 113, y: 600, maxWidth: 300 },
-    namaTtd: { center: 298, y: 262, maxWidth: 180 },
+    tanggalPenutup: { x: 113, y: 572, maxWidth: 300 },
+    namaTtd: { center: 298, y: 235, maxWidth: 180 },
   },
 };
 const SPK_AK_RANGKAP_TEMPLATE_PATH = {
@@ -132,7 +143,8 @@ const SPK_AK_RANGKAP_TEMPLATE_PATH = {
  * @param {object} data
  * @param {string} data.nomor
  * @param {string} data.nama
- * @param {string} data.alamat
+ * @param {string} data.alamatBaris1 - jalan/no rumah/RT-RW (mis. "Jl. Contoh No. 5, RT 001/RW 002")
+ * @param {string} data.alamatBaris2 - kelurahan/kecamatan/kota/provinsi (mis. "Kel. A, Kec. B, Kota C, Provinsi D.")
  * @param {string} data.noTelepon
  * @param {string} data.noPaspor
  * @param {string} data.namaTtd - dicetak kecil di atas garis tanda tangan Pihak Kedua
@@ -142,7 +154,7 @@ const SPK_AK_RANGKAP_TEMPLATE_PATH = {
  * @param {string} data.nominalTarget - nominal target program, sudah diformat (mis. "39.500.000")
  * @returns {Promise<Buffer>}
  */
-export async function generateSpkAkRangkapPdf(rangkap, { nomor, nama, alamat, noTelepon, noPaspor, namaTtd, hari, tanggal, targetBulanTahun, nominalTarget }) {
+export async function generateSpkAkRangkapPdf(rangkap, { nomor, nama, alamatBaris1, alamatBaris2, noTelepon, noPaspor, namaTtd, hari, tanggal, targetBulanTahun, nominalTarget }) {
   const templatePath = SPK_AK_RANGKAP_TEMPLATE_PATH[rangkap];
   if (!templatePath) throw new Error(`Rangkap SPK-AK tidak dikenal: "${rangkap}"`);
   const k = KOORDINAT_RANGKAP;
@@ -159,7 +171,8 @@ export async function generateSpkAkRangkapPdf(rangkap, { nomor, nama, alamat, no
       drawFitKiri(page, font, hari, k.p1.hari, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, tanggal, k.p1.tanggal, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, nama, k.p1.nama, FONT_SIZE_RANGKAP);
-      drawFitKiri(page, font, alamat, k.p1.alamat, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, alamatBaris1, k.p1.alamatBaris1, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, alamatBaris2, k.p1.alamatBaris2, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, noTelepon, k.p1.noTelepon, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, noPaspor, k.p1.noPaspor, FONT_SIZE_RANGKAP);
     }

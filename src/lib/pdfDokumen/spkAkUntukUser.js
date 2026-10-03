@@ -22,6 +22,23 @@ const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli'
 
 const errStatus = (message, status) => Object.assign(new Error(message), { status });
 
+// Baris 1: jalan + no rumah + RT/RW. Baris 2: kelurahan, kecamatan, kota,
+// provinsi. Dikonfirmasi user 2026-10-03 — "No Rumah" diprefix "No.", RT/RW
+// diprefix hurufnya ("RT x/RW y"), baris 2 diakhiri titik.
+function formatAlamatDuaBaris(user) {
+  if (!user.alamat_ktp_jalan) {
+    return { alamatBaris1: user.alamat_ktp || user.alamat || '-', alamatBaris2: '' };
+  }
+  const baris1 = [
+    user.alamat_ktp_jalan,
+    user.alamat_ktp_no_rumah ? `No. ${user.alamat_ktp_no_rumah}` : null,
+    (user.alamat_ktp_rt || user.alamat_ktp_rw) ? `RT ${user.alamat_ktp_rt || '-'}/RW ${user.alamat_ktp_rw || '-'}` : null,
+  ].filter(Boolean).join(', ');
+  const baris2Isi = [user.alamat_ktp_kelurahan, user.alamat_ktp_kecamatan, user.alamat_ktp_kota, user.alamat_ktp_provinsi]
+    .filter(Boolean).join(', ');
+  return { alamatBaris1: baris1, alamatBaris2: baris2Isi ? `${baris2Isi}.` : '' };
+}
+
 /** @returns {Promise<{ pdfBuffer: Uint8Array, nomor: string, dokumen: string }>} */
 export async function buatPdfSpkAkUntukUser(pool, userId) {
   const [[user]] = await pool.query(
@@ -58,8 +75,15 @@ export async function buatPdfSpkAkUntukUser(pool, userId) {
       [userId]
     );
     const berangkat = pendaftaran?.tanggal_berangkat ? new Date(pendaftaran.tanggal_berangkat) : null;
+    // Template rangkap punya 2 baris alamat (dikonfirmasi user 2026-10-03,
+    // revisi dokumen Word baru) -- dipecah dari komponen alamat_ktp_* kalau
+    // ada (pendaftar baru). Pendaftar lama yang cuma punya alamat_ktp hasil
+    // join lama (komponen udah kebuang) fallback ke baris 1 = string penuh,
+    // baris 2 kosong -- gak bisa dipecah balik akurat.
+    const { alamatBaris1, alamatBaris2 } = formatAlamatDuaBaris(user);
     const dataRangkap = {
       ...dataUmum,
+      alamatBaris1, alamatBaris2,
       targetBulanTahun: berangkat ? `${BULAN_ID[berangkat.getMonth()]} ${berangkat.getFullYear()}` : '-',
       nominalTarget: pendaftaran?.target_estimasi_harga ? Number(pendaftaran.target_estimasi_harga).toLocaleString('id-ID') : '-',
     };
