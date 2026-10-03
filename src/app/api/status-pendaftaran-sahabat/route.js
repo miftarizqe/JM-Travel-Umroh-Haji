@@ -42,7 +42,8 @@ export async function GET(request) {
               no_rekening_tabungan_umroh, setuju_sk_cif_pemblokiran_at,
               dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path,
               dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
-              metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at
+              metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at,
+              dokumen_cif_fisik_diterima_at, dokumen_pemblokiran_fisik_diterima_at, dokumen_spk_ak_fisik_diterima_at
        FROM users WHERE id = ?`, [auth.user.id]
     );
     if (users.length === 0) return Response.json({ error: 'User tidak ditemukan' }, { status: 404 });
@@ -72,9 +73,12 @@ export async function GET(request) {
       [dokumenSpkAk, auth.user.id]
     );
 
-    const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_path;
-    const skCifSelesai = !!u.dokumen_sk_cif_fisik_path;
-    const suratPemblokiranSelesai = !!u.dokumen_surat_pemblokiran_fisik_path;
+    // Selesai = ADMIN konfirmasi fisik sudah diterima di kantor
+    // (dokumen_*_fisik_diterima_at) — BUKAN lagi jamaah unggah scan sendiri
+    // (dikonfirmasi user 2026-10-03, scan-upload dicabut dari sisi jamaah).
+    const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_diterima_at;
+    const skCifSelesai = !!u.dokumen_cif_fisik_diterima_at;
+    const suratPemblokiranSelesai = !!u.dokumen_pemblokiran_fisik_diterima_at;
 
     const prasyarat = {
       akun_terverifikasi: !!u.terverifikasi,
@@ -239,7 +243,7 @@ export async function PATCH(request) {
       // terverifikasi) — satu-satunya transisi admin yang tersisa di sini
       // adalah ke 'active'.
       const [[u]] = await pool.query(
-        `SELECT kode_unik, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_path, no_rekening_tabungan_umroh
+        `SELECT kode_unik, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_diterima_at, no_rekening_tabungan_umroh
          FROM users WHERE id = ?`, [user_id]
       );
       // SPK-AK sekarang 1 RANGKAP (rangkap='tunggal', dikonfirmasi user
@@ -249,7 +253,7 @@ export async function PATCH(request) {
       const [[sigSpkAk]] = await pool.query(
         `SELECT fase FROM dokumen_signature WHERE dokumen = ? AND rangkap = 'tunggal' AND ref_id = ? ORDER BY id DESC LIMIT 1`, [dokumenSpkAk, user_id]
       );
-      const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_path;
+      const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_diterima_at;
 
       if (status_baru === 'active') {
         // Urutan wajib linear (dikonfirmasi user 2026-09-27): bukti TF -> SPK-AK

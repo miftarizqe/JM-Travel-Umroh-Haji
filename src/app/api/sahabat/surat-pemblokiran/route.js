@@ -13,6 +13,11 @@ import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 // sahabat lewat PATCH /api/sahabat/blokir-rekening SEBELUM endpoint ini bisa
 // dipakai — diformat Rupiah/tanggal Indonesia DI SINI sebelum di-merge ke
 // pasal (renderPasalMarkup cuma substitusi string apa adanya, gak format).
+const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+function tglIndo(d) {
+  return `${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 export async function GET(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -36,9 +41,25 @@ export async function GET(request) {
 
     const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SURAT-PEMBLOKIRAN', 'no_surat_pemblokiran');
     if (nomor) await pastikanSnapshot(pool, user.id, 'surat_pemblokiran');
-    // Teks surat dari template PDF resmi (lihat src/lib/dokumenTemplate.js) —
-    // gak ngirim pasal/mergeData lagi, cuma bekukan nomor surat (2026-10-01).
-    return Response.json({ user, nomor });
+    // Isi pasal diambil LANGSUNG & LIVE (bukan lewat ambilPasalUntukCetak,
+    // yang sengaja kosongin pasal buat dokumen ber-template PDF) — khusus
+    // buat layar BACA jamaah, dikembalikan ke teks (dikonfirmasi user
+    // 2026-10-03, PDF iframe gak kebaca di Android/Samsung Browser). Cetak
+    // fisik TETAP pakai template PDF resmi, gak kesentuh sama sekali.
+    const [pasal] = await pool.query(
+      'SELECT nomor, tipe, judul, isi FROM dokumen_pasal WHERE dokumen = ? ORDER BY nomor ASC',
+      ['surat_pemblokiran']
+    );
+    const mergeData = {
+      nama: user.name,
+      nik: user.nik || '-',
+      alamat: user.alamat || '-',
+      no_rekening: user.no_rekening_tabungan_umroh,
+      nominal_blokir: Number(user.nominal_blokir_tabungan).toLocaleString('id-ID'),
+      jangka_waktu_hari: String(user.jangka_waktu_blokir_hari),
+      tanggal_mulai_blokir: tglIndo(new Date(user.tanggal_mulai_blokir)),
+    };
+    return Response.json({ user, nomor, pasal, mergeData });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

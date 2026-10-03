@@ -42,7 +42,7 @@ export async function POST(request) {
     }
 
     // Nama perekrut yang tampil ke calon pendaftar DISAMARKAN jadi
-    // "Management Team" kalau pemilik kode ini admin/super_admin ATAU Head
+    // "Management JM Travel" kalau pemilik kode ini admin/super_admin ATAU Head
     // of Program (dikonfirmasi user 2026-10-02 — jangan bocorin nama
     // pribadi staf manajemen ke calon jamaah, mirror labelPerekrut() di
     // src/app/daftar-sahabat/page.jsx yang sudah lebih dulu nerapin ini
@@ -50,11 +50,11 @@ export async function POST(request) {
     const r = rows[0];
     let nama = r.name;
     if (['admin', 'super_admin', 'hop'].includes(r.role)) {
-      nama = 'Management Team';
+      nama = 'Management JM Travel';
     } else {
       const [[pengaturan]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
       if (pengaturan?.head_of_program_user_id && String(pengaturan.head_of_program_user_id) === String(r.id)) {
-        nama = 'Management Team';
+        nama = 'Management JM Travel';
       }
     }
 

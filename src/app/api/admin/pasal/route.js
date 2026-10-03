@@ -1,5 +1,4 @@
 import pool from '@/lib/db';
-import { pakaiTemplate } from '@/lib/dokumenTemplate';
 import { wajibRole } from '@/lib/auth';
 import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
 
@@ -12,22 +11,15 @@ const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'sk_cif', 'surat_pembloki
 // 3-pihak.
 const SATU_PIHAK = ['surat_pemblokiran'];
 
-// Dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
-// SPK-AK/SPK-AK Non-Muslim menyusul dikonfirmasi 2026-09-29) — wording
-// resmi 4 dokumen ini SEKARANG SATU-SATUNYA dari template PDF final
-// (src/lib/pdfDokumen/templates/, lihat skCifOverlay.js,
-// suratPemblokiranOverlay.js, spkAkOverlay.js). Update wording = kirim PDF
-// baru buat ganti template itu, BUKAN edit pasal di sini lagi. GET tetap
-// boleh (masih dipakai buat tampilan baca+scroll-gate+centang setuju di
-// layar /pks & status-pendaftaran-sahabat, yang SENGAJA belum ikut diganti
-// — level ringan, lihat diskusi 2026-09-28/29).
-const DOKUMEN_TERKUNCI = ['sk_cif', 'surat_pemblokiran', 'spk_ak', 'spk_ak_nonis'];
-function cekTerkunci(dokumen) {
-  if (DOKUMEN_TERKUNCI.includes(dokumen)) {
-    return Response.json({ error: 'Dokumen ini dikunci dari edit teks — wording resmi sekarang dari template PDF. Update lewat kirim PDF baru, bukan di sini.' }, { status: 403 });
-  }
-  return null;
-}
+// SK-CIF/Pemblokiran/SPK-AK/SPK-AK Non-Muslim DIBUKA LAGI dari kunci edit
+// teks (dikonfirmasi user 2026-10-03) — sempat dikunci 2026-09-28/29 pas
+// wording-nya dipindah SATU-SATUNYA ke template PDF final
+// (src/lib/pdfDokumen/templates/), tapi PDF di iframe gak kebaca di
+// Android/Samsung Browser buat layar baca+setuju. Dibalikin ke pasal DB
+// (admin isi di sini) khusus buat layar BACA jamaah — cetak/TTD fisik
+// TETAP pakai template PDF resmi (src/lib/pdfDokumen/templates/), gak
+// kesentuh (2 sumber beda tujuan, lihat juga ambilPasalUntukCetak.js yang
+// masih sengaja balikin pasal kosong buat cetak ke-4 dokumen ini).
 
 // GET /api/admin/pasal?dokumen=spka
 // GET /api/admin/pasal?dokumen=spka&ref_id=<user_id|booking_id> — dipakai
@@ -43,12 +35,6 @@ export async function GET(request) {
   const refId = searchParams.get('ref_id');
   if (!DOKUMEN_VALID.includes(dokumen)) {
     return Response.json({ error: 'Parameter dokumen tidak valid' }, { status: 400 });
-  }
-  // Dokumen ber-template (SK-CIF, Pemblokiran, SPK-AK, SPK-AK Non-Muslim):
-  // teksnya dari template PDF, pasal DB gak dikirim lagi ke mana pun
-  // (dikonfirmasi user 2026-10-01). FE admin nampilin contoh-pdf.
-  if (pakaiTemplate(dokumen)) {
-    return Response.json({ pasal: [], signer: null, template: true });
   }
   try {
     if (!refId) {
@@ -115,8 +101,6 @@ export async function PUT(request) {
     if (!DOKUMEN_VALID.includes(dokumen) || !nomor || !judul?.trim() || !isi?.trim()) {
       return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     }
-    const terkunci = cekTerkunci(dokumen);
-    if (terkunci) return terkunci;
     const [result] = await pool.query(
       'UPDATE dokumen_pasal SET judul = ?, isi = ? WHERE dokumen = ? AND nomor = ?',
       [judul.trim(), isi.trim(), dokumen, nomor]
@@ -152,8 +136,6 @@ export async function POST(request) {
     if (!DOKUMEN_VALID.includes(dokumen) || !judul?.trim() || !isi?.trim()) {
       return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     }
-    const terkunci = cekTerkunci(dokumen);
-    if (terkunci) return terkunci;
     const [[{ maxNomor }]] = await pool.query(
       'SELECT COALESCE(MAX(nomor), 0) AS maxNomor FROM dokumen_pasal WHERE dokumen = ?',
       [dokumen]
@@ -184,8 +166,6 @@ export async function DELETE(request) {
   if (!DOKUMEN_VALID.includes(dokumen) || !nomor) {
     return Response.json({ error: 'Parameter tidak valid' }, { status: 400 });
   }
-  const terkunci = cekTerkunci(dokumen);
-  if (terkunci) return terkunci;
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
@@ -223,8 +203,6 @@ export async function PATCH(request) {
     if (!DOKUMEN_VALID.includes(dokumen) || !nomor || !['naik', 'turun'].includes(arah)) {
       return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     }
-    const terkunci = cekTerkunci(dokumen);
-    if (terkunci) return terkunci;
     const nomorTetangga = arah === 'naik' ? nomor - 1 : nomor + 1;
     if (nomorTetangga < 1) {
       return Response.json({ error: 'Pasal ini sudah paling atas' }, { status: 400 });

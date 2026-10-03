@@ -1,51 +1,11 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-
-// Field upload scan dokumen fisik — dipisah dari UploadScanDokumen (komponen
-// bersama, dipakai halaman lain juga) biar gaya tampilannya bisa beda
-// khusus di sini (dikonfirmasi tim desain 2026-09-29: field polos + nama
-// file, BUKAN lagi badge yang nyelip di antara 2 halaman cetak surat).
-function FieldUploadScan({ label, uploadUrl, userId, path: filePath, extraFields, onUploaded }) {
-  const [uploading, setUploading] = useState(false);
-  async function pilihFile(file) {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('user_id', userId);
-      Object.entries(extraFields || {}).forEach(([k, v]) => fd.append(k, v));
-      const res = await fetch(uploadUrl, { method: 'POST', body: fd });
-      const d = await res.json();
-      if (res.ok) onUploaded(d.path);
-      else alert(d.error || 'Gagal mengunggah dokumen');
-    } catch { alert('Terjadi kesalahan saat mengunggah'); }
-    setUploading(false);
-  }
-  const namaFile = filePath ? decodeURIComponent(filePath.split('/').pop()) : null;
-  return (
-    <div className="flex items-center gap-2 border-2 border-gray-100 rounded-lg p-2.5">
-      <div className="flex-1 min-w-0 text-xs">
-        <div className="font-semibold text-gray-600">{label}</div>
-        {namaFile ? (
-          <a href={filePath} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] truncate block">{namaFile}</a>
-        ) : (
-          <span className="text-gray-400">Belum ada file diunggah</span>
-        )}
-      </div>
-      <label className="shrink-0 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-1.5 rounded-lg cursor-pointer">
-        {uploading ? 'Mengunggah...' : namaFile ? 'Ganti' : 'Unggah'}
-        <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={uploading}
-          onChange={e => pilihFile(e.target.files?.[0])} />
-      </label>
-    </div>
-  );
-}
+import { renderPasalBlock, FONT_DOKUMEN, UKURAN_DOKUMEN } from '@/lib/pasalMarkup';
 
 function Item({ done, label, children }) {
   return (
@@ -76,6 +36,7 @@ export default function StatusPendaftaranSahabatPage() {
   const [suratPemblokiran, setSuratPemblokiran] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [sudahBacaGabungan, setSudahBacaGabungan] = useState(false);
+  const scrollGabunganRef = useRef(null);
   const [setujuGabungan, setSetujuGabungan] = useState(false);
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
   const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
@@ -205,9 +166,22 @@ export default function StatusPendaftaranSahabatPage() {
     setLoadingPreview(false);
   }
 
+  // Pasal salah satu surat belum diisi admin — jangan biarkan disetujui.
+  const pasalGabunganKosong = !!(skCif && suratPemblokiran) &&
+    (!(skCif.pasal || []).length || !(suratPemblokiran.pasal || []).length);
 
-  // "Sudah baca" = PDF resmi gabungan (template, dikonfirmasi user 2026-10-01)
-  // selesai dimuat di bawah — teks pasal DB gak dipakai lagi buat dokumen ini.
+  function cekScrollGabungan() {
+    const el = scrollGabunganRef.current;
+    if (!el || pasalGabunganKosong) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setSudahBacaGabungan(true);
+  }
+
+  // Isi pendek (gak sampai bikin kotak bisa di-scroll) gak pernah memicu
+  // onScroll — cek sekali begitu kedua surat selesai dirender (sama seperti /pks).
+  useEffect(() => {
+    if (skCif && suratPemblokiran) cekScrollGabungan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [skCif, suratPemblokiran]);
 
   // PDF gabungan SK-CIF + Surat Pemblokiran dengan identitas terisi
   // otomatis (dikonfirmasi user 2026-09-28) — SATU file, samain kayak alur
@@ -442,14 +416,35 @@ export default function StatusPendaftaranSahabatPage() {
                 </button>
               ) : (
                 <>
-                  {/* PDF resmi gabungan SK-CIF + Surat Pemblokiran (template final,
-                      identitas terisi) — sama persis dengan yang dicetak &
-                      ditandatangani (dikonfirmasi user 2026-10-01). */}
-                  <PdfDokumenResmi url="/api/sahabat/dokumen-legal/pdf-otomatis" method="POST"
-                    onSiap={() => setSudahBacaGabungan(true)} />
-                  {!sudahBacaGabungan && (
+                  {/* Dibalikin ke teks pasal DB (dikonfirmasi user
+                      2026-10-03) — PDF template di iframe gak kebaca di
+                      Android/Samsung Browser, cuma muncul ikon PDF generik
+                      (bukan buat dibaca langsung). Cetak/TTD fisik TETAP
+                      pakai template PDF resmi (tombol "Unduh Dokumen
+                      Lengkap" di langkah selanjutnya), gak kesentuh. */}
+                  <div ref={scrollGabunganRef} onScroll={cekScrollGabungan}
+                    className="max-h-[350px] overflow-y-auto border border-gray-200 rounded-lg p-3 text-gray-600 space-y-4"
+                    style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
+                    <div>
+                      <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA KERJASAMA MULTI CIF</div>
+                      <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
+                      {(skCif.pasal || []).map(p => (<div key={`skcif-${p.nomor}`}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
+                      {!(skCif.pasal || []).length && (
+                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
+                      )}
+                    </div>
+                    <div className="pt-4 border-t border-gray-100">
+                      <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
+                      <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
+                      {(suratPemblokiran.pasal || []).map(p => (<div key={`pemblokiran-${p.nomor}`}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
+                      {!(suratPemblokiran.pasal || []).length && (
+                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
+                      )}
+                    </div>
+                  </div>
+                  {!sudahBacaGabungan && !pasalGabunganKosong && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-center text-xs text-yellow-700">
-                      ⏳ Memuat kedua surat…
+                      ⬇️ Gulir ke bawah sampai selesai membaca kedua surat
                     </div>
                   )}
                   <label className={`flex items-start gap-2 p-3 rounded-lg border-2 ${sudahBacaGabungan ? 'bg-white border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-50 cursor-not-allowed'}`}>
@@ -487,33 +482,21 @@ export default function StatusPendaftaranSahabatPage() {
 
           {prasyarat.setuju_sk_cif_pemblokiran && (
             <div className="space-y-3">
-              <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
-                <div className="text-xs font-bold text-[#0E2F6E]">📑 Dokumen Lengkap Sahabat Baitullah</div>
-                <div className="text-[10px] text-gray-500">Ketiga dokumen (SPK-AK, SK-CIF, Surat Pemblokiran) bisa dibaca & diunduh di sini kapan saja.</div>
-                <PdfDokumenResmi url="/api/sahabat/dokumen-legal/unduh-lengkap" tinggi="50vh" />
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
-                  <button onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
-                    className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
-                    ⬇️ Unduh Dokumen Lengkap (3 Dokumen)
-                  </button>
-                  <span className="text-[10px] text-gray-400">atau unduh terpisah:</span>
-                  <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline">SPK-AK</button>
-                  <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50">
-                    {generatingPdfSkCif ? 'Membuat...' : 'SK-CIF & Surat Pemblokiran'}
-                  </button>
-                </div>
-              </div>
-
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
                 📌 Siapkan <b>3 lembar Materai Rp10.000</b> — masing-masing 1 untuk SPK-AK, SK-CIF, dan Surat Pemblokiran.
               </div>
 
+              {/* Metode TTD WAJIB dipilih DULU (dikonfirmasi user 2026-10-03)
+                  — dokumen (viewer/unduhan) cuma relevan buat yang pilih
+                  "kirim sendiri"; yang "datang kantor" gak perlu diarahkan
+                  unduh apa-apa sama sekali, dokumennya udah disiapin admin
+                  (lihat tombol "Cetak Dokumen" di Database Jamaah). */}
               {!u.metode_ttd_sahabat && (
                 <div className="space-y-2">
                   <div className="text-xs text-gray-500">Pilih cara Anda menandatangani ketiga dokumen di atas materai asli:</div>
                   <button onClick={() => pilihMetodeTtd('kirim')} disabled={savingMetodeTtd}
                     className="w-full text-left text-xs bg-[#E8F0FB] text-[#1A4FA0] font-bold px-3 py-2.5 rounded-lg disabled:opacity-50">
-                    📄 Cetak &amp; kirim sendiri — print, TTD di atas materai asli, scan, unggah, kirim fisik ke kantor
+                    📄 Cetak &amp; kirim sendiri — print, TTD di atas materai asli, kirim fisik ke kantor
                   </button>
                   <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
                     <div className="text-xs font-bold text-[#1A4FA0]">🏢 Datang langsung ke Head Office</div>
@@ -533,7 +516,7 @@ export default function StatusPendaftaranSahabatPage() {
               {u.metode_ttd_sahabat === 'kantor' && (
                 <div className="text-xs text-gray-500 space-y-1">
                   <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD ketiga dokumen langsung.</div>
-                  <div>Jangan lupa bawa 3 materai (SPK-AK, SK-CIF &amp; Surat Pemblokiran).</div>
+                  <div>Jangan lupa bawa 3 materai (SPK-AK, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.</div>
                   <button onClick={() => { setTanggalKunjunganInput(''); pilihMetodeTtd('kirim'); }} disabled={savingMetodeTtd}
                     className="text-[10px] text-gray-400 underline">Ganti jadi cetak &amp; kirim sendiri</button>
                 </div>
@@ -541,27 +524,36 @@ export default function StatusPendaftaranSahabatPage() {
 
               {u.metode_ttd_sahabat === 'kirim' && (
                 <div className="space-y-3">
+                  <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
+                    <div className="text-xs font-bold text-[#0E2F6E]">📑 Dokumen Lengkap Sahabat Baitullah</div>
+                    <div className="text-[10px] text-gray-500">Ketiga dokumen (SPK-AK, SK-CIF, Surat Pemblokiran) bisa dibaca & diunduh di sini kapan saja.</div>
+                    <PdfDokumenResmi url="/api/sahabat/dokumen-legal/unduh-lengkap" tinggi="50vh" />
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
+                      <button onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
+                        className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
+                        ⬇️ Unduh Dokumen Lengkap (3 Dokumen)
+                      </button>
+                      <span className="text-[10px] text-gray-400">atau unduh terpisah:</span>
+                      <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline">SPK-AK</button>
+                      <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50">
+                        {generatingPdfSkCif ? 'Membuat...' : 'SK-CIF & Surat Pemblokiran'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Scan/unggah DICABUT dari sisi jamaah (dikonfirmasi user
+                      2026-10-03) — tracking-nya sekarang murni "diterima
+                      fisik di kantor" yang dicentang admin (lihat Database
+                      Jamaah), bukan lagi self-report scan jamaah. */}
                   <div className="text-xs text-gray-500">
-                    📄 Cetak &amp; kirim sendiri — tanda tangani ketiga dokumen di atas materai asli pada kolom TTD Anda, pindai (scan), unggah di bawah ini, lalu kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.
+                    📄 Print, TTD di atas materai asli pada kolom TTD Anda, lalu kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.
                   </div>
                   <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum JM Travel, saya membutuhkan bantuan terkait SPK-AK, SK-CIF & Surat Pemblokiran.') || '#'}
                     target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs">
                     Hubungi Admin via WhatsApp
                   </a>
-                  <div className="space-y-2 pt-1">
-                    <FieldUploadScan label="SPK-AK (materai + TTD)"
-                      uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
-                      userId={user.id} path={u.dokumen_spk_ak_fisik_path}
-                      extraFields={{ jenis: 'spk_ak' }} onUploaded={() => muat()} />
-                    <FieldUploadScan label="SK-CIF (materai + TTD)"
-                      uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
-                      userId={user.id} path={u.dokumen_sk_cif_fisik_path}
-                      extraFields={{ jenis: 'sk_cif' }} onUploaded={() => muat()} />
-                    <FieldUploadScan label="Surat Pemblokiran (materai + TTD)"
-                      uploadUrl="/api/admin/upload-dokumen-sahabat-fisik"
-                      userId={user.id} path={u.dokumen_surat_pemblokiran_fisik_path}
-                      extraFields={{ jenis: 'surat_pemblokiran' }} onUploaded={() => muat()} />
-                  </div>
+                  <button onClick={() => { pilihMetodeTtd('kantor'); }} disabled={savingMetodeTtd}
+                    className="block text-[10px] text-gray-400 underline">Ganti jadi datang langsung ke kantor</button>
                 </div>
               )}
             </div>
@@ -574,13 +566,10 @@ export default function StatusPendaftaranSahabatPage() {
             (dikonfirmasi tim desain 2026-09-29) — status INI justru bagus
             (semua langkah udah kelar dari sisi jamaah), jadi tampilannya
             dibikin reassuring/hangat, bukan kesan "kaku nunggu doang".
-            Judul & isi DIBEDAKAN tergantung status unggah scan (bug nyata
-            dari laporan user 2026-09-29 — sebelumnya selalu bilang "Seluruh
-            Persyaratan Telah Lengkap" padahal scan-nya sendiri belum
-            diunggah sama sekali, kontradiktif sama field upload di
-            atasnya). Unggah scan tetap boleh menyusul (lihat catatan
-            "dapat dilewati sementara"), tapi wordingnya harus jujur soal
-            status sebenarnya. */}
+            Judul & isi DIBEDAKAN tergantung status (dulu berdasar unggah
+            scan jamaah, SEKARANG berdasar konfirmasi admin dokumen fisik
+            sudah diterima di kantor — dikonfirmasi user 2026-10-03, scan
+            sudah dicabut dari sisi jamaah). */}
         {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat && pendaftaran.status !== 'active' && (
           <div className="bg-[#E8F0FB] border border-[#c9d9f0] rounded-xl p-4 text-center">
             <div className="text-3xl mb-1">🙌</div>
@@ -590,14 +579,14 @@ export default function StatusPendaftaranSahabatPage() {
                 <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
                   {u.metode_ttd_sahabat === 'kantor'
                     ? `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan setelah Anda TTD ketiga dokumen langsung di kantor pada tanggal yang dipilih.`
-                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Pastikan dokumen fisik asli (SPK-AK, SK-CIF & Surat Pemblokiran) yang sudah ditandatangani di atas materai asli juga telah dikirim ke kantor JM Travel.`}
+                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Dokumen fisik asli (SPK-AK, SK-CIF & Surat Pemblokiran) yang Anda kirim sudah diterima & dikonfirmasi oleh kantor JM Travel.`}
                 </div>
               </>
             ) : (
               <>
                 <div className="font-bold text-[#0E2F6E]">Persyaratan Utama Telah Lengkap</div>
                 <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
-                  Data Anda sudah dapat ditinjau oleh admin. Agar proses aktivasi akun dapat diselesaikan, mohon segera unggah hasil pindai (scan) SPK-AK, SK-CIF & Surat Pemblokiran pada bagian di atas, lalu kirim dokumen fisik aslinya ke kantor JM Travel.
+                  Data Anda sudah dapat ditinjau oleh admin. Agar proses aktivasi akun dapat diselesaikan, pastikan Anda sudah mengirim dokumen fisik asli (SPK-AK, SK-CIF & Surat Pemblokiran) yang sudah ditandatangani di atas materai asli ke kantor JM Travel — akun akan diaktifkan setelah kantor mengonfirmasi dokumen tersebut diterima.
                 </div>
               </>
             )}

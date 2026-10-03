@@ -26,11 +26,35 @@ export async function GET(request) {
 
     const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SK-CIF', 'no_sk_cif');
     if (nomor) await pastikanSnapshot(pool, user.id, 'sk_cif');
-    // Teks surat dari template PDF resmi (lihat src/lib/dokumenTemplate.js),
-    // jadi endpoint ini gak ngirim pasal/mergeData lagi — tugasnya tinggal
-    // bekukan nomor surat + penandatangan (dikonfirmasi user 2026-10-01).
     const { signer } = await ambilPasalUntukCetak('sk_cif', user.id);
-    return Response.json({ user, nomor, signer });
+    // Isi PASAL (bukan dari ambilPasalUntukCetak di atas — itu sengaja
+    // balikin pasal kosong buat sk_cif, lihat pakaiTemplate di
+    // dokumenTemplate.js, soalnya DICETAK pakai template PDF resmi) diambil
+    // LANGSUNG & LIVE di sini (dikonfirmasi user 2026-10-03) — khusus buat
+    // layar BACA jamaah (PdfDokumenResmi/iframe PDF gak kebaca di Android/
+    // Samsung Browser, jadi dibalikin ke teks). Cetak fisik TETAP PDF
+    // template, gak kesentuh — 2 sumber ini SENGAJA beda tujuan.
+    const [pasal] = await pool.query(
+      'SELECT nomor, tipe, judul, isi FROM dokumen_pasal WHERE dokumen = ? ORDER BY nomor ASC',
+      ['sk_cif']
+    );
+
+    // SK-CIF 2-pihak (Pemberi Kuasa/jamaah vs Penerima Kuasa — penandatangan
+    // SENDIRI, BUKAN Head of Program, lihat signerKolom.js ambilSignerSkCif)
+    // — mergeData isi token {{...}} di isi pasal.
+    const [[pengaturan]] = await pool.query('SELECT alamat_kantor FROM pengaturan WHERE id = 1');
+    const mergeData = {
+      nama: user.name,
+      nik: user.nik || '-',
+      alamat: user.alamat || '-',
+      no_rekening: user.no_rekening_tabungan_umroh || '-',
+      alamat_kantor: pengaturan?.alamat_kantor || '-',
+      nama_wakil: signer?.nama || '-',
+      nik_wakil: signer?.nik || '-',
+      jabatan_wakil: signer?.jabatan || '-',
+    };
+
+    return Response.json({ user, nomor, pasal, signer, mergeData });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

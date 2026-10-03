@@ -4,21 +4,9 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
-import { usePengaturan } from '@/lib/usePengaturan';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
-import { labelPerekrut as labelPerekrutMentah } from '@/lib/labelPerekrut';
 import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
-
-// Perekrut admin/super_admin ATAU Head of Program tercatat sebagai
-// "Management Team" (dikonfirmasi user 2026-09-27, wording diupdate
-// 2026-10-02, logikanya disatukan ke src/lib/labelPerekrut.js setelah
-// ketauan daftar-perwakilan punya tampilan serupa yang ketinggalan) —
-// bukan "Tidak ada" (perekrut-nya TETAP ada, cuma bukan sesama anggota
-// sahabat).
-function labelPerekrut(profil, pengaturan) {
-  return labelPerekrutMentah(profil, pengaturan) || '— Tidak ada —';
-}
 
 const emptyForm = () => ({
   nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
@@ -40,7 +28,6 @@ export default function DaftarSahabatPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
   const mounted = useMounted();
-  const [pengaturan] = usePengaturan();
   const [programEksklusif, setProgramEksklusif] = useState([]);
   const [form, setForm] = useState(() => ({
     ...emptyForm(),
@@ -183,7 +170,7 @@ export default function DaftarSahabatPage() {
       <div className="max-w-2xl mx-auto">
 
         <div className="flex items-center mb-6">
-          {['Data Diri','Alamat','Perekrut'].map((l,i) => (
+          {['Data Diri','Alamat','Target Impian'].map((l,i) => (
             <div key={l} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -307,19 +294,9 @@ export default function DaftarSahabatPage() {
           </>)}
 
           {step === 3 && (<>
-            <div className="font-bold text-[#0E2F6E]">🤝 Perekrut</div>
-            <div className="pt-2">
-              <label className={lbl}>Siapa yang merekrut Anda?</label>
-              {/* Kode referral sudah wajib divalidasi & dikunci sejak
-                  pendaftaran akun di /register (dikonfirmasi user
-                  2026-09-03) — di sini murni tampilan read-only, gak ada
-                  lagi jalur pilih/ganti manual. */}
-              <div className="w-full px-3 py-2 rounded-lg border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">
-                {labelPerekrut(profil, pengaturan)}
-              </div>
-              <div className="text-[10px] text-gray-400 mt-1">Sudah dipilih waktu Anda mendaftar akun, tidak bisa diubah di sini.</div>
-            </div>
-
+            {/* "Siapa yang merekrut Anda" DICABUT dari sini (dikonfirmasi
+                user 2026-10-03) — kode/nama perekrut udah dikunci sejak
+                registrasi akun, gak perlu ditampilin ulang di step ini. */}
             <div className="pt-2">
               <div className="font-bold text-[#0E2F6E]">🎯 Target Impian *</div>
               <div className="text-xs text-gray-400 -mt-1 mb-1">Bantu kami hitung progres tabungan Anda menuju keberangkatan.</div>

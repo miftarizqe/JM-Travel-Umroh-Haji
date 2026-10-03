@@ -2,7 +2,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
-import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import {
   renderPasalBlock, renderBlockNode, renderListItemNode, parsePasalMarkup, SignatureBlokBank, SignatureBlokKuasa,
@@ -50,21 +49,22 @@ const SIGNER_SK_CIF_FIELDS = [
 const DOKUMEN_LIST = [
   { key: 'spka_ins', label: 'SPK-PWK (Perwakilan)' },
   { key: 'jamaah', label: 'SPJ (Perjanjian Jamaah)' },
-  { key: 'spk_ak', label: '🔒 SPK-AK (Jamaah Sahabat Baitullah)' },
-  { key: 'spk_ak_nonis', label: '🔒 Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
-  { key: 'sk_cif', label: '🔒 SK-CIF (Sahabat Baitullah)' },
-  { key: 'surat_pemblokiran', label: '🔒 Surat Pemblokiran Rekening (Sahabat Baitullah)' },
+  { key: 'spk_ak', label: 'SPK-AK (Jamaah Sahabat Baitullah)' },
+  { key: 'spk_ak_nonis', label: 'Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
+  { key: 'sk_cif', label: 'SK-CIF (Sahabat Baitullah)' },
+  { key: 'surat_pemblokiran', label: 'Surat Pemblokiran Rekening (Sahabat Baitullah)' },
   { key: 'ganti_target_sahabat', label: 'S&K Ganti Target Impian (Sahabat Baitullah)' },
 ];
 
-// Dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
-// SPK-AK/SPK-AK Non-Muslim menyusul dikonfirmasi 2026-09-29) — wording
-// resmi ke-4 dokumen ini sekarang SATU-SATUNYA dari template PDF final,
-// bukan lagi pasal di sini. Tab-nya tetap ada (buat lihat isi/preview yang
-// masih dipakai layar baca+centang-setuju jamaah), tapi Tambah/Edit/Hapus/
-// Geser dimatiin — server juga nolak lewat cekTerkunci() di
-// src/app/api/admin/pasal/route.js kalau ada yang nekat panggil API langsung.
-const DOKUMEN_TERKUNCI = ['sk_cif', 'surat_pemblokiran', 'spk_ak', 'spk_ak_nonis'];
+// Sempat dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
+// SPK-AK/SPK-AK Non-Muslim menyusul dikonfirmasi 2026-09-29) pas wording
+// ke-4 dokumen ini dipindah SATU-SATUNYA ke template PDF final — DIBUKA
+// LAGI (dikonfirmasi user 2026-10-03), PDF di iframe gak kebaca di
+// Android/Samsung Browser buat layar baca+setuju jamaah. Isi pasal di sini
+// sekarang KHUSUS buat layar baca jamaah — cetak/TTD fisik TETAP pakai
+// template PDF resmi (tombol "Download PDF Template" tetap ada di preview
+// dokumen lengkap di bawah), gak kesentuh.
+const DOKUMEN_TERKUNCI = [];
 
 // Judul & nomor contoh yang ditampilkan di atas Preview Dokumen Lengkap —
 // SAMA seperti judul yang muncul di halaman cetak beneran (cetak-pks-mitra,
@@ -470,7 +470,6 @@ export default function AdminPengaturanDokumenPage() {
   const [showPreview, setShowPreview] = useState(false);
   const [showPreviewDokumen, setShowPreviewDokumen] = useState(false);
   const [reordering, setReordering] = useState(null); // nomor pasal yg lagi digeser
-  const [syncingSheet, setSyncingSheet] = useState(false);
 
   function muatPasal(dok) {
     fetch(`/api/admin/pasal?dokumen=${dok}`)
@@ -568,20 +567,6 @@ export default function AdminPengaturanDokumenPage() {
       muatPasal(dokumen);
     } catch { alert('Terjadi kesalahan'); }
     setSaving(false);
-  }
-
-  async function syncDariSheet() {
-    if (!confirm('Sync dari Google Sheets? Ini TIMPA isi pasal dokumen yang ada di Sheet dengan versi terbaru — dokumen yang gak ada di Sheet gak kesentuh.')) return;
-    setSyncingSheet(true);
-    try {
-      const res = await fetch('/api/admin/pasal/sync-sheet', { method: 'POST' });
-      const d = await res.json();
-      if (!res.ok) { alert(d.error || 'Gagal sync dari Sheet'); setSyncingSheet(false); return; }
-      const ringkasan = (d.ringkasan || []).map(r => `${r.dokumen}: ${r.jumlah} pasal`).join('\n') || 'Gak ada baris valid di Sheet.';
-      alert(`Sync selesai!\n\n${ringkasan}`);
-      muatPasal(dokumen);
-    } catch { alert('Terjadi kesalahan'); }
-    setSyncingSheet(false);
   }
 
   async function geserPasal(nomor, arah) {
@@ -762,18 +747,11 @@ export default function AdminPengaturanDokumenPage() {
       </div>
 
       {/* ISI PASAL */}
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <div className="font-bold text-[#0E2F6E]">📜 Isi Pasal</div>
-        <button onClick={syncDariSheet} disabled={syncingSheet}
-          className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] disabled:opacity-50 px-3 py-1.5 rounded-full whitespace-nowrap">
-          {syncingSheet ? 'Sinkronisasi...' : '📊 Sync dari Google Sheets'}
-        </button>
-      </div>
+      <div className="font-bold text-[#0E2F6E] mb-1">📜 Isi Pasal</div>
       <div className="text-xs text-gray-400 mb-4">
         Perubahan cuma berlaku ke dokumen yang BELUM dibekukan (perwakilan yang nomor suratnya belum pernah digenerate, atau booking jamaah yang belum klik Setuju). Dokumen yang sudah dibekukan TETAP pakai isi versi lama — lihat tanda 🔒 di halaman cetaknya.
         Sintaks: <code className="bg-gray-100 px-1 rounded">**tebal**</code>, <code className="bg-gray-100 px-1 rounded">_miring_</code>, <code className="bg-gray-100 px-1 rounded">- item list</code>, <code className="bg-gray-100 px-1 rounded">  - sub-item huruf</code> (indent 2 spasi),
         dan <code className="bg-gray-100 px-1 rounded">{'{{bank_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{rekening_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{nama_rekening_agen}}'}</code> buat rekening PENANDA TANGAN (beda tiap orang, jangan diisi manual).
-        Bisa juga edit lewat Google Sheets (lebih nyaman buat teks panjang) — kolom <code className="bg-gray-100 px-1 rounded">dokumen | nomor | judul | isi</code>, lalu klik &ldquo;Sync dari Google Sheets&rdquo; di atas.
       </div>
 
       <div className="flex flex-wrap gap-2 mb-3">
@@ -792,18 +770,7 @@ export default function AdminPengaturanDokumenPage() {
         </button>
       )}
 
-      {DOKUMEN_TERKUNCI.includes(dokumen) && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-          🔒 Teks resmi dokumen ini SATU-SATUNYA dari template PDF (src/lib/pdfDokumen/templates/) — dipakai sama persis di semua role: baca &amp; setuju anggota, cetak, unduh, dan tanda tangan. Pasal tidak dipakai lagi. Untuk mengubah teks, kirim file template PDF baru ke tim IT (perlu deploy). Di bawah ini contohnya dengan data dummy.
-        </div>
-      )}
       </div>
-
-      {DOKUMEN_TERKUNCI.includes(dokumen) && (
-        <div className="mb-6">
-          <PdfDokumenResmi key={dokumen} url={`/api/admin/pasal/contoh-pdf?dokumen=${dokumen}`} tinggi="80vh" />
-        </div>
-      )}
 
       {!loadingPasal && showPreviewDokumen && signerForm && !DOKUMEN_TERKUNCI.includes(dokumen) && (
         <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
