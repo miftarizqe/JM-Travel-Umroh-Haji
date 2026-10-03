@@ -85,7 +85,11 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)' }, { status: 400 });
     }
 
-    const [existing] = await db.query('SELECT id FROM sahabat_pendaftaran WHERE user_id = ?', [user_id]);
+    // Baris lama berstatus 'ditolak' DIABAIKAN (dikonfirmasi user 2026-10-03,
+    // samain pola daftar-perwakilan) — admin kasih izin daftar ulang lewat
+    // action 'izinkan_daftar_ulang', baris 'ditolak' lama tetap kesimpen
+    // sebagai riwayat, submission ini bikin baris baru.
+    const [existing] = await db.query("SELECT id FROM sahabat_pendaftaran WHERE user_id = ? AND status != 'ditolak'", [user_id]);
     if (existing.length > 0) {
       return NextResponse.json({ error: 'Anda sudah pernah mengisi data diri pendaftaran sahabat' }, { status: 409 });
     }

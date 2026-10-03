@@ -626,13 +626,17 @@ export default function DatabaseJamaahPage() {
                           <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                             <div className={`h-full ${warnaProgress(persen)}`} style={{ width: `${persen}%` }} />
                           </div>
-                          {!isHop && !j.program_id && (
+                          {/* Ditolak -> gak relevan lagi (dikonfirmasi user
+                              2026-10-03), program_id-nya bisa aja udah
+                              keisi dari SEBELUM ditolak (field ini independen
+                              dari status reject). */}
+                          {j.user_status !== 'rejected' && !isHop && !j.program_id && (
                             <button onClick={() => router.push(`/admin/programs?from_sahabat=${j.user_id}`)}
                               className="mt-1.5 text-[10px] font-bold text-[#C9952A] bg-[#FFF6E5] px-2.5 py-1 rounded-full">
                               🎯 Buat Program Eksklusif dari Target Ini →
                             </button>
                           )}
-                          {j.program_id && (
+                          {j.user_status !== 'rejected' && j.program_id && (
                             <div className="mt-1.5 text-[10px] text-green-600 font-bold">✅ Sudah dibuatkan Program Eksklusif</div>
                           )}
                         </>
@@ -662,23 +666,29 @@ export default function DatabaseJamaahPage() {
                         angka yang jamaah ini lihat sendiri di dashboardnya
                         (saldo_tabungan_umroh = sudah cair/dikonfirmasi,
                         saldo_pending = udah tercatat tapi belum di-ACC). */}
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                        <div className="font-bold text-[#0E2F6E]">{fmtRp(Number(j.saldo_tabungan_umroh || 0) + Number(j.saldo_pending || 0))}</div>
-                        <div className="text-gray-400">Total Saldo</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                        <div className="font-bold text-green-600">{fmtRp(j.saldo_tabungan_umroh)}</div>
-                        <div className="text-gray-400">Sudah Cair</div>
-                      </div>
-                      <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                        <div className="font-bold text-yellow-600">{fmtRp(j.saldo_pending)}</div>
-                        <div className="text-gray-400">Pending</div>
-                      </div>
-                    </div>
-                    <button onClick={() => bukaRekap(j)} className="w-full text-[#1A4FA0] font-bold hover:underline text-center">
-                      📊 Lihat Rekap &amp; Download →
-                    </button>
+                    {/* Ditolak -> gak pernah aktif, saldo/rekap gak relevan
+                        (dikonfirmasi user 2026-10-03). */}
+                    {j.user_status !== 'rejected' && (
+                      <>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                            <div className="font-bold text-[#0E2F6E]">{fmtRp(Number(j.saldo_tabungan_umroh || 0) + Number(j.saldo_pending || 0))}</div>
+                            <div className="text-gray-400">Total Saldo</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                            <div className="font-bold text-green-600">{fmtRp(j.saldo_tabungan_umroh)}</div>
+                            <div className="text-gray-400">Sudah Cair</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                            <div className="font-bold text-yellow-600">{fmtRp(j.saldo_pending)}</div>
+                            <div className="text-gray-400">Pending</div>
+                          </div>
+                        </div>
+                        <button onClick={() => bukaRekap(j)} className="w-full text-[#1A4FA0] font-bold hover:underline text-center">
+                          📊 Lihat Rekap &amp; Download →
+                        </button>
+                      </>
+                    )}
 
                     {editingData === j.user_id ? (
                       <div className="bg-white rounded-lg p-3 border border-gray-100 space-y-2">
@@ -891,6 +901,10 @@ export default function DatabaseJamaahPage() {
                       </div>
                     )}
 
+                    {/* Ditolak -> gak pernah aktif, gak ada histori saldo
+                        buat ditampilkan/dikoreksi (dikonfirmasi user
+                        2026-10-03). */}
+                    {j.user_status !== 'rejected' && (
                     <div className="bg-white rounded-lg p-2 border border-gray-100">
                       <div className="font-bold text-[#0E2F6E] mb-1.5">💰 Riwayat Saldo Tabungan Umroh</div>
                       {!komisiPerUser[j.user_id] ? (
@@ -1035,6 +1049,7 @@ export default function DatabaseJamaahPage() {
                         </div>
                       )}
                     </div>
+                    )}
 
                     {!isHop && (
                       <div className="flex gap-2 pt-1">
@@ -1054,6 +1069,12 @@ export default function DatabaseJamaahPage() {
                           <button disabled={busy} onClick={() => { if (confirm('Tolak pendaftaran ini?')) aksi({ action: 'reject', user_id: j.user_id }); }}
                             className="bg-gray-100 text-gray-500 font-bold px-4 py-2 rounded-full disabled:opacity-50">
                             Tolak
+                          </button>
+                        )}
+                        {j.status === 'ditolak' && (
+                          <button disabled={busy} onClick={() => { if (confirm('Izinkan akun ini daftar ulang? Login akan dibuka lagi & jamaah bisa isi ulang data pendaftaran.')) aksi({ action: 'izinkan_daftar_ulang', user_id: j.user_id }); }}
+                            className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 rounded-full disabled:opacity-50">
+                            ↺ Izinkan Daftar Ulang
                           </button>
                         )}
                       </div>

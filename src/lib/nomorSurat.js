@@ -16,20 +16,62 @@ export async function ambilAtauBuatNomorSurat(pool, userId, jenis, kolom = 'no_p
   if (rows.length === 0) return null;
   if (rows[0].nomor) return rows[0].nomor;
 
-  await pool.query(
-    `INSERT INTO nomor_surat_counter (jenis, urutan) VALUES (?, 1)
-     ON DUPLICATE KEY UPDATE urutan = urutan + 1`,
-    [jenis]
-  );
-  const [c] = await pool.query('SELECT urutan FROM nomor_surat_counter WHERE jenis = ?', [jenis]);
-  const urutan = c[0].urutan;
-
   const now = new Date();
-  const bulan = String(now.getMonth() + 1).padStart(2, '0');
-  const romawi = ROMAWI_BULAN[now.getMonth()];
+  const bulanAngka = now.getMonth() + 1;
   const tahun = now.getFullYear();
-  const nomor = `${bulan}.${String(urutan).padStart(4, '0')}/JMT.${jenis}.${romawi}/${tahun}`;
+
+  // Coba pakai nomor bekas dulu (pendaftaran lain ditolak BULAN INI, nomornya
+  // dirilis lewat releaseNomorSuratJikaBulanSama) sebelum nambah counter baru
+  // -- dikonfirmasi user 2026-10-03, biar gap minim tapi urutan tetap searah
+  // tanggal (nomor lama cuma dipakai ulang selama masih bulan yang sama).
+  const [[released]] = await pool.query(
+    'SELECT id, nomor FROM nomor_surat_released WHERE jenis = ? AND bulan = ? AND tahun = ? ORDER BY urutan ASC LIMIT 1',
+    [jenis, bulanAngka, tahun]
+  );
+  let nomor;
+  if (released) {
+    await pool.query('DELETE FROM nomor_surat_released WHERE id = ?', [released.id]);
+    nomor = released.nomor;
+  } else {
+    await pool.query(
+      `INSERT INTO nomor_surat_counter (jenis, urutan) VALUES (?, 1)
+       ON DUPLICATE KEY UPDATE urutan = urutan + 1`,
+      [jenis]
+    );
+    const [c] = await pool.query('SELECT urutan FROM nomor_surat_counter WHERE jenis = ?', [jenis]);
+    const urutan = c[0].urutan;
+    const bulan = String(bulanAngka).padStart(2, '0');
+    const romawi = ROMAWI_BULAN[now.getMonth()];
+    nomor = `${bulan}.${String(urutan).padStart(4, '0')}/JMT.${jenis}.${romawi}/${tahun}`;
+  }
 
   await pool.query(`UPDATE users SET ${kolom} = ? WHERE id = ?`, [nomor, userId]);
   return nomor;
+}
+
+// Dipanggil saat pendaftaran DITOLAK -- nomor yang udah kebakar (dibaca
+// jamaah sebelum admin tolak) dilepas biar jamaah LAIN yang daftar bulan
+// yang sama bisa kepake nomor itu (lihat ambilAtauBuatNomorSurat). Beda
+// bulan -> dibiarin, jadi gap permanen (lumrah, auditable lewat
+// pendaftaran_status_log) -- reuse lintas bulan bikin nomor kecil bertanggal
+// lebih baru dari nomor besar, berisiko keliatan aneh buat audit.
+export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis) {
+  const [[row]] = await pool.query(`SELECT ${kolom} AS nomor FROM users WHERE id = ?`, [userId]);
+  const nomor = row?.nomor;
+  if (!nomor) return;
+
+  const cocok = nomor.match(/^(\d{2})\.(\d+)\/JMT\..+\/(\d{4})$/);
+  if (!cocok) return;
+  const [, bulanStr, urutanStr, tahunStr] = cocok;
+
+  const now = new Date();
+  const bulanSekarang = String(now.getMonth() + 1).padStart(2, '0');
+  const tahunSekarang = String(now.getFullYear());
+  if (bulanStr !== bulanSekarang || tahunStr !== tahunSekarang) return;
+
+  await pool.query(
+    'INSERT INTO nomor_surat_released (jenis, bulan, tahun, urutan, nomor) VALUES (?, ?, ?, ?, ?)',
+    [jenis, Number(bulanStr), Number(tahunStr), Number(urutanStr), nomor]
+  );
+  await pool.query(`UPDATE users SET ${kolom} = NULL WHERE id = ?`, [userId]);
 }

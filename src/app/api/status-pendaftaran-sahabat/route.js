@@ -7,6 +7,7 @@ import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { kirimSpkAkTunggalUntukTtd } from '@/app/api/admin/dokumen-signature/route';
 import { SPK_AK_SEMENTARA_FISIK } from '@/lib/spkAkFlag';
+import { releaseNomorSuratJikaBulanSama } from '@/lib/nomorSurat';
 
 // Urutan step pendaftaran sahabat — LINEAR, beda bentuk dari perwakilan
 // (yang punya 2 cabang kantor/paket) makanya sengaja tabel & endpoint
@@ -135,7 +136,7 @@ export async function GET(request) {
 }
 
 // PATCH /api/status-pendaftaran-sahabat — aksi admin, body: { action, user_id, ... }
-// action: 'verify_tf' | 'advance' | 'reject'
+// action: 'verify_tf' | 'advance' | 'reject' | 'izinkan_daftar_ulang'
 export async function PATCH(request) {
   const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
@@ -158,7 +159,32 @@ export async function PATCH(request) {
         "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, 'ditolak', ?)",
         [user_id, body.catatan_admin || null]
       );
+      // Lepas nomor surat yang sempat kebakar (dibaca jamaah sebelum ditolak)
+      // biar bisa dipakai ulang jamaah lain bulan ini (dikonfirmasi user
+      // 2026-10-03) — no-op kalau kolomnya kosong atau beda bulan.
+      await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_spk_ak', 'JSB');
+      await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_spk_ak_nonis', 'JSB-NM');
+      await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_sk_cif', 'SK-CIF');
+      await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_surat_pemblokiran', 'SURAT-PEMBLOKIRAN');
       return Response.json({ message: 'Pendaftaran sahabat ditolak.' });
+    }
+
+    // Admin kasih kesempatan kedua ke akun yang sebelumnya ditolak — buka
+    // login lagi (users.status balik 'pending') & izinkan isi ulang form
+    // daftar-sahabat (lihat guard di /api/daftar-sahabat yang sekarang
+    // ngabaikan baris lama berstatus 'ditolak', dikonfirmasi user 2026-10-03).
+    // Baris sahabat_pendaftaran lama TETAP 'ditolak' sebagai riwayat —
+    // submission berikutnya bikin baris baru.
+    if (action === 'izinkan_daftar_ulang') {
+      if (p.status !== 'ditolak') {
+        return Response.json({ error: 'Cuma pendaftaran yang statusnya ditolak yang bisa diizinkan daftar ulang' }, { status: 400 });
+      }
+      await pool.query("UPDATE users SET status = 'pending' WHERE id = ?", [user_id]);
+      await pool.query(
+        "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, 'diizinkan_daftar_ulang', ?)",
+        [user_id, body.catatan_admin || null]
+      );
+      return Response.json({ message: 'Akun diizinkan daftar ulang — jamaah bisa login & isi ulang data pendaftaran.' });
     }
 
     if (action === 'verify_tf') {
