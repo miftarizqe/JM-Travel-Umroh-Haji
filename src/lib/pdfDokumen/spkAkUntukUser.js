@@ -6,11 +6,13 @@
 // (ambilAtauBuatNomorSurat, idempotent). Jalur TTD digital punya generator
 // sendiri di /api/admin/dokumen-signature tapi template-nya sama persis.
 //
-// SPK-AK (Muslim) SEKARANG 2 RANGKAP (dikonfirmasi user 2026-10-03) — hasil
-// akhir fungsi ini buat dokumen='spk_ak' adalah GABUNGAN 2 PDF (rangkap
-// jamaah + rangkap management) jadi SATU file berurutan, lihat
-// generateSpkAkRangkapPdf di spkAkOverlay.js. SPK-AK Non-Muslim BELUM dapat
-// template 2-rangkap baru, tetap 1 dokumen seperti sebelumnya.
+// SPK-AK (Muslim) SEKARANG punya 2 rangkap (dikonfirmasi user 2026-10-03),
+// TAPI yang digabung jadi 2 PDF cuma buat metode_ttd_sahabat='kantor' (admin
+// siapin keduanya sekaligus buat TTD langsung di tempat). Metode 'kirim'
+// (print sendiri, termasuk NULL/belum pilih) cuma dapat rangkap "jamaah" —
+// rangkap "management" dicetak & dikirim terpisah oleh kantor sendiri,
+// BUKAN lewat unduhan jamaah (lihat buatPdfSpkAkUntukUser). SPK-AK Non-Muslim
+// BELUM dapat template 2-rangkap baru, tetap 1 dokumen seperti sebelumnya.
 import { generateSpkAkPdf, generateSpkAkRangkapPdf } from './spkAkOverlay';
 import { mergePdfBuffers } from './dokumenSahabatGabungan';
 import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
@@ -23,7 +25,7 @@ const errStatus = (message, status) => Object.assign(new Error(message), { statu
 /** @returns {Promise<{ pdfBuffer: Uint8Array, nomor: string, dokumen: string }>} */
 export async function buatPdfSpkAkUntukUser(pool, userId) {
   const [[user]] = await pool.query(
-    'SELECT id, name, wa, email, alamat, alamat_ktp, role, agama, no_paspor FROM users WHERE id = ?',
+    'SELECT id, name, wa, email, alamat, alamat_ktp, role, agama, no_paspor, metode_ttd_sahabat FROM users WHERE id = ?',
     [userId]
   );
   if (!user) throw errStatus('Akun tidak ditemukan', 404);
@@ -58,11 +60,21 @@ export async function buatPdfSpkAkUntukUser(pool, userId) {
       targetBulanTahun: berangkat ? `${BULAN_ID[berangkat.getMonth()]} ${berangkat.getFullYear()}` : '-',
       nominalTarget: pendaftaran?.target_estimasi_harga ? Number(pendaftaran.target_estimasi_harga).toLocaleString('id-ID') : '-',
     };
-    const [rangkapJamaah, rangkapManagement] = await Promise.all([
-      generateSpkAkRangkapPdf('jamaah', dataRangkap),
-      generateSpkAkRangkapPdf('management', dataRangkap),
-    ]);
-    const pdfBuffer = await mergePdfBuffers([rangkapJamaah, rangkapManagement]);
+    // 2 rangkap CUMA buat metode "datang kantor" (admin siapin 2 fisik
+    // sekaligus buat TTD langsung di tempat). Metode "kirim" (print sendiri)
+    // cuma rangkap "jamaah" — rangkap "management" (udah ada TTD Mei
+    // Ling/Ahmad Zaky statis) dicetak & dikirim terpisah oleh kantor
+    // sendiri langsung ke jamaah, BUKAN diunduh jamaah, biar gak nunggu
+    // jamaah muter-balik 2 dokumen dulu (dikonfirmasi user 2026-10-03).
+    if (user.metode_ttd_sahabat === 'kantor') {
+      const [rangkapJamaah, rangkapManagement] = await Promise.all([
+        generateSpkAkRangkapPdf('jamaah', dataRangkap),
+        generateSpkAkRangkapPdf('management', dataRangkap),
+      ]);
+      const pdfBuffer = await mergePdfBuffers([rangkapJamaah, rangkapManagement]);
+      return { pdfBuffer, nomor, dokumen };
+    }
+    const pdfBuffer = await generateSpkAkRangkapPdf('jamaah', dataRangkap);
     return { pdfBuffer, nomor, dokumen };
   }
 
