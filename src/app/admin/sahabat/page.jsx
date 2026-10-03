@@ -243,33 +243,33 @@ export default function AdminSahabatPage() {
                   <span className="text-green-600 font-bold">✅ Ya</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
               </div>
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Scan SK-CIF (fisik + materai) <span className="text-gray-400 font-normal">— opsional, boleh nyusul</span></span>
-                {detail.dokumen_sk_cif_fisik_path ? (
-                  <a href={detail.dokumen_sk_cif_fisik_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
-                ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
-              </div>
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Scan Surat Pernyataan Kuasa Blokir Rekening (fisik + materai) <span className="text-gray-400 font-normal">— opsional, boleh nyusul</span></span>
-                {detail.dokumen_surat_pemblokiran_fisik_path ? (
-                  <a href={detail.dokumen_surat_pemblokiran_fisik_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
-                ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
-              </div>
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Dokumen CIF Fisik Diterima di Kantor</span>
-                {isHop ? (
-                  <span className={detail.dokumen_cif_fisik_diterima_at ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
-                    {detail.dokumen_cif_fisik_diterima_at ? '✅ Sudah' : '⏳ Belum'}
-                  </span>
-                ) : (
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" checked={!!detail.dokumen_cif_fisik_diterima_at} disabled={busy}
-                      onChange={e => aksi({ action: 'toggle_cif_fisik', user_id: detail.user_id, value: e.target.checked })}
-                      className="w-4 h-4 accent-[#1A4FA0]" />
-                    Sudah
-                  </label>
-                )}
-              </div>
+              {/* Scan-upload gak lagi jadi sinyal utama (opsional, boleh
+                  nyusul) — diganti 3 checkbox "diterima di kantor" per
+                  dokumen (dikonfirmasi user 2026-10-03), mirror pola
+                  dokumen_cif_fisik_diterima_at yang udah ada. Cuma relevan
+                  buat metode 'kirim' — 'kantor' gak butuh ini sama sekali,
+                  dokumennya diserahkan & ditandatangani langsung di tempat. */}
+              {detail.metode_ttd_sahabat === 'kirim' && [
+                { label: 'Dokumen Fisik SPK-AK Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik' },
+                { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik' },
+                { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik' },
+              ].map(({ label, field, action }) => (
+                <div key={field} className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                  <span>{label}</span>
+                  {isHop ? (
+                    <span className={detail[field] ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
+                      {detail[field] ? '✅ Sudah' : '⏳ Belum'}
+                    </span>
+                  ) : (
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={!!detail[field]} disabled={busy}
+                        onChange={e => aksi({ action, user_id: detail.user_id, value: e.target.checked })}
+                        className="w-4 h-4 accent-[#1A4FA0]" />
+                      Sudah
+                    </label>
+                  )}
+                </div>
+              ))}
             </div>
 
             {!isHop && (

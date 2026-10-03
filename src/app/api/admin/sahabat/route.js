@@ -16,6 +16,7 @@ export async function GET(request) {
       `SELECT kp.*, u.kode_unik, u.role AS user_role, u.status AS user_status, u.agama,
               u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
+              u.dokumen_pemblokiran_fisik_diterima_at, u.dokumen_spk_ak_fisik_diterima_at, u.metode_ttd_sahabat,
               u.dokumen_surat_pemblokiran_fisik_path,
               perekrut.name AS perekrut_nama,
               v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,

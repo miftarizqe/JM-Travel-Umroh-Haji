@@ -187,6 +187,28 @@ export async function PATCH(request) {
       return Response.json({ message: 'Status dokumen CIF fisik diperbarui.' });
     }
 
+    // Mirror toggle_cif_fisik buat 2 dokumen lain (dikonfirmasi user
+    // 2026-10-03) — sejak scan-upload gak lagi jadi sinyal utama (opsional,
+    // boleh nyusul), yang beneran berguna buat admin itu "dokumen fisik
+    // aslinya udah nyampe di kantor apa belum" per-dokumen (khusus jamaah
+    // yang pilih metode TTD "kirim" — yang "kantor" gak butuh ini sama
+    // sekali, dokumennya diserahkan langsung di tempat).
+    if (action === 'toggle_pemblokiran_fisik') {
+      await pool.query(
+        'UPDATE users SET dokumen_pemblokiran_fisik_diterima_at = ? WHERE id = ?',
+        [body.value ? new Date() : null, user_id]
+      );
+      return Response.json({ message: 'Status dokumen Surat Pemblokiran fisik diperbarui.' });
+    }
+
+    if (action === 'toggle_spk_ak_fisik') {
+      await pool.query(
+        'UPDATE users SET dokumen_spk_ak_fisik_diterima_at = ? WHERE id = ?',
+        [body.value ? new Date() : null, user_id]
+      );
+      return Response.json({ message: 'Status dokumen SPK-AK fisik diperbarui.' });
+    }
+
     // Tracking "1 rangkap SPK-AK yang sudah di-TTD & di-materai kantor udah
     // dikirim balik ke jamaah" (dikonfirmasi user 2026-09-30, cuma relevan
     // buat jamaah yang pilih metode 'kirim' — kalau 'kantor' gak perlu
