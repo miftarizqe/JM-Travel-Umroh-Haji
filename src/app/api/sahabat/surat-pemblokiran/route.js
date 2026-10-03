@@ -25,7 +25,7 @@ export async function GET(request) {
   try {
     const [rows] = await pool.query(
       `SELECT id, name, nik, wa, email, alamat, alamat_ktp, kode_unik, role,
-              no_rekening_tabungan_umroh, no_surat_pemblokiran,
+              no_rekening_tabungan_umroh, no_surat_pemblokiran, bantuan_bsi_manual_disetujui_at,
               nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir
        FROM users WHERE id = ?`,
       [auth.user.id]
@@ -33,7 +33,12 @@ export async function GET(request) {
     const user = rows[0];
     if (!user) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
     if (user.role !== 'sahabat_baitullah') return Response.json({ error: 'Hanya berlaku untuk akun sahabat' }, { status: 400 });
-    if (!user.no_rekening_tabungan_umroh) return Response.json({ error: 'Isi nomor rekening tabungan umroh terlebih dahulu' }, { status: 400 });
+    // Rekening boleh kosong kalau jamaah udah setuju dibantuin BSI manual
+    // (dikonfirmasi user 2026-10-03) -- sama pola dengan
+    // dokumenSahabatGabungan.js, diisi admin belakangan begitu BSI selesai.
+    if (!user.no_rekening_tabungan_umroh && !user.bantuan_bsi_manual_disetujui_at) {
+      return Response.json({ error: 'Isi nomor rekening tabungan umroh terlebih dahulu' }, { status: 400 });
+    }
     if (!user.nominal_blokir_tabungan || !user.jangka_waktu_blokir_hari || !user.tanggal_mulai_blokir) {
       return Response.json({ error: 'Isi nominal, jangka waktu, dan tanggal mulai blokir terlebih dahulu' }, { status: 400 });
     }
@@ -54,7 +59,7 @@ export async function GET(request) {
       nama: user.name,
       nik: user.nik || '-',
       alamat: user.alamat || '-',
-      no_rekening: user.no_rekening_tabungan_umroh,
+      no_rekening: user.no_rekening_tabungan_umroh || '-',
       nominal_blokir: Number(user.nominal_blokir_tabungan).toLocaleString('id-ID'),
       jangka_waktu_hari: String(user.jangka_waktu_blokir_hari),
       tanggal_mulai_blokir: tglIndo(new Date(user.tanggal_mulai_blokir)),
