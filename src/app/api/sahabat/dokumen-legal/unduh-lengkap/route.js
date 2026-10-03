@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { buatPdfSpkAkUntukUser } from '@/lib/pdfDokumen/spkAkUntukUser';
-import { buatPdfSkCifPemblokiranUntukUser, mergePdfBuffers } from '@/lib/pdfDokumen/dokumenSahabatGabungan';
+import { buatPdfSkCifPemblokiranUntukUser, buatPdfFormulirBsiUntukUser, mergePdfBuffers } from '@/lib/pdfDokumen/dokumenSahabatGabungan';
 
 // GET /api/sahabat/dokumen-legal/unduh-lengkap?user_id=X — PDF gabungan
 // KETIGA dokumen Sahabat Baitullah (SPK-AK + SK-CIF + Surat Pemblokiran)
@@ -33,7 +33,17 @@ export async function GET(request) {
 
     const { pdfBuffer: spkAkBuffer } = await buatPdfSpkAkUntukUser(pool, targetUserId);
     const skCifPemblokiranBuffer = await buatPdfSkCifPemblokiranUntukUser(pool, targetUserId);
-    const gabungan = await mergePdfBuffers([spkAkBuffer, skCifPemblokiranBuffer]);
+    const buffers = [spkAkBuffer, skCifPemblokiranBuffer];
+
+    // Dokumen ke-4: Formulir Pendaftaran Rekening BSI -- cuma relevan buat
+    // jamaah yang udah setuju bantuan BSI manual (dikonfirmasi user
+    // 2026-10-03), bukan semua orang.
+    const [[u]] = await pool.query('SELECT bantuan_bsi_manual_disetujui_at FROM users WHERE id = ?', [targetUserId]);
+    if (u?.bantuan_bsi_manual_disetujui_at) {
+      buffers.push(await buatPdfFormulirBsiUntukUser(pool, targetUserId));
+    }
+
+    const gabungan = await mergePdfBuffers(buffers);
 
     return new Response(gabungan, {
       // no-store wajib — tanpa ini browser bisa nge-cache PDF dinamis ini

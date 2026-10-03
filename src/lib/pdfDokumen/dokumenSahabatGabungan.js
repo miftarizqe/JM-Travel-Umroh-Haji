@@ -5,6 +5,7 @@
 import { PDFDocument } from 'pdf-lib';
 import { tambahHalamanSkCif } from './skCifOverlay';
 import { tambahHalamanSuratPemblokiran } from './suratPemblokiranOverlay';
+import { generateFormulirBsiPdf } from './formulirBsiOverlay';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
 import { formatAlamatDuaBaris } from './alamatDuaBaris';
@@ -93,6 +94,44 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
       tanggalMulai: tglIndo(new Date(user.tanggal_mulai_blokir)),
       tanggalTtd,
     },
+  });
+}
+
+// PDF "Formulir Pendaftaran Rekening BSI" — form intake yang JM Travel
+// kirim ke BSI buat minta dibukain rekening manual (dikonfirmasi user
+// 2026-10-03). Cuma relevan buat user yang udah setuju bantuan BSI manual
+// (bantuan_bsi_manual_disetujui_at terisi) -- dicek di pemanggil
+// (/api/sahabat/dokumen-legal/unduh-lengkap), bukan di sini.
+export async function buatPdfFormulirBsiUntukUser(pool, userId) {
+  const [[user]] = await pool.query(
+    `SELECT id, name, nik, wa, email, role, jenis_kelamin, nama_ibu, pekerjaan,
+            tempat_lahir, tanggal_lahir, alamat_ktp, alamat_domisili,
+            alamat_ktp_jalan, alamat_ktp_no_rumah, alamat_ktp_rt, alamat_ktp_rw,
+            alamat_ktp_kelurahan, alamat_ktp_kecamatan, alamat_ktp_kota, alamat_ktp_provinsi, alamat_ktp_negara
+     FROM users WHERE id = ?`,
+    [userId]
+  );
+  if (!user) throw errStatus('Akun tidak ditemukan', 404);
+  if (user.role !== 'sahabat_baitullah') throw errStatus('Hanya berlaku untuk akun sahabat', 400);
+
+  const { alamatBaris1, alamatBaris2 } = formatAlamatDuaBaris(user);
+  // Alamat domisili gak punya komponen terpisah (cuma hasil join lama,
+  // beda dari alamat KTP) -- 1 baris aja, baris 2 dikosongin.
+  const alamatDomisiliBaris1 = user.alamat_domisili || user.alamat_ktp || '-';
+
+  return generateFormulirBsiPdf({
+    namaLengkap: user.name,
+    nomorKtp: user.nik || '-',
+    tempatTanggalLahir: (user.tempat_lahir && user.tanggal_lahir)
+      ? `${user.tempat_lahir}, ${tglIndo(new Date(user.tanggal_lahir))}` : '-',
+    jenisKelamin: user.jenis_kelamin || '-',
+    namaIbuKandung: user.nama_ibu || '-',
+    alamatKtpBaris1: alamatBaris1, alamatKtpBaris2: alamatBaris2,
+    alamatDomisiliBaris1, alamatDomisiliBaris2: '',
+    noWhatsapp: user.wa || '-',
+    email: user.email || '-',
+    pekerjaan: user.pekerjaan || '-',
+    namaTtd: user.name,
   });
 }
 
