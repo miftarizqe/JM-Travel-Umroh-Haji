@@ -4,12 +4,16 @@ import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { statusAkun } from '@/lib/statusAkun';
 
-// NIK & seluruh data rekening (identitas + tujuan transfer duit, "ngaruh
-// kemana2") — SEMULA dibuka self-service dengan pengaman audit+notifikasi
-// (2026-08-30 pagi), TAPI dikunci ulang jadi ADMIN-ONLY (2026-08-30 sore,
-// dikonfirmasi user) karena terlalu sensitif buat self-service walau
-// diaudit. `alamat` TETAP self-service (gak termasuk daftar ini).
-const FIELD_ADMIN_ONLY = ['nik', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
+// Seluruh data rekening (tujuan transfer duit, "ngaruh kemana2") — SEMULA
+// dibuka self-service dengan pengaman audit+notifikasi (2026-08-30 pagi),
+// TAPI dikunci ulang jadi ADMIN-ONLY (2026-08-30 sore, dikonfirmasi user)
+// karena terlalu sensitif buat self-service walau diaudit. `alamat` TETAP
+// self-service (gak termasuk daftar ini).
+// NIK DICABUT TOTAL dari sini (dikonfirmasi user 2026-10-03) -- bukan lagi
+// admin-only-editable, tapi GAK BISA DIUBAH SAMA SEKALI lewat endpoint ini
+// (data identitas resmi, beda dari rekening yang memang wajar berubah).
+// Koreksi NIK kalau beneran perlu harus lewat DB langsung, bukan form.
+const FIELD_ADMIN_ONLY = ['bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 // email & wa — SAMA alasannya kayak NIK, ditambahin 2026-09-20 (dikonfirmasi
 // user, berlaku SEMUA role): begitu keisi pas registrasi/verifikasi awal,
 // gak boleh diganti sendiri lagi — nyegah orang "cuci" identitas lewat akun
@@ -21,7 +25,7 @@ const FIELD_ADMIN_ONLY = ['nik', 'bank', 'no_rekening', 'nama_pemilik_rekening',
 // Field umum (semua role, self-service) + field khusus role sahabat
 // (admin-only, lihat FIELD_ADMIN_ONLY) — TIDAK termasuk nama/email/wa
 // (itu tetap lewat jalur wajib di bawah, sudah ada).
-const FIELD_UMUM = ['nik', 'alamat', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_paspor'];
+const FIELD_UMUM = ['alamat', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_paspor'];
 const FIELD_SAHABAT = ['no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 
 // GET /api/profil?user_id=xxx — ambil data user TERKINI dari DB

@@ -464,10 +464,9 @@ export default function ProfilPage() {
             <>
               {isAdminSelf ? (
                 <>
-                  <div>
-                    <label className={lbl}>NIK</label>
-                    <input value={formRekening.nik} onChange={e => setFormRekening({...formRekening, nik: e.target.value})} className={inp}/>
-                  </div>
+                  {/* NIK DICABUT dari sini (dikonfirmasi user 2026-10-03) --
+                      data identitas resmi, gak boleh diubah sama sekali
+                      lewat form (beda dari rekening yang wajar berubah). */}
                   {/* Bank/No. Rekening/Nama Pemilik Rekening generik cuma
                       relevan buat role yang pencairannya ke rekening ini
                       (perwakilan). sahabat_baitullah pakai Tabungan Umroh

@@ -455,7 +455,7 @@ export default function DatabaseJamaahPage() {
   function mulaiEditData(j) {
     setEditingData(j.user_id);
     setFormData({
-      nik: j.nik || '', bank: j.bank || '', no_rekening: j.no_rekening || '', nama_pemilik_rekening: j.nama_pemilik_rekening || '',
+      bank: j.bank || '', no_rekening: j.no_rekening || '', nama_pemilik_rekening: j.nama_pemilik_rekening || '',
       no_rekening_bsi_biasa: j.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: j.no_rekening_tabungan_umroh || '',
       nama_pemilik_rekening_umroh: j.nama_pemilik_rekening_umroh || '',
     });
@@ -696,13 +696,11 @@ export default function DatabaseJamaahPage() {
 
                     {editingData === j.user_id ? (
                       <div className="bg-white rounded-lg p-3 border border-gray-100 space-y-2">
-                        <div className="font-bold text-[#0E2F6E]">Edit NIK &amp; Rekening (admin-only)</div>
+                        <div className="font-bold text-[#0E2F6E]">Edit Rekening (admin-only)</div>
+                        {/* NIK SENGAJA gak bisa diedit di sini (dikonfirmasi
+                            user 2026-10-03) -- itu data identitas resmi,
+                            beda dari rekening yang memang wajar berubah. */}
                         <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">NIK</label>
-                            <input value={formData.nik} onChange={e => setFormData(f => ({ ...f, nik: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
                           <div>
                             <label className="block text-gray-400 mb-0.5">Bank</label>
                             <input value={formData.bank} onChange={e => setFormData(f => ({ ...f, bank: e.target.value }))}
@@ -758,7 +756,7 @@ export default function DatabaseJamaahPage() {
                         {!isHop && (
                           <div className="col-span-2">
                             <button onClick={() => mulaiEditData(j)} className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2.5 py-1 rounded-full">
-                              ✏️ Edit NIK &amp; Rekening
+                              ✏️ Edit Rekening
                             </button>
                           </div>
                         )}
