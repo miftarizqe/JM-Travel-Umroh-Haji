@@ -820,11 +820,25 @@ export default function DatabaseJamaahPage() {
                         'kantor'/'kirim' yang sama dengan SK-CIF/Pemblokiran. */}
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Metode TTD Fisik</span>
-                      {j.metode_ttd_sahabat === 'kantor' ? (
-                        <span className="text-[#1A4FA0] font-bold">🏢 Datang kantor{j.rencana_kunjungan_kantor_at ? ` — ${fmtTanggal(j.rencana_kunjungan_kantor_at)}` : ''}</span>
-                      ) : j.metode_ttd_sahabat === 'kirim' ? (
-                        <span className="text-gray-600 font-bold">📄 Cetak & kirim sendiri</span>
-                      ) : <span className="text-gray-400">Belum dipilih jamaah</span>}
+                      <div className="flex items-center gap-2">
+                        {j.metode_ttd_sahabat === 'kantor' ? (
+                          <span className="text-[#1A4FA0] font-bold">🏢 Datang kantor{j.rencana_kunjungan_kantor_at ? ` — ${fmtTanggal(j.rencana_kunjungan_kantor_at)}` : ''}</span>
+                        ) : j.metode_ttd_sahabat === 'kirim' ? (
+                          <span className="text-gray-600 font-bold">📄 Cetak & kirim sendiri</span>
+                        ) : <span className="text-gray-400">Belum dipilih jamaah</span>}
+                        {/* Dikonfirmasi user 2026-10-03 — sebelumnya gak ada
+                            cara admin ngeprint dokumen buat jamaah yang
+                            pilih "Datang Kantor" (TTD langsung di tempat),
+                            cuma bisa dicetak sendiri oleh anggotanya. Tombol
+                            ini reuse endpoint unduh gabungan 3 dokumen yang
+                            sama, cuma dengan ?user_id= (admin-only). */}
+                        {j.metode_ttd_sahabat && (
+                          <button onClick={() => window.open(`/api/sahabat/dokumen-legal/unduh-lengkap?user_id=${j.user_id}`, '_blank')}
+                            className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2 py-1 rounded-full hover:bg-blue-100 shrink-0">
+                            🖨️ Cetak Dokumen
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">

@@ -3,20 +3,36 @@ import { wajibLogin } from '@/lib/auth';
 import { buatPdfSpkAkUntukUser } from '@/lib/pdfDokumen/spkAkUntukUser';
 import { buatPdfSkCifPemblokiranUntukUser, mergePdfBuffers } from '@/lib/pdfDokumen/dokumenSahabatGabungan';
 
-// GET /api/sahabat/dokumen-legal/unduh-lengkap — PDF gabungan KETIGA dokumen
-// Sahabat Baitullah (SPK-AK + SK-CIF + Surat Pemblokiran) jadi SATU file,
-// dipakai di step "Metode TTD & Kirim Dokumen" (dikonfirmasi user
-// 2026-10-02) biar jamaah bisa baca & unduh ketiganya dari 1 tempat tanpa
-// gonta-ganti halaman. TIDAK menggantikan unduhan per-dokumen yang sudah
-// ada (/api/sahabat/unduh-spk-ak, /api/sahabat/dokumen-legal/pdf-otomatis)
+// GET /api/sahabat/dokumen-legal/unduh-lengkap?user_id=X — PDF gabungan
+// KETIGA dokumen Sahabat Baitullah (SPK-AK + SK-CIF + Surat Pemblokiran)
+// jadi SATU file, dipakai di step "Metode TTD & Kirim Dokumen" (dikonfirmasi
+// user 2026-10-02) biar jamaah bisa baca & unduh ketiganya dari 1 tempat
+// tanpa gonta-ganti halaman. TIDAK menggantikan unduhan per-dokumen yang
+// sudah ada (/api/sahabat/unduh-spk-ak, /api/sahabat/dokumen-legal/pdf-otomatis)
 // — itu tetap tersedia buat yang mau unduh terpisah.
+//
+// ?user_id= (opsional, admin/super_admin ONLY) — dipakai admin buat CETAK
+// dokumen anggota yang pilih metode TTD "Datang Kantor" (dikonfirmasi user
+// 2026-10-03: sebelumnya gak ada cara admin ngeprint dokumen buat jamaah
+// yang mau TTD langsung di kantor, cuma bisa dilakuin anggotanya sendiri).
+// Tanpa param ini, selalu dokumen milik akun yang login (self).
 export async function GET(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
 
   try {
-    const { pdfBuffer: spkAkBuffer } = await buatPdfSpkAkUntukUser(pool, auth.user.id);
-    const skCifPemblokiranBuffer = await buatPdfSkCifPemblokiranUntukUser(pool, auth.user.id);
+    const { searchParams } = new URL(request.url);
+    const userIdParam = searchParams.get('user_id');
+    let targetUserId = auth.user.id;
+    if (userIdParam && String(userIdParam) !== String(auth.user.id)) {
+      if (!['admin', 'super_admin'].includes(auth.user.role)) {
+        return Response.json({ error: 'Anda tidak berwenang atas dokumen ini' }, { status: 403 });
+      }
+      targetUserId = userIdParam;
+    }
+
+    const { pdfBuffer: spkAkBuffer } = await buatPdfSpkAkUntukUser(pool, targetUserId);
+    const skCifPemblokiranBuffer = await buatPdfSkCifPemblokiranUntukUser(pool, targetUserId);
     const gabungan = await mergePdfBuffers([spkAkBuffer, skCifPemblokiranBuffer]);
 
     return new Response(gabungan, {
