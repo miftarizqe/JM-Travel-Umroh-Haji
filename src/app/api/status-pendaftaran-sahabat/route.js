@@ -276,7 +276,8 @@ export async function PATCH(request) {
       // terverifikasi) — satu-satunya transisi admin yang tersisa di sini
       // adalah ke 'active'.
       const [[u]] = await pool.query(
-        `SELECT kode_unik, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_diterima_at, no_rekening_tabungan_umroh
+        `SELECT kode_unik, agama, setuju_pks, setuju_sk_cif_pemblokiran_at, dokumen_spk_ak_fisik_diterima_at,
+                no_rekening_tabungan_umroh, bantuan_bsi_manual_disetujui_at
          FROM users WHERE id = ?`, [user_id]
       );
       // SPK-AK sekarang 1 RANGKAP (rangkap='tunggal', dikonfirmasi user
@@ -306,7 +307,13 @@ export async function PATCH(request) {
         // Syaratnya sekarang cuma "udah setuju" (checkbox di /pks).
         if (!u.setuju_pks) return Response.json({ error: 'Surat Perjanjian Jamaah Sahabat Baitullah belum disetujui jamaah' }, { status: 400 });
         if (!p.bukti_tf_verified_at) return Response.json({ error: 'Bukti transfer belum diverifikasi' }, { status: 400 });
-        if (!u.no_rekening_tabungan_umroh) return Response.json({ error: 'Rekening Tabungan Umroh belum diisi' }, { status: 400 });
+        // Rekening boleh kosong kalau jamaah udah setuju dibantuin BSI manual
+        // (dikonfirmasi user 2026-10-03) -- admin boleh aktifkan akunnya
+        // duluan, isi no_rekening_tabungan_umroh belakangan begitu BSI
+        // selesai proses (lihat Database Jamaah).
+        if (!u.no_rekening_tabungan_umroh && !u.bantuan_bsi_manual_disetujui_at) {
+          return Response.json({ error: 'Rekening Tabungan Umroh belum diisi' }, { status: 400 });
+        }
         // No. CIF BSI DICABUT dari syarat (dikonfirmasi user 2026-09-27) —
         // gak perlu diisi jamaah lagi sama sekali, di funnel maupun gate ini.
         // Scan fisik SK-CIF/Surat Pemblokiran SENGAJA BUKAN lagi syarat ACC
