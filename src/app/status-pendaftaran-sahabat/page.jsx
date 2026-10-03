@@ -556,8 +556,17 @@ export default function StatusPendaftaranSahabatPage() {
                     target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs">
                     Hubungi Admin via WhatsApp
                   </a>
-                  <button onClick={() => { pilihMetodeTtd('kantor'); }} disabled={savingMetodeTtd}
-                    className="block text-[10px] text-gray-400 underline">Ganti jadi datang langsung ke kantor</button>
+                  <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
+                    <div className="text-[10px] font-bold text-[#1A4FA0]">Ganti jadi datang langsung ke kantor?</div>
+                    <div className="flex gap-2">
+                      <input type="date" value={tanggalKunjunganInput} onChange={e => setTanggalKunjunganInput(e.target.value)}
+                        className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+                      <button onClick={() => pilihMetodeTtd('kantor')} disabled={savingMetodeTtd || !tanggalKunjunganInput}
+                        className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 whitespace-nowrap">
+                        {savingMetodeTtd ? '...' : 'Pilih Tanggal Ini'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
