@@ -56,6 +56,29 @@ export default function StatusPendaftaranSahabatPage() {
   // Tabungan Umroh terpisah gak perlu ditampilkan lagi buat kasus ini.
   const [sudahPunyaRekeningBsi, setSudahPunyaRekeningBsi] = useState(null);
 
+  // Bantuan BSI manual (dikonfirmasi user 2026-10-03) -- gak semua KTP bisa
+  // daftar Tabungan Umroh via BYOND self-service, jamaah yang kejebak bisa
+  // setuju identitasnya diserahkan JM Travel ke BSI buat dibukain rekening
+  // manual ke cabang. Rekening tetap kosong sampai admin isi manual.
+  const [bantuanBsiManualView, setBantuanBsiManualView] = useState(false);
+  const [setujuBantuanBsi, setSetujuBantuanBsi] = useState(false);
+  const [savingBantuanBsi, setSavingBantuanBsi] = useState(false);
+
+  async function kirimBantuanBsiManual() {
+    if (!setujuBantuanBsi) { alert('Centang persetujuan dulu'); return; }
+    setSavingBantuanBsi(true);
+    try {
+      const res = await fetch('/api/sahabat/bantuan-bsi-manual', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ setuju: true }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSavingBantuanBsi(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setSavingBantuanBsi(false);
+  }
+
   function muat() {
     fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
       // Sinkronkan status TERKINI ke localStorage (sama seperti
@@ -306,7 +329,11 @@ export default function StatusPendaftaranSahabatPage() {
           {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Bayar pendaftaran (bukti transfer) dulu di atas.</div>}
           {prasyarat.bukti_tf_verified && (
             prasyarat.rekening_umroh_terisi ? (
-              <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
+              u.no_rekening_tabungan_umroh ? (
+                <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
+              ) : (
+                <div className="text-xs text-amber-600">⏳ Menunggu pembuatan rekening manual oleh BSI — admin JM Travel akan infokan begitu selesai.</div>
+              )
             ) : sudahPunyaRekeningBsi === null ? (
               <div className="space-y-2">
                 <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening BSI (biasa)?</div>
@@ -334,21 +361,53 @@ export default function StatusPendaftaranSahabatPage() {
                   <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
                     className="text-xs font-bold text-[#1A4FA0] underline block">📘 Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
                 )}
-                <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
-                  onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Nomor rekening tabungan umroh"
-                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
-                <div className="flex gap-2">
-                  <input value={namaPemilikUmrohInput} maxLength={255}
-                    onChange={e => setNamaPemilikUmrohInput(e.target.value)}
-                    placeholder="Nama pemilik rekening (sesuai buku tabungan)"
-                    className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
-                  <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh, namaPemilikUmrohInput)} disabled={savingRekUmroh}
-                    className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
-                    {savingRekUmroh ? '...' : 'Simpan'}
-                  </button>
-                </div>
-                <button onClick={() => setSudahPunyaRekeningBsi(null)} className="text-[10px] text-gray-400 underline">← Ganti jawaban</button>
+
+                {bantuanBsiManualView ? (
+                  <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-3 space-y-2">
+                    <div className="text-xs text-gray-700">Apakah Anda setuju identitas Anda diserahkan ke pihak Bank BSI untuk dibukakan rekening?</div>
+                    <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                      <input type="checkbox" checked={setujuBantuanBsi} onChange={e => setSetujuBantuanBsi(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
+                      Saya setuju identitas saya diserahkan ke pihak Bank BSI untuk dibukakan rekening Tabungan Umroh.
+                    </label>
+                    <div className="flex gap-2">
+                      <button onClick={() => { setBantuanBsiManualView(false); setSetujuBantuanBsi(false); }}
+                        className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">Batal</button>
+                      <button onClick={kirimBantuanBsiManual} disabled={savingBantuanBsi || !setujuBantuanBsi}
+                        className="flex-1 bg-[#1A4FA0] text-white text-xs font-bold px-3 py-2 rounded-lg disabled:opacity-50">
+                        {savingBantuanBsi ? '...' : 'Lanjutkan'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
+                      onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
+                      placeholder="Nomor rekening tabungan umroh"
+                      className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+                    <div className="flex gap-2">
+                      <input value={namaPemilikUmrohInput} maxLength={255}
+                        onChange={e => setNamaPemilikUmrohInput(e.target.value)}
+                        placeholder="Nama pemilik rekening (sesuai buku tabungan)"
+                        className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+                      <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh, namaPemilikUmrohInput)} disabled={savingRekUmroh}
+                        className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+                        {savingRekUmroh ? '...' : 'Simpan'}
+                      </button>
+                    </div>
+                    {/* Gak semua KTP bisa daftar via BYOND self-service (dikonfirmasi
+                        user 2026-10-03) -- cuma relevan buat yang BELUM punya rekening
+                        BSI sama sekali (yang sudah punya tinggal buka Tabungan Umroh,
+                        gak ada hambatan serupa). */}
+                    {!sudahPunyaRekeningBsi && (
+                      <button onClick={() => setBantuanBsiManualView(true)}
+                        className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg block w-full text-left">
+                        ⚠️ Tidak bisa membuat rekening via BYOND? Klik di sini untuk JM bantu pembuatan rekening manual ke cabang pilihan JM Travel
+                      </button>
+                    )}
+                    <button onClick={() => setSudahPunyaRekeningBsi(null)} className="text-[10px] text-gray-400 underline">← Ganti jawaban</button>
+                  </>
+                )}
               </div>
             )
           )}

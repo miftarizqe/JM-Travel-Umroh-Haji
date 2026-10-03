@@ -37,7 +37,8 @@ export async function generateDokumenGabunganPdf({ skCif, pemblokiran }) {
 // dengan buatPdfSpkAkUntukUser di spkAkUntukUser.js.
 export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
   const [[user]] = await pool.query(
-    `SELECT id, name, nik, alamat, alamat_ktp, role, no_rekening_tabungan_umroh,
+    `SELECT id, name, nik, alamat, alamat_ktp, role, no_rekening_tabungan_umroh, nama_pemilik_rekening_umroh,
+            bantuan_bsi_manual_disetujui_at,
             nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
             alamat_ktp_jalan, alamat_ktp_no_rumah, alamat_ktp_rt, alamat_ktp_rw,
             alamat_ktp_kelurahan, alamat_ktp_kecamatan, alamat_ktp_kota, alamat_ktp_provinsi, alamat_ktp_negara
@@ -46,11 +47,21 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
   );
   if (!user) throw errStatus('Akun tidak ditemukan', 404);
   if (user.role !== 'sahabat_baitullah') throw errStatus('Hanya berlaku untuk akun sahabat', 400);
-  if (!user.no_rekening_tabungan_umroh) throw errStatus('Isi nomor rekening tabungan umroh terlebih dahulu', 400);
+  // Rekening boleh kosong kalau jamaah udah setuju dibantuin BSI manual
+  // (dikonfirmasi user 2026-10-03) -- diisi admin belakangan begitu BSI
+  // selesai proses, dokumen tetap bisa dibaca/di-TTD dengan kolom rekening
+  // kosong sementara.
+  if (!user.no_rekening_tabungan_umroh && !user.bantuan_bsi_manual_disetujui_at) {
+    throw errStatus('Isi nomor rekening tabungan umroh terlebih dahulu', 400);
+  }
   if (!user.nominal_blokir_tabungan || !user.jangka_waktu_blokir_hari || !user.tanggal_mulai_blokir) {
     throw errStatus('Isi nominal, jangka waktu, dan tanggal mulai blokir terlebih dahulu', 400);
   }
   const { alamatBaris1, alamatBaris2 } = formatAlamatDuaBaris(user);
+  // Nama pemilik rekening bisa beda dari nama jamaah sendiri (terutama
+  // rekening hasil bantuan BSI manual) -- fallback ke nama jamaah kalau
+  // belum diisi admin (dikonfirmasi user 2026-10-03).
+  const namaRekening = user.nama_pemilik_rekening_umroh || user.name;
   // Baris "_______,________________" di atas TTD -- sebelumnya selalu kosong
   // (dikonfirmasi user 2026-10-03, sekarang diisi tanggal cetak).
   const tanggalTtd = `Jakarta, ${tglIndo(new Date())}`;
@@ -67,6 +78,7 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
       nik: user.nik || '-',
       alamatBaris1, alamatBaris2,
       noRekening: user.no_rekening_tabungan_umroh || '-',
+      namaRekening,
       namaWakil: signer?.nama || '-',
       tanggalTtd,
     },
@@ -75,6 +87,7 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
       nik: user.nik || '-',
       alamatBaris1, alamatBaris2,
       noRekening: user.no_rekening_tabungan_umroh || '-',
+      namaRekening,
       nominalBlokir: Number(user.nominal_blokir_tabungan).toLocaleString('id-ID'),
       jangkaWaktuHari: String(user.jangka_waktu_blokir_hari),
       tanggalMulai: tglIndo(new Date(user.tanggal_mulai_blokir)),

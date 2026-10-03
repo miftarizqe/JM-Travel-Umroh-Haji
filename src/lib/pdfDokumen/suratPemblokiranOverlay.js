@@ -43,9 +43,9 @@ const P1_TANDA_TANGAN = {
 
 /**
  * @param {import('pdf-lib').PDFDocument} outDoc
- * @param {{nama:string, nik:string, alamatBaris1:string, alamatBaris2:string, noRekening:string, nominalBlokir:string, jangkaWaktuHari:string, tanggalMulai:string, tanggalTtd:string}} data
+ * @param {{nama:string, nik:string, alamatBaris1:string, alamatBaris2:string, noRekening:string, namaRekening:string, nominalBlokir:string, jangkaWaktuHari:string, tanggalMulai:string, tanggalTtd:string}} data
  */
-export async function tambahHalamanSuratPemblokiran(outDoc, { nama, nik, alamatBaris1, alamatBaris2, noRekening, nominalBlokir, jangkaWaktuHari, tanggalMulai, tanggalTtd }) {
+export async function tambahHalamanSuratPemblokiran(outDoc, { nama, nik, alamatBaris1, alamatBaris2, noRekening, namaRekening, nominalBlokir, jangkaWaktuHari, tanggalMulai, tanggalTtd }) {
   const [embed] = await embedTemplatePages(outDoc, SURAT_PEMBLOKIRAN_TEMPLATE_PATH, [0]);
   const font = await outDoc.embedFont(StandardFonts.TimesRoman);
 
@@ -55,7 +55,7 @@ export async function tambahHalamanSuratPemblokiran(outDoc, { nama, nik, alamatB
   drawFitKiri(page, font, alamatBaris1, P1.alamatBaris1, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, alamatBaris2, P1.alamatBaris2, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, noRekening, P1.noRekening, FONT_SIZE_ISIAN);
-  drawFitKiri(page, font, nama, P1.namaRekening, FONT_SIZE_ISIAN);
+  drawFitKiri(page, font, namaRekening ?? nama, P1.namaRekening, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, nominalBlokir, P1.nominalBlokir1, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, jangkaWaktuHari, P1.jangkaWaktuHari, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, tanggalMulai, P1.tanggalMulai, FONT_SIZE_ISIAN);

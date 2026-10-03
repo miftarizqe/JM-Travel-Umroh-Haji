@@ -457,6 +457,7 @@ export default function DatabaseJamaahPage() {
     setFormData({
       nik: j.nik || '', bank: j.bank || '', no_rekening: j.no_rekening || '', nama_pemilik_rekening: j.nama_pemilik_rekening || '',
       no_rekening_bsi_biasa: j.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: j.no_rekening_tabungan_umroh || '',
+      nama_pemilik_rekening_umroh: j.nama_pemilik_rekening_umroh || '',
     });
   }
 
@@ -587,6 +588,9 @@ export default function DatabaseJamaahPage() {
                           detail tahap gak berarti apa2 lagi. */}
                       {j.user_status === 'pending' && (
                         <div className="text-[10px] text-gray-400 mt-0.5">Tahap: {PENDAFTARAN_STATUS_LABEL[j.status] || j.status}</div>
+                      )}
+                      {j.bantuan_bsi_manual_disetujui_at && !j.no_rekening_tabungan_umroh && (
+                        <div className="text-[10px] text-amber-700 font-bold mt-0.5">⏳ Nunggu Rekening Manual BSI</div>
                       )}
                     </button>
                     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${STATUS_WARNA[j.user_status] || 'bg-gray-100 text-gray-500'}`}>
@@ -724,6 +728,11 @@ export default function DatabaseJamaahPage() {
                             <input value={formData.no_rekening_tabungan_umroh} onChange={e => setFormData(f => ({ ...f, no_rekening_tabungan_umroh: e.target.value }))}
                               className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
                           </div>
+                          <div>
+                            <label className="block text-gray-400 mb-0.5">Nama Pemilik Rek. Tabungan Umroh</label>
+                            <input value={formData.nama_pemilik_rekening_umroh} onChange={e => setFormData(f => ({ ...f, nama_pemilik_rekening_umroh: e.target.value }))}
+                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
+                          </div>
                         </div>
                         <div className="flex gap-2 pt-1">
                           <button onClick={() => setEditingData(null)} className="flex-1 bg-gray-100 text-gray-500 font-bold py-1.5 rounded-lg">Batal</button>
@@ -739,6 +748,12 @@ export default function DatabaseJamaahPage() {
                         <div>Bank: <b className="text-gray-700">{j.bank} - {j.no_rekening}</b></div>
                         <div>Rek. BSI Biasa: <b className="text-gray-700">{j.no_rekening_bsi_biasa || '-'}</b></div>
                         <div>Rek. Tabungan Umroh: <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
+                        <div>Nama Pemilik Rek. Umroh: <b className="text-gray-700">{j.nama_pemilik_rekening_umroh || '-'}</b></div>
+                        {j.bantuan_bsi_manual_disetujui_at && !j.no_rekening_tabungan_umroh && (
+                          <div className="col-span-2 text-amber-700 font-bold bg-amber-50 rounded-lg px-2 py-1">
+                            ⏳ Nunggu Rekening Manual BSI — jamaah setuju {fmtTanggal(j.bantuan_bsi_manual_disetujui_at)}, isi No. Rekening &amp; Nama Pemilik begitu BSI selesai proses.
+                          </div>
+                        )}
                         <div>Perekrut: <b className="text-gray-700">{j.perekrut_nama || '-'}</b></div>
                         {!isHop && (
                           <div className="col-span-2">

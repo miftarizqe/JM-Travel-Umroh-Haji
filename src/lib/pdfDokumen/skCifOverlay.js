@@ -41,9 +41,9 @@ const P2_TANGGAL = { x: 90, y: 240, maxWidth: 300 };
  * dipakai baik buat PDF SK-CIF berdiri sendiri maupun digabung dengan
  * dokumen lain (lihat dokumenSahabatGabungan.js).
  * @param {import('pdf-lib').PDFDocument} outDoc
- * @param {{nama:string, nik:string, alamatBaris1:string, alamatBaris2:string, noRekening:string, namaWakil:string, tanggalTtd:string}} data
+ * @param {{nama:string, nik:string, alamatBaris1:string, alamatBaris2:string, noRekening:string, namaRekening:string, namaWakil:string, tanggalTtd:string}} data
  */
-export async function tambahHalamanSkCif(outDoc, { nama, nik, alamatBaris1, alamatBaris2, noRekening, namaWakil, tanggalTtd }) {
+export async function tambahHalamanSkCif(outDoc, { nama, nik, alamatBaris1, alamatBaris2, noRekening, namaRekening, namaWakil, tanggalTtd }) {
   const [p1Embed, p2Embed] = await embedTemplatePages(outDoc, SK_CIF_TEMPLATE_PATH, [0, 1]);
   const font = await outDoc.embedFont(StandardFonts.TimesRoman);
 
@@ -53,7 +53,7 @@ export async function tambahHalamanSkCif(outDoc, { nama, nik, alamatBaris1, alam
   drawFitKiri(page1, font, alamatBaris1, P1.alamatBaris1, FONT_SIZE_ISIAN);
   drawFitKiri(page1, font, alamatBaris2, P1.alamatBaris2, FONT_SIZE_ISIAN);
   drawFitKiri(page1, font, noRekening, P1.noRekening, FONT_SIZE_ISIAN);
-  drawFitKiri(page1, font, nama, P1.namaRekening, FONT_SIZE_ISIAN);
+  drawFitKiri(page1, font, namaRekening ?? nama, P1.namaRekening, FONT_SIZE_ISIAN);
 
   const page2 = tempelHalamanTemplate(outDoc, p2Embed);
   drawFitKiri(page2, font, tanggalTtd, P2_TANGGAL, FONT_SIZE_ISIAN);
