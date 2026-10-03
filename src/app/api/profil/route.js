@@ -9,7 +9,7 @@ import { statusAkun } from '@/lib/statusAkun';
 // (2026-08-30 pagi), TAPI dikunci ulang jadi ADMIN-ONLY (2026-08-30 sore,
 // dikonfirmasi user) karena terlalu sensitif buat self-service walau
 // diaudit. `alamat` TETAP self-service (gak termasuk daftar ini).
-const FIELD_ADMIN_ONLY = ['nik', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh'];
+const FIELD_ADMIN_ONLY = ['nik', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 // email & wa — SAMA alasannya kayak NIK, ditambahin 2026-09-20 (dikonfirmasi
 // user, berlaku SEMUA role): begitu keisi pas registrasi/verifikasi awal,
 // gak boleh diganti sendiri lagi — nyegah orang "cuci" identitas lewat akun
@@ -22,7 +22,7 @@ const FIELD_ADMIN_ONLY = ['nik', 'bank', 'no_rekening', 'nama_pemilik_rekening',
 // (admin-only, lihat FIELD_ADMIN_ONLY) — TIDAK termasuk nama/email/wa
 // (itu tetap lewat jalur wajib di bawah, sudah ada).
 const FIELD_UMUM = ['nik', 'alamat', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_paspor'];
-const FIELD_SAHABAT = ['no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh'];
+const FIELD_SAHABAT = ['no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 
 // GET /api/profil?user_id=xxx — ambil data user TERKINI dari DB
 export async function GET(request) {
@@ -38,7 +38,7 @@ export async function GET(request) {
       `SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status, u.wilayah, u.foto_path,
               u.jenis_kelamin, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama, p.role AS perekrut_role, u.reg_status, u.reg_metode, u.reg_jadwal,
               u.alamat_kirim, u.alamat, u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_paspor,
-              u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.created_at,
+              u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
               u.kode_invite_perwakilan, u.tabungan_haji_status, u.agama,

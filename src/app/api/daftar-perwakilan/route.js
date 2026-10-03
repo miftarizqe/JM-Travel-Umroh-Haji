@@ -154,13 +154,13 @@ export async function POST(req) {
       `UPDATE users SET role = 'perwakilan', status = 'pending', reg_status = 'pending',
               reg_metode = NULL, reg_jadwal = NULL, perekrut_id = ?,
               tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?,
-              alamat_ktp = ?, alamat_domisili = ?, kode_pos = ?, pekerjaan = ?,
+              alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?, pekerjaan = ?,
               bank = ?, no_rekening = ?, nama_pemilik_rekening = ?, foto_ktp_path = ?
        WHERE id = ?`,
       [
         perekrutIdFinal,
         tempat_lahir || null, tl, jk, ibu,
-        alamatKtp, alamatDomisili, kp || null, pkj || null,
+        alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null, pkj || null,
         bank, norek, pemilik, foto_ktp_path,
         user_id,
       ]

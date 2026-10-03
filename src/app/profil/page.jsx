@@ -33,7 +33,7 @@ export default function ProfilPage() {
   const [editingRekening, setEditingRekening] = useState(false);
   const [formRekening, setFormRekening] = useState({
     nik: '', alamat: '', bank: '', no_rekening: '', nama_pemilik_rekening: '', no_paspor: '',
-    no_rekening_bsi_biasa: '', no_rekening_tabungan_umroh: '',
+    no_rekening_bsi_biasa: '', no_rekening_tabungan_umroh: '', nama_pemilik_rekening_umroh: '',
   });
   const [savingRekening, setSavingRekening] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
@@ -47,7 +47,7 @@ export default function ProfilPage() {
   const [loadingRiwayat, setLoadingRiwayat] = useState(false);
   const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
 
-  const FIELD_SENSITIF_REKENING = ['nik', 'bank', 'no_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh'];
+  const FIELD_SENSITIF_REKENING = ['nik', 'bank', 'no_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
   const isAdminSelf = ['admin', 'super_admin'].includes(user?.role);
 
   const isDirty = editing && user && (
@@ -74,6 +74,7 @@ export default function ProfilPage() {
             no_rekening: d.user.no_rekening || '', nama_pemilik_rekening: d.user.nama_pemilik_rekening || '',
             no_paspor: d.user.no_paspor || '',
             no_rekening_bsi_biasa: d.user.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: d.user.no_rekening_tabungan_umroh || '',
+            nama_pemilik_rekening_umroh: d.user.nama_pemilik_rekening_umroh || '',
           });
           // Segarkan cache lokal
           localStorage.setItem('user', JSON.stringify({ ...parsed, ...d.user }));
@@ -467,18 +468,26 @@ export default function ProfilPage() {
                     <label className={lbl}>NIK</label>
                     <input value={formRekening.nik} onChange={e => setFormRekening({...formRekening, nik: e.target.value})} className={inp}/>
                   </div>
-                  <div>
-                    <label className={lbl}>Bank</label>
-                    <input value={formRekening.bank} onChange={e => setFormRekening({...formRekening, bank: e.target.value})} className={inp}/>
-                  </div>
-                  <div>
-                    <label className={lbl}>No. Rekening</label>
-                    <input value={formRekening.no_rekening} onChange={e => setFormRekening({...formRekening, no_rekening: e.target.value})} className={inp}/>
-                  </div>
-                  <div>
-                    <label className={lbl}>Nama Pemilik Rekening</label>
-                    <input value={formRekening.nama_pemilik_rekening} onChange={e => setFormRekening({...formRekening, nama_pemilik_rekening: e.target.value})} className={inp}/>
-                  </div>
+                  {/* Bank/No. Rekening/Nama Pemilik Rekening generik cuma
+                      relevan buat role yang pencairannya ke rekening ini
+                      (perwakilan). sahabat_baitullah pakai Tabungan Umroh
+                      di bawah, bukan field ini (dikonfirmasi user 2026-10-03). */}
+                  {user.role !== 'sahabat_baitullah' && (
+                    <>
+                      <div>
+                        <label className={lbl}>Bank</label>
+                        <input value={formRekening.bank} onChange={e => setFormRekening({...formRekening, bank: e.target.value})} className={inp}/>
+                      </div>
+                      <div>
+                        <label className={lbl}>No. Rekening</label>
+                        <input value={formRekening.no_rekening} onChange={e => setFormRekening({...formRekening, no_rekening: e.target.value})} className={inp}/>
+                      </div>
+                      <div>
+                        <label className={lbl}>Nama Pemilik Rekening</label>
+                        <input value={formRekening.nama_pemilik_rekening} onChange={e => setFormRekening({...formRekening, nama_pemilik_rekening: e.target.value})} className={inp}/>
+                      </div>
+                    </>
+                  )}
                 </>
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-700">
@@ -500,10 +509,16 @@ export default function ProfilPage() {
                 </div>
               )}
               {isAdminSelf && user.role === 'sahabat_baitullah' && user.no_rekening_tabungan_umroh && (
-                <div>
-                  <label className={lbl}>No. Rekening Tabungan Umroh</label>
-                  <input value={formRekening.no_rekening_tabungan_umroh} onChange={e => setFormRekening({...formRekening, no_rekening_tabungan_umroh: e.target.value})} className={inp}/>
-                </div>
+                <>
+                  <div>
+                    <label className={lbl}>No. Rekening Tabungan Umroh</label>
+                    <input value={formRekening.no_rekening_tabungan_umroh} onChange={e => setFormRekening({...formRekening, no_rekening_tabungan_umroh: e.target.value})} className={inp}/>
+                  </div>
+                  <div>
+                    <label className={lbl}>Nama Pemilik Rekening (Tabungan Umroh)</label>
+                    <input value={formRekening.nama_pemilik_rekening_umroh} onChange={e => setFormRekening({...formRekening, nama_pemilik_rekening_umroh: e.target.value})} className={inp}/>
+                  </div>
+                </>
               )}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => { setEditingRekening(false); setFormRekening({
@@ -511,6 +526,7 @@ export default function ProfilPage() {
                     nama_pemilik_rekening: user.nama_pemilik_rekening||'', no_paspor: user.no_paspor||'',
                     no_rekening_bsi_biasa: user.no_rekening_bsi_biasa||'',
                     no_rekening_tabungan_umroh: user.no_rekening_tabungan_umroh||'',
+                    nama_pemilik_rekening_umroh: user.nama_pemilik_rekening_umroh||'',
                   }); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">
                   Batal
@@ -527,28 +543,48 @@ export default function ProfilPage() {
                 { label: 'NIK', val: user.nik || '-' },
                 { label: 'Alamat', val: user.alamat || '-' },
                 { label: 'No. Paspor', val: user.no_paspor || '-' },
-                { label: 'Bank', val: user.bank || '-' },
-                { label: 'No. Rekening', val: user.no_rekening || '-' },
-                { label: 'Nama Pemilik Rekening', val: user.nama_pemilik_rekening || '-' },
               ].map(f => (
                 <div key={f.label} className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
                   <span className="text-gray-400">{f.label}</span>
                   <span className="font-semibold text-[#0E2F6E]">{f.val}</span>
                 </div>
               ))}
-              {user.role === 'sahabat_baitullah' && (
+              {/* Bank/No. Rekening/Nama Pemilik Rekening — sahabat_baitullah
+                  cuma punya 1 rekening (Tabungan Umroh, selalu BSI), jadi
+                  3 baris ini otomatis ngikut data itu, BUKAN field generik
+                  bank/no_rekening/nama_pemilik_rekening (yang dipakai
+                  perwakilan buat tujuan pencairan ujroh). Dikonfirmasi user
+                  2026-10-03. */}
+              {user.role === 'sahabat_baitullah' ? (
                 <>
-                  {/* No. Rekening BSI Biasa dihapus (dikonfirmasi user
-                      2026-09-03) — Sahabat Baitullah cuma punya 1 rekening. */}
                   <div className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
-                    <span className="text-gray-400">No. Rekening Tabungan Umroh</span>
+                    <span className="text-gray-400">Bank</span>
+                    <span className="font-semibold text-[#0E2F6E]">{user.no_rekening_tabungan_umroh ? 'BSI' : '-'}</span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
+                    <span className="text-gray-400">No. Rekening</span>
                     {user.no_rekening_tabungan_umroh ? (
                       <span className="font-semibold text-[#0E2F6E]">{user.no_rekening_tabungan_umroh}</span>
                     ) : (
                       <button onClick={() => router.push('/status-pendaftaran-sahabat')} className="text-xs font-bold text-[#1A4FA0] underline">Isi di Status Pendaftaran →</button>
                     )}
                   </div>
+                  <div className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
+                    <span className="text-gray-400">Nama Pemilik Rekening</span>
+                    <span className="font-semibold text-[#0E2F6E]">{user.nama_pemilik_rekening_umroh || '-'}</span>
+                  </div>
                 </>
+              ) : (
+                [
+                  { label: 'Bank', val: user.bank || '-' },
+                  { label: 'No. Rekening', val: user.no_rekening || '-' },
+                  { label: 'Nama Pemilik Rekening', val: user.nama_pemilik_rekening || '-' },
+                ].map(f => (
+                  <div key={f.label} className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
+                    <span className="text-gray-400">{f.label}</span>
+                    <span className="font-semibold text-[#0E2F6E]">{f.val}</span>
+                  </div>
+                ))
               )}
             </div>
           )}

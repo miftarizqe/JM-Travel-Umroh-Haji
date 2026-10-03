@@ -28,6 +28,7 @@ export default function StatusPendaftaranSahabatPage() {
   const [savingBlokirData, setSavingBlokirData] = useState(false);
   const [uploadingTf, setUploadingTf] = useState(false);
   const [rekUmrohInput, setRekUmrohInput] = useState('');
+  const [namaPemilikUmrohInput, setNamaPemilikUmrohInput] = useState('');
   const [savingRekUmroh, setSavingRekUmroh] = useState(false);
   const [rekeningSahabat, setRekeningSahabat] = useState([]);
 
@@ -95,13 +96,14 @@ export default function StatusPendaftaranSahabatPage() {
     setUploadingTf(false);
   }
 
-  async function simpanRekening(field, nilai, setSaving) {
+  async function simpanRekening(field, nilai, setSaving, namaPemilik) {
     if (!nilai.trim()) { alert('Isi nomor rekening dulu'); return; }
+    if (field === 'no_rekening_tabungan_umroh' && !namaPemilik?.trim()) { alert('Isi nama pemilik rekening dulu'); return; }
     setSaving(true);
     try {
       const res = await fetch('/api/sahabat/rekening-bsi', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ field, no_rekening: nilai.trim() }),
+        body: JSON.stringify({ field, no_rekening: nilai.trim(), nama_pemilik: namaPemilik?.trim() }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setSaving(false); return; }
@@ -304,7 +306,7 @@ export default function StatusPendaftaranSahabatPage() {
           {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Bayar pendaftaran (bukti transfer) dulu di atas.</div>}
           {prasyarat.bukti_tf_verified && (
             prasyarat.rekening_umroh_terisi ? (
-              <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}</div>
+              <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
             ) : sudahPunyaRekeningBsi === null ? (
               <div className="space-y-2">
                 <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening BSI (biasa)?</div>
@@ -332,12 +334,16 @@ export default function StatusPendaftaranSahabatPage() {
                   <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
                     className="text-xs font-bold text-[#1A4FA0] underline block">📘 Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
                 )}
+                <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
+                  onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Nomor rekening tabungan umroh"
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
                 <div className="flex gap-2">
-                  <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
-                    onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Nomor rekening tabungan umroh"
+                  <input value={namaPemilikUmrohInput} maxLength={255}
+                    onChange={e => setNamaPemilikUmrohInput(e.target.value)}
+                    placeholder="Nama pemilik rekening (sesuai buku tabungan)"
                     className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
-                  <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh)} disabled={savingRekUmroh}
+                  <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh, namaPemilikUmrohInput)} disabled={savingRekUmroh}
                     className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
                     {savingRekUmroh ? '...' : 'Simpan'}
                   </button>

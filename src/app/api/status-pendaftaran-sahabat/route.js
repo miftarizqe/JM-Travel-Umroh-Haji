@@ -39,7 +39,7 @@ export async function GET(request) {
   try {
     const [users] = await pool.query(
       `SELECT id, name, role, status, terverifikasi, foto_path, setuju_pks, agama,
-              no_rekening_tabungan_umroh, setuju_sk_cif_pemblokiran_at,
+              no_rekening_tabungan_umroh, nama_pemilik_rekening_umroh, setuju_sk_cif_pemblokiran_at,
               dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path,
               dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
               metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at,
@@ -112,6 +112,7 @@ export async function GET(request) {
         id: u.id, name: u.name, role: u.role, status: u.status,
         terverifikasi: !!u.terverifikasi, foto_path: u.foto_path, setuju_pks: !!u.setuju_pks,
         no_rekening_tabungan_umroh: u.no_rekening_tabungan_umroh,
+        nama_pemilik_rekening_umroh: u.nama_pemilik_rekening_umroh,
         setuju_sk_cif_pemblokiran_at: u.setuju_sk_cif_pemblokiran_at,
         dokumen_spk_ak_fisik_path: u.dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path: u.dokumen_sk_cif_fisik_path,
         dokumen_surat_pemblokiran_fisik_path: u.dokumen_surat_pemblokiran_fisik_path,
