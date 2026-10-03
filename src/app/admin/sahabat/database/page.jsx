@@ -773,6 +773,19 @@ export default function DatabaseJamaahPage() {
                       )}
                     </div>
 
+                    {/* Urutan baris berikut ini DISAMAKAN persis sama
+                        urutan funnel pendaftaran jamaah (dikonfirmasi user
+                        2026-10-03) — SPK-AK dulu, baru bayar, rekening, CIF,
+                        lalu metode TTD. "Baca & Setuju SPK-AK" sebelumnya
+                        gak ada sama sekali di halaman ini (cuma ada di
+                        halaman Pendaftaran yang beda konteks — "SPK-AK
+                        selesai ditandatangani", bukan setuju_pks). */}
+                    <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
+                      <span>Baca & Setuju Surat Perjanjian Kerjasama (SPK-AK)</span>
+                      {j.setuju_pks ? (
+                        <span className="text-green-600 font-bold">✅ Ya</span>
+                      ) : <span className="text-gray-400">⏳ Belum</span>}
+                    </div>
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Bukti Transfer Rp1jt</span>
                       {j.bukti_tf_path ? (
