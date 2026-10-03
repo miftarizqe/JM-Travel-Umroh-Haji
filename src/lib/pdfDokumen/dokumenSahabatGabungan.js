@@ -7,6 +7,7 @@ import { tambahHalamanSkCif } from './skCifOverlay';
 import { tambahHalamanSuratPemblokiran } from './suratPemblokiranOverlay';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
+import { formatAlamatDuaBaris } from './alamatDuaBaris';
 
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 function tglIndo(d) {
@@ -37,7 +38,9 @@ export async function generateDokumenGabunganPdf({ skCif, pemblokiran }) {
 export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
   const [[user]] = await pool.query(
     `SELECT id, name, nik, alamat, alamat_ktp, role, no_rekening_tabungan_umroh,
-            nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir
+            nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
+            alamat_ktp_jalan, alamat_ktp_no_rumah, alamat_ktp_rt, alamat_ktp_rw,
+            alamat_ktp_kelurahan, alamat_ktp_kecamatan, alamat_ktp_kota, alamat_ktp_provinsi, alamat_ktp_negara
      FROM users WHERE id = ?`,
     [userId]
   );
@@ -47,7 +50,10 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
   if (!user.nominal_blokir_tabungan || !user.jangka_waktu_blokir_hari || !user.tanggal_mulai_blokir) {
     throw errStatus('Isi nominal, jangka waktu, dan tanggal mulai blokir terlebih dahulu', 400);
   }
-  user.alamat = user.alamat_ktp || user.alamat;
+  const { alamatBaris1, alamatBaris2 } = formatAlamatDuaBaris(user);
+  // Baris "_______,________________" di atas TTD -- sebelumnya selalu kosong
+  // (dikonfirmasi user 2026-10-03, sekarang diisi tanggal cetak).
+  const tanggalTtd = `Jakarta, ${tglIndo(new Date())}`;
 
   // Freeze pasal/signer (idempotent) tetap dijalankan biar konsisten sama
   // GET /api/sahabat/sk-cif — nama Penerima Kuasa yang dicetak di sini
@@ -59,18 +65,20 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
     skCif: {
       nama: user.name,
       nik: user.nik || '-',
-      alamat: user.alamat || '-',
+      alamatBaris1, alamatBaris2,
       noRekening: user.no_rekening_tabungan_umroh || '-',
       namaWakil: signer?.nama || '-',
+      tanggalTtd,
     },
     pemblokiran: {
       nama: user.name,
       nik: user.nik || '-',
-      alamat: user.alamat || '-',
+      alamatBaris1, alamatBaris2,
       noRekening: user.no_rekening_tabungan_umroh || '-',
       nominalBlokir: Number(user.nominal_blokir_tabungan).toLocaleString('id-ID'),
       jangkaWaktuHari: String(user.jangka_waktu_blokir_hari),
       tanggalMulai: tglIndo(new Date(user.tanggal_mulai_blokir)),
+      tanggalTtd,
     },
   });
 }

@@ -63,14 +63,18 @@ export async function GET(request) {
       // Penerima Kuasa = penandatangan SK-CIF yang BENERAN dikonfigurasi admin.
       const skCifSigner = await ambilSignerSkCif(pool);
       buffer = await generateSkCifPdf({
-        nama: CONTOH_MERGE_ISIAN.nama, nik: CONTOH_MERGE_ISIAN.nik, alamat: CONTOH_MERGE_ISIAN.alamat,
+        nama: CONTOH_MERGE_ISIAN.nama, nik: CONTOH_MERGE_ISIAN.nik,
+        alamatBaris1: CONTOH_MERGE_ISIAN.alamat, alamatBaris2: '',
         noRekening: CONTOH_MERGE_ISIAN.no_rekening, namaWakil: skCifSigner?.nama || 'Nama Penandatangan SK-CIF Contoh',
+        tanggalTtd: `Jakarta, ${CONTOH_MERGE_ISIAN.tanggal_mulai_blokir}`,
       });
     } else if (dokumen === 'surat_pemblokiran') {
       buffer = await generateSuratPemblokiranPdf({
-        nama: CONTOH_MERGE_ISIAN.nama, nik: CONTOH_MERGE_ISIAN.nik, alamat: CONTOH_MERGE_ISIAN.alamat,
+        nama: CONTOH_MERGE_ISIAN.nama, nik: CONTOH_MERGE_ISIAN.nik,
+        alamatBaris1: CONTOH_MERGE_ISIAN.alamat, alamatBaris2: '',
         noRekening: CONTOH_MERGE_ISIAN.no_rekening, nominalBlokir: CONTOH_MERGE_ISIAN.nominal_blokir,
         jangkaWaktuHari: CONTOH_MERGE_ISIAN.jangka_waktu_hari, tanggalMulai: CONTOH_MERGE_ISIAN.tanggal_mulai_blokir,
+        tanggalTtd: `Jakarta, ${CONTOH_MERGE_ISIAN.tanggal_mulai_blokir}`,
       });
     } else if (dokumen === 'spk_ak' || dokumen === 'spk_ak_nonis') {
       buffer = await generateSpkAkPdf({
