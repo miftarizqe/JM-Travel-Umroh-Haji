@@ -3,6 +3,7 @@ import db from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { hargaTermurahProgram } from '@/lib/harga';
 import { hariIniWib, SQL_JADWAL_BELUM_LEWAT } from '@/lib/jadwalTarget';
+import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 
 // Formulir data diri pendaftaran sahabat (funnel "Program Sahabat Bisa
 // Umroh & Haji" kerja sama BSI) — tabel staging SENDIRI (sahabat_pendaftaran),
@@ -187,6 +188,17 @@ export async function POST(req) {
       "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru) VALUES ('sahabat_baitullah', ?, 'pending')",
       [user_id]
     );
+
+    // Notifikasi admin — sebelumnya GAK ADA notifikasi sama sekali di titik
+    // "pendaftar baru daftar" (cuma ada di step Metode TTD, ditemukan user
+    // 2026-10-03: notifikasi kerasa kurang lengkap, kejadian penting macam
+    // ini gak kelihatan). Ini titik paling awal yang actionable buat admin.
+    await kirimNotifikasiAdmin(db, {
+      tipe: 'sahabat_pendaftar_baru',
+      judul: 'Pendaftar Sahabat Baitullah Baru',
+      pesan: `${nama} baru mengisi data diri pendaftaran Sahabat Baitullah.`,
+      link: '/admin/sahabat',
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, message: 'Data diri tersimpan.', id: result.insertId });
   } catch (err) {

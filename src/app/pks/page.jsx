@@ -211,9 +211,17 @@ function PKSPageInner() {
 
         {(jenis === 'jamaah' && bookingId) || (jenis === 'sahabat_baitullah' && userId) ? (
           <div className="mt-4 space-y-2">
+            {/* SPK-AK Sahabat Baitullah SEMENTARA fisik (vendor esign belum
+                siap, dikonfirmasi user 2026-09-30) -- tombol ini cuma nyimpen
+                persetujuan & lanjut buat jenis ini (lihat simpanLaluTtdDigital,
+                skip POST dokumen-signature kalau sahabat_baitullah), BUKAN
+                beneran mulai sesi TTD digital. Label disamain sama tombol
+                "Setuju & Lanjutkan" biasa biar gak menyesatkan (dikonfirmasi
+                user 2026-10-03). */}
             <button onClick={simpanLaluTtdDigital} disabled={!setuju || loading || loadingDigital}
-              className="w-full bg-[#C9952A] hover:bg-yellow-600 text-white font-bold py-3 rounded-full disabled:opacity-40">
-              {loadingDigital ? 'Memproses...' : '✍️ Setujui & Tanda Tangan Digital'}
+              className={`w-full text-white font-bold py-3 rounded-full disabled:opacity-40 ${
+                jenis === 'sahabat_baitullah' ? 'bg-[#1A4FA0] hover:bg-[#0E2F6E]' : 'bg-[#C9952A] hover:bg-yellow-600'}`}>
+              {loadingDigital ? 'Memproses...' : jenis === 'sahabat_baitullah' ? '✅ Setuju & Lanjutkan' : '✍️ Setujui & Tanda Tangan Digital'}
             </button>
             {/* SPK-AK Sahabat Baitullah wajib TTD digital + e-materai
                 (dikonfirmasi user 2026-09-19) — opsi fisik dihapus khusus

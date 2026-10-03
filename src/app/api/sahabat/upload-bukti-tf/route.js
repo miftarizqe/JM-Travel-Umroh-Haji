@@ -4,6 +4,7 @@ import path from 'path';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { catatRekening } from '@/lib/rekeningLedger';
+import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 const MAKS = 10 * 1024 * 1024;
@@ -84,6 +85,17 @@ export async function POST(request) {
       sumber_id: auth.user.id, nominal: 1000000,
       keterangan: `Setoran pendaftaran Rp1.000.000 — ${auth.user.name || auth.user.id}`,
     });
+
+    // Notifikasi admin — sebelumnya GAK ADA di titik ini (ditemukan user
+    // 2026-10-03). Bukti TF auto-verified (lihat komentar atas), tapi admin
+    // tetap perlu tau biar bisa spot-check & 'reject' kalau ternyata
+    // bermasalah -- itu jaring pengamannya, butuh notifikasi buat kepake.
+    await kirimNotifikasiAdmin(pool, {
+      tipe: 'sahabat_bukti_tf',
+      judul: 'Bukti Transfer Sahabat Baitullah Masuk',
+      pesan: `${auth.user.name} mengunggah bukti transfer Rp1.000.000 pendaftaran Sahabat Baitullah.`,
+      link: '/admin/sahabat',
+    }).catch(() => {});
 
     return Response.json({ message: 'Bukti transfer berhasil diunggah, lanjut isi data blokir rekening!', path: publicPath });
   } catch (error) {
