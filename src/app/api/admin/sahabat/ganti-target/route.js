@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { hargaTermurahProgram } from '@/lib/harga';
+import { hariIniWib, SQL_JADWAL_BELUM_LEWAT } from '@/lib/jadwalTarget';
 
 // GET /api/admin/sahabat/ganti-target — daftar pengajuan ganti target yang
 // masih menunggu ACC (baik pengajuan ganti BARU 'diajukan', maupun
@@ -98,11 +99,11 @@ export async function PATCH(request) {
 
     // approve
     const [[program]] = await pool.query(
-      "SELECT id, name FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1",
-      [pendaftaran.target_ganti_program_id]
+      `SELECT id, name FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1 AND ${SQL_JADWAL_BELUM_LEWAT}`,
+      [pendaftaran.target_ganti_program_id, hariIniWib()]
     );
     if (!program) {
-      return Response.json({ error: 'Program tujuan sudah tidak valid/aktif — tolak pengajuan ini dan minta jamaah mengajukan ulang.' }, { status: 400 });
+      return Response.json({ error: 'Program tujuan sudah tidak valid/aktif atau jadwalnya sudah lewat — tolak pengajuan ini dan minta jamaah mengajukan ulang.' }, { status: 400 });
     }
     const [[programFull]] = await pool.query('SELECT * FROM programs WHERE id = ?', [program.id]);
     const nominal = hargaTermurahProgram(programFull);

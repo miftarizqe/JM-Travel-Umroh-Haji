@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { hariIniWib, SQL_JADWAL_BELUM_LEWAT } from '@/lib/jadwalTarget';
 
 // POST /api/sahabat/ganti-target  body: { program_id }
 // Self-service — anggota Sahabat Baitullah ajukan ganti Target Impian
@@ -37,10 +38,10 @@ export async function POST(request) {
     }
 
     const [[program]] = await pool.query(
-      "SELECT id, name FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1",
-      [program_id]
+      `SELECT id, name FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1 AND ${SQL_JADWAL_BELUM_LEWAT}`,
+      [program_id, hariIniWib()]
     );
-    if (!program) return Response.json({ error: 'Program tujuan tidak valid atau sudah tidak aktif' }, { status: 400 });
+    if (!program) return Response.json({ error: 'Program tujuan tidak valid, sudah tidak aktif, atau jadwal keberangkatannya sudah lewat' }, { status: 400 });
 
     await pool.query(
       `UPDATE sahabat_pendaftaran

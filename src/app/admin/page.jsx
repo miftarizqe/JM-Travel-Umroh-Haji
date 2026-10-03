@@ -9,6 +9,7 @@ import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan } from '@/lib/usePengaturan';
 import { urutkan, cocok } from '@/lib/sortTable';
+import { statusJadwalTarget } from '@/lib/jadwalTarget';
 import { downloadExcel as downloadExcelFile } from '@/lib/downloadExcel';
 import { downloadDokumenZip } from '@/lib/downloadDokumenZip';
 import SortTh from '@/app/components/SortTh';
@@ -179,12 +180,14 @@ const AKSI_LABEL = {
   sahabat_setoran_mandiri_pengajuan_setujui: 'Setujui Setoran Mandiri', sahabat_setoran_mandiri_pengajuan_tolak: 'Tolak Setoran Mandiri',
   sahabat_setoran_mandiri_catat: 'Catat Setoran Mandiri', sahabat_koreksi_saldo: 'Koreksi Saldo Sahabat',
   sahabat_koreksi_pembagian: 'Koreksi Pembagian Pendaftaran', sahabat_tabungan_awal: 'Saldo Awal Tabungan',
+  sahabat_rekonsiliasi_bsi: 'Pencocokan Saldo BSI',
 };
 const TARGET_TYPE_LABEL = {
   payment: '💳 Pembayaran', booking: '📦 Booking', pembatalan: '🚫 Pembatalan',
   user: '👤 Akun', custom_harga: '💰 Custom Harga', voucher: '🎟️ Voucher',
   cashflow_transaksi: '💵 Cashflow Transaksi', cashflow_periode: '🔒 Cashflow Periode',
   saldo_sahabat: '🕋 Perubahan Saldo Sahabat',
+  rekonsiliasi_saldo: '🏦 Pencocokan Saldo BSI',
 };
 
 export default function AdminPage() {
@@ -218,6 +221,7 @@ function AdminPageInner() {
   const [sahabatPendaftaran, setSahabatPendaftaran] = useState([]);
   const [sahabatJamaahDb, setSahabatJamaahDb] = useState([]);
   const [sahabatPencairan, setSahabatPencairan] = useState(null);
+  const [sahabatRekon, setSahabatRekon] = useState(null); // status pencocokan saldo BSI hari ini
   const [loadingSahabatDash, setLoadingSahabatDash] = useState(true);
   const [openSahabatCluster, setOpenSahabatCluster] = useState(null);
   const [busySahabat, setBusySahabat] = useState(false);
@@ -363,10 +367,12 @@ function AdminPageInner() {
       fetch('/api/admin/sahabat').then(r => r.json()),
       fetch('/api/admin/sahabat/database').then(r => r.json()),
       fetch('/api/admin/sahabat/pencairan-ringkasan').then(r => r.json()),
-    ]).then(([pend, db, pencairan]) => {
+      fetch('/api/admin/sahabat/rekonsiliasi').then(r => r.json()).catch(() => null),
+    ]).then(([pend, db, pencairan, rekon]) => {
       setSahabatPendaftaran(pend.pendaftaran || []);
       setSahabatJamaahDb(db.jamaah || []);
       setSahabatPencairan(pencairan);
+      setSahabatRekon(rekon);
       setLoadingSahabatDash(false);
     }).catch(() => setLoadingSahabatDash(false));
   }
@@ -414,6 +420,14 @@ function AdminPageInner() {
   }), [sahabatJamaahDb]);
   const sahabatDibawahProgress = useMemo(() => sahabatJamaahDb.filter(j =>
     j.status === 'active' && diBawahProgress(j.saldo_tabungan_umroh, j.target_estimasi_harga, j.target_bulan, j.target_set_at)
+  ), [sahabatJamaahDb]);
+  // Catatan SYSTEM UJROH E3: jadwal target lewat (atau program dinonaktifkan)
+  // sebelum target tercapai -> anggota wajib pilih program lain.
+  const sahabatJadwalTerlewat = useMemo(() => sahabatJamaahDb.filter(j =>
+    j.status === 'active' && j.program_id && statusJadwalTarget({
+      tanggal_berangkat: j.target_tanggal_berangkat, program_aktif: !!j.target_program_aktif,
+      saldo: j.saldo_tabungan_umroh, target: j.target_estimasi_harga,
+    }).wajib_ganti
   ), [sahabatJamaahDb]);
   const sahabatUjrohBelumDiajukan = sahabatPencairan?.belum_diajukan_count || 0;
   const perwakilanUjrohBelumDiajukan = perwakilanPencairan?.belum_diajukan_count || 0;
@@ -982,6 +996,7 @@ function AdminPageInner() {
                 {[
                   { key: 'siap', icon: '🎯', color: 'border-amber-200 bg-amber-50', label: 'Siap Berangkat (≥80%)', rows: sahabatSiapBerangkat },
                   { key: 'bawah', icon: '⚠️', color: 'border-orange-200 bg-orange-50', label: 'Di Bawah Progress Tabungan', rows: sahabatDibawahProgress },
+                  { key: 'jadwal', icon: '⏰', color: 'border-red-200 bg-red-50', label: 'Jadwal Target Terlewat (wajib pilih program lain)', rows: sahabatJadwalTerlewat },
                 ].map(c => (
                   <div key={c.key} className={`border ${c.color} rounded-xl overflow-hidden`}>
                     <div className="flex items-center justify-between p-4 cursor-pointer" onClick={() => setOpenSahabatCluster(o => o === c.key ? null : c.key)}>
@@ -1003,6 +1018,20 @@ function AdminPageInner() {
                     )}
                   </div>
                 ))}
+
+                {/* Pencocokan saldo web vs BSI — wajib tiap hari kerja (catatan SYSTEM UJROH). */}
+                {sahabatRekon && !sahabatRekon.error && (
+                  <div className={`border rounded-xl overflow-hidden ${sahabatRekon.sudah_dicocokkan ? 'border-green-200 bg-green-50' : sahabatRekon.hari_kerja && sahabatRekon.anggota?.length ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <button onClick={() => router.push('/admin/sahabat/rekonsiliasi')} className="w-full flex items-center justify-between p-4 text-left">
+                      <div className="font-bold text-gray-700 text-sm">🏦 Pencocokan Saldo BSI Hari Ini</div>
+                      <span className={`text-xs font-black px-2 py-1 rounded-full whitespace-nowrap ${sahabatRekon.sudah_dicocokkan ? (sahabatRekon.sesi?.jumlah_selisih ? 'bg-red-500 text-white' : 'bg-green-500 text-white') : sahabatRekon.hari_kerja && sahabatRekon.anggota?.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
+                        {sahabatRekon.sudah_dicocokkan
+                          ? (sahabatRekon.sesi?.jumlah_selisih ? `${sahabatRekon.sesi.jumlah_selisih} selisih` : '✓ Cocok')
+                          : sahabatRekon.hari_kerja && sahabatRekon.anggota?.length ? 'Belum' : 'Tidak wajib'}
+                      </span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Ujroh Pending Belum Diajukan */}
                 <div className="border border-cyan-200 bg-cyan-50 rounded-xl overflow-hidden">

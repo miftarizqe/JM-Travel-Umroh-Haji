@@ -8,6 +8,7 @@ import { usePengaturan } from '@/lib/usePengaturan';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
 import { labelPerekrut as labelPerekrutMentah } from '@/lib/labelPerekrut';
+import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 
 // Perekrut admin/super_admin ATAU Head of Program tercatat sebagai
 // "Management Team" (dikonfirmasi user 2026-09-27, wording diupdate
@@ -67,7 +68,11 @@ export default function DaftarSahabatPage() {
     // whitelist, jadi difilter lagi di sini biar cuma yang eksklusif aja
     // yang muncul di dropdown ini.
     fetch('/api/programs').then(r => r.json()).then(d => {
-      setProgramEksklusif((d.programs || []).filter(p => p.publish_type === 'sahabat_baitullah'));
+      // Program yang jadwal keberangkatannya sudah lewat tidak bisa jadi target
+      // (catatan SYSTEM UJROH E3) — server juga menolak.
+      const hariIni = hariIniWib();
+      setProgramEksklusif((d.programs || []).filter(p => p.publish_type === 'sahabat_baitullah'
+        && (!keTanggal(p.tanggal_berangkat) || keTanggal(p.tanggal_berangkat) >= hariIni)));
     }).catch(()=>{});
     // Sudah pernah isi data diri? Wizard ini gak ada lagi yang perlu
     // dikerjakan (rekening tabungan umroh BUKAN bagian wizard ini —

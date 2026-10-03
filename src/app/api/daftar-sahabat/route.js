@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { hargaTermurahProgram } from '@/lib/harga';
+import { hariIniWib, SQL_JADWAL_BELUM_LEWAT } from '@/lib/jadwalTarget';
 
 // Formulir data diri pendaftaran sahabat (funnel "Program Sahabat Bisa
 // Umroh & Haji" kerja sama BSI) — tabel staging SENDIRI (sahabat_pendaftaran),
@@ -59,11 +60,11 @@ export async function POST(req) {
       return NextResponse.json({ error: 'Target impian (Program Eksklusif) wajib dipilih' }, { status: 400 });
     }
     const [[programTarget]] = await db.query(
-      "SELECT * FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1",
-      [target_program_id]
+      `SELECT * FROM programs WHERE id = ? AND publish_type = 'sahabat_baitullah' AND active = 1 AND ${SQL_JADWAL_BELUM_LEWAT}`,
+      [target_program_id, hariIniWib()]
     );
     if (!programTarget) {
-      return NextResponse.json({ error: 'Program target tidak valid' }, { status: 400 });
+      return NextResponse.json({ error: 'Program target tidak valid atau jadwal keberangkatannya sudah lewat' }, { status: 400 });
     }
     // Nama & harga target DIHITUNG SERVER dari data program (dikonfirmasi user
     // 2026-10-01: logika sensitif di BE) — target_minat/target_estimasi_harga

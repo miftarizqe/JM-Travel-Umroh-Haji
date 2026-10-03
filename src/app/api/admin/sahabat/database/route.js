@@ -80,6 +80,7 @@ export async function GET(request) {
        FROM sahabat_pendaftaran kp
        JOIN users u ON u.id = kp.user_id
        LEFT JOIN users perekrut ON perekrut.id = kp.perekrut_id
+       LEFT JOIN programs tp ON tp.id = kp.program_id
        LEFT JOIN (
          SELECT penerima_id,
                 COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NOT NULL THEN nominal ELSE 0 END), 0) AS saldo_tabungan_umroh,
@@ -100,6 +101,7 @@ export async function GET(request) {
        u.dokumen_surat_pemblokiran_fisik_path,
        u.dokumen_spk_ak_fisik_path, u.metode_ttd_sahabat, u.rencana_kunjungan_kantor_at, u.dokumen_spk_ak_dikirim_balik_at,
        perekrut.name AS perekrut_nama,
+       tp.tanggal_berangkat AS target_tanggal_berangkat, tp.active AS target_program_aktif,
        v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,
        COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh,
        sl.saldo_updated_at,
