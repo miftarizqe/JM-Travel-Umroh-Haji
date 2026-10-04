@@ -803,22 +803,39 @@ function AdminPageInner() {
   const stat = data.stat || {};
 
   // Konfig cluster pending
+  // `group` dipakai buat clustering 2 LAPIS di dashboard admin (dikonfirmasi
+  // user 2026-10-04) — sebelumnya 12 cluster ini di-render rata satu-satu,
+  // kepanjangan buat di-scan. Dikelompokkan per STAGE funnel biar gampang
+  // langsung lompat ke bagian yang relevan, urutan group = urutan customer
+  // journey (akun/lead baru → pilih program/harga → pembayaran/dokumen →
+  // operasional pra-keberangkatan → pembatalan).
   const clusters = [
-    {key:'program_umroh', label:'Pending Pendaftaran Program Umroh', icon:'🕌', color:'border-blue-200 bg-blue-50', items: pending.program_umroh||[]},
-    {key:'custom_harga', label:'Pending Pengajuan Custom Harga', icon:'💰', color:'border-orange-200 bg-orange-50', items: pending.custom_harga||[]},
-    {key:'pembayaran', label:'Pending Konfirmasi Pembayaran', icon:'💳', color:'border-red-200 bg-red-50', items: pending.pembayaran||[]},
-    {key:'akun_verifikasi', label:'Akun Baru Menunggu Verifikasi', icon:'🔐', color:'border-amber-200 bg-amber-50', items: pending.akun_verifikasi||[]},
-    {key:'akun_jamaah', label:'Pending Pendaftaran Akun Jamaah', icon:'🧳', color:'border-green-200 bg-green-50', items: pending.akun_jamaah||[]},
+    {key:'akun_verifikasi', label:'Akun Baru Menunggu Verifikasi', icon:'🔐', color:'border-amber-200 bg-amber-50', group:'akun_lead', items: pending.akun_verifikasi||[]},
+    {key:'akun_jamaah', label:'Pending Pendaftaran Akun Jamaah', icon:'🧳', color:'border-green-200 bg-green-50', group:'akun_lead', items: pending.akun_jamaah||[]},
     // akun_perwakilan PINDAH ke section "🏢 Perwakilan" di bawah (dikonfirmasi
     // user 2026-09-06, mirror kenapa Sahabat Baitullah gak lagi nyampah di
     // cluster generik ini).
-    {key:'perlengkapan', label:'Perlengkapan Perlu Dikirim', icon:'📦', color:'border-yellow-200 bg-yellow-50', items: pending.perlengkapan||[]},
-    {key:'kalkulator_lead', label:'Ajuan Budget Kalkulator', icon:'🧮', color:'border-teal-200 bg-teal-50', items: pending.kalkulator_lead||[]},
-    {key:'ttu_belum_dikirim', label:'Tanda Terima Uang Belum Dikirim', icon:'🧾', color:'border-pink-200 bg-pink-50', items: pending.ttu_belum_dikirim||[]},
-    {key:'perjanjian_belum_selesai', label:'Perjanjian Jamaah Belum Selesai', icon:'📜', color:'border-indigo-200 bg-indigo-50', items: pending.perjanjian_belum_selesai||[]},
-    {key:'penyesuaian_harga_pending', label:'Penyesuaian Harga Menunggu Persetujuan', icon:'💰', color:'border-orange-200 bg-orange-50', items: pending.penyesuaian_harga_pending||[]},
-    {key:'refund_belum_ditransfer', label:'Refund Belum Ditransfer', icon:'💸', color:'border-red-200 bg-red-50', items: pending.refund_belum_ditransfer||[]},
-    {key:'kalkulator_perwakilan_pending', label:'Ajuan Kalkulator Perwakilan', icon:'🧮', color:'border-teal-200 bg-teal-50', items: pending.kalkulator_perwakilan_pending||[]},
+    {key:'kalkulator_lead', label:'Ajuan Budget Kalkulator', icon:'🧮', color:'border-teal-200 bg-teal-50', group:'akun_lead', items: pending.kalkulator_lead||[]},
+    {key:'kalkulator_perwakilan_pending', label:'Ajuan Kalkulator Perwakilan', icon:'🧮', color:'border-teal-200 bg-teal-50', group:'akun_lead', items: pending.kalkulator_perwakilan_pending||[]},
+
+    {key:'program_umroh', label:'Pending Pendaftaran Program Umroh', icon:'🕌', color:'border-blue-200 bg-blue-50', group:'program_harga', items: pending.program_umroh||[]},
+    {key:'custom_harga', label:'Pending Pengajuan Custom Harga', icon:'💰', color:'border-orange-200 bg-orange-50', group:'program_harga', items: pending.custom_harga||[]},
+    {key:'penyesuaian_harga_pending', label:'Penyesuaian Harga Menunggu Persetujuan', icon:'💰', color:'border-orange-200 bg-orange-50', group:'program_harga', items: pending.penyesuaian_harga_pending||[]},
+
+    {key:'pembayaran', label:'Pending Konfirmasi Pembayaran', icon:'💳', color:'border-red-200 bg-red-50', group:'pembayaran_dokumen', items: pending.pembayaran||[]},
+    {key:'ttu_belum_dikirim', label:'Tanda Terima Uang Belum Dikirim', icon:'🧾', color:'border-pink-200 bg-pink-50', group:'pembayaran_dokumen', items: pending.ttu_belum_dikirim||[]},
+    {key:'perjanjian_belum_selesai', label:'Perjanjian Jamaah Belum Selesai', icon:'📜', color:'border-indigo-200 bg-indigo-50', group:'pembayaran_dokumen', items: pending.perjanjian_belum_selesai||[]},
+
+    {key:'perlengkapan', label:'Perlengkapan Perlu Dikirim', icon:'📦', color:'border-yellow-200 bg-yellow-50', group:'operasional', items: pending.perlengkapan||[]},
+
+    {key:'refund_belum_ditransfer', label:'Refund Belum Ditransfer', icon:'💸', color:'border-red-200 bg-red-50', group:'pembatalan', items: pending.refund_belum_ditransfer||[]},
+  ];
+  const CLUSTER_GROUPS = [
+    {key:'akun_lead', label:'Akun & Lead Baru', icon:'🆕'},
+    {key:'program_harga', label:'Program & Harga', icon:'🕌'},
+    {key:'pembayaran_dokumen', label:'Pembayaran & Dokumen', icon:'💳'},
+    {key:'operasional', label:'Operasional & Logistik', icon:'📦'},
+    {key:'pembatalan', label:'Pembatalan', icon:'💸'},
   ];
 
   // Head of Program = management di bawah admin (dikonfirmasi user
@@ -929,12 +946,22 @@ function AdminPageInner() {
 
           {/* Cluster pending */}
           <CollapsibleSection title={<h3 className="font-bold text-red-600">🔴 Perlu Perhatian</h3>}>
-            <div className="space-y-3">
-              {clusters.map(c => {
-                const isOpen = expandCluster === c.key;
-                const tampil = isOpen ? c.items : c.items.slice(0,3);
+            <div className="space-y-5">
+              {CLUSTER_GROUPS.map(g => {
+                const groupClusters = clusters.filter(c => c.group === g.key);
+                const groupTotal = groupClusters.reduce((sum, c) => sum + c.items.length, 0);
                 return (
-                <div key={c.key} className={`border ${c.color} rounded-xl p-4`}>
+                <div key={g.key}>
+                  <div className="flex items-center justify-between mb-2 px-1">
+                    <div className="text-[11px] font-black text-gray-400 uppercase tracking-wide">{g.icon} {g.label}</div>
+                    {groupTotal > 0 && <span className="text-[10px] font-black text-red-500">{groupTotal} item</span>}
+                  </div>
+                  <div className="space-y-3">
+                    {groupClusters.map(c => {
+                      const isOpen = expandCluster === c.key;
+                      const tampil = isOpen ? c.items : c.items.slice(0,3);
+                      return (
+                      <div key={c.key} className={`border ${c.color} rounded-xl p-4`}>
                   <div className="flex items-center justify-between cursor-pointer" onClick={() => c.items.length > 3 && setExpandCluster(isOpen ? null : c.key)}>
                     <div className="font-bold text-gray-700 text-sm">{c.icon} {c.label}</div>
                     <span className={`text-xs font-black px-2 py-1 rounded-full ${c.items.length>0?'bg-red-500 text-white':'bg-gray-200 text-gray-400'}`}>
@@ -971,6 +998,10 @@ function AdminPageInner() {
                       }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
                     </div>
                   )}
+                </div>
+                      );
+                    })}
+                  </div>
                 </div>
                 );
               })}
