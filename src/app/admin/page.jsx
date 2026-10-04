@@ -429,6 +429,12 @@ function AdminPageInner() {
       saldo: j.saldo_tabungan_umroh, target: j.target_estimasi_harga,
     }).wajib_ganti
   ), [sahabatJamaahDb]);
+  // Janji temu "Datang ke Kantor" buat TTD fisik — dikonfirmasi user
+  // 2026-10-04, sebelumnya notifikasi doang tanpa ada halaman daftar siapa
+  // aja yang udah janji & kapan (lihat /admin/sahabat/kunjungan).
+  const sahabatKunjunganKantor = useMemo(() => sahabatJamaahDb.filter(j =>
+    j.metode_ttd_sahabat === 'kantor'
+  ), [sahabatJamaahDb]);
   const sahabatUjrohBelumDiajukan = sahabatPencairan?.belum_diajukan_count || 0;
   const perwakilanUjrohBelumDiajukan = perwakilanPencairan?.belum_diajukan_count || 0;
 
@@ -1069,6 +1075,16 @@ function AdminPageInner() {
                     )}
                   </div>
                 ))}
+
+                {/* Janji temu "Datang ke Kantor" — klik langsung ke daftar
+                    terurut tanggal, bukan expand-cluster biasa (dikonfirmasi
+                    user 2026-10-04). */}
+                <div className="border border-cyan-200 bg-cyan-50 rounded-xl overflow-hidden">
+                  <button onClick={() => router.push('/admin/sahabat/kunjungan')} className="w-full flex items-center justify-between p-4 text-left">
+                    <div className="font-bold text-gray-700 text-sm">🏢 Janji Temu Datang ke Kantor</div>
+                    <span className={`text-xs font-black px-2 py-1 rounded-full ${sahabatKunjunganKantor.length > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{sahabatKunjunganKantor.length}</span>
+                  </button>
+                </div>
 
                 {/* Pencocokan saldo web vs BSI — wajib tiap hari kerja (catatan SYSTEM UJROH). */}
                 {sahabatRekon && !sahabatRekon.error && (
