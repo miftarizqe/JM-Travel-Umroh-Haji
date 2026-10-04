@@ -96,6 +96,7 @@ export default function CetakInvoiceKwitansi() {
   const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [ditolak, setDitolak] = useState(false);
+  const [menyetujui, setMenyetujui] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -112,6 +113,19 @@ export default function CetakInvoiceKwitansi() {
       })
       .catch(() => setLoading(false));
   }, [user, id]);
+
+  // Setuju tanpa TTD digital — POST ke Go (/api/admin/invoice-kwitansi/{id}/setuju).
+  async function setujui() {
+    if (!confirm(`Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor}? Dokumen akan ditandai sudah dikirim.`)) return;
+    setMenyetujui(true);
+    try {
+      const res = await fetch(`/api/admin/invoice-kwitansi/${dokumen.id}/setuju`, { method: 'POST' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d.error || 'Gagal menyetujui'); return; }
+      setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: 'setuju', terkirim_at: d.terkirim_at }));
+    } catch { alert('Terjadi kesalahan'); }
+    finally { setMenyetujui(false); }
+  }
 
   if (loading) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Memuat data...</div>;
 
@@ -141,12 +155,15 @@ export default function CetakInvoiceKwitansi() {
         <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor} · di dialog print pilih &quot;Save as PDF&quot;</div>
       </div>
 
-      <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={() => window.print()} hideCetakFisik />
+      {/* TTD digital & e-materai belum bisa dipakai (dikonfirmasi user 2026-10-04) — tombol
+          "Kirim TTD Digital" diganti "Setuju" (lihat setujui). Komponen tetap dipasang supaya
+          sesi digital lama (kalau ada) masih kelihatan. */}
+      <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />
 
       {dokumen.terkirim ? (
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 10, fontSize: 12, background: '#ecfdf5', color: '#047857', fontWeight: 700 }}>
-            ✅ Sudah dikirim ({dokumen.terkirim_metode === 'fisik' ? 'fisik' : 'digital'}, {tgl(dokumen.terkirim_at)})
+            ✅ {dokumen.terkirim_metode === 'setuju' ? 'Sudah disetujui' : `Sudah dikirim (${dokumen.terkirim_metode === 'fisik' ? 'fisik' : 'digital'})`}, {tgl(dokumen.terkirim_at)}
           </div>
           {dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
             <div style={{ marginTop: 8 }}>
@@ -159,9 +176,18 @@ export default function CetakInvoiceKwitansi() {
           )}
         </div>
       ) : (
+        <>
+        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
+          <button onClick={setujui} disabled={menyetujui}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: menyetujui ? 0.6 : 1 }}>
+            {menyetujui ? 'Memproses...' : '✅ Setuju'}
+          </button>
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>atau unggah scan fisik di bawah</div>
+        </div>
         <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
           userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
           onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path, terkirim: 1, terkirim_metode: 'fisik', terkirim_at: new Date().toISOString() }))} />
+        </>
       )}
 
       <div className="sheet" style={{ background: '#fff', width: 720, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
