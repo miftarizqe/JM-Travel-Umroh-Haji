@@ -387,6 +387,39 @@ export default function Home() {
             <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.program_eyebrow || 'Program Pilihan'}</div>
             <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">{teks.program_headline || 'Program Umroh JM Travel 🕋'}</h2>
           </div>
+          {programs.length === 0 && (
+            // Gak ada program publik aktif — sebelumnya section ini kosong
+            // melompong (gak ada fallback sama sekali), dikonfirmasi user
+            // 2026-10-04. Ajakan beda tergantung status login: yang login
+            // diarahkan ke Dashboard-nya sendiri (siapa tau ada Program
+            // Eksklusif yang disiapkan khusus buat dia), yang belum login
+            // diajak masuk/daftar dulu.
+            <div className="max-w-xl mx-auto text-center bg-white border border-[#e0e8f0] rounded-2xl p-8">
+              <div className="text-4xl mb-3">🕋</div>
+              <div className="text-lg font-bold text-[#0E2F6E] mb-2">Jadwal Program Baru Segera Hadir</div>
+              <div className="text-sm text-gray-500 mb-5">
+                Belum ada jadwal keberangkatan yang dibuka untuk umum saat ini. Tim kami sedang menyiapkan jadwal berikutnya.
+              </div>
+              {user ? (
+                <button onClick={() => router.push(dashboardPathForRole(user.role))}
+                  className="inline-block bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2.5 px-6 rounded-full transition-colors">
+                  Cek Program Eksklusif di Dashboard Anda →
+                </button>
+              ) : (
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <button onClick={() => router.push('/login')}
+                    className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2.5 px-6 rounded-full transition-colors">
+                    Masuk untuk Lihat Penawaran Khusus →
+                  </button>
+                  <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum, saya mau tanya jadwal program umroh terbaru.') || '#'}
+                    target="_blank" rel="noopener noreferrer"
+                    className="text-sm font-bold text-[#1A4FA0] hover:underline">
+                    atau tanya jadwal via WhatsApp →
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {programs.map(p => (
               <div key={p.id} className="bg-white rounded-2xl border border-[#e0e8f0] overflow-hidden hover:shadow-xl transition-all group">
