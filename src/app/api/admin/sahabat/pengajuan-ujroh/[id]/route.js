@@ -33,9 +33,11 @@ async function simpanBuktiTtd(file, id) {
 // action: 'ajukan' (draft->diajukan, abis dicetak buat TTD bos) |
 // 'setujui' (diajukan->disetujui) | 'tolak' (diajukan->ditolak, baris LEPAS
 // dari batch ini biar otomatis masuk batch berikutnya, BUKAN hilang) |
-// 'lampirkan_bukti_ttd' (pengajuan udah disetujui -> isi/ganti bukti_ttd_path,
-// gak ngubah status/diputuskan_at -- dipakai baik buat nutup gap pengajuan
-// lama yang belum ada bukti, MAUPUN ganti file kalau salah upload).
+// 'lampirkan_bukti_ttd' (pengajuan udah disetujui TAPI bukti_ttd_path masih
+// kosong -> isi SEKALI, gak ngubah status/diputuskan_at -- nutup gap
+// pengajuan lama yang kepalang disetujui sebelum fitur bukti wajib ini ada.
+// BUKAN jalur ganti/replace -- begitu terisi, gak bisa ditimpa lagi, lihat
+// komentar di bawah).
 //
 // 'setujui' TIDAK LAGI cuma diklik super_admin tanpa bukti (2026-09-02,
 // dikonfirmasi user) — approval bos itu KEJADIAN FISIK (TTD di atas kertas
@@ -92,11 +94,13 @@ export async function PATCH(request, { params }) {
       );
     } else if (action === 'lampirkan_bukti_ttd') {
       if (p.status !== 'disetujui') return Response.json({ error: 'Cuma pengajuan yang udah disetujui yang bisa dilampirkan bukti TTD.' }, { status: 400 });
-      // Boleh GANTI file yang udah ada (dikonfirmasi user 2026-10-04,
-      // sebelumnya sengaja dikunci "gak bisa ditimpa") -- admin perlu jalan
-      // buat koreksi kalau salah upload. File lama TETAP di disk (gak
-      // dihapus, cuma `bukti_ttd_path` di-update ke file baru), auditAksi
-      // di bawah nyatet perubahannya.
+      // DIBATALKAN 2026-10-04 (dikonfirmasi user) — sempat dibuka buat GANTI
+      // file yang udah ada, tapi itu BERBAHAYA: upload bukti TTD itu SENDIRI
+      // yang jadi trigger status 'disetujui', jadi buktinya gak boleh bisa
+      // diubah lagi setelah itu (integritas rekam ACC). Dikunci lagi ke
+      // behavior semula: cuma isi SEKALI buat nutup gap pengajuan lama yang
+      // kepalang disetujui sebelum fitur ini ada, bukan jalur ganti/koreksi.
+      if (p.bukti_ttd_path) return Response.json({ error: 'Pengajuan ini udah punya bukti TTD, gak bisa ditimpa.' }, { status: 400 });
       const hasil = await simpanBuktiTtd(file, id);
       if (hasil.error) return Response.json({ error: hasil.error }, { status: 400 });
 

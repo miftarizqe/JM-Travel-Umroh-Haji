@@ -166,7 +166,7 @@ export default function PencairanPerwakilanDetailPage() {
 
         {isSuperAdmin && p.status === 'diajukan' && (
           <div className="flex gap-2 items-center mt-3 pt-3 border-t border-gray-100">
-            <FilePicker file={buktiTtdFile} onChange={setBuktiTtdFile} disabled={busy} />
+            <FilePicker file={buktiTtdFile} onChange={setBuktiTtdFile} disabled={busy} label="📎 Pilih Bukti ACC" />
             <button disabled={busy || !buktiTtdFile} onClick={() => transisi('setujui', buktiTtdFile)}
               className="text-xs font-bold text-white bg-green-600 px-3 py-2 rounded-full disabled:opacity-50 whitespace-nowrap">
               ✅ Upload Bukti TTD (ACC)
@@ -174,34 +174,28 @@ export default function PencairanPerwakilanDetailPage() {
           </div>
         )}
         {p.status === 'diajukan' && <div className="text-[10px] text-gray-400 mt-2">Sudah di-TTD bos? Unggah scan-nya di atas — otomatis jadi &quot;Disetujui&quot; begitu ke-upload. Konfirmasi TF per-penerima baru bisa dilakukan setelahnya.</div>}
-
-        {/* Lihat + GANTI bukti TTD yang udah ada (dikonfirmasi user
-            2026-10-04) — dan nutup gap pengajuan LAMA yang disetujui sebelum
-            aturan wajib-upload ini ada. 1 UI, cuma labelnya beda. */}
-        {isSuperAdmin && p.status === 'disetujui' && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            {p.bukti_ttd_path ? (
-              <div className="text-[10px] text-gray-400 mb-1.5">
-                📎 <a href={p.bukti_ttd_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat bukti TTD (ACC) saat ini</a>
-              </div>
-            ) : (
-              <div className="text-[10px] text-amber-600 font-bold mb-1.5">
-                ⚠️ Pengajuan ini disetujui sebelum fitur bukti TTD ada — belum ada scan tersimpan.
-              </div>
-            )}
-            <div className="flex gap-2 items-center">
-              <FilePicker file={buktiTtdFile} onChange={setBuktiTtdFile} disabled={busy} />
-              <button disabled={busy || !buktiTtdFile}
-                onClick={() => { if (!p.bukti_ttd_path || confirm('Ganti bukti TTD yang sudah ada?')) transisi('lampirkan_bukti_ttd', buktiTtdFile); }}
-                className="text-xs font-bold text-white bg-amber-600 px-3 py-2 rounded-full disabled:opacity-50 whitespace-nowrap">
-                {p.bukti_ttd_path ? '🔁 Ganti File' : '📎 Lampirkan Sekarang'}
-              </button>
-            </div>
+        {p.status === 'disetujui' && p.bukti_ttd_path && (
+          <div className="text-[10px] text-gray-400 mt-2">
+            📎 <a href={p.bukti_ttd_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat bukti TTD (ACC)</a> — udah jadi rujukan resmi, gak bisa diganti.
           </div>
         )}
-        {!isSuperAdmin && p.status === 'disetujui' && p.bukti_ttd_path && (
-          <div className="text-[10px] text-gray-400 mt-2">
-            📎 <a href={p.bukti_ttd_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat bukti TTD (ACC)</a>
+
+        {/* Nutup gap buat pengajuan LAMA yang disetujui sebelum aturan
+            wajib-upload ini ada — ISI SEKALI, BUKAN jalur ganti (dikonfirmasi
+            user 2026-10-04, upload bukti TTD itu sendiri trigger status
+            'disetujui', gak boleh bisa diubah lagi setelah terisi). */}
+        {isSuperAdmin && p.status === 'disetujui' && !p.bukti_ttd_path && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <div className="text-[10px] text-amber-600 font-bold mb-1.5">
+              ⚠️ Pengajuan ini disetujui sebelum fitur bukti TTD ada — belum ada scan tersimpan.
+            </div>
+            <div className="flex gap-2 items-center">
+              <FilePicker file={buktiTtdFile} onChange={setBuktiTtdFile} disabled={busy} label="📎 Pilih Bukti ACC" />
+              <button disabled={busy || !buktiTtdFile} onClick={() => transisi('lampirkan_bukti_ttd', buktiTtdFile)}
+                className="text-xs font-bold text-white bg-amber-600 px-3 py-2 rounded-full disabled:opacity-50 whitespace-nowrap">
+                📎 Lampirkan Sekarang
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -263,7 +257,7 @@ export default function PencairanPerwakilanDetailPage() {
                   // Belum ada tujuan transfer sama sekali — jangan kasih
                   // jalan buat ditandai TF (dikonfirmasi user 2026-10-04).
                   <div className="pt-1 border-t border-gray-100 text-[10px] text-amber-600 font-bold">
-                    ⚠️ Rekening belum diisi — belum bisa ditandai TF
+                    ⚠️ Rekening belum diisi, ujroh belum bisa di transfer!
                   </div>
                 )
               )}
