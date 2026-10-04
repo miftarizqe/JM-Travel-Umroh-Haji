@@ -402,7 +402,7 @@ export default function StatusPendaftaranSahabatPage() {
                     {!sudahPunyaRekeningBsi && (
                       <button onClick={() => setBantuanBsiManualView(true)}
                         className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg block w-full text-left">
-                        ⚠️ Tidak bisa membuat rekening via BYOND? Klik di sini untuk JM bantu pembuatan rekening manual ke cabang pilihan JM Travel
+                        ⚠️ Tidak bisa membuat rekening via BYOND? <span className="underline">Klik di sini</span> untuk JM bantu pembuatan rekening manual ke cabang pilihan JM Travel
                       </button>
                     )}
                     <button onClick={() => setSudahPunyaRekeningBsi(null)} className="text-[10px] text-gray-400 underline">← Ganti jawaban</button>
