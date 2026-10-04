@@ -23,6 +23,7 @@ export default function RekonsiliasiSaldoPage() {
   const [catatan, setCatatan] = useState('');
   const [bukti, setBukti] = useState(null);
   const [menyimpan, setMenyimpan] = useState(false);
+  const [cari, setCari] = useState('');
 
   const isAdmin = ['admin', 'super_admin'].includes(user?.role);
 
@@ -56,6 +57,12 @@ export default function RekonsiliasiSaldoPage() {
   const hariIni = !data?.tanggal || data.tanggal === data.hari_ini;
   const bisaIsi = hariIni && !data?.error;
   const anggota = data?.anggota || [];
+  const q = cari.trim().toLowerCase();
+  const tampilAnggota = !q ? anggota : anggota.filter(a =>
+    (a.nama || '').toLowerCase().includes(q) ||
+    (a.kode_unik || '').toLowerCase().includes(q) ||
+    (a.no_rekening_tabungan_umroh || '').toLowerCase().includes(q)
+  );
   const selisihOf = (a) => {
     const bsi = isian[a.user_id]?.bsi;
     return bsi == null ? null : bsi - a.saldo_web;
@@ -147,18 +154,28 @@ export default function RekonsiliasiSaldoPage() {
 
         {/* Daftar anggota */}
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="font-bold text-[#0E2F6E] text-sm">👥 Anggota Aktif ({anggota.length})</div>
             {bisaIsi && anggota.length > 0 && (
               <div className="text-[11px] text-gray-500">{belumDiisi > 0 ? `${belumDiisi} belum diisi` : 'Semua sudah diisi'} · {jumlahSelisih} selisih</div>
             )}
           </div>
+          {anggota.length > 0 && (
+            <div className="relative mb-3">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+              <input value={cari} onChange={e => setCari(e.target.value)}
+                placeholder="Cari nama, kode, atau no. rekening..."
+                className="w-full pl-9 pr-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
+            </div>
+          )}
           {!data ? (
             <div className="text-center text-gray-400 py-8 text-sm">Memuat...</div>
           ) : data.error ? (
             <div className="text-center text-red-500 py-8 text-sm">{data.error}</div>
           ) : anggota.length === 0 ? (
             <div className="text-center text-gray-400 py-8 text-sm">{hariIni ? 'Belum ada anggota Sahabat aktif.' : 'Tidak ada data.'}</div>
+          ) : tampilAnggota.length === 0 ? (
+            <div className="text-center text-gray-400 py-8 text-sm">Tidak ada anggota yang cocok dengan pencarian "{cari}".</div>
           ) : (
             <>
               {/* Desktop */}
@@ -174,7 +191,7 @@ export default function RekonsiliasiSaldoPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {anggota.map(a => (
+                    {tampilAnggota.map(a => (
                       <tr key={a.user_id} className="border-b border-gray-50 last:border-0">
                         <td className="px-3 py-2">
                           <div className="font-semibold text-[#0E2F6E]">{a.nama}</div>
@@ -195,7 +212,7 @@ export default function RekonsiliasiSaldoPage() {
               </div>
               {/* HP */}
               <div className="md:hidden space-y-2">
-                {anggota.map(a => (
+                {tampilAnggota.map(a => (
                   <div key={a.user_id} className="border border-gray-100 rounded-xl p-3 space-y-2">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
