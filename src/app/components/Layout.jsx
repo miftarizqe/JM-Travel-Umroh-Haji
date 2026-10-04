@@ -427,6 +427,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/sahabat/pencairan' },
         { icon: '🏦', label: 'Pencocokan Saldo BSI', path: '/admin/sahabat/rekonsiliasi' },
+        { icon: '🏢', label: 'Janji Temu Datang ke Kantor', path: '/admin/sahabat/kunjungan' },
         { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
         // Link "Costing Program" khusus Sahabat Baitullah (dulu ke
         // /admin/programs?publish_type=sahabat_baitullah) DIHAPUS dari sini
