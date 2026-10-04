@@ -23,7 +23,19 @@ export async function GET(request) {
   const auth = await wajibAdminAtauHopSahabat(request);
   if (auth.error) return auth.error;
   try {
-    const [rows] = await pool.query('SELECT * FROM pengajuan_ujroh ORDER BY id DESC');
+    // jumlah_confirmed -- badge "X/Y TF" di list (dikonfirmasi user
+    // 2026-10-04, sebelumnya cuma kelihatan di halaman detail, bukan di
+    // list-nya) -- dihitung dari komisi_ledger, bukan kolom jumlah_baris
+    // yang statis (itu snapshot pas pengajuan dibuat, gak ikut berubah).
+    const [rows] = await pool.query(
+      `SELECT p.*, COALESCE(cl.jumlah_confirmed, 0) AS jumlah_confirmed
+       FROM pengajuan_ujroh p
+       LEFT JOIN (
+         SELECT pengajuan_ujroh_id, SUM(CASE WHEN dikonfirmasi_at IS NOT NULL THEN 1 ELSE 0 END) AS jumlah_confirmed
+         FROM komisi_ledger WHERE pengajuan_ujroh_id IS NOT NULL GROUP BY pengajuan_ujroh_id
+       ) cl ON cl.pengajuan_ujroh_id = p.id
+       ORDER BY p.id DESC`
+    );
     return Response.json({ pengajuan: rows });
   } catch (error) {
     console.error(error);

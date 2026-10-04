@@ -8,6 +8,22 @@ import { namaPengajuan } from '@/lib/pengajuanUjroh';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
+// File input browser polos ("Choose File — No file chosen") susah dibedain
+// antar satu sama lain kalau ada beberapa di 1 halaman (dikonfirmasi user
+// 2026-10-04) — dibungkus biar ada label jelas + nama file yang kepilih
+// kelihatan, bukan cuma teks bawaan browser yang sama semua.
+function FilePicker({ file, onChange, disabled, label = '📎 Pilih File' }) {
+  return (
+    <label className={`flex-1 min-w-0 flex items-center gap-2 text-xs border-2 border-dashed rounded-lg px-3 py-2 ${
+      disabled ? 'bg-gray-50 border-gray-100 text-gray-300 cursor-not-allowed' : 'bg-white border-gray-200 text-gray-500 cursor-pointer hover:border-[#1A4FA0]'}`}>
+      <span className={`font-bold shrink-0 ${disabled ? 'text-gray-300' : 'text-[#1A4FA0]'}`}>{label}</span>
+      <span className="truncate">{file ? file.name : 'Belum ada file dipilih'}</span>
+      <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={disabled} className="hidden"
+        onChange={e => onChange(e.target.files?.[0] || null)} />
+    </label>
+  );
+}
+
 const STATUS_LABEL = { draft: 'Draft', diajukan: 'Diajukan', disetujui: 'Disetujui', ditolak: 'Ditolak' };
 const STATUS_WARNA = {
   draft: 'bg-gray-100 text-gray-500', diajukan: 'bg-yellow-100 text-yellow-700',
@@ -173,9 +189,7 @@ export default function PencairanDetailPage() {
             user 2026-09-02, gak ada tombol approve tanpa lampiran lagi). */}
         {isSuperAdmin && p.status === 'diajukan' && (
           <div className="flex gap-2 items-center mt-3 pt-3 border-t border-gray-100">
-            <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={busy}
-              onChange={e => setBuktiTtdFile(e.target.files?.[0] || null)}
-              className="flex-1 text-xs" />
+            <FilePicker file={buktiTtdFile} onChange={setBuktiTtdFile} disabled={busy} />
             <button disabled={busy || !buktiTtdFile} onClick={() => transisi('setujui', buktiTtdFile)}
               className="text-xs font-bold text-white bg-green-600 px-3 py-2 rounded-full disabled:opacity-50 whitespace-nowrap">
               ✅ Upload Bukti TTD (ACC)
@@ -183,30 +197,36 @@ export default function PencairanDetailPage() {
           </div>
         )}
         {p.status === 'diajukan' && <div className="text-[10px] text-gray-400 mt-2">Sudah di-TTD bos? Unggah scan-nya di atas — otomatis jadi &quot;Disetujui&quot; begitu ke-upload. Konfirmasi TF per-penerima baru bisa dilakukan setelahnya.</div>}
-        {p.status === 'disetujui' && p.bukti_ttd_path && (
-          <div className="text-[10px] text-gray-400 mt-2">
-            📎 <a href={p.bukti_ttd_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat bukti TTD (ACC)</a>
-          </div>
-        )}
 
-        {/* Nutup gap buat pengajuan LAMA yang disetujui sebelum aturan
-            wajib-upload ini ada (klik "Tandai Disetujui" polos, gak ada
-            bukti tersimpan) — dikasih jalan susulan biar gak nyangkut
-            gak ada bukti selamanya. */}
-        {isSuperAdmin && p.status === 'disetujui' && !p.bukti_ttd_path && (
+        {/* Lihat + GANTI bukti TTD yang udah ada (dikonfirmasi user
+            2026-10-04, sebelumnya cuma bisa lihat, gak ada jalan koreksi
+            kalau salah upload) — dan nutup gap pengajuan LAMA yang disetujui
+            sebelum aturan wajib-upload ini ada (belum punya bukti sama
+            sekali). Dua kasus ini sekarang 1 UI yang sama, cuma labelnya beda. */}
+        {isSuperAdmin && p.status === 'disetujui' && (
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="text-[10px] text-amber-600 font-bold mb-1.5">
-              ⚠️ Pengajuan ini disetujui sebelum fitur bukti TTD ada — belum ada scan tersimpan.
-            </div>
+            {p.bukti_ttd_path ? (
+              <div className="text-[10px] text-gray-400 mb-1.5">
+                📎 <a href={p.bukti_ttd_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat bukti TTD (ACC) saat ini</a>
+              </div>
+            ) : (
+              <div className="text-[10px] text-amber-600 font-bold mb-1.5">
+                ⚠️ Pengajuan ini disetujui sebelum fitur bukti TTD ada — belum ada scan tersimpan.
+              </div>
+            )}
             <div className="flex gap-2 items-center">
-              <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={busy}
-                onChange={e => setBuktiTtdFile(e.target.files?.[0] || null)}
-                className="flex-1 text-xs" />
-              <button disabled={busy || !buktiTtdFile} onClick={() => transisi('lampirkan_bukti_ttd', buktiTtdFile)}
+              <FilePicker file={buktiTtdFile} onChange={setBuktiTtdFile} disabled={busy} />
+              <button disabled={busy || !buktiTtdFile}
+                onClick={() => { if (!p.bukti_ttd_path || confirm('Ganti bukti TTD yang sudah ada?')) transisi('lampirkan_bukti_ttd', buktiTtdFile); }}
                 className="text-xs font-bold text-white bg-amber-600 px-3 py-2 rounded-full disabled:opacity-50 whitespace-nowrap">
-                📎 Lampirkan Sekarang
+                {p.bukti_ttd_path ? '🔁 Ganti File' : '📎 Lampirkan Sekarang'}
               </button>
             </div>
+          </div>
+        )}
+        {!isSuperAdmin && p.status === 'disetujui' && p.bukti_ttd_path && (
+          <div className="text-[10px] text-gray-400 mt-2">
+            📎 <a href={p.bukti_ttd_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat bukti TTD (ACC)</a>
           </div>
         )}
       </div>
@@ -255,15 +275,24 @@ export default function PencairanDetailPage() {
               </div>
 
               {isAdmin && p.status === 'disetujui' && !semuaConfirmed && (
-                <div className="flex gap-2 items-center pt-1 border-t border-gray-100">
-                  <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={busy}
-                    onChange={e => setFileByPenerima(f => ({ ...f, [k.penerima_id]: e.target.files?.[0] || null }))}
-                    className="flex-1 text-xs" />
-                  <button disabled={busy || !fileByPenerima[k.penerima_id]} onClick={() => konfirmasiPenerima(k)}
-                    className="text-xs font-bold text-white bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
-                    Tandai Sudah TF
-                  </button>
-                </div>
+                k.no_rekening_tabungan_umroh ? (
+                  <div className="flex gap-2 items-center pt-1 border-t border-gray-100">
+                    <FilePicker file={fileByPenerima[k.penerima_id]} disabled={busy}
+                      onChange={f => setFileByPenerima(prev => ({ ...prev, [k.penerima_id]: f }))} />
+                    <button disabled={busy || !fileByPenerima[k.penerima_id]} onClick={() => konfirmasiPenerima(k)}
+                      className="text-xs font-bold text-white bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                      Tandai Sudah TF
+                    </button>
+                  </div>
+                ) : (
+                  // Belum ada tujuan transfer sama sekali — jangan kasih
+                  // jalan buat ditandai TF (dikonfirmasi user 2026-10-04),
+                  // nunggu rekening diisi dulu (lihat Database Jamaah /
+                  // bantuan BSI manual).
+                  <div className="pt-1 border-t border-gray-100 text-[10px] text-amber-600 font-bold">
+                    ⚠️ Rekening belum diisi — belum bisa ditandai TF
+                  </div>
+                )
               )}
             </div>
           );

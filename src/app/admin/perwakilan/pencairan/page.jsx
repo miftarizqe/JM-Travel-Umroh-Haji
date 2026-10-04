@@ -139,6 +139,13 @@ export default function PencairanPerwakilanPage() {
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_WARNA[p.status] || 'bg-gray-100 text-gray-500'}`}>
                     {STATUS_LABEL[p.status] || p.status}
                   </span>
+                  {/* Badge "X/Y TF" (dikonfirmasi user 2026-10-04) -- cuma
+                      relevan pas udah disetujui. Merah kalau belum semua. */}
+                  {p.status === 'disetujui' && (
+                    <div className={`text-[10px] font-bold mt-0.5 ${p.jumlah_confirmed < p.jumlah_baris ? 'text-red-600' : 'text-green-600'}`}>
+                      TF: {p.jumlah_confirmed}/{p.jumlah_baris}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

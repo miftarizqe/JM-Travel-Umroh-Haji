@@ -63,7 +63,10 @@ export async function PATCH(request, { params }) {
       );
     } else if (action === 'lampirkan_bukti_ttd') {
       if (p.status !== 'disetujui') return Response.json({ error: 'Cuma pengajuan yang udah disetujui yang bisa dilampirkan bukti TTD.' }, { status: 400 });
-      if (p.bukti_ttd_path) return Response.json({ error: 'Pengajuan ini udah punya bukti TTD, gak bisa ditimpa.' }, { status: 400 });
+      // Boleh GANTI file yang udah ada (dikonfirmasi user 2026-10-04,
+      // sebelumnya sengaja dikunci "gak bisa ditimpa") -- admin perlu jalan
+      // buat koreksi kalau salah upload. File lama TETAP di disk (gak
+      // dihapus, cuma `bukti_ttd_path` di-update ke file baru).
       const hasil = await simpanBuktiTtd(file, id);
       if (hasil.error) return Response.json({ error: hasil.error }, { status: 400 });
 

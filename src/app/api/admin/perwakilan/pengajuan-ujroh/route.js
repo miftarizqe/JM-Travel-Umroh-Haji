@@ -13,10 +13,16 @@ export async function GET(request) {
   const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
   try {
+    // jumlah_confirmed -- badge "X/Y TF" di list (dikonfirmasi user
+    // 2026-10-04, sebelumnya cuma kelihatan di halaman detail).
     const [rows] = await pool.query(
-      `SELECT pup.*, p.name AS prog_name, p.tanggal_berangkat
+      `SELECT pup.*, p.name AS prog_name, p.tanggal_berangkat, COALESCE(cl.jumlah_confirmed, 0) AS jumlah_confirmed
        FROM pengajuan_ujroh_perwakilan pup
        LEFT JOIN programs p ON p.id = pup.prog_id
+       LEFT JOIN (
+         SELECT pengajuan_ujroh_perwakilan_id, SUM(CASE WHEN dikonfirmasi_at IS NOT NULL THEN 1 ELSE 0 END) AS jumlah_confirmed
+         FROM komisi_ledger WHERE pengajuan_ujroh_perwakilan_id IS NOT NULL GROUP BY pengajuan_ujroh_perwakilan_id
+       ) cl ON cl.pengajuan_ujroh_perwakilan_id = pup.id
        ORDER BY pup.id DESC`
     );
     return Response.json({ pengajuan: rows });

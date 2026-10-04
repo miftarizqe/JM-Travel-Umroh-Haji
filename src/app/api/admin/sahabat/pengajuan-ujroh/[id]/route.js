@@ -33,8 +33,9 @@ async function simpanBuktiTtd(file, id) {
 // action: 'ajukan' (draft->diajukan, abis dicetak buat TTD bos) |
 // 'setujui' (diajukan->disetujui) | 'tolak' (diajukan->ditolak, baris LEPAS
 // dari batch ini biar otomatis masuk batch berikutnya, BUKAN hilang) |
-// 'lampirkan_bukti_ttd' (disetujui TANPA bukti -> tetap disetujui, cuma
-// nempelin file yang tadinya kosong).
+// 'lampirkan_bukti_ttd' (pengajuan udah disetujui -> isi/ganti bukti_ttd_path,
+// gak ngubah status/diputuskan_at -- dipakai baik buat nutup gap pengajuan
+// lama yang belum ada bukti, MAUPUN ganti file kalau salah upload).
 //
 // 'setujui' TIDAK LAGI cuma diklik super_admin tanpa bukti (2026-09-02,
 // dikonfirmasi user) — approval bos itu KEJADIAN FISIK (TTD di atas kertas
@@ -91,7 +92,11 @@ export async function PATCH(request, { params }) {
       );
     } else if (action === 'lampirkan_bukti_ttd') {
       if (p.status !== 'disetujui') return Response.json({ error: 'Cuma pengajuan yang udah disetujui yang bisa dilampirkan bukti TTD.' }, { status: 400 });
-      if (p.bukti_ttd_path) return Response.json({ error: 'Pengajuan ini udah punya bukti TTD, gak bisa ditimpa.' }, { status: 400 });
+      // Boleh GANTI file yang udah ada (dikonfirmasi user 2026-10-04,
+      // sebelumnya sengaja dikunci "gak bisa ditimpa") -- admin perlu jalan
+      // buat koreksi kalau salah upload. File lama TETAP di disk (gak
+      // dihapus, cuma `bukti_ttd_path` di-update ke file baru), auditAksi
+      // di bawah nyatet perubahannya.
       const hasil = await simpanBuktiTtd(file, id);
       if (hasil.error) return Response.json({ error: hasil.error }, { status: 400 });
 
