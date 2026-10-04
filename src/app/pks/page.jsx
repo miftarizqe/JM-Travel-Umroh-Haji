@@ -213,7 +213,9 @@ function PKSPageInner() {
           <div className="mt-4 space-y-2">
             <button onClick={simpanLaluTtdDigital} disabled={!setuju || loading || loadingDigital}
               className="w-full bg-[#C9952A] hover:bg-yellow-600 text-white font-bold py-3 rounded-full disabled:opacity-40">
-              {loadingDigital ? 'Memproses...' : '✍️ Setujui & Tanda Tangan Digital'}
+              {/* Sahabat: cuma simpan persetujuan — TTD digital & e-materai belum bisa
+                  dipakai (dikonfirmasi user 2026-10-04), TTD tetap fisik di langkah berikutnya. */}
+              {loadingDigital ? 'Memproses...' : jenis === 'sahabat_baitullah' ? '✅ Setuju' : '✍️ Setujui & Tanda Tangan Digital'}
             </button>
             {/* SPK-AK Sahabat Baitullah wajib TTD digital + e-materai
                 (dikonfirmasi user 2026-09-19) — opsi fisik dihapus khusus
