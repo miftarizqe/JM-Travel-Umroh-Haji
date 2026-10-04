@@ -1120,7 +1120,7 @@ export default function DatabaseJamaahPage() {
       {tab === 'hirarki' && (
         <>
           <div className="text-xs text-gray-400 mb-3">
-            Semua akar jaringan Sahabat Baitullah (anggota yang gak punya perekrut di atasnya). Klik "Lihat Tree" buat buka struktur jaringan lengkap di bawahnya.
+            Semua akar jaringan Sahabat Baitullah (anggota paling atas: tanpa perekrut, atau direkrut langsung oleh manajemen — admin/HoP). Klik "Lihat Tree" buat buka struktur jaringan lengkap di bawahnya.
           </div>
           <input value={cariAkar} onChange={e => setCariAkar(e.target.value)} placeholder="Cari nama / kode..."
             className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm mb-3" />
