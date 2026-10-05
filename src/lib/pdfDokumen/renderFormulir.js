@@ -3,6 +3,7 @@
 // sumber data yang SAMA dengan SPKA-Ins (GET /api/admin/cetak-pks/[user_id]).
 import { Document, Page, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import { styles, Kop, Field } from './pdfStyles';
+import { splitAlamatGenerik } from './alamatDuaBaris';
 
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const tglIndo = (d) => `${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}`;
@@ -17,6 +18,16 @@ const tglIndo = (d) => `${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}
  */
 export async function renderFormulirPdf({ user, perekrut, pengaturan, logoPath, untukTtdDigital }) {
   const ttlValue = `${user.tempat_lahir || ''}${user.tempat_lahir && user.tanggal_lahir ? ', ' : ''}${user.tanggal_lahir ? tglIndo(new Date(user.tanggal_lahir)) : ''}`;
+
+  const FieldAlamat = ({ label, value }) => {
+    const { baris1, baris2 } = splitAlamatGenerik(value);
+    return (
+      <>
+        <Field label={label} value={baris1} />
+        {baris2 && <Field label="" value={baris2} />}
+      </>
+    );
+  };
 
   const TtdBox = ({ pihak, nama }) => (
     <View style={styles.ttdBox}>
@@ -43,8 +54,8 @@ export async function renderFormulirPdf({ user, perekrut, pengaturan, logoPath, 
         <Field label="Tempat, Tanggal Lahir" value={ttlValue} />
         <Field label="Jenis Kelamin" value={user.jenis_kelamin} />
         <Field label="Nama Gadis Ibu Kandung" value={user.nama_ibu} />
-        <Field label="Alamat sesuai KTP" value={user.alamat_ktp || user.alamat} />
-        <Field label="Alamat Domisili" value={user.alamat_domisili || user.alamat} />
+        <FieldAlamat label="Alamat sesuai KTP" value={user.alamat_ktp || user.alamat} />
+        <FieldAlamat label="Alamat Domisili" value={user.alamat_domisili || user.alamat} />
         <Field label="No. Whatsapp" value={user.wa} />
         <Field label="Email Aktif" value={user.email} />
         <Field label="Perekrut" value={perekrut?.name || 'JM Travel'} />

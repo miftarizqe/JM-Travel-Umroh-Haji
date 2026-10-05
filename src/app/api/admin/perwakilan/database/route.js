@@ -79,6 +79,7 @@ export async function GET(request) {
        u.tanggal_lahir, u.jenis_kelamin, u.kode_pos, u.no_perjanjian_kerjasama, u.setuju_pks,
        perekrut.name AS perekrut_nama, u.created_at,
        ap.id AS pendaftaran_id, ap.jadwal_kunjungan, ap.metode AS pendaftaran_metode, ap.status AS pendaftaran_status,
+       u.janji_temu_kantor_selesai_at,
        (SELECT fase FROM dokumen_signature WHERE dokumen = 'formulir' AND ref_id = u.id ORDER BY id DESC LIMIT 1) AS formulir_fase,
        COALESCE(kl.total_komisi, 0) AS total_komisi,
        COALESCE(kl.total_komisi_pending, 0) AS total_komisi_pending,

@@ -32,6 +32,8 @@ export default function JanjiTemuKantorPage() {
   const [sahabat, setSahabat] = useState(null);
   const [perwakilan, setPerwakilan] = useState(null);
   const [cari, setCari] = useState('');
+  const [busy, setBusy] = useState(null); // user_id lagi diproses
+  const [showSelesai, setShowSelesai] = useState(false);
 
   const isAdmin = ['admin', 'super_admin'].includes(user?.role);
 
@@ -39,11 +41,25 @@ export default function JanjiTemuKantorPage() {
     if (user && !isAdmin) router.replace('/');
   }, [user, isAdmin, router]);
 
-  useEffect(() => {
-    if (!isAdmin) return;
+  function muat() {
     fetch('/api/admin/sahabat/database').then(r => r.json()).then(d => setSahabat(d.jamaah || [])).catch(() => setSahabat([]));
     fetch('/api/admin/perwakilan/database').then(r => r.json()).then(d => setPerwakilan(d.perwakilan || [])).catch(() => setPerwakilan([]));
-  }, [isAdmin]);
+  }
+  useEffect(() => { if (isAdmin) muat(); }, [isAdmin]);
+
+  async function tandaiSelesai(user_id, selesai) {
+    setBusy(user_id);
+    try {
+      const res = await fetch('/api/admin/janji-temu-kantor', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id, selesai }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal menyimpan'); setBusy(null); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusy(null);
+  }
 
   if (!user || !isAdmin) return <Layout><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
 
@@ -52,18 +68,19 @@ export default function JanjiTemuKantorPage() {
     ...sahabat.filter(j => j.metode_ttd_sahabat === 'kantor').map(j => ({
       user_id: j.user_id, nama: j.nama, kode_unik: j.kode_unik, wa: j.wa, tanggal: j.rencana_kunjungan_kantor_at,
       sumber: 'Sahabat Baitullah', keperluan: 'TTD Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran',
-      cetak: `/api/sahabat/dokumen-legal/unduh-lengkap?user_id=${j.user_id}`,
+      cetak: `/api/sahabat/dokumen-legal/unduh-lengkap?user_id=${j.user_id}`, selesai_at: j.janji_temu_kantor_selesai_at,
     })),
     ...perwakilan.filter(j => j.pendaftaran_metode === 'kantor' && j.jadwal_kunjungan).map(j => ({
       user_id: j.user_id, nama: j.nama, kode_unik: j.kode_unik, wa: j.wa, tanggal: j.jadwal_kunjungan,
-      sumber: 'Perwakilan', keperluan: 'TTD Perjanjian Kerjasama Perwakilan', cetak: null,
+      sumber: 'Perwakilan', keperluan: 'TTD Perjanjian Kerjasama Perwakilan', cetak: null, selesai_at: j.janji_temu_kantor_selesai_at,
     })),
   ];
 
   const q = cari.trim().toLowerCase();
-  const kunjungan = gabungan
-    .filter(j => !q || (j.nama || '').toLowerCase().includes(q) || (j.kode_unik || '').toLowerCase().includes(q) || (j.wa || '').includes(q))
-    .sort((a, b) => new Date(a.tanggal || 0) - new Date(b.tanggal || 0));
+  const cocokCari = (j) => !q || (j.nama || '').toLowerCase().includes(q) || (j.kode_unik || '').toLowerCase().includes(q) || (j.wa || '').includes(q);
+
+  const kunjungan = gabungan.filter(j => !j.selesai_at && cocokCari(j)).sort((a, b) => new Date(a.tanggal || 0) - new Date(b.tanggal || 0));
+  const selesai = gabungan.filter(j => j.selesai_at && cocokCari(j)).sort((a, b) => new Date(b.selesai_at || 0) - new Date(a.selesai_at || 0));
 
   const terlewat = kunjungan.filter(j => j.tanggal && hariLagi(j.tanggal) < 0);
   const hariIni = kunjungan.filter(j => j.tanggal && hariLagi(j.tanggal) === 0);
@@ -77,18 +94,31 @@ export default function JanjiTemuKantorPage() {
             <div className="font-bold text-[#0E2F6E]">{j.nama} <span className="text-gray-400 font-normal text-xs">({j.kode_unik || '-'})</span></div>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/80 text-gray-500 whitespace-nowrap">{j.sumber}</span>
           </div>
-          <div className="text-xs text-gray-500 mt-0.5">{fmtTanggal(j.tanggal)}</div>
+          <div className="text-xs text-gray-500 mt-0.5">{j.selesai_at ? `Selesai ${fmtTanggal(j.selesai_at)}` : fmtTanggal(j.tanggal)}</div>
           <div className="text-[11px] text-gray-400 mt-0.5">{j.keperluan}</div>
           {j.wa && (
             <a href={waLink(j.wa)} target="_blank" rel="noopener noreferrer" className="text-xs text-green-700 font-semibold hover:underline">💬 {j.wa}</a>
           )}
         </div>
-        {j.cetak && (
-          <button onClick={() => window.open(j.cetak, '_blank')}
-            className="text-[11px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-blue-100 shrink-0 whitespace-nowrap">
-            🖨️ Cetak Dokumen
-          </button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {j.cetak && (
+            <button onClick={() => window.open(j.cetak, '_blank')}
+              className="text-[11px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-blue-100 whitespace-nowrap">
+              🖨️ Cetak Dokumen
+            </button>
+          )}
+          {j.selesai_at ? (
+            <button disabled={busy === j.user_id} onClick={() => tandaiSelesai(j.user_id, false)}
+              className="text-[11px] font-bold text-gray-500 bg-white px-3 py-1.5 rounded-full hover:bg-gray-100 whitespace-nowrap disabled:opacity-50">
+              ↺ Buka Lagi
+            </button>
+          ) : (
+            <button disabled={busy === j.user_id} onClick={() => tandaiSelesai(j.user_id, true)}
+              className="text-[11px] font-bold text-white bg-green-600 px-3 py-1.5 rounded-full hover:bg-green-700 whitespace-nowrap disabled:opacity-50">
+              ✅ Tandai Selesai
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -113,7 +143,9 @@ export default function JanjiTemuKantorPage() {
           <div className="text-center text-gray-400 py-10 text-sm">Memuat...</div>
         ) : kunjungan.length === 0 ? (
           <div className="text-center text-gray-400 py-10 text-sm">
-            {gabungan.length === 0 ? 'Belum ada yang pilih datang ke kantor.' : `Tidak ada yang cocok dengan pencarian "${cari}".`}
+            {gabungan.filter(j => !j.selesai_at).length === 0
+              ? (gabungan.length === 0 ? 'Belum ada yang pilih datang ke kantor.' : 'Semua janji temu sudah selesai — lihat section Selesai di bawah.')
+              : `Tidak ada yang cocok dengan pencarian "${cari}".`}
           </div>
         ) : (
           <div className="space-y-5">
@@ -134,6 +166,17 @@ export default function JanjiTemuKantorPage() {
                 <div className="text-[11px] font-black text-gray-400 uppercase tracking-wide mb-2">🗓️ Akan Datang ({akanDatang.length})</div>
                 <div className="space-y-2">{akanDatang.map(j => <Baris key={`${j.sumber}-${j.user_id}`} j={j} warna="border-blue-200 bg-blue-50" />)}</div>
               </div>
+            )}
+          </div>
+        )}
+
+        {selesai.length > 0 && (
+          <div className="pt-2 border-t border-gray-100">
+            <button onClick={() => setShowSelesai(s => !s)} className="text-xs font-bold text-gray-400 hover:text-[#1A4FA0]">
+              {showSelesai ? '▲' : '▼'} ✅ Selesai ({selesai.length})
+            </button>
+            {showSelesai && (
+              <div className="space-y-2 mt-2">{selesai.map(j => <Baris key={`${j.sumber}-${j.user_id}`} j={j} warna="border-green-200 bg-green-50 opacity-70" />)}</div>
             )}
           </div>
         )}

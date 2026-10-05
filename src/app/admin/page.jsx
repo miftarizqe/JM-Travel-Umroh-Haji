@@ -443,10 +443,10 @@ function AdminPageInner() {
   // bukan lagi expand-cluster di section role tertentu — lihat halaman
   // /admin/janji-temu-kantor buat daftar lengkapnya.
   const janjiTemuKantor = useMemo(() => [
-    ...sahabatJamaahDb.filter(j => j.metode_ttd_sahabat === 'kantor').map(j => ({
+    ...sahabatJamaahDb.filter(j => j.metode_ttd_sahabat === 'kantor' && !j.janji_temu_kantor_selesai_at).map(j => ({
       user_id: j.user_id, nama: j.nama, kode_unik: j.kode_unik, tanggal: j.rencana_kunjungan_kantor_at, sumber: 'Sahabat Baitullah',
     })),
-    ...perwakilanJamaahDb.filter(j => j.pendaftaran_metode === 'kantor' && j.jadwal_kunjungan).map(j => ({
+    ...perwakilanJamaahDb.filter(j => j.pendaftaran_metode === 'kantor' && j.jadwal_kunjungan && !j.janji_temu_kantor_selesai_at).map(j => ({
       user_id: j.user_id, nama: j.nama, kode_unik: j.kode_unik, tanggal: j.jadwal_kunjungan, sumber: 'Perwakilan',
     })),
   ].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal)), [sahabatJamaahDb, perwakilanJamaahDb]);

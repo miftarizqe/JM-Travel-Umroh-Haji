@@ -101,7 +101,7 @@ export async function GET(request) {
        u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
        u.dokumen_pemblokiran_fisik_diterima_at, u.dokumen_spk_ak_fisik_diterima_at,
        u.dokumen_surat_pemblokiran_fisik_path,
-       u.dokumen_spk_ak_fisik_path, u.metode_ttd_sahabat, u.rencana_kunjungan_kantor_at, u.dokumen_spk_ak_dikirim_balik_at,
+       u.dokumen_spk_ak_fisik_path, u.metode_ttd_sahabat, u.rencana_kunjungan_kantor_at, u.janji_temu_kantor_selesai_at, u.dokumen_spk_ak_dikirim_balik_at,
        perekrut.name AS perekrut_nama,
        tp.tanggal_berangkat AS target_tanggal_berangkat, tp.active AS target_program_aktif,
        v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,
