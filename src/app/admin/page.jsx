@@ -968,11 +968,17 @@ function AdminPageInner() {
             ))}
           </div>
 
-          {/* Cluster pending */}
+          {/* Cluster pending — restyle 2026-10-05 (dikonfirmasi user) niru
+              gaya kartu ringkas versi Head of Program (grid 2 kolom, non-
+              kosong diurutkan ke atas) yang ternyata lebih enak diliat
+              daripada versi admin sebelumnya (stacked full-width). Grouping
+              per stage TETAP dipertahankan (dari restyle 2026-10-04),
+              action/click-through admin (yang HOP gak punya) juga tetap. */}
           <CollapsibleSection title={<h3 className="font-bold text-red-600">🔴 Perlu Perhatian</h3>}>
             <div className="space-y-5">
               {CLUSTER_GROUPS.map(g => {
-                const groupClusters = clusters.filter(c => c.group === g.key);
+                const groupClusters = [...clusters.filter(c => c.group === g.key)]
+                  .sort((a, b) => (b.items.length > 0) - (a.items.length > 0));
                 const groupTotal = groupClusters.reduce((sum, c) => sum + c.items.length, 0);
                 return (
                 <div key={g.key}>
@@ -980,50 +986,49 @@ function AdminPageInner() {
                     <div className="text-[11px] font-black text-gray-400 uppercase tracking-wide">{g.icon} {g.label}</div>
                     {groupTotal > 0 && <span className="text-[10px] font-black text-red-500">{groupTotal} item</span>}
                   </div>
-                  <div className="space-y-3">
+                  <div className="grid md:grid-cols-2 gap-2">
                     {groupClusters.map(c => {
                       const isOpen = expandCluster === c.key;
                       const tampil = isOpen ? c.items : c.items.slice(0,3);
+                      const bisaKlikItem = ['perlengkapan','kalkulator_lead','ttu_belum_dikirim','perjanjian_belum_selesai','penyesuaian_harga_pending','refund_belum_ditransfer','kalkulator_perwakilan_pending','janji_temu_kantor'].includes(c.key);
                       return (
-                      <div key={c.key} className={`border ${c.color} rounded-xl p-4`}>
-                  <div className="flex items-center justify-between cursor-pointer" onClick={() => c.items.length > 3 && setExpandCluster(isOpen ? null : c.key)}>
-                    <div className="font-bold text-gray-700 text-sm">{c.icon} {c.label}</div>
-                    <span className={`text-xs font-black px-2 py-1 rounded-full ${c.items.length>0?'bg-red-500 text-white':'bg-gray-200 text-gray-400'}`}>
-                      {c.items.length}
-                    </span>
-                  </div>
-                  {c.items.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {tampil.map((it,idx) => (
-                        <div key={idx}
-                          onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : c.key==='janji_temu_kantor' ? () => router.push('/admin/janji-temu-kantor') : undefined}
-                          className={`text-xs text-gray-500 bg-white/60 rounded px-2 py-1 ${c.key==='perlengkapan' || c.key==='kalkulator_lead' || c.key==='ttu_belum_dikirim' || c.key==='perjanjian_belum_selesai' || c.key==='penyesuaian_harga_pending' || c.key==='refund_belum_ditransfer' || c.key==='kalkulator_perwakilan_pending' || c.key==='janji_temu_kantor' ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
-                          {labelItemCluster(c.key, it)}
+                      <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
+                          <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
                         </div>
-                      ))}
-                      {c.items.length>3 && (
-                        <div className="text-[10px] text-gray-400 pl-2 cursor-pointer underline" onClick={() => setExpandCluster(isOpen ? null : c.key)}>
-                          {isOpen ? 'Tutup ▲' : `+${c.items.length-3} lainnya...`}
-                        </div>
-                      )}
-                      <button onClick={() => {
-                        if (c.key==='pembayaran') setActiveTab('payments');
-                        else if (c.key==='akun_verifikasi') { setActiveTab('users'); setFilterUserStatus(''); }
-                        else if (c.key.startsWith('akun_')) { setActiveTab('users'); setFilterUserStatus('pending'); }
-                        else if (c.key==='program_umroh') setActiveTab('programs');
-                        else if (c.key==='custom_harga') setActiveTab('customharga');
-                        else if (c.key==='perlengkapan' && c.items[0]) router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(c.items[0].prog_name)}`);
-                        else if (c.key==='kalkulator_lead') router.push('/admin/kalkulator-leads');
-                        else if (c.key==='ttu_belum_dikirim' && c.items[0]) router.push(`/admin/cetak-invoice/${c.items[0].id}`);
-                        else if (c.key==='perjanjian_belum_selesai' && c.items[0]) router.push(`/admin/cetak-perjanjian/${c.items[0].id}`);
-                        else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
-                        else if (c.key==='refund_belum_ditransfer' && c.items[0]) { setActiveTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
-                        else if (c.key==='kalkulator_perwakilan_pending') router.push('/admin/kalkulator-perwakilan');
-                        else if (c.key==='janji_temu_kantor') router.push('/admin/janji-temu-kantor');
-                      }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
-                    </div>
-                  )}
-                </div>
+                        {c.items.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {tampil.map((it,idx) => (
+                              <div key={idx}
+                                onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : c.key==='janji_temu_kantor' ? () => router.push('/admin/janji-temu-kantor') : undefined}
+                                className={`text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate ${bisaKlikItem ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
+                                {labelItemCluster(c.key, it)}
+                              </div>
+                            ))}
+                            {c.items.length>3 && (
+                              <button onClick={() => setExpandCluster(isOpen ? null : c.key)} className="text-[11px] text-gray-500 underline pl-1">
+                                {isOpen ? 'Tutup ▲' : `+${c.items.length-3} lainnya`}
+                              </button>
+                            )}
+                            <button onClick={() => {
+                              if (c.key==='pembayaran') setActiveTab('payments');
+                              else if (c.key==='akun_verifikasi') { setActiveTab('users'); setFilterUserStatus(''); }
+                              else if (c.key.startsWith('akun_')) { setActiveTab('users'); setFilterUserStatus('pending'); }
+                              else if (c.key==='program_umroh') setActiveTab('programs');
+                              else if (c.key==='custom_harga') setActiveTab('customharga');
+                              else if (c.key==='perlengkapan' && c.items[0]) router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(c.items[0].prog_name)}`);
+                              else if (c.key==='kalkulator_lead') router.push('/admin/kalkulator-leads');
+                              else if (c.key==='ttu_belum_dikirim' && c.items[0]) router.push(`/admin/cetak-invoice/${c.items[0].id}`);
+                              else if (c.key==='perjanjian_belum_selesai' && c.items[0]) router.push(`/admin/cetak-perjanjian/${c.items[0].id}`);
+                              else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
+                              else if (c.key==='refund_belum_ditransfer' && c.items[0]) { setActiveTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
+                              else if (c.key==='kalkulator_perwakilan_pending') router.push('/admin/kalkulator-perwakilan');
+                              else if (c.key==='janji_temu_kantor') router.push('/admin/janji-temu-kantor');
+                            }} className="block text-[11px] font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
+                          </div>
+                        )}
+                      </div>
                       );
                     })}
                   </div>
