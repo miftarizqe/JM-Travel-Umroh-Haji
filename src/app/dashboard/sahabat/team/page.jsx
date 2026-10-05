@@ -11,6 +11,14 @@ const FUNNEL_LABEL = {
   active: 'Aktif', ditolak: 'Ditolak',
 };
 
+// Perekrut staf (admin/super_admin/HoP) disamarkan, bedain HoP secara
+// eksplisit (dikonfirmasi user 2026-10-05, mirror Database Anggota).
+function labelPerekrutAdmin(t) {
+  if (t.perekrut_role === 'hop') return 'Management JM Travel - HOP';
+  if (['admin', 'super_admin'].includes(t.perekrut_role)) return 'Management JM Travel';
+  return t.perekrut_nama || '-';
+}
+
 // Ujroh 5-generasi cuma dibayar sampai gen 5 ke atas (lihat loop
 // `gen < 5` di /api/status-pendaftaran-sahabat/route.js) — jaringan di
 // bawahnya TETAP kecatat & keliatan di sini (unlimited, cap teknis 20 level
@@ -126,7 +134,7 @@ function LevelSection({ level, members }) {
                 <tr key={t.id} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="px-4 py-2.5 font-semibold text-[#0E2F6E]">{t.name}{t.wa && <div className="text-[10px] font-normal"><a href={`tel:${t.wa}`} className="text-[#1A4FA0]">📞 {t.wa}</a></div>}</td>
                   <td className="px-4 py-2.5 text-gray-500">{t.kode_unik}</td>
-                  <td className="px-4 py-2.5 text-gray-500">{t.perekrut_nama || '-'}</td>
+                  <td className="px-4 py-2.5 text-gray-500">{labelPerekrutAdmin(t)}</td>
                   <td className="px-4 py-2.5"><StatusBadge t={t} /></td>
                   <td className="px-4 py-2.5">
                     {t.persen_kesiapan === null || t.persen_kesiapan === undefined ? (
@@ -388,7 +396,7 @@ function TeamContent() {
                         <td className="px-4 py-3">
                           <GenBadge level={t.level} />
                         </td>
-                        <td className="px-4 py-3 text-gray-500">{t.perekrut_nama || '-'}</td>
+                        <td className="px-4 py-3 text-gray-500">{labelPerekrutAdmin(t)}</td>
                         <td className="px-4 py-3"><StatusBadge t={t} /></td>
                         <td className="px-4 py-3">
                           {t.persen_kesiapan === null || t.persen_kesiapan === undefined ? (

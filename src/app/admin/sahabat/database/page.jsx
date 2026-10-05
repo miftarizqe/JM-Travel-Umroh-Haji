@@ -14,6 +14,18 @@ function fmtTanggal(iso) {
   return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+// Label "Perekrut" buat tampilan ADMIN-INTERNAL — beda dari labelPerekrut()
+// yang dipakai di halaman jamaah-facing (daftar-sahabat dkk, selalu generik
+// "Management JM Travel" biar gak bocorin role staff). Di sini staf lain
+// (admin) emang perlu tau bedanya: perekrut HOP vs admin/super_admin biasa
+// (dikonfirmasi user 2026-10-05, sebelumnya kolom ini masih nampilin nama
+// asli staf, padahal udah ada aturan ini dari sebelumnya).
+function labelPerekrutAdmin(j) {
+  if (j.perekrut_role === 'hop') return 'Management JM Travel - HOP';
+  if (['admin', 'super_admin'].includes(j.perekrut_role)) return 'Management JM Travel';
+  return j.perekrut_nama || '-';
+}
+
 // Status FUNNEL pendaftaran (kp.status) — cuma dipakai buat display detail
 // tahap proses (mis. badge di tab Hirarki Pohon), BUKAN buat filter tab
 // utama lagi (dikonfirmasi user 2026-09-07, sebelumnya tab filter salah
@@ -806,7 +818,7 @@ export default function DatabaseJamaahPage() {
                             ⏳ Nunggu Rekening Manual BSI — jamaah setuju {fmtTanggal(j.bantuan_bsi_manual_disetujui_at)}, isi No. Rekening &amp; Nama Pemilik begitu BSI selesai proses.
                           </div>
                         )}
-                        <div>Perekrut: <b className="text-gray-700">{j.perekrut_nama || '-'}</b></div>
+                        <div>Perekrut: <b className="text-gray-700">{labelPerekrutAdmin(j)}</b></div>
                         {!isHop && (
                           <div className="col-span-2">
                             <button onClick={() => mulaiEditData(j)} className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2.5 py-1 rounded-full">
