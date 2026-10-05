@@ -1,5 +1,5 @@
 import pool from '@/lib/db';
-import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
+import { wajibAdminAtauHopSahabat, isHopRole } from '@/lib/hopAuth';
 
 // GET /api/admin/sahabat/komisi-rekap?pengajuan_id=X — rekap ujroh Sahabat
 // Baitullah lintas semua penerima, dipakai buat /admin/cetak-rekap-ujroh
@@ -58,6 +58,16 @@ export async function GET(request) {
       grp.subtotal += Number(r.nominal || 0);
     }
     const kelompok = [...kelompokMap.values()];
+    // HoP cuma boleh "ANGKA SAJA — gak ada no. telepon/NIK/rekening/saldo"
+    // (aturan dari awal, lihat komentar di /dashboard/sahabat/hop) — endpoint
+    // ini sebelumnya diam-diam ngirim nomor rekening asli ke HoP juga lewat
+    // shortcut "Pencairan" di dashboard-nya (dikonfirmasi user 2026-10-05).
+    // kode_unik TETAP ada, cukup buat identifikasi tanpa bocorin rekening.
+    if (isHopRole(auth.user)) {
+      for (const k of kelompok) {
+        k.bank = null; k.no_rekening = null; k.nama_pemilik_rekening = null; k.no_rekening_tabungan_umroh = null;
+      }
+    }
     const grandTotal = kelompok.reduce((s, k) => s + k.subtotal, 0);
 
     let pengajuan = null;

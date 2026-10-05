@@ -197,6 +197,10 @@ function RiwayatSaldoContent() {
                   </button>
                   {isOpen && (
                     <div className="border-t border-gray-50 p-3 space-y-1.5">
+                      {p.bukti_tf_admin_path && (
+                        <a href={p.bukti_tf_admin_path} target="_blank" rel="noopener noreferrer"
+                          className="inline-block text-xs font-bold text-[#1A4FA0] mb-1">📎 Lihat Bukti TF</a>
+                      )}
                       {p.items.map(it => (
                         <div key={it.id} className="flex justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
                           <div>

@@ -23,7 +23,7 @@ export async function GET(request) {
     if (auth.error) return auth.error;
 
     const [rows] = await pool.query(
-      `SELECT kl.id, kl.jenis, kl.nominal, kl.keterangan, kl.created_at, kl.pengajuan_ujroh_id,
+      `SELECT kl.id, kl.jenis, kl.nominal, kl.keterangan, kl.created_at, kl.pengajuan_ujroh_id, kl.bukti_tf_admin_path,
               pu.periode_mulai, pu.periode_selesai, pu.status AS pengajuan_status
        FROM komisi_ledger kl
        JOIN pengajuan_ujroh pu ON pu.id = kl.pengajuan_ujroh_id
@@ -41,6 +41,10 @@ export async function GET(request) {
           periode_mulai: r.periode_mulai,
           periode_selesai: r.periode_selesai,
           status: r.pengajuan_status,
+          // Semua item 1 pengajuan dikonfirmasi lewat 1 aksi batch (lihat
+          // /api/admin/sahabat/komisi/konfirmasi-batch) jadi share bukti
+          // yang SAMA — dikonfirmasi user 2026-10-05.
+          bukti_tf_admin_path: r.bukti_tf_admin_path || null,
           items: [],
           total: 0,
         });

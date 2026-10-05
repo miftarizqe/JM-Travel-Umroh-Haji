@@ -235,7 +235,12 @@ export default function PencairanDetailPage() {
               <div className="flex items-center justify-between mb-2">
                 <div>
                   <div className="font-bold text-[#0E2F6E] text-sm">{k.penerima_nama} <span className="text-gray-400 font-normal">({k.kode_unik})</span></div>
-                  <div className="text-xs text-gray-500">Rek. Tabungan Umroh: <b>{k.no_rekening_tabungan_umroh || 'BELUM DIISI'}</b></div>
+                  {/* HoP cuma boleh angka/kode, gak boleh nomor rekening asli
+                      (dikonfirmasi user 2026-10-05, redaksi beneran di server —
+                      lihat komisi-rekap/route.js, bukan cuma disembunyiin di sini). */}
+                  <div className="text-xs text-gray-500">
+                    {isAdmin ? <>Rek. Tabungan Umroh: <b>{k.no_rekening_tabungan_umroh || 'BELUM DIISI'}</b></> : <>Kode Sahabat Baitullah: <b>{k.kode_unik}</b></>}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {buktiBersama && (
