@@ -196,7 +196,7 @@ export default function DashboardSahabatPage() {
             </div>
           )
         )}
-        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] rounded-xl p-4 text-white">
+        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] rounded-xl p-4 text-white">
           <div className="flex items-start justify-between gap-2">
             <div className="text-sm opacity-80">{data.akun.name} · {data.akun.kode_unik}</div>
             {skema.is_hop && (

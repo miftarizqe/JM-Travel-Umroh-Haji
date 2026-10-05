@@ -66,7 +66,7 @@ export default function DashboardJamaah() {
   return (
     <Layout>
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white rounded-2xl p-6 mb-6 text-center md:text-left">
+      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 mb-6 text-center md:text-left">
         <h2 className="text-xl md:text-2xl font-bold">Assalamualaikum, {user.name.split(' ')[0]} 👋</h2>
         <p className="text-sm opacity-85 mt-1">Selamat datang di portal jamaah JM Travel</p>
         {/* Kode unik jamaah disembunyikan sementara, belum ada kegunaannya buat jamaah

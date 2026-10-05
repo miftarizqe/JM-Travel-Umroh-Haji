@@ -872,7 +872,7 @@ function AdminPageInner() {
     return (
       <Layout>
         <div className="space-y-5">
-          <div className="bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-2xl p-5 md:p-6">
+          <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-5 md:p-6">
             <div className="text-xs font-semibold opacity-75">🛡️ Head of Program · Baca saja</div>
             <h2 className="text-xl md:text-2xl font-bold mt-1">Ringkasan Admin</h2>
             <p className="text-sm opacity-75 mt-1">Kondisi operasional JM Travel hari ini. Tindak lanjut dilakukan oleh admin.</p>
@@ -933,7 +933,7 @@ function AdminPageInner() {
   return (
     <Layout>
       {/* Header */}
-      <div className="bg-gradient-to-r from-gray-900 to-gray-700 text-white rounded-2xl p-6 mb-6">
+      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 mb-6">
         <h2 className="text-xl md:text-2xl font-bold">⚙️ Admin Panel — JM Travel</h2>
         <p className="text-sm opacity-75 mt-1">Selamat datang, {user.name}</p>
       </div>

@@ -135,7 +135,7 @@ export default function DashboardPerwakilan() {
   return (
     <Layout>
       {/* Welcome */}
-      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white rounded-2xl p-6 mb-6">
+      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 mb-6">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl md:text-2xl font-bold">Dashboard Perwakilan 🏢</h2>
