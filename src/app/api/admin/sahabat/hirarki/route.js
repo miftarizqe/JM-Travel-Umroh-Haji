@@ -26,11 +26,20 @@ export async function GET(request) {
   }
 
   try {
+    // "Akar" = sahabat TANPA upline sesama sahabat — BUKAN cuma perekrut_id
+    // IS NULL (ditemukan bug nyata 2026-10-05: tiap sahabat PASTI punya
+    // perekrut_id keisi, karena pendaftaran butuh kode undangan dari
+    // SIAPAPUN, termasuk admin/perwakilan yang bukan sahabat_baitullah —
+    // jadinya query lama GAK PERNAH nemu akar sama sekali, tree selalu
+    // kosong walau datanya ada). Root yang benar: perekrut_id NULL, ATAU
+    // perekrut-nya bukan sesama sahabat_baitullah (gak ada upline buat
+    // nge-attach node ini jadi anaknya di tree Sahabat Baitullah).
     const [akarRows] = await pool.query(
       `SELECT u.id, u.name, u.kode_unik, u.created_at, kp.status AS funnel_status
        FROM users u
        JOIN sahabat_pendaftaran kp ON kp.user_id = u.id
-       WHERE u.role = 'sahabat_baitullah' AND u.perekrut_id IS NULL
+       LEFT JOIN users p ON p.id = u.perekrut_id
+       WHERE u.role = 'sahabat_baitullah' AND (u.perekrut_id IS NULL OR p.role IS NULL OR p.role != 'sahabat_baitullah')
        ORDER BY u.created_at DESC`
     );
 
