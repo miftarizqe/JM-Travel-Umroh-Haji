@@ -4,7 +4,6 @@ import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 import { wajibLogin, wajibRole } from '@/lib/auth';
 import { pastikanKodeInviteSahabat } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
-import { catatRekening } from '@/lib/rekeningLedger';
 import { kirimSpkAkTunggalUntukTtd } from '@/app/api/admin/dokumen-signature/route';
 import { SPK_AK_SEMENTARA_FISIK } from '@/lib/spkAkFlag';
 import { releaseNomorSuratJikaBulanSama } from '@/lib/nomorSurat';
@@ -503,25 +502,15 @@ export async function PATCH(request) {
               ]
             );
 
-            // Rekening — TETAP di rekening sahabat_baitullah yang sama
-            // (dikonfirmasi user 2026-09-06 — bukan pindah ke rekening lain,
-            // fisiknya emang gak pernah kemana-mana). Dicatat keluar LALU
-            // masuk lagi, biar ada 2 baris jelas ("titik") di riwayat
-            // transaksi rekening ini yang nandain "segini yang jadi jatah
-            // management" — beda dari ujroh_tf yang beneran ditransfer ke
-            // orang lain. Saldo akhir gak berubah (netral), cuma buat
-            // kategorisasi/audit biar gampang dibedain closing beneran vs
-            // sisa operasional pas lihat riwayat.
-            await catatRekening(pool, {
-              rekening: 'sahabat_baitullah', jenis: 'keluar', sumber_tipe: 'operasional_sahabat',
-              sumber_id: user_id, nominal: operasionalTotal,
-              keterangan: `Alokasi operasional/management — pendaftaran ${p.nama}`,
-            });
-            await catatRekening(pool, {
-              rekening: 'sahabat_baitullah', jenis: 'masuk', sumber_tipe: 'operasional_sahabat',
-              sumber_id: user_id, nominal: operasionalTotal,
-              keterangan: `Alokasi operasional/management — pendaftaran ${p.nama}`,
-            });
+            // Rekening — SEBELUMNYA dicatat keluar LALU masuk lagi (2 baris
+            // netral) biar kelihatan "titik" alokasi di riwayat rekening ini.
+            // DIHAPUS 2026-10-05 (dikonfirmasi user) -- dananya emang gak
+            // pernah kemana-mana (netral ke saldo), tapi pasangan keluar+masuk
+            // ini bikin total Masuk & Keluar bulanan di halaman Rekening
+            // 3-Bank sama-sama kegedean secara artifisial padahal gak ada
+            // uang yang beneran bergerak. komisi_ledger di atas TETAP ada
+            // (itu yang dipakai buat laporan komisi/alokasi), cuma baris
+            // rekening_ledger-nya yang dibuang.
           }
 
           // Voucher Rp1jt AUTO-generate SEKALIGUS AUTO-APPROVE begitu akun
