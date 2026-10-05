@@ -44,7 +44,7 @@ export async function GET(request) {
       const [rows] = await pool.query(
         `SELECT u.id, u.name, u.kode_unik, u.wa, u.status, u.created_at, u.perekrut_id, u.setuju_data_pribadi_at,
                 kp.status AS funnel_status, kp.target_estimasi_harga, kp.target_minat,
-                perekrut.name AS perekrut_nama
+                perekrut.name AS perekrut_nama, perekrut.role AS perekrut_role
          FROM users u
          LEFT JOIN sahabat_pendaftaran kp ON kp.user_id = u.id
          LEFT JOIN users perekrut ON perekrut.id = u.perekrut_id
