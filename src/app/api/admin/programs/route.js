@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import pool from '@/lib/db';
-import { wajibSuperAdmin } from '@/lib/auth';
+import { wajibSuperAdmin, wajibRole } from '@/lib/auth';
 
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KAMAR = ['quad', 'triple', 'double'];
@@ -124,7 +124,11 @@ function mapVals(cols, body) {
 }
 
 // GET /api/admin/programs  atau  ?id=xxx untuk satu program
+// Admin saja: isinya HPP/ujroh/margin per program (sebelum 2026-10-05 endpoint ini
+// terbuka tanpa login sama sekali). Katalog publik pakai GET /api/programs (Go).
 export async function GET(request) {
+  const auth = wajibRole(request, ['admin']);
+  if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
