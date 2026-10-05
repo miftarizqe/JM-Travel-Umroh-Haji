@@ -202,6 +202,10 @@ export default function PencairanPerwakilanDetailPage() {
       <div className="space-y-3">
         {data.kelompok.map(k => {
           const semuaConfirmed = k.items.every(it => it.dikonfirmasi_at);
+          // 1 bukti dipakai buat SEMUA item orang ini (dikonfirmasi user
+          // 2026-10-05 — lihat konfirmasi-batch) — ditampilkan SEKALI di
+          // level orang, bukan diulang di tiap baris item kayak sebelumnya.
+          const buktiBersama = k.items.find(it => it.bukti_tf_admin_path)?.bukti_tf_admin_path;
           return (
             <div key={k.penerima_id} className="bg-white rounded-xl border border-gray-200 p-4">
               <div className="flex items-center justify-between mb-2">
@@ -209,11 +213,17 @@ export default function PencairanPerwakilanDetailPage() {
                   <div className="font-bold text-[#0E2F6E] text-sm">{k.penerima_nama} <span className="text-gray-400 font-normal">({k.kode_unik})</span></div>
                   <div className="text-xs text-gray-500">Rekening: <b>{k.bank ? `${k.bank} ${k.no_rekening} a.n. ${k.nama_pemilik_rekening || k.penerima_nama}` : 'BELUM DIISI'}</b></div>
                 </div>
-                {semuaConfirmed ? (
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-700">✅ Sudah TF</span>
-                ) : (
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700">⏳ Belum TF</span>
-                )}
+                <div className="flex items-center gap-2">
+                  {buktiBersama && (
+                    <a href={buktiBersama} target="_blank" rel="noopener noreferrer"
+                      className="text-xs font-bold text-[#1A4FA0]">📎 Lihat Bukti</a>
+                  )}
+                  {semuaConfirmed ? (
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-green-100 text-green-700">✅ Sudah TF</span>
+                  ) : (
+                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-700">⏳ Belum TF</span>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-1 text-xs mb-2">
@@ -225,15 +235,7 @@ export default function PencairanPerwakilanDetailPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-bold text-[#0E2F6E]">{fmtRp(it.nominal)}</div>
-                      {it.dikonfirmasi_at ? (
-                        <div className="flex items-center gap-1.5 justify-end">
-                          {it.bukti_tf_admin_path && (
-                            <a href={it.bukti_tf_admin_path} target="_blank" rel="noopener noreferrer"
-                              className="text-[10px] text-[#1A4FA0] font-bold">📎 Lihat Bukti</a>
-                          )}
-                          <span className="text-green-600">✅</span>
-                        </div>
-                      ) : <span className="text-gray-300">⏳</span>}
+                      {it.dikonfirmasi_at ? <span className="text-green-600">✅</span> : <span className="text-gray-300">⏳</span>}
                     </div>
                   </div>
                 ))}

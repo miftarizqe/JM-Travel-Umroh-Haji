@@ -171,7 +171,13 @@ export default function RekeningDashboardPage() {
                       {bisaRincian && <span className="text-[#1A4FA0] font-bold ml-1">{rincianOpen === t.id ? '▲ Tutup rincian' : '▼ Lihat rincian'}</span>}
                     </div>
                     <div className="text-gray-400 truncate">{t.keterangan}</div>
-                    <div className="text-[10px] text-gray-300">{fmtTanggalJam(t.created_at)}</div>
+                    <div className="flex items-center gap-2 text-[10px] text-gray-300">
+                      <span>{fmtTanggalJam(t.created_at)}</span>
+                      {t.bukti_path && (
+                        <a href={t.bukti_path} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                          className="text-[#1A4FA0] font-bold">📎 Lihat Bukti</a>
+                      )}
+                    </div>
                   </div>
                   <div className={`font-bold shrink-0 ${t.jenis === 'masuk' ? 'text-green-600' : 'text-red-600'}`}>
                     {t.jenis === 'masuk' ? '+' : '-'}{fmtRp(t.nominal)}

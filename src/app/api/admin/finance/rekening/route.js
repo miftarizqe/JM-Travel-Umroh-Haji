@@ -30,6 +30,30 @@ async function saldoRekeningLedger(rekening, bulan) {
      ORDER BY created_at DESC`,
     [rekening, awalBulan, awalBulan]
   );
+
+  // Bukti TF (dikonfirmasi user 2026-10-05) -- baris 'keluar' ujroh_tf*
+  // sumbernya dari komisi_ledger.bukti_tf_admin_path, BUKAN kolom di
+  // rekening_ledger sendiri (tabel ini emang gak punya kolom bukti). Semua
+  // id yang digabung di 1 baris (lihat konfirmasi-batch) share FILE YANG
+  // SAMA, jadi cukup ambil dari id PERTAMA tiap baris.
+  const idPertama = transaksi
+    .filter(t => t.sumber_tipe === 'ujroh_tf' || t.sumber_tipe === 'ujroh_tf_perwakilan')
+    .map(t => Number(String(t.sumber_id).split(',')[0]))
+    .filter(n => Number.isInteger(n) && n > 0);
+  let buktiById = {};
+  if (idPertama.length > 0) {
+    const [buktiRows] = await pool.query(
+      `SELECT id, bukti_tf_admin_path FROM komisi_ledger WHERE id IN (${idPertama.map(() => '?').join(',')})`,
+      idPertama
+    );
+    buktiById = Object.fromEntries(buktiRows.map(r => [r.id, r.bukti_tf_admin_path]));
+  }
+  for (const t of transaksi) {
+    if (t.sumber_tipe === 'ujroh_tf' || t.sumber_tipe === 'ujroh_tf_perwakilan') {
+      t.bukti_path = buktiById[Number(String(t.sumber_id).split(',')[0])] || null;
+    }
+  }
+
   const saldoAwal = Number(sebelum.saldo || 0);
   const masuk = Number(bulanIni.masuk || 0);
   const keluar = Number(bulanIni.keluar || 0);
