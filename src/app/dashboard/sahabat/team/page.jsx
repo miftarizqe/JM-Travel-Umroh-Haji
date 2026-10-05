@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { warnaProgress } from '@/lib/kesiapanTabungan';
+import { isHopRole } from '@/lib/hopAuth';
 
 const FUNNEL_LABEL = {
   pending: 'Verifikasi TF', menunggu_bsi: 'Menunggu BSI', menunggu_sk_cif: 'Menunggu SK-CIF',
@@ -175,10 +176,13 @@ function TeamContent() {
   const [targetInfo, setTargetInfo] = useState(null);
   // Head of Program (dikonfirmasi user 2026-09-07) — wewenang baru, boleh
   // liat SELURUH jaringan Sahabat Baitullah dari dashboard akunnya sendiri,
-  // bukan cuma downline dia. Dideteksi lewat berhasil/gaknya fetch
-  // /api/admin/sahabat/hirarki (endpoint itu sekarang ngasih akses HOP juga,
-  // bukan cuma admin) — kalau berhasil buat akun non-admin, berarti dia HOP.
-  const [semuaAkar, setSemuaAkar] = useState(null); // null = belum dicek/bukan HOP
+  // bukan cuma downline dia. `semuaAkar` dipakai buat selector "Lihat
+  // Jaringan Lain" di bawah — status HOP-nya sendiri dicek LANGSUNG dari
+  // role (isHopRole), BUKAN dari berhasil/gaknya fetch lagi (ditemukan bug
+  // nyata 2026-10-05: role 'hop' murni — bukan sahabat_baitullah yang
+  // dikasih wewenang HOP — kena guard redirect di bawah & gak pernah nyoba
+  // fetch semuaAkar sama sekali, jadi isHop SELALU false buat akun HOP asli).
+  const [semuaAkar, setSemuaAkar] = useState(null);
   const [loadingAkar, setLoadingAkar] = useState(false);
 
   // Admin/super_admin ATAU Head of Program boleh buka jaringan siapa pun
@@ -187,15 +191,15 @@ function TeamContent() {
   // berubah, cuma halaman ini sekarang bisa nunjukkin hasilnya).
   const paramId = searchParams.get('sahabat_id');
   const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
-  const isHop = semuaAkar !== null;
+  const isHop = isHopRole(user);
   const bolehLihatSemua = isAdmin || isHop;
   const targetId = (paramId && bolehLihatSemua) ? paramId : user?.id;
   const lihatJaringanOrangLain = bolehLihatSemua && paramId && paramId !== user?.id;
 
-  // Cek status HOP cuma buat akun sahabat_baitullah biasa (admin udah pasti
-  // boleh lihat semua lewat jalur lain, gak perlu cek ini).
+  // Daftar akar buat selector "Lihat Jaringan Lain" — relevan buat akun
+  // sahabat_baitullah yang DIKASIH wewenang HOP maupun role 'hop' murni.
   useEffect(() => {
-    if (!user || user.role !== 'sahabat_baitullah') return;
+    if (!user || !['sahabat_baitullah', 'hop'].includes(user.role)) return;
     setLoadingAkar(true);
     fetch('/api/admin/sahabat/hirarki')
       .then(r => (r.ok ? r.json() : Promise.reject()))
@@ -206,7 +210,12 @@ function TeamContent() {
 
   useEffect(() => {
     if (!user) return;
-    if (!['sahabat_baitullah', 'admin', 'super_admin'].includes(user.role)) { router.push('/dashboard/jamaah'); return; }
+    // HoP (role 'hop') ketinggalan di allowlist ini — ditemukan & diperbaiki
+    // 2026-10-05: klik "Lihat Tree" dari Database Jamaah malah nge-redirect
+    // HoP ke dashboard jamaah generik yang gak relevan sama sekali, padahal
+    // HoP justru salah satu role yang SENGAJA dikasih akses lihat jaringan
+    // siapapun (lihat bolehLihatSemua/isHop di atas).
+    if (!['sahabat_baitullah', 'admin', 'super_admin', 'hop'].includes(user.role)) { router.push('/dashboard/jamaah'); return; }
     if (!targetId) return;
     fetch(`/api/sahabat/team?sahabat_id=${targetId}`)
       .then(r => r.json())
@@ -274,7 +283,7 @@ function TeamContent() {
       {isHop && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-3">
           <div className="text-xs font-bold text-purple-800 mb-2">👑 Head of Program — Lihat Jaringan Lain</div>
-          {loadingAkar ? (
+          {loadingAkar || !semuaAkar ? (
             <div className="text-xs text-purple-600">Memuat daftar jaringan...</div>
           ) : semuaAkar.length === 0 ? (
             <div className="text-xs text-purple-600">Belum ada akar jaringan.</div>
