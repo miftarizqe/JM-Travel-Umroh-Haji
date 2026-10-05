@@ -289,12 +289,9 @@ function TeamContent() {
             <div className="text-xs text-purple-600">Belum ada akar jaringan.</div>
           ) : (
             <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => router.push('/dashboard/sahabat/team')}
-                className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full transition-colors ${
-                  targetId === user.id ? 'bg-purple-700 text-white' : 'bg-white text-purple-700 border border-purple-300 hover:bg-purple-100'
-                }`}>
-                🙋 Jaringan Saya
-              </button>
+              {/* "Jaringan Saya" DIBUANG buat HoP (dikonfirmasi user
+                  2026-10-05) — HoP itu kepala/pengawas seluruh jaringan, gak
+                  punya jaringan pribadi sendiri buat ditoggle balik. */}
               {semuaAkar.map(a => (
                 <button key={a.id} onClick={() => router.push(`/dashboard/sahabat/team?sahabat_id=${a.id}`)}
                   className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full transition-colors ${
