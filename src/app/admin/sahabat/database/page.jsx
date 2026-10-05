@@ -141,6 +141,7 @@ export default function DatabaseJamaahPage() {
   const [formData, setFormData] = useState({});
   const [savingData, setSavingData] = useState(false);
   const [komisiPerUser, setKomisiPerUser] = useState({}); // { [user_id]: rows[] }
+  const [ujrohHopPerUser, setUjrohHopPerUser] = useState({}); // { [user_id]: {sudah_cair,pending,forecast} } -- khusus HoP, ujroh-only (lihat komentar di bukaDetail)
   // Pilih-banyak buat konfirmasi TF sekaligus (dikonfirmasi user 2026-09-30
   // — biar admin gak klik satu-satu kalau 1 jamaah punya beberapa baris
   // pending). ID komisi_ledger unik lintas jamaah, jadi array flat aman
@@ -211,6 +212,16 @@ export default function DatabaseJamaahPage() {
   function muatKomisi(userId) {
     fetch(`/api/admin/sahabat/komisi?user_id=${userId}`).then(r => r.json())
       .then(d => setKomisiPerUser(prev => ({ ...prev, [userId]: d.komisi || [] })))
+      .catch(() => {});
+  }
+
+  // HoP gak berhak liat total saldo tabungan jamaah (nyampur duit pribadi
+  // jamaah yang nabung sendiri), tapi BOLEH liat total ujroh yang didapat
+  // (dikonfirmasi user 2026-10-05) -- fetch terpisah, ujroh-only, dipanggil
+  // cuma buat HoP pas expand (lihat bukaDetail & kartu di bawah).
+  function muatUjrohHop(userId) {
+    fetch(`/api/admin/sahabat/${userId}/ujroh-ringkasan`).then(r => r.json())
+      .then(d => setUjrohHopPerUser(prev => ({ ...prev, [userId]: d })))
       .catch(() => {});
   }
 
@@ -425,7 +436,8 @@ export default function DatabaseJamaahPage() {
   function bukaDetail(j) {
     const membuka = expand !== j.user_id;
     setExpand(membuka ? j.user_id : null);
-    if (membuka && !komisiPerUser[j.user_id]) muatKomisi(j.user_id);
+    if (membuka && !komisiPerUser[j.user_id] && !isHop) muatKomisi(j.user_id);
+    if (membuka && !ujrohHopPerUser[j.user_id] && isHop) muatUjrohHop(j.user_id);
   }
 
   function mulaiEdit(j) {
@@ -577,10 +589,16 @@ export default function DatabaseJamaahPage() {
                   <div className="flex items-center justify-between gap-3">
                     <button onClick={() => bukaDetail(j)} className="text-left min-w-0 flex-1">
                       <div className="text-sm font-bold text-[#0E2F6E] truncate underline decoration-dotted">{j.nama} <span className="text-gray-400 font-normal">({j.kode_unik})</span></div>
-                      <div className="text-xs text-gray-500 mt-0.5">
-                        {fmtRp(j.saldo_tabungan_umroh)}
-                        {j.saldo_updated_at && <span className="text-gray-400"> · diperbarui {fmtTanggal(j.saldo_updated_at)}</span>}
-                      </div>
+                      {/* Preview saldo di baris list (collapsed) — HoP gak
+                          ikut liat ini (dikonfirmasi user 2026-10-05, saldo
+                          tabungan nyampur duit pribadi jamaah), rincian
+                          ujroh-only HoP baru muncul pas expand. */}
+                      {!isHop && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {fmtRp(j.saldo_tabungan_umroh)}
+                          {j.saldo_updated_at && <span className="text-gray-400"> · diperbarui {fmtTanggal(j.saldo_updated_at)}</span>}
+                        </div>
+                      )}
                       {/* Tahap funnel pendaftaran — cuma relevan selama akun
                           belum aktif (dikonfirmasi user 2026-09-07, mirror
                           "Tahap:" di Database Perwakilan). Begitu aktif,
@@ -671,7 +689,32 @@ export default function DatabaseJamaahPage() {
                         saldo_pending = udah tercatat tapi belum di-ACC). */}
                     {/* Ditolak -> gak pernah aktif, saldo/rekap gak relevan
                         (dikonfirmasi user 2026-10-03). */}
+                    {/* HoP gak berhak liat TOTAL SALDO (nyampur duit pribadi
+                        jamaah yang nabung sendiri), tapi boleh liat total
+                        UJROH yang didapat (dikonfirmasi user 2026-10-05) —
+                        3 kartu beda sama sekali buat HoP: Sudah Cair/Pending
+                        ujroh-only (bukan saldo_tabungan_umroh yang nyampur),
+                        plus Forecast (proyeksi ujroh yang BAHKAN belum
+                        nggantung, dari downline di funnel + booking yang
+                        belum 'selesai'). Gak ada tombol Rekap & Download
+                        (itu download SELURUH saldo termasuk duit pribadi). */}
                     {j.user_status !== 'rejected' && (
+                      isHop ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                            <div className="font-bold text-green-600">{ujrohHopPerUser[j.user_id] ? fmtRp(ujrohHopPerUser[j.user_id].sudah_cair) : '...'}</div>
+                            <div className="text-gray-400">Ujroh Sudah Cair</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                            <div className="font-bold text-yellow-600">{ujrohHopPerUser[j.user_id] ? fmtRp(ujrohHopPerUser[j.user_id].pending) : '...'}</div>
+                            <div className="text-gray-400">Ujroh Pending</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                            <div className="font-bold text-[#C9952A]">{ujrohHopPerUser[j.user_id] ? fmtRp(ujrohHopPerUser[j.user_id].forecast) : '...'}</div>
+                            <div className="text-gray-400">Forecast</div>
+                          </div>
+                        </div>
+                      ) : (
                       <>
                         <div className="grid grid-cols-3 gap-2">
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
@@ -691,8 +734,8 @@ export default function DatabaseJamaahPage() {
                           📊 Lihat Rekap &amp; Download →
                         </button>
                       </>
+                      )
                     )}
-
                     {editingData === j.user_id ? (
                       <div className="bg-white rounded-lg p-3 border border-gray-100 space-y-2">
                         <div className="font-bold text-[#0E2F6E]">Edit Rekening (admin-only)</div>
@@ -915,8 +958,11 @@ export default function DatabaseJamaahPage() {
 
                     {/* Ditolak -> gak pernah aktif, gak ada histori saldo
                         buat ditampilkan/dikoreksi (dikonfirmasi user
-                        2026-10-03). */}
-                    {j.user_status !== 'rejected' && (
+                        2026-10-03). Rincian transaksi di bawah ini nyampur
+                        duit pribadi jamaah (setoran mandiri, tabungan awal)
+                        — HoP gak boleh liat ini sama sekali (dikonfirmasi
+                        user 2026-10-05), bukan cuma angka total-nya doang. */}
+                    {j.user_status !== 'rejected' && !isHop && (
                     <div className="bg-white rounded-lg p-2 border border-gray-100">
                       <div className="font-bold text-[#0E2F6E] mb-1.5">💰 Riwayat Saldo Tabungan Umroh</div>
                       {!komisiPerUser[j.user_id] ? (
