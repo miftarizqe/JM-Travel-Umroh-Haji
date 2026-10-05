@@ -23,8 +23,15 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          if [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::error::Secret DEPLOY_SSH_KEY belum diisi di repo ini (Settings > Secrets and variables > Actions)"; exit 1
+          fi
+          printf '%s\n' "$DEPLOY_SSH_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          if ! ssh-keygen -y -f ~/.ssh/deploy_key > /dev/null 2>&1; then
+            echo "::error::Isi DEPLOY_SSH_KEY bukan private key yang valid. Salin SELURUH isi ~/.ssh/github_actions_deploy termasuk baris BEGIN/END."; exit 1
+          fi
+          echo "Sidik jari kunci: $(ssh-keygen -lf ~/.ssh/deploy_key | awk '{print $2}')  (harus SHA256:Rk6Hu2/+qdcFb31npzBPpVq5NpDB32WvalaPtdp8Mgw)"
           echo "43.156.73.48 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ3jhSaNGUMK1Xs0DEcsRkT6JQhyLc+rZrh0D3RkSP5y" > ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ServerAliveInterval=30 \
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o IdentitiesOnly=yes -o ServerAliveInterval=30 \
             ubuntu@43.156.73.48 "web ${{ github.ref_name }}"
