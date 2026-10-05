@@ -867,8 +867,28 @@ function AdminPageInner() {
   // antrian "Perlu Perhatian"), tapi TANPA tombol/aksi apa pun. Endpoint
   // tulis tetap admin-only di server (lihat wajibRole di src/lib/auth.js).
   if (user.role === 'hop') {
-    const totalPending = clusters.reduce((n, c) => n + c.items.length, 0);
-    const urut = [...clusters].sort((a, b) => (b.items.length > 0) - (a.items.length > 0));
+    // Ringkasan Admin buat HoP DIBATASI cuma yang berkaitan sama Sahabat
+    // Baitullah (dikonfirmasi user 2026-10-05) — cluster generik (Pending
+    // Akun Jamaah, Program Umroh, Pembayaran, dst) BUKAN wewenang HoP sama
+    // sekali. Dipakai di sini, bukan `clusters` (array admin biasa) yang
+    // isinya macem-macem role: gabungan cluster khusus Sahabat Baitullah
+    // yang sebelumnya cuma ada di section "🤝 Sahabat Baitullah" (gak kebuka
+    // di cabang HoP ini) + janji_temu_kantor difilter sumber Sahabat doang.
+    const hopLabelItem = (key, it) => {
+      if (key === 'voucher_acc') return `${it.nama} (${it.kode_unik}) — ${it.voucher_kode}`;
+      if (key === 'janji_temu_sahabat') return `${it.nama} (${it.kode_unik}) — ${tgl(it.tanggal)}`;
+      return `${it.nama} (${it.kode_unik})`;
+    };
+    const hopClusters = [
+      {key:'akun_verifikasi_sahabat', label:'Akun Baru Menunggu Verifikasi', icon:'🔐', color:'border-amber-200 bg-amber-50', items:(pending.akun_verifikasi||[]).filter(u=>u.role==='sahabat_baitullah')},
+      {key:'voucher_acc', label:'Voucher Menunggu ACC', icon:'🎟️', color:'border-pink-200 bg-pink-50', items: sahabatVoucherPending},
+      {key:'siap_berangkat', label:'Siap Berangkat (≥80%)', icon:'🎯', color:'border-amber-200 bg-amber-50', items: sahabatSiapBerangkat},
+      {key:'dibawah_progress', label:'Di Bawah Progress Tabungan', icon:'⚠️', color:'border-orange-200 bg-orange-50', items: sahabatDibawahProgress},
+      {key:'jadwal_terlewat', label:'Jadwal Target Terlewat', icon:'⏰', color:'border-red-200 bg-red-50', items: sahabatJadwalTerlewat},
+      {key:'janji_temu_sahabat', label:'Janji Temu Datang ke Kantor', icon:'🏢', color:'border-cyan-200 bg-cyan-50', items: janjiTemuKantor.filter(j=>j.sumber==='Sahabat Baitullah')},
+    ];
+    const totalPending = hopClusters.reduce((n, c) => n + c.items.length, 0);
+    const urut = [...hopClusters].sort((a, b) => (b.items.length > 0) - (a.items.length > 0));
     return (
       <Layout>
         <div className="space-y-5">
@@ -878,12 +898,10 @@ function AdminPageInner() {
             <p className="text-sm opacity-75 mt-1">Kondisi operasional JM Travel hari ini. Tindak lanjut dilakukan oleh admin.</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Jamaah', val: stat.jamaah || 0, color: 'text-green-700', bg: 'bg-green-50' },
               { label: 'Jamaah Sahabat Baitullah', val: stat.sahabat || 0, color: 'text-amber-700', bg: 'bg-amber-50', path: '/admin/sahabat/database' },
-              { label: 'Perwakilan', val: stat.perwakilan || 0, color: 'text-purple-700', bg: 'bg-purple-50' },
-              { label: 'Program Aktif', val: stat.program || 0, color: 'text-[#C9952A]', bg: 'bg-[#FEF3DC]' },
+              { label: 'Perlu Tindak Lanjut', val: totalPending, color: 'text-red-600', bg: 'bg-red-50' },
             ].map(k => (
               <div key={k.label} onClick={k.path ? () => router.push(k.path) : undefined}
                 className={`${k.bg} rounded-xl p-4 ${k.path ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}>
@@ -911,7 +929,7 @@ function AdminPageInner() {
                     {c.items.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {tampil.map((it, idx) => (
-                          <div key={idx} className="text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate">{labelItemCluster(c.key, it)}</div>
+                          <div key={idx} className="text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate">{hopLabelItem(c.key, it)}</div>
                         ))}
                         {c.items.length > 3 && (
                           <button onClick={() => setExpandCluster(isOpen ? null : c.key)} className="text-[11px] text-gray-500 underline pl-1">
