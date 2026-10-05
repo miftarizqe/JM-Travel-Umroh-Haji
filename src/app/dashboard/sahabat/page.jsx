@@ -196,36 +196,37 @@ export default function DashboardSahabatPage() {
             </div>
           )
         )}
-        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] rounded-xl p-4 text-white">
-          <div className="flex items-start justify-between gap-2">
-            <div className="text-sm opacity-80">{data.akun.name} · {data.akun.kode_unik}</div>
-            {skema.is_hop && (
-              <span className="bg-white/15 border border-white/30 rounded-full px-2.5 py-1 text-[10px] font-bold shrink-0">👑 Head of Program</span>
+        {/* Susunan kartu warna disamain ke gaya dashboard HoP (dikonfirmasi
+            user 2026-10-05, style/tatanan doang — Team/Saldo/Pending yang
+            tadinya nyatu di 1 strip gradient dipisah jadi kartu kecil kayak
+            punya HoP, angka/aksi/route-nya gak berubah). */}
+        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] rounded-xl p-3 text-white flex items-center justify-between gap-2">
+          <div className="text-sm opacity-90">{data.akun.name} · {data.akun.kode_unik}</div>
+          {skema.is_hop && (
+            <span className="bg-white/15 border border-white/30 rounded-full px-2.5 py-1 text-[10px] font-bold shrink-0">👑 Head of Program</span>
+          )}
+        </div>
+        <div className={`grid gap-3 ${adaPending ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <button onClick={() => router.push('/dashboard/sahabat/team')} className="bg-purple-50 rounded-xl p-3 text-left cursor-pointer">
+            <div className="text-[11px] text-gray-500">Team</div>
+            <div className="text-xl font-black text-purple-700 underline decoration-dotted">{data.ringkasan.jumlah_rekrutan}</div>
+          </button>
+          <button onClick={() => router.push('/dashboard/sahabat/riwayat')} className="bg-green-50 rounded-xl p-3 text-left cursor-pointer">
+            <div className="text-[11px] text-gray-500">Saldo Tabungan Umroh</div>
+            <div className="text-lg font-black text-green-700 underline decoration-dotted">{fmtRp(data.ringkasan.saldo_tabungan_umroh)}</div>
+            {data.ringkasan.saldo_updated_at && (
+              <div className="text-[9px] text-gray-400 mt-0.5">Diperbarui {fmtTanggalJam(data.ringkasan.saldo_updated_at)}</div>
             )}
-          </div>
-          <div className={`grid gap-3 mt-3 text-center ${adaPending ? 'grid-cols-3' : 'grid-cols-2'}`}>
-            <button onClick={() => router.push('/dashboard/sahabat/team')} className="cursor-pointer">
-              <div className="text-xl font-bold underline decoration-dotted">{data.ringkasan.jumlah_rekrutan}</div>
-              <div className="text-[10px] opacity-80">Team</div>
+          </button>
+          {/* Ujroh Pending — digabung di sini sejak 2026-09-22 (dulu badge
+              kecil sendiri di kartu Ujroh Terkonfirmasi). Klik -> Riwayat
+              Tabungan Umroh, langsung buka section "Ujroh Pending". */}
+          {adaPending && (
+            <button onClick={() => router.push('/dashboard/sahabat/riwayat?section=pending')} className="bg-amber-50 rounded-xl p-3 text-left cursor-pointer">
+              <div className="text-[11px] text-gray-500">Ujroh Pending</div>
+              <div className="text-lg font-black text-amber-700 underline decoration-dotted">{fmtRp(data.ringkasan.saldo_pending)}</div>
             </button>
-            <button onClick={() => router.push('/dashboard/sahabat/riwayat')} className="cursor-pointer">
-              <div className="text-xl font-bold underline decoration-dotted">{fmtRp(data.ringkasan.saldo_tabungan_umroh)}</div>
-              <div className="text-[10px] opacity-80">Saldo Tabungan Umroh</div>
-              {data.ringkasan.saldo_updated_at && (
-                <div className="text-[9px] opacity-60 mt-0.5">Diperbarui {fmtTanggalJam(data.ringkasan.saldo_updated_at)}</div>
-              )}
-            </button>
-            {/* Ujroh Pending — digabung ke header, sebelah Saldo Tabungan
-                Umroh (dikonfirmasi user 2026-09-22, dulu badge kecil sendiri
-                di kartu Ujroh Terkonfirmasi). Klik -> Riwayat Tabungan Umroh,
-                langsung buka section "Ujroh Pending". */}
-            {adaPending && (
-              <button onClick={() => router.push('/dashboard/sahabat/riwayat?section=pending')} className="cursor-pointer">
-                <div className="text-xl font-bold underline decoration-dotted">{fmtRp(data.ringkasan.saldo_pending)}</div>
-                <div className="text-[10px] opacity-80">Ujroh Pending</div>
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
         {/* Total Ujroh Terkonfirmasi — klik keluar ke Riwayat Tabungan Umroh

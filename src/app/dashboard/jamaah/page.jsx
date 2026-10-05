@@ -73,20 +73,35 @@ export default function DashboardJamaah() {
             (butuh pengembangan lebih lanjut, dikonfirmasi user 2026-09-27). */}
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {[
-          { icon: '🕌', label: 'Lihat Program', action: () => router.push('/programs') },
-          { icon: '📜', label: 'Riwayat', action: () => document.getElementById('riwayat-section')?.scrollIntoView({ behavior: 'smooth' }) },
-          { icon: '🎟️', label: 'Voucher', action: () => router.push('/voucher') },
-          { icon: '📞', label: 'Hubungi Kami', action: () => window.open(waLink(pengaturan.wa_kantor) || '#', '_blank') },
-        ].map(item => (
-          <div key={item.label} onClick={item.action}
-            className="bg-white rounded-xl p-4 text-center cursor-pointer border border-[#e0e8f0] hover:border-[#1A4FA0] hover:shadow-md transition-all">
-            <div className="text-2xl mb-2">{item.icon}</div>
-            <div className="text-xs font-bold text-[#0E2F6E]">{item.label}</div>
-          </div>
-        ))}
+      {/* Ringkasan — susunan kartu warna + pintasan pil disamain ke gaya
+          dashboard HoP (dikonfirmasi user 2026-10-05, style/tatanan doang,
+          angka & aksi yang udah ada gak ada yang ditambah/dikurangi). */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="bg-green-50 rounded-xl p-3 md:p-4">
+          <div className="text-[11px] md:text-xs text-gray-500">Booking Aktif</div>
+          <div className="text-2xl font-black text-green-700">{active.length}</div>
+        </div>
+        <div className="bg-blue-50 rounded-xl p-3 md:p-4">
+          <div className="text-[11px] md:text-xs text-gray-500">Riwayat</div>
+          <div className="text-2xl font-black text-[#1A4FA0]">{done.length}</div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6">
+        <div className="font-bold text-[#0E2F6E] text-sm mb-2">⚡ Aksi Cepat</div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { icon: '🕌', label: 'Lihat Program', action: () => router.push('/programs') },
+            { icon: '📜', label: 'Riwayat', action: () => document.getElementById('riwayat-section')?.scrollIntoView({ behavior: 'smooth' }) },
+            { icon: '🎟️', label: 'Voucher', action: () => router.push('/voucher') },
+            { icon: '📞', label: 'Hubungi Kami', action: () => window.open(waLink(pengaturan.wa_kantor) || '#', '_blank') },
+          ].map(item => (
+            <button key={item.label} onClick={item.action}
+              className="text-xs font-semibold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d6e4f7] px-3 py-1.5 rounded-full">
+              {item.icon} {item.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Booking Aktif */}
