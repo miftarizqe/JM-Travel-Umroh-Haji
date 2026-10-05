@@ -787,9 +787,15 @@ export default function DatabaseJamaahPage() {
                         <div>NIK: <b className="text-gray-700">{j.nik}</b></div>
                         <div>Bank: <b className="text-gray-700">{j.bank} - {j.no_rekening}</b></div>
                         <div>Rek. BSI Biasa: <b className="text-gray-700">{j.no_rekening_bsi_biasa || '-'}</b></div>
-                        <div>Rek. Tabungan Umroh: <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
-                        <div>Nama Pemilik Rek. Umroh: <b className="text-gray-700">{j.nama_pemilik_rekening_umroh || '-'}</b></div>
-                        {j.bantuan_bsi_manual_disetujui_at && !j.no_rekening_tabungan_umroh && (
+                        {/* Rekening Tabungan Umroh — HoP gak boleh tau
+                            (dikonfirmasi user 2026-10-05). */}
+                        {!isHop && (
+                          <>
+                            <div>Rek. Tabungan Umroh: <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
+                            <div>Nama Pemilik Rek. Umroh: <b className="text-gray-700">{j.nama_pemilik_rekening_umroh || '-'}</b></div>
+                          </>
+                        )}
+                        {j.bantuan_bsi_manual_disetujui_at && !j.no_rekening_tabungan_umroh && !isHop && (
                           <div className="col-span-2 text-amber-700 font-bold bg-amber-50 rounded-lg px-2 py-1">
                             ⏳ Nunggu Rekening Manual BSI — jamaah setuju {fmtTanggal(j.bantuan_bsi_manual_disetujui_at)}, isi No. Rekening &amp; Nama Pemilik begitu BSI selesai proses.
                           </div>
@@ -816,6 +822,8 @@ export default function DatabaseJamaahPage() {
                       </button>
                     </div>
 
+                    {/* Voucher Rp1jt — HoP gak boleh tau (dikonfirmasi user 2026-10-05). */}
+                    {!isHop && (
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Voucher Rp1jt</span>
                       {j.voucher_kode ? (
@@ -837,6 +845,7 @@ export default function DatabaseJamaahPage() {
                         <span className="text-gray-400">Belum terbit — otomatis pas akun aktif</span>
                       )}
                     </div>
+                    )}
 
                     {/* Urutan baris berikut ini DISAMAKAN persis sama
                         urutan funnel pendaftaran jamaah (dikonfirmasi user
@@ -851,12 +860,16 @@ export default function DatabaseJamaahPage() {
                         <span className="text-green-600 font-bold">✅ Ya</span>
                       ) : <span className="text-gray-400">⏳ Belum</span>}
                     </div>
+                    {/* Bukti Transfer Rp1jt, Rekening Tabungan Umroh, Metode
+                        TTD Fisik — HoP gak boleh tau (dikonfirmasi user
+                        2026-10-05). */}
+                    {!isHop && (
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Bukti Transfer Rp1jt</span>
                       {j.bukti_tf_path ? (
                         <div className="flex items-center gap-2">
                           <a href={j.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat</a>
-                          {!j.bukti_tf_verified_at && j.status === 'pending' && !isHop && (
+                          {!j.bukti_tf_verified_at && j.status === 'pending' && (
                             <button disabled={busy} onClick={() => aksi({ action: 'verify_tf', user_id: j.user_id })}
                               className="bg-green-600 text-white font-bold px-3 py-1 rounded-full">Verifikasi</button>
                           )}
@@ -864,13 +877,16 @@ export default function DatabaseJamaahPage() {
                         </div>
                       ) : <span className="text-gray-400">Belum diunggah</span>}
                     </div>
+                    )}
 
+                    {!isHop && (
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Rekening Tabungan Umroh</span>
                       {j.no_rekening_tabungan_umroh ? (
                         <span className="text-green-600 font-bold">✅ {j.no_rekening_tabungan_umroh}</span>
                       ) : <span className="text-gray-400">⏳ Belum diisi jamaah</span>}
                     </div>
+                    )}
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Baca & Setuju SK-CIF/Surat Kuasa Blokir</span>
                       {j.setuju_sk_cif_pemblokiran_at ? (
@@ -880,6 +896,7 @@ export default function DatabaseJamaahPage() {
                     {/* SEMENTARA (dikonfirmasi user 2026-09-30) — vendor esign
                         belum siap, jadi SPK-AK juga TTD fisik lewat pilihan
                         'kantor'/'kirim' yang sama dengan SK-CIF/Pemblokiran. */}
+                    {!isHop && (
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Metode TTD Fisik</span>
                       <div className="flex items-center gap-2">
@@ -902,6 +919,7 @@ export default function DatabaseJamaahPage() {
                         )}
                       </div>
                     </div>
+                    )}
 
                     {/* Scan-upload gak lagi jadi sinyal utama (opsional,
                         boleh nyusul) — diganti 3 checkbox "diterima di

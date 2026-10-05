@@ -1,6 +1,26 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
-import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
+import { wajibAdminAtauHopSahabat, isHopRole } from '@/lib/hopAuth';
+
+// HoP gak berhak tau voucher Rp1jt, bukti TF Rp1jt, & rekening tabungan
+// umroh jamaah (dikonfirmasi user 2026-10-05). kode_unik/nama/dll TETAP
+// ada, cuma field ini di-null-in biar gak bisa diintip lewat network tab
+// (FE udah nyembunyiin tampilannya di database/page.jsx, ini nutup jalur
+// baca mentahnya). saldo_tabungan_umroh/saldo_pending SENGAJA TETAP
+// dikirim (FE butuh angka mentahnya buat hitung % progress tabungan yang
+// HoP emang boleh liat, cuma rupiahnya aja yang disembunyikan di tampilan).
+// metode_ttd_sahabat/rencana_kunjungan_kantor_at JUGA SENGAJA TETAP dikirim
+// (dibutuhkan cluster "Janji Temu Datang ke Kantor" di Ringkasan Admin HoP,
+// lihat admin/page.jsx) — baris "Metode TTD Fisik" di kartu detail Database
+// Anggota disembunyikan khusus di FE (bukan di sini), biar gak dobel-fungsi.
+function redaksiUntukHop(rows) {
+  return rows.map(r => ({
+    ...r,
+    voucher_id: null, voucher_kode: null, voucher_used: null, voucher_aktif: null, voucher_disetujui_at: null,
+    bukti_tf_path: null,
+    no_rekening_tabungan_umroh: null, nama_pemilik_rekening_umroh: null,
+  }));
+}
 import { persenKesiapan } from '@/lib/kesiapanTabungan';
 
 // Jenis komisi yang masuk hitungan "saldo tabungan umroh" — 1 sumber
@@ -132,11 +152,13 @@ export async function GET(request) {
 
     // Tanpa `page` -> balikin semua baris (konsumen: /api/admin/sahabat
     // buat cluster reminder yang nyisir seluruh data, bukan 1 halaman).
+    const isHop = isHopRole(auth.user);
+
     if (!pageParam) {
       const [rows] = await pool.query(
         `SELECT ${selectCols} ${baseFrom} ORDER BY u.kode_unik ASC`
       );
-      return Response.json({ jamaah: rows, ringkasan });
+      return Response.json({ jamaah: isHop ? redaksiUntukHop(rows) : rows, ringkasan });
     }
 
     const [[{ total }]] = await pool.query(
@@ -147,7 +169,7 @@ export async function GET(request) {
       [...params, perPage, (page - 1) * perPage]
     );
 
-    return Response.json({ jamaah: rows, total, page, per_page: perPage, ringkasan });
+    return Response.json({ jamaah: isHop ? redaksiUntukHop(rows) : rows, total, page, per_page: perPage, ringkasan });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
