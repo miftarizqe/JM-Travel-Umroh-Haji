@@ -328,6 +328,15 @@ function AdminPageInner() {
   }, [user]);
 
   async function loadAll() {
+    // HoP (Ringkasan Admin khusus Sahabat): cuma ringkasan dashboard versi HoP —
+    // data pembayaran/pengguna/program/voucher/pembatalan bukan wewenang HoP
+    // (endpoint-nya juga menolak HoP sejak 2026-10-05).
+    if (user?.role === 'hop') {
+      const dash = await fetch('/api/admin/dashboard').then(r => r.json()).catch(() => ({}));
+      setData({ stat: {}, pending: {}, ...dash });
+      setLoading(false);
+      return;
+    }
     const [dash, p, u, pr, v, pb] = await Promise.all([
       fetch('/api/admin/dashboard').then(r => r.json()),
       fetch('/api/payments').then(r => r.json()),
@@ -369,7 +378,7 @@ function AdminPageInner() {
       fetch('/api/admin/sahabat').then(r => r.json()),
       fetch('/api/admin/sahabat/database').then(r => r.json()),
       fetch('/api/admin/sahabat/pencairan-ringkasan').then(r => r.json()),
-      fetch('/api/admin/sahabat/rekonsiliasi').then(r => r.json()).catch(() => null),
+      user?.role === 'hop' ? Promise.resolve(null) : fetch('/api/admin/sahabat/rekonsiliasi').then(r => r.json()).catch(() => null),
     ]).then(([pend, db, pencairan, rekon]) => {
       setSahabatPendaftaran(pend.pendaftaran || []);
       setSahabatJamaahDb(db.jamaah || []);
@@ -397,7 +406,7 @@ function AdminPageInner() {
   }
 
   useEffect(() => {
-    if (activeTab !== 'dashboard') return;
+    if (activeTab !== 'dashboard' || user?.role === 'hop') return; // Perwakilan bukan wewenang HoP
     muatPerwakilanDash();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);

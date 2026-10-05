@@ -87,10 +87,11 @@ export function wajibRole(request, rolesDiizinkan = []) {
       ),
     };
   }
-  // HoP is management. It can inspect Admin pages backed by ordinary admin
-  // reads, but every non-GET request remains admin-only at the API boundary.
-  const hopReadOnly = user.role === 'hop' && request.method === 'GET' && rolesDiizinkan.includes('admin');
-  if (!hopReadOnly && !cocokRole(user.role, rolesDiizinkan)) {
+  // Head of Program (role 'hop') TIDAK ikut lolos di sini (dikonfirmasi user
+  // 2026-10-05): HoP cuma boleh lihat data Sahabat Baitullah, lewat
+  // wajibAdminAtauHopSahabat (src/lib/hopAuth.js) di endpoint Sahabat —
+  // bukan baca semua endpoint admin (jamaah, perwakilan, booking, dst).
+  if (!cocokRole(user.role, rolesDiizinkan)) {
     return {
       error: Response.json(
         { error: 'Akses ditolak. Anda tidak berhak melakukan tindakan ini.' },

@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
-import { wajibRole } from '@/lib/auth';
+import { wajibRole, verifikasiToken } from '@/lib/auth';
+import { isHopRole } from '@/lib/hopAuth';
 import { ambilJamaah } from '@/app/api/admin/database/route';
 import { daftarJamaahPerluKit } from '@/lib/perlengkapan';
 import { daftarTtuBelumDikirim } from '@/lib/invoiceKwitansi';
@@ -8,6 +9,11 @@ import { daftarPerjanjianBelumSelesai, daftarPenyesuaianHargaPending, daftarRefu
 // GET /api/admin/dashboard
 // Menyediakan angka stat + semua daftar pending berdasar cluster.
 export async function GET(request) {
+  // Head of Program: Ringkasan Admin khusus Sahabat Baitullah — data
+  // jamaah/perwakilan/booking TIDAK dikirim sama sekali (dikonfirmasi user
+  // 2026-10-05), bukan cuma disembunyikan di tampilan.
+  const hop = verifikasiToken(request);
+  if (isHopRole(hop)) return ringkasanHop();
   const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
   try {
@@ -134,6 +140,29 @@ export async function GET(request) {
         refund_belum_ditransfer: pendingRefund,
         kalkulator_perwakilan_pending: pendingKalkulatorPerwakilan,
       },
+    });
+  } catch (error) {
+    console.error(error);
+    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
+}
+
+// Ringkasan Admin versi Head of Program — HANYA Sahabat Baitullah: jumlah anggota
+// aktif & akun Sahabat yang menunggu verifikasi (nama + kode saja, tanpa email/WA).
+// Antrian lain (jamaah, perwakilan, pembayaran, perlengkapan, dst) sengaja tidak ada.
+async function ringkasanHop() {
+  try {
+    const [[{ aktif }]] = await pool.query(
+      "SELECT COUNT(*) AS aktif FROM users WHERE role = 'sahabat_baitullah' AND status = 'active'"
+    );
+    const [verifikasi] = await pool.query(
+      `SELECT id, name, name AS nama, kode_unik, role, created_at FROM users
+       WHERE role = 'sahabat_baitullah' AND NOT COALESCE(terverifikasi, 0) AND COALESCE(status, '') <> 'rejected'
+       ORDER BY created_at DESC`
+    );
+    return Response.json({
+      stat: { sahabat: Number(aktif) },
+      pending: { akun_verifikasi: verifikasi },
     });
   } catch (error) {
     console.error(error);

@@ -14,9 +14,9 @@ function requestFor(role, method = 'GET') {
   });
 }
 
-test('HoP can read ordinary Admin endpoints but cannot mutate them', () => {
+test('HoP cannot read or mutate ordinary Admin endpoints (Sahabat-only via hopAuth)', () => {
   process.env.JWT_SECRET = secret;
-  assert.equal(wajibRole(requestFor('hop', 'GET'), ['admin']).user.role, 'hop');
+  assert.equal(wajibRole(requestFor('hop', 'GET'), ['admin']).error.status, 403);
   assert.equal(wajibRole(requestFor('hop', 'POST'), ['admin']).error.status, 403);
   assert.equal(wajibRole(requestFor('hop', 'PUT'), ['admin']).error.status, 403);
   assert.equal(wajibRole(requestFor('hop', 'PATCH'), ['admin']).error.status, 403);
