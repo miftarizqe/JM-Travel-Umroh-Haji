@@ -1,0 +1,30 @@
+# Auto deploy (dikonfirmasi user 2026-10-05): push ke main -> jmtourtravel.com,
+# push ke dev -> dev.jmtourtravel.com. Semua langkah deploy (backup, build, cek kesehatan,
+# rollback) ada di server: jm-travel-api/deploy/auto-deploy.sh. Kunci SSH-nya dikunci di
+# server hanya bisa menjalankan skrip itu. Secret yang dibutuhkan: DEPLOY_SSH_KEY.
+name: Deploy
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Deploy web (${{ github.ref_name }}) ke server
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "43.156.73.48 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJ3jhSaNGUMK1Xs0DEcsRkT6JQhyLc+rZrh0D3RkSP5y" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ServerAliveInterval=30 \
+            ubuntu@43.156.73.48 "web ${{ github.ref_name }}"
