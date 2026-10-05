@@ -35,6 +35,20 @@ export default function RekeningDashboardPage() {
   const [expand, setExpand] = useState(null); // 'alkhalid' | 'sahabat_baitullah' | null
   const [editSaldoAwal, setEditSaldoAwal] = useState(null); // { kode, nominal, tanggal } | null
   const [savingSaldoAwal, setSavingSaldoAwal] = useState(false);
+  const [rincianOpen, setRincianOpen] = useState(null); // id transaksi (rekening_ledger) lagi dibuka rinciannya
+  const [rincianData, setRincianData] = useState({}); // { [transaksiId]: items[] }
+
+  async function toggleRincian(t) {
+    if (rincianOpen === t.id) { setRincianOpen(null); return; }
+    setRincianOpen(t.id);
+    if (!rincianData[t.id]) {
+      try {
+        const res = await fetch(`/api/admin/finance/rekening/rincian?ids=${t.sumber_id}`);
+        const d = await res.json();
+        if (res.ok) setRincianData(prev => ({ ...prev, [t.id]: d.items }));
+      } catch {}
+    }
+  }
 
   function muat() {
     fetch(`/api/admin/finance/rekening?bulan=${bulan}`).then(r => r.json()).then(d => {
@@ -145,18 +159,42 @@ export default function RekeningDashboardPage() {
           <div className="border-t border-gray-100 px-4 py-3 space-y-1.5 bg-gray-50/50">
             {ringkasan.transaksi.length === 0 ? (
               <div className="text-xs text-gray-400">Gak ada transaksi bulan ini.</div>
-            ) : ringkasan.transaksi.map(t => (
-              <div key={t.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs border border-gray-100">
-                <div className="min-w-0">
-                  <div className="font-semibold text-gray-700">{SUMBER_LABEL[t.sumber_tipe] || t.sumber_tipe}</div>
-                  <div className="text-gray-400 truncate">{t.keterangan}</div>
-                  <div className="text-[10px] text-gray-300">{fmtTanggalJam(t.created_at)}</div>
+            ) : ringkasan.transaksi.map(t => {
+              const bisaRincian = (t.sumber_id || '').includes(',');
+              return (
+              <div key={t.id} className="bg-white rounded-lg border border-gray-100 overflow-hidden">
+                <div className={`flex items-center justify-between px-3 py-2 text-xs ${bisaRincian ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+                  onClick={bisaRincian ? () => toggleRincian(t) : undefined}>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-gray-700">
+                      {SUMBER_LABEL[t.sumber_tipe] || t.sumber_tipe}
+                      {bisaRincian && <span className="text-[#1A4FA0] font-bold ml-1">{rincianOpen === t.id ? '▲ Tutup rincian' : '▼ Lihat rincian'}</span>}
+                    </div>
+                    <div className="text-gray-400 truncate">{t.keterangan}</div>
+                    <div className="text-[10px] text-gray-300">{fmtTanggalJam(t.created_at)}</div>
+                  </div>
+                  <div className={`font-bold shrink-0 ${t.jenis === 'masuk' ? 'text-green-600' : 'text-red-600'}`}>
+                    {t.jenis === 'masuk' ? '+' : '-'}{fmtRp(t.nominal)}
+                  </div>
                 </div>
-                <div className={`font-bold shrink-0 ${t.jenis === 'masuk' ? 'text-green-600' : 'text-red-600'}`}>
-                  {t.jenis === 'masuk' ? '+' : '-'}{fmtRp(t.nominal)}
-                </div>
+                {bisaRincian && rincianOpen === t.id && (
+                  <div className="border-t border-gray-100 bg-gray-50/70 px-3 py-2 space-y-1">
+                    {!rincianData[t.id] ? (
+                      <div className="text-[10px] text-gray-400">Memuat rincian...</div>
+                    ) : rincianData[t.id].map(it => (
+                      <div key={it.id} className="flex items-center justify-between text-[11px]">
+                        <div>
+                          <span className="font-bold text-[#1A4FA0]">{it.jenis_label}</span>
+                          <span className="text-gray-400"> — {it.penerima_nama}</span>
+                        </div>
+                        <div className="font-semibold text-gray-600">{fmtRp(it.nominal)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

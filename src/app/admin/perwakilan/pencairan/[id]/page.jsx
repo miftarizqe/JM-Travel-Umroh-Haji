@@ -92,13 +92,12 @@ export default function PencairanPerwakilanDetailPage() {
     setBusy(true);
     try {
       const belumConfirm = k.items.filter(it => !it.dikonfirmasi_at);
-      for (const it of belumConfirm) {
-        const fd = new FormData();
-        fd.append('confirmed', 'true');
-        fd.append('file', file);
-        const res = await fetch(`/api/admin/perwakilan/komisi/${it.id}`, { method: 'PATCH', body: fd });
-        if (!res.ok) { const d = await res.json(); alert(d.error); setBusy(false); return; }
-      }
+      const fd = new FormData();
+      fd.append('ids', JSON.stringify(belumConfirm.map(it => it.id)));
+      fd.append('file', file);
+      const res = await fetch('/api/admin/perwakilan/komisi/konfirmasi-batch', { method: 'PATCH', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusy(false); return; }
       muat();
     } catch { alert('Terjadi kesalahan'); }
     setBusy(false);

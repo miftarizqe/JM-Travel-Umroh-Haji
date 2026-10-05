@@ -297,13 +297,12 @@ export default function DatabaseJamaahPage() {
     if (butuhBukti && !bulkBuktiFile) { alert('Pilih bukti transfer dulu buat baris yang butuh bukti.'); return; }
     setKonfirmasiBulkBusy(true);
     try {
-      for (const it of items) {
-        const fd = new FormData();
-        fd.append('confirmed', 'true');
-        if (bulkBuktiFile) fd.append('file', bulkBuktiFile);
-        const res = await fetch(`/api/admin/sahabat/komisi/${it.id}`, { method: 'PATCH', body: fd });
-        if (!res.ok) { const d = await res.json(); alert(`"${it.keterangan}" gagal: ${d.error}`); setKonfirmasiBulkBusy(false); return; }
-      }
+      const fd = new FormData();
+      fd.append('ids', JSON.stringify(items.map(it => it.id)));
+      if (bulkBuktiFile) fd.append('file', bulkBuktiFile);
+      const res = await fetch('/api/admin/sahabat/komisi/konfirmasi-batch', { method: 'PATCH', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setKonfirmasiBulkBusy(false); return; }
       setSelectedKomisi(s => s.filter(id => !items.some(it => it.id === id)));
       setBulkBuktiFile(null);
       muatKomisi(userId);
