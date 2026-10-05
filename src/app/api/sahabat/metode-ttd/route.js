@@ -44,7 +44,7 @@ export async function PATCH(request) {
       pesan: metode === 'kantor'
         ? `${user.name} rencana datang ke kantor pada ${new Date(tanggal_kunjungan).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} untuk TTD Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran — siapkan dokumennya (bisa dicetak dari Database Jamaah).`
         : `${user.name} akan cetak & kirim sendiri Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran yang sudah ditandatangani.`,
-      link: metode === 'kantor' ? '/admin/sahabat/kunjungan' : '/admin/sahabat/database',
+      link: metode === 'kantor' ? '/admin/janji-temu-kantor' : '/admin/sahabat/database',
     }).catch(() => {});
 
     return Response.json({ message: 'Pilihan metode TTD tersimpan.' });

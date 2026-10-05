@@ -69,6 +69,7 @@ function labelItemCluster(key, it) {
     : key==='penyesuaian_harga_pending' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.harga_lama)} → ${rp(it.harga_baru)})`
     : key==='refund_belum_ditransfer' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.refund_nominal)})`
     : key==='kalkulator_perwakilan_pending' ? `${it.perwakilan_nama||'Perwakilan'} — ${it.nama_quote||it.template_nama} (${rp(it.harga_jual_perwakilan)})`
+    : key==='janji_temu_kantor' ? `${it.nama||'User'} (${it.kode_unik||'-'}) — ${it.sumber} — ${tgl(it.tanggal)}`
     : `${it.name} — ${it.email||it.wa||''}`
   );
 }
@@ -230,6 +231,7 @@ function AdminPageInner() {
   // Sahabat Baitullah di atas) — pending akun perwakilan PINDAH dari cluster
   // "Perlu Perhatian" kesini, + ujroh perwakilan belum diajukan.
   const [perwakilanPencairan, setPerwakilanPencairan] = useState(null);
+  const [perwakilanJamaahDb, setPerwakilanJamaahDb] = useState([]);
   const [loadingPerwakilanDash, setLoadingPerwakilanDash] = useState(true);
   const [openPerwakilanCluster, setOpenPerwakilanCluster] = useState(null);
 
@@ -384,9 +386,14 @@ function AdminPageInner() {
   }, [activeTab]);
 
   function muatPerwakilanDash() {
-    fetch('/api/admin/perwakilan/pencairan-ringkasan').then(r => r.json())
-      .then(d => { setPerwakilanPencairan(d); setLoadingPerwakilanDash(false); })
-      .catch(() => setLoadingPerwakilanDash(false));
+    Promise.all([
+      fetch('/api/admin/perwakilan/pencairan-ringkasan').then(r => r.json()),
+      fetch('/api/admin/perwakilan/database').then(r => r.json()),
+    ]).then(([pencairan, db]) => {
+      setPerwakilanPencairan(pencairan);
+      setPerwakilanJamaahDb(db.perwakilan || []);
+      setLoadingPerwakilanDash(false);
+    }).catch(() => setLoadingPerwakilanDash(false));
   }
 
   useEffect(() => {
@@ -429,12 +436,20 @@ function AdminPageInner() {
       saldo: j.saldo_tabungan_umroh, target: j.target_estimasi_harga,
     }).wajib_ganti
   ), [sahabatJamaahDb]);
-  // Janji temu "Datang ke Kantor" buat TTD fisik — dikonfirmasi user
-  // 2026-10-04, sebelumnya notifikasi doang tanpa ada halaman daftar siapa
-  // aja yang udah janji & kapan (lihat /admin/sahabat/kunjungan).
-  const sahabatKunjunganKantor = useMemo(() => sahabatJamaahDb.filter(j =>
-    j.metode_ttd_sahabat === 'kantor'
-  ), [sahabatJamaahDb]);
+  // Janji temu "Datang ke Kantor" — LINTAS ROLE (dikonfirmasi user
+  // 2026-10-05, sebelumnya cuma buat Sahabat Baitullah & nempel di section
+  // sahabat). Sekarang gabung Sahabat (TTD dokumen) + Perwakilan
+  // (pendaftaran kemitraan) jadi 1 cluster generik di "Perlu Perhatian",
+  // bukan lagi expand-cluster di section role tertentu — lihat halaman
+  // /admin/janji-temu-kantor buat daftar lengkapnya.
+  const janjiTemuKantor = useMemo(() => [
+    ...sahabatJamaahDb.filter(j => j.metode_ttd_sahabat === 'kantor').map(j => ({
+      user_id: j.user_id, nama: j.nama, kode_unik: j.kode_unik, tanggal: j.rencana_kunjungan_kantor_at, sumber: 'Sahabat Baitullah',
+    })),
+    ...perwakilanJamaahDb.filter(j => j.pendaftaran_metode === 'kantor' && j.jadwal_kunjungan).map(j => ({
+      user_id: j.user_id, nama: j.nama, kode_unik: j.kode_unik, tanggal: j.jadwal_kunjungan, sumber: 'Perwakilan',
+    })),
+  ].sort((a, b) => new Date(a.tanggal) - new Date(b.tanggal)), [sahabatJamaahDb, perwakilanJamaahDb]);
   const sahabatUjrohBelumDiajukan = sahabatPencairan?.belum_diajukan_count || 0;
   const perwakilanUjrohBelumDiajukan = perwakilanPencairan?.belum_diajukan_count || 0;
 
@@ -833,6 +848,9 @@ function AdminPageInner() {
     {key:'perjanjian_belum_selesai', label:'Perjanjian Jamaah Belum Selesai', icon:'📜', color:'border-indigo-200 bg-indigo-50', group:'pembayaran_dokumen', items: pending.perjanjian_belum_selesai||[]},
 
     {key:'perlengkapan', label:'Perlengkapan Perlu Dikirim', icon:'📦', color:'border-yellow-200 bg-yellow-50', group:'operasional', items: pending.perlengkapan||[]},
+    // Lintas role (Sahabat Baitullah + Perwakilan) — dikonfirmasi user
+    // 2026-10-05, sebelumnya cuma ada di section Sahabat Baitullah doang.
+    {key:'janji_temu_kantor', label:'Janji Temu Datang ke Kantor', icon:'🏢', color:'border-cyan-200 bg-cyan-50', group:'operasional', items: janjiTemuKantor},
 
     {key:'refund_belum_ditransfer', label:'Refund Belum Ditransfer', icon:'💸', color:'border-red-200 bg-red-50', group:'pembatalan', items: pending.refund_belum_ditransfer||[]},
   ];
@@ -978,8 +996,8 @@ function AdminPageInner() {
                     <div className="mt-2 space-y-1">
                       {tampil.map((it,idx) => (
                         <div key={idx}
-                          onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : undefined}
-                          className={`text-xs text-gray-500 bg-white/60 rounded px-2 py-1 ${c.key==='perlengkapan' || c.key==='kalkulator_lead' || c.key==='ttu_belum_dikirim' || c.key==='perjanjian_belum_selesai' || c.key==='penyesuaian_harga_pending' || c.key==='refund_belum_ditransfer' || c.key==='kalkulator_perwakilan_pending' ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
+                          onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : c.key==='janji_temu_kantor' ? () => router.push('/admin/janji-temu-kantor') : undefined}
+                          className={`text-xs text-gray-500 bg-white/60 rounded px-2 py-1 ${c.key==='perlengkapan' || c.key==='kalkulator_lead' || c.key==='ttu_belum_dikirim' || c.key==='perjanjian_belum_selesai' || c.key==='penyesuaian_harga_pending' || c.key==='refund_belum_ditransfer' || c.key==='kalkulator_perwakilan_pending' || c.key==='janji_temu_kantor' ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
                           {labelItemCluster(c.key, it)}
                         </div>
                       ))}
@@ -1001,6 +1019,7 @@ function AdminPageInner() {
                         else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
                         else if (c.key==='refund_belum_ditransfer' && c.items[0]) { setActiveTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
                         else if (c.key==='kalkulator_perwakilan_pending') router.push('/admin/kalkulator-perwakilan');
+                        else if (c.key==='janji_temu_kantor') router.push('/admin/janji-temu-kantor');
                       }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
                     </div>
                   )}
@@ -1076,15 +1095,10 @@ function AdminPageInner() {
                   </div>
                 ))}
 
-                {/* Janji temu "Datang ke Kantor" — klik langsung ke daftar
-                    terurut tanggal, bukan expand-cluster biasa (dikonfirmasi
-                    user 2026-10-04). */}
-                <div className="border border-cyan-200 bg-cyan-50 rounded-xl overflow-hidden">
-                  <button onClick={() => router.push('/admin/sahabat/kunjungan')} className="w-full flex items-center justify-between p-4 text-left">
-                    <div className="font-bold text-gray-700 text-sm">🏢 Janji Temu Datang ke Kantor</div>
-                    <span className={`text-xs font-black px-2 py-1 rounded-full ${sahabatKunjunganKantor.length > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{sahabatKunjunganKantor.length}</span>
-                  </button>
-                </div>
+                {/* Janji Temu Datang ke Kantor PINDAH ke cluster generik
+                    "Perlu Perhatian" > Operasional & Logistik (dikonfirmasi
+                    user 2026-10-05) — sekarang lintas role (Sahabat +
+                    Perwakilan), gak pas lagi nempel di section ini doang. */}
 
                 {/* Pencocokan saldo web vs BSI — wajib tiap hari kerja (catatan SYSTEM UJROH). */}
                 {sahabatRekon && !sahabatRekon.error && (

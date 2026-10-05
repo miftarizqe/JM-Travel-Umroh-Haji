@@ -410,6 +410,10 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       // "Program Kemitraan" > Perwakilan) — itu review quote/leads harga,
       // beda total dari pendaftaran akun (dikonfirmasi user 2026-09-06).
       { icon: '🧮', label: 'Ajuan Kalkulator Perwakilan', path: '/admin/kalkulator-perwakilan' },
+      // Lintas role (Sahabat Baitullah + Perwakilan) — dikonfirmasi user
+      // 2026-10-05, sengaja gak ditaruh di subgrup role tertentu di bawah
+      // (Program Kemitraan) karena bukan milik 1 role doang.
+      { icon: '🏢', label: 'Janji Temu Datang ke Kantor', path: '/admin/janji-temu-kantor' },
     ] },
     // "Program Kemitraan" — payung buat 2 program kemitraan (Sahabat
     // Baitullah & Perwakilan), tiap satu jadi SUBGRUP sendiri di sidebar
@@ -427,7 +431,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/sahabat/pencairan' },
         { icon: '🏦', label: 'Pencocokan Saldo BSI', path: '/admin/sahabat/rekonsiliasi' },
-        { icon: '🏢', label: 'Janji Temu Datang ke Kantor', path: '/admin/sahabat/kunjungan' },
         { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
         // Link "Costing Program" khusus Sahabat Baitullah (dulu ke
         // /admin/programs?publish_type=sahabat_baitullah) DIHAPUS dari sini

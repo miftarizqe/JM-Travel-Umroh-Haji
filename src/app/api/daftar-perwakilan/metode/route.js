@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 
 // PATCH /api/daftar-perwakilan/metode — langkah TERAKHIR pendaftaran
 // kemitraan, baru muncul SETELAH calon perwakilan TTD digital formulir
@@ -35,7 +36,7 @@ export async function PATCH(req) {
       return NextResponse.json({ error: 'Belum ada pendaftaran — isi formulir kemitraan dulu' }, { status: 404 });
     }
 
-    const [[u]] = await db.query('SELECT setuju_pks, alamat_domisili FROM users WHERE id = ?', [user_id]);
+    const [[u]] = await db.query('SELECT name, setuju_pks, alamat_domisili FROM users WHERE id = ?', [user_id]);
     if (!u?.setuju_pks) {
       return NextResponse.json({ error: 'Setujui Perjanjian Kerjasama (PKS) dulu sebelum memilih metode pendaftaran' }, { status: 400 });
     }
@@ -75,6 +76,18 @@ export async function PATCH(req) {
       'UPDATE users SET reg_metode = ?, reg_jadwal = ?, alamat_kirim = ? WHERE id = ?',
       [metode, jadwalFinal, alamatKirim, user_id]
     );
+
+    // Notifikasi admin — SEBELUMNYA gak ada sama sekali (ditemukan pas
+    // generalisasi "Janji Temu Datang ke Kantor" lintas role, dikonfirmasi
+    // user 2026-10-05, mirror sahabat/metode-ttd yang punya notif serupa).
+    if (metode === 'kantor') {
+      await kirimNotifikasiAdmin(db, {
+        tipe: 'perwakilan_metode_daftar',
+        judul: 'Calon Perwakilan Mau Datang ke Kantor',
+        pesan: `${u.name} rencana datang ke kantor pada ${new Date(jadwalFinal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })} untuk TTD Perjanjian Kerjasama Perwakilan.`,
+        link: '/admin/janji-temu-kantor',
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ success: true, message: 'Metode pendaftaran tersimpan.' });
   } catch (err) {
