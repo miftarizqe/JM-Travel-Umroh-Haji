@@ -1,14 +1,18 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
-import { wajibAdminAtauHopSahabat, isHopRole } from '@/lib/hopAuth';
+import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
+import { persenKesiapan } from '@/lib/kesiapanTabungan';
 
-// HoP gak berhak tau voucher Rp1jt, bukti TF Rp1jt, & rekening tabungan
-// umroh jamaah (dikonfirmasi user 2026-10-05). kode_unik/nama/dll TETAP
-// ada, cuma field ini di-null-in biar gak bisa diintip lewat network tab
-// (FE udah nyembunyiin tampilannya di database/page.jsx, ini nutup jalur
-// baca mentahnya). saldo_tabungan_umroh/saldo_pending SENGAJA TETAP
-// dikirim (FE butuh angka mentahnya buat hitung % progress tabungan yang
-// HoP emang boleh liat, cuma rupiahnya aja yang disembunyikan di tampilan).
+// HoP gak berhak tau NIK & SEMUA rekening (bank biasa, BSI biasa, tabungan
+// umroh) — PRIVASI, cuma admin/super_admin (dikonfirmasi user 2026-10-05,
+// awalnya cuma rekening tabungan umroh, diperluas ke NIK & bank biasa juga).
+// Plus voucher Rp1jt & bukti TF Rp1jt (dikonfirmasi sebelumnya di sesi yang
+// sama). kode_unik/nama/dll TETAP ada, cuma field ini di-null-in biar gak
+// bisa diintip lewat network tab (FE udah nyembunyiin tampilannya di
+// database/page.jsx, ini nutup jalur baca mentahnya).
+// saldo_tabungan_umroh/saldo_pending SENGAJA TETAP dikirim — FE butuh angka
+// mentahnya buat hitung % progress tabungan yang HoP emang boleh liat, cuma
+// rupiahnya aja yang disembunyikan di tampilan.
 // metode_ttd_sahabat/rencana_kunjungan_kantor_at JUGA SENGAJA TETAP dikirim
 // (dibutuhkan cluster "Janji Temu Datang ke Kantor" di Ringkasan Admin HoP,
 // lihat admin/page.jsx) — baris "Metode TTD Fisik" di kartu detail Database
@@ -16,12 +20,12 @@ import { wajibAdminAtauHopSahabat, isHopRole } from '@/lib/hopAuth';
 function redaksiUntukHop(rows) {
   return rows.map(r => ({
     ...r,
+    nik: null, bank: null, no_rekening: null, no_rekening_bsi_biasa: null,
     voucher_id: null, voucher_kode: null, voucher_used: null, voucher_aktif: null, voucher_disetujui_at: null,
     bukti_tf_path: null,
     no_rekening_tabungan_umroh: null, nama_pemilik_rekening_umroh: null,
   }));
 }
-import { persenKesiapan } from '@/lib/kesiapanTabungan';
 
 // Jenis komisi yang masuk hitungan "saldo tabungan umroh" — 1 sumber
 // dipakai di 2 tempat query di bawah (saldo per-baris & ringkasan), jangan
@@ -152,7 +156,11 @@ export async function GET(request) {
 
     // Tanpa `page` -> balikin semua baris (konsumen: /api/admin/sahabat
     // buat cluster reminder yang nyisir seluruh data, bukan 1 halaman).
-    const isHop = isHopRole(auth.user);
+    // Redaksi berlaku buat SIAPAPUN yang bukan admin/super_admin asli
+    // (dikonfirmasi user 2026-10-05) -- bukan cuma role 'hop' spesifik,
+    // future-proof kalau nanti ada role non-admin lain yang dikasih akses
+    // GET ke endpoint ini (mirror pola di komisi-rekap/route.js).
+    const isHop = !['admin', 'super_admin'].includes(auth.user.role);
 
     if (!pageParam) {
       const [rows] = await pool.query(

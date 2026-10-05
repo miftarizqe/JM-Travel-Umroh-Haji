@@ -784,11 +784,17 @@ export default function DatabaseJamaahPage() {
                     ) : (
                       <div className="grid grid-cols-2 gap-2 text-gray-500">
                         <div>WA: <b className="text-gray-700">{j.wa}</b></div>
-                        <div>NIK: <b className="text-gray-700">{j.nik}</b></div>
-                        <div>Bank: <b className="text-gray-700">{j.bank} - {j.no_rekening}</b></div>
-                        <div>Rek. BSI Biasa: <b className="text-gray-700">{j.no_rekening_bsi_biasa || '-'}</b></div>
-                        {/* Rekening Tabungan Umroh — HoP gak boleh tau
+                        {/* NIK & semua rekening (bank biasa + BSI biasa +
+                            tabungan umroh) — PRIVASI, cuma admin/super_admin
+                            yang boleh tau, siapapun lain (HoP, dst) enggak
                             (dikonfirmasi user 2026-10-05). */}
+                        {!isHop && (
+                          <>
+                            <div>NIK: <b className="text-gray-700">{j.nik}</b></div>
+                            <div>Bank: <b className="text-gray-700">{j.bank} - {j.no_rekening}</b></div>
+                            <div>Rek. BSI Biasa: <b className="text-gray-700">{j.no_rekening_bsi_biasa || '-'}</b></div>
+                          </>
+                        )}
                         {!isHop && (
                           <>
                             <div>Rek. Tabungan Umroh: <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
