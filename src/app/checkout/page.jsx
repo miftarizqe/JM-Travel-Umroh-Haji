@@ -86,6 +86,14 @@ function CheckoutPageInner() {
   const [noRekeningUmrohMandiri, setNoRekeningUmrohMandiri] = useState('');
 
   const isMandiriSahabat = user?.role === 'sahabat_baitullah' && prog?.publish_type === 'sahabat_baitullah';
+  // Program eksklusif cuma boleh didaftarkan buat diri sendiri — KECUALI
+  // akun non-Muslim (gak bisa umroh sendiri, memberangkatkan orang lain
+  // pakai akunnya, lihat migration 192_referral-nonis-sahabat), dikonfirmasi
+  // user 2026-10-06. Server-side yang beneran menegakkan (checkout-mandiri
+  // route memaksa nama dari profil akun apapun yang dikirim client) — kunci
+  // di UI ini cuma biar gak membingungkan (keliatan bisa diedit padahal
+  // ditolak server).
+  const namaMandiriTerkunci = isMandiriSahabat && user?.agama !== 'non_islam';
 
   // Udah masuk isi paket/bayar tapi belum kelar (step sukses: 3 buat
   // checkout mandiri Sahabat Baitullah, 4 buat checkout biasa).
@@ -393,8 +401,13 @@ function CheckoutPageInner() {
                 <div className="font-bold text-[#0E2F6E] text-sm">Data Diri</div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Nama Lengkap *</label>
-                  <input value={namaMandiri} onChange={e => setNamaMandiri(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
+                  <input value={namaMandiri} onChange={e => setNamaMandiri(e.target.value)} disabled={namaMandiriTerkunci}
+                    className={`w-full px-3 py-2 rounded-lg border-2 text-sm ${namaMandiriTerkunci
+                      ? 'border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed'
+                      : 'border-gray-200 focus:border-[#1A4FA0] focus:outline-none'}`} />
+                  {namaMandiriTerkunci && (
+                    <div className="text-[10px] text-gray-400 mt-1">Program Eksklusif Sahabat Baitullah cuma bisa didaftarkan untuk diri sendiri.</div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">No. WhatsApp *</label>
