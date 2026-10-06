@@ -17,7 +17,7 @@ function errStatus(message, status) {
 // memproses booking apapun (single maupun batch).
 export async function cekPemesanBolehOrder(conn, userId) {
   const [pemesan] = await conn.query(
-    'SELECT role, status, terverifikasi FROM users WHERE id = ?', [userId]
+    'SELECT name, role, status, terverifikasi, agama FROM users WHERE id = ?', [userId]
   );
   if (pemesan.length === 0) {
     throw errStatus('User tidak ditemukan', 404);
@@ -30,6 +30,32 @@ export async function cekPemesanBolehOrder(conn, userId) {
     throw errStatus('Akun Anda belum dikonfirmasi admin. Anda belum bisa melakukan order jamaah.', 403);
   }
   return me;
+}
+
+// 1 NIK gak boleh dobel-daftar di program REGULER yang sama dalam 1 waktu
+// (dikonfirmasi user 2026-10-06) — dicek pas formulir jamaah disimpan
+// (NIK baru kekumpul di tahap itu, bukan pas checkout awal). Booking
+// batal/dibatalkan diabaikan (boleh daftar ulang), begitu juga jamaah yang
+// statusnya dibatalkan di DALAM booking lain (udah lepas dari program itu
+// meski booking induknya sendiri masih aktif).
+export async function cariNikDipakaiProgramLain(conn, { progId, excludeBookingId, niks }) {
+  if (!niks.length) return null;
+  const [rows] = await conn.query(
+    `SELECT id, jamaah_data FROM bookings
+     WHERE prog_id = ? AND id != ? AND status IN ('active','menunggu_batal') AND jamaah_data IS NOT NULL`,
+    [progId, excludeBookingId]
+  );
+  for (const b of rows) {
+    let jd = b.jamaah_data;
+    if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+    if (!Array.isArray(jd)) continue;
+    for (const j of jd) {
+      if (j.status_jamaah === 'dibatalkan') continue;
+      const nik = (j.nik || '').trim();
+      if (nik && niks.includes(nik)) return { nik, booking_id: b.id };
+    }
+  }
+  return null;
 }
 
 /**
