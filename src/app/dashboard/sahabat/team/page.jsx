@@ -62,39 +62,71 @@ function ProgressKesiapan({ persen }) {
   );
 }
 
-// Node rekursif buat tampilan "Pohon" — indent per depth, expand/collapse
-// per cabang. Default expanded (jaringan masih kecil di tahap ini).
-function TeamTreeNode({ member, depth, childrenOf }) {
-  const [open, setOpen] = useState(true);
+// Garis penghubung ala file-tree (├─ └─) buat 1 baris node — 1 kolom per
+// level leluhur (garis vertikal lurus kalau cabang leluhur itu masih punya
+// adik di bawahnya), ditutup kolom "siku" milik node ini sendiri (nyambung
+// ke atas, nyambung ke bawah juga kalau dia bukan anak terakhir).
+function TreeConnector({ ancestorContinues, isLast }) {
+  return (
+    <div className="flex items-stretch shrink-0">
+      {ancestorContinues.map((continues, i) => (
+        <div key={i} className="relative w-5 shrink-0">
+          {continues && <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gray-200 -translate-x-1/2" />}
+        </div>
+      ))}
+      <div className="relative w-5 shrink-0">
+        <div className="absolute left-1/2 top-0 h-1/2 w-px bg-gray-200 -translate-x-1/2" />
+        {!isLast && <div className="absolute left-1/2 top-1/2 bottom-0 w-px bg-gray-200 -translate-x-1/2" />}
+        <div className="absolute left-1/2 top-1/2 w-2.5 h-px bg-gray-200 -translate-y-1/2" />
+      </div>
+    </div>
+  );
+}
+
+// Node rekursif buat tampilan "Pohon" — garis penghubung per depth,
+// expand/collapse per cabang. Default Gen 1 kebuka (nampilin Gen 2),
+// Gen 2 ke bawah default tertutup (dikonfirmasi user 2026-10-06 — jaringan
+// udah gak kecil lagi, semua kebuka bikin scroll kepanjangan).
+function TeamTreeNode({ member, depth, childrenOf, isLast, ancestorContinues }) {
+  const [open, setOpen] = useState(member.level < 2);
   const anak = childrenOf.get(member.id) || [];
   const punyaAnak = anak.length > 0;
 
   return (
     <div>
       <div
-        className={`flex items-center justify-between gap-2 py-2 px-2 rounded-lg ${punyaAnak ? 'cursor-pointer hover:bg-gray-50' : ''}`}
-        style={{ paddingLeft: depth * 20 + 8 }}
+        className={`flex items-stretch gap-2 py-2 pr-2 rounded-lg ${punyaAnak ? 'cursor-pointer hover:bg-gray-50' : ''}`}
         onClick={() => punyaAnak && setOpen(o => !o)}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          {punyaAnak && (
-            <span className="text-gray-400 text-xs w-3 shrink-0">{open ? '▼' : '▶'}</span>
-          )}
-          <div className="min-w-0">
-            <div className="font-semibold text-[#0E2F6E] text-sm truncate">
-              {member.name}
-              {punyaAnak && <span className="text-[10px] text-gray-400 font-normal ml-1.5">({anak.length} downline)</span>}
+        {depth > 0 && <TreeConnector ancestorContinues={ancestorContinues} isLast={isLast} />}
+        <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {punyaAnak && (
+              <span className="text-gray-400 text-xs w-3 shrink-0">{open ? '▼' : '▶'}</span>
+            )}
+            <div className="min-w-0">
+              <div className="font-semibold text-[#0E2F6E] text-sm truncate">
+                {member.name}
+                {punyaAnak && <span className="text-[10px] text-gray-400 font-normal ml-1.5">({anak.length} downline)</span>}
+              </div>
+              <div className="text-[10px] text-gray-400 flex items-center gap-1.5">{member.kode_unik} · <GenBadge level={member.level} />{member.wa && <a href={`tel:${member.wa}`} className="text-[#1A4FA0] font-semibold">📞 {member.wa}</a>}</div>
+              <ProgressKesiapan persen={member.persen_kesiapan} />
             </div>
-            <div className="text-[10px] text-gray-400 flex items-center gap-1.5">{member.kode_unik} · <GenBadge level={member.level} />{member.wa && <a href={`tel:${member.wa}`} className="text-[#1A4FA0] font-semibold">📞 {member.wa}</a>}</div>
-            <ProgressKesiapan persen={member.persen_kesiapan} />
           </div>
+          <StatusBadge t={member} />
         </div>
-        <StatusBadge t={member} />
       </div>
       {punyaAnak && open && (
         <div>
-          {anak.map(a => (
-            <TeamTreeNode key={a.id} member={a} depth={depth + 1} childrenOf={childrenOf} />
+          {anak.map((a, i) => (
+            <TeamTreeNode
+              key={a.id}
+              member={a}
+              depth={depth + 1}
+              childrenOf={childrenOf}
+              isLast={i === anak.length - 1}
+              ancestorContinues={depth === 0 ? [] : [...ancestorContinues, !isLast]}
+            />
           ))}
         </div>
       )}
@@ -361,8 +393,9 @@ function TeamContent() {
           <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
             {tab === 'pohon' && (
               <div className="p-2">
-                {rootIds.map(m => (
-                  <TeamTreeNode key={m.id} member={m} depth={0} childrenOf={childrenOf} />
+                {rootIds.map((m, i) => (
+                  <TeamTreeNode key={m.id} member={m} depth={0} childrenOf={childrenOf}
+                    isLast={i === rootIds.length - 1} ancestorContinues={[]} />
                 ))}
               </div>
             )}
