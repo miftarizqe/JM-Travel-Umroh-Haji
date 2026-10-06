@@ -31,9 +31,15 @@ export async function GET(request) {
     if (!userId) {
       return Response.json({ error: 'user_id atau booking_id wajib diisi' }, { status: 400 });
     }
+    // user_id = traveler/pemilik booking, ordered_by = yang checkout-in
+    // (bisa beda orang — perwakilan/sahabat yang closing-in jamaah lain,
+    // lihat pola otorisasi sama di PATCH /api/bookings/[id]). Dulu cuma
+    // user_id doang, jadi booking yang di-closing-in buat orang lain gak
+    // pernah muncul di "Booking Saya" pengclosing-nya sendiri (dikonfirmasi
+    // user 2026-10-06).
     const [bookings] = await pool.query(
-      'SELECT * FROM bookings WHERE user_id = ? ORDER BY created_at DESC',
-      [userId]
+      'SELECT * FROM bookings WHERE user_id = ? OR ordered_by = ? ORDER BY created_at DESC',
+      [userId, userId]
     );
 
     // Status perlengkapan per jamaah (WMS) — cuma relevan begitu DP confirmed,
