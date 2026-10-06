@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import SearchableSelect from '@/app/components/SearchableSelect';
 import TombolWA from '@/app/components/TombolWA';
+import AgendaJanjiTemu from '@/app/components/AgendaJanjiTemu';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan } from '@/lib/usePengaturan';
@@ -883,10 +884,7 @@ function AdminPageInner() {
     // isinya macem-macem role: gabungan cluster khusus Sahabat Baitullah
     // yang sebelumnya cuma ada di section "🤝 Sahabat Baitullah" (gak kebuka
     // di cabang HoP ini) + janji_temu_kantor difilter sumber Sahabat doang.
-    const hopLabelItem = (key, it) => {
-      if (key === 'janji_temu_sahabat') return `${it.nama} (${it.kode_unik}) — ${tgl(it.tanggal)}`;
-      return `${it.nama} (${it.kode_unik})`;
-    };
+    const hopLabelItem = (it) => `${it.nama} (${it.kode_unik})`;
     // "Akun Baru Menunggu Verifikasi" & "Voucher Menunggu ACC" sengaja gak
     // ditampilkan ke HoP (dikonfirmasi user 2026-10-06) — dua-duanya antrian
     // aksi admin, bukan wewenang HoP.
@@ -929,16 +927,22 @@ function AdminPageInner() {
               {urut.map(c => {
                 const isOpen = expandCluster === c.key;
                 const tampil = isOpen ? c.items : c.items.slice(0, 3);
+                // Janji temu tampil sebagai agenda (blok kalender + sisa hari),
+                // lebar penuh biar gak sempit — cluster lain tetap baris teks.
+                const agenda = c.key === 'janji_temu_sahabat' && c.items.length > 0;
                 return (
-                  <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3`}>
+                  <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3 ${agenda ? 'md:col-span-2' : ''}`}>
                     <div className="flex items-center justify-between gap-2">
                       <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
                       <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
                     </div>
-                    {c.items.length > 0 && (
+                    {agenda ? (
+                      <AgendaJanjiTemu items={c.items} tampilSumber={false} terbuka={isOpen}
+                        onToggle={() => setExpandCluster(isOpen ? null : c.key)} />
+                    ) : c.items.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {tampil.map((it, idx) => (
-                          <div key={idx} className="text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate">{hopLabelItem(c.key, it)}</div>
+                          <div key={idx} className="text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate">{hopLabelItem(it)}</div>
                         ))}
                         {c.items.length > 3 && (
                           <button onClick={() => setExpandCluster(isOpen ? null : c.key)} className="text-[11px] text-gray-500 underline pl-1">
