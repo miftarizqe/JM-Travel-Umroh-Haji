@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
@@ -86,6 +86,37 @@ function RiwayatSaldoContent() {
   const [submittingSetoran, setSubmittingSetoran] = useState(false);
   const [pengajuanSaya, setPengajuanSaya] = useState([]);
   const [uploadKeySetoran, setUploadKeySetoran] = useState(0);
+  const [expandBatch, setExpandBatch] = useState(null);
+
+  // Item-item yang di-TF BARENG (bukti_tf_admin_path sama persis — admin
+  // konfirmasi beberapa baris komisi sekaligus pakai 1 file bukti, lihat
+  // konfirmasi-batch) digabung jadi 1 kartu kebuka/tutup, mirror pola
+  // "Riwayat Pencairan" di atas (dikonfirmasi user 2026-10-06, sebelumnya
+  // tiap baris nongol sendiri-sendiri padahal 1 transfer beneran).
+  // Grup isi 1 item (bukti unik, mis. setoran mandiri) ATAU item tanpa
+  // bukti sama sekali (pending/pemakaian saldo) TETAP kartu biasa, gak usah
+  // dibungkus collapse yang gak perlu.
+  const riwayatGrouped = useMemo(() => {
+    const list = data?.riwayat || [];
+    const byBukti = new Map();
+    const result = [];
+    for (const r of list) {
+      if (r.bukti_tf_admin_path) {
+        let g = byBukti.get(r.bukti_tf_admin_path);
+        if (!g) {
+          g = { bukti: r.bukti_tf_admin_path, items: [], total: 0, dikonfirmasi_at: r.dikonfirmasi_at, saldo_setelah: null };
+          byBukti.set(r.bukti_tf_admin_path, g);
+          result.push(g);
+        }
+        g.items.push(r);
+        g.total += Number(r.nominal || 0);
+        if (r.saldo_setelah !== null && (g.saldo_setelah === null || r.saldo_setelah > g.saldo_setelah)) g.saldo_setelah = r.saldo_setelah;
+      } else {
+        result.push({ items: [r] });
+      }
+    }
+    return result;
+  }, [data]);
 
   const paramId = searchParams.get('sahabat_id');
   const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
@@ -267,13 +298,57 @@ function RiwayatSaldoContent() {
         </div>
       </div>
 
-      {data.riwayat.length === 0 ? (
+      {riwayatGrouped.length === 0 ? (
         <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
           Belum ada transaksi tercatat.
         </div>
       ) : (
         <div className="space-y-2">
-          {data.riwayat.map(r => {
+          {riwayatGrouped.map(entry => {
+            // 2+ item share bukti TF yang sama persis — 1 kartu, detail di
+            // dalam. Selain itu (1 item, bukti unik/gak ada) tetap kartu
+            // biasa kayak sebelumnya.
+            if (entry.items.length > 1) {
+              const isOpen = expandBatch === entry.bukti;
+              return (
+                <div key={entry.bukti} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
+                  <button onClick={() => setExpandBatch(isOpen ? null : entry.bukti)}
+                    className="w-full flex items-center justify-between p-3 text-left">
+                    <div>
+                      <div className="text-sm font-bold text-[#0E2F6E]">💸 Transfer {fmtTanggalJam(entry.dikonfirmasi_at)}</div>
+                      <div className="text-[10px] text-gray-400">{entry.items.length} item · Saldo setelah: {fmtRp(entry.saldo_setelah)}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="font-bold text-green-600">+{fmtRp(entry.total)}</div>
+                      <div className="text-[10px] text-gray-300">{isOpen ? '▲' : '▼'}</div>
+                    </div>
+                  </button>
+                  {isOpen && (
+                    <div className="border-t border-gray-50 p-3 space-y-1.5">
+                      <a href={entry.bukti} target="_blank" rel="noopener noreferrer"
+                        className="inline-block text-xs font-bold text-[#1A4FA0] mb-1">📎 Lihat Bukti TF</a>
+                      {entry.items.map(r => {
+                        const kat = KATEGORI_LABEL[r.jenis] || { label: r.jenis, warna: 'bg-gray-100 text-gray-600' };
+                        return (
+                          <div key={r.id} className="flex justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
+                            <div className="min-w-0">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${kat.warna}`}>{kat.label}</span>
+                              {r.level ? <span className="ml-1 text-[10px] font-bold text-[#1A4FA0]">Level {r.level}</span> : null}
+                              {r.nama_pendaftar && <div className="text-gray-700 font-semibold mt-0.5">{r.nama_pendaftar}</div>}
+                              <div className="text-gray-500">{r.keterangan}</div>
+                              <div className="text-[10px] text-gray-400 mt-0.5">{fmtTanggalJam(r.created_at)} · ID Transaksi #{r.id}</div>
+                            </div>
+                            <div className="font-bold text-[#0E2F6E] shrink-0">{fmtRp(r.nominal)}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            const r = entry.items[0];
             const kat = KATEGORI_LABEL[r.jenis] || { label: r.jenis, warna: 'bg-gray-100 text-gray-600' };
             return (
               <div key={r.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
