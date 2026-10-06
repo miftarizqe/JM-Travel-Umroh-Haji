@@ -1,5 +1,5 @@
 import pool from '@/lib/db';
-import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
+import { wajibAdminAtauHopSahabat, isHopRole } from '@/lib/hopAuth';
 
 // GET /api/admin/sahabat — daftar semua pendaftaran sahabat buat admin,
 // gabung data users yang relevan (status BSI/tabungan haji/CIF/dokumen
@@ -56,6 +56,16 @@ export async function GET(request) {
       `SELECT COALESCE(SUM(nominal),0) AS totalKomisi FROM komisi_ledger
        WHERE jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat') AND dikonfirmasi_at IS NOT NULL`
     );
+
+    // Voucher pendaftaran = antrian ACC milik admin, bukan wewenang HoP
+    // (dikonfirmasi user 2026-10-06) — kodenya juga bisa dipakai, jadi
+    // dibuang di server, bukan cuma disembunyikan di tampilan.
+    if (isHopRole(auth.user)) {
+      for (const r of rows) {
+        delete r.voucher_id; delete r.voucher_kode; delete r.voucher_used;
+        delete r.voucher_aktif; delete r.voucher_disetujui_at;
+      }
+    }
 
     return Response.json({ pendaftaran: rows, total_komisi_terbayar: totalKomisi });
   } catch (error) {

@@ -884,13 +884,13 @@ function AdminPageInner() {
     // yang sebelumnya cuma ada di section "🤝 Sahabat Baitullah" (gak kebuka
     // di cabang HoP ini) + janji_temu_kantor difilter sumber Sahabat doang.
     const hopLabelItem = (key, it) => {
-      if (key === 'voucher_acc') return `${it.nama} (${it.kode_unik}) — ${it.voucher_kode}`;
       if (key === 'janji_temu_sahabat') return `${it.nama} (${it.kode_unik}) — ${tgl(it.tanggal)}`;
       return `${it.nama} (${it.kode_unik})`;
     };
+    // "Akun Baru Menunggu Verifikasi" & "Voucher Menunggu ACC" sengaja gak
+    // ditampilkan ke HoP (dikonfirmasi user 2026-10-06) — dua-duanya antrian
+    // aksi admin, bukan wewenang HoP.
     const hopClusters = [
-      {key:'akun_verifikasi_sahabat', label:'Akun Baru Menunggu Verifikasi', icon:'🔐', color:'border-amber-200 bg-amber-50', items:(pending.akun_verifikasi||[]).filter(u=>u.role==='sahabat_baitullah')},
-      {key:'voucher_acc', label:'Voucher Menunggu ACC', icon:'🎟️', color:'border-pink-200 bg-pink-50', items: sahabatVoucherPending},
       {key:'siap_berangkat', label:'Siap Berangkat (≥80%)', icon:'🎯', color:'border-amber-200 bg-amber-50', items: sahabatSiapBerangkat},
       {key:'dibawah_progress', label:'Di Bawah Progress Tabungan', icon:'⚠️', color:'border-orange-200 bg-orange-50', items: sahabatDibawahProgress},
       {key:'jadwal_terlewat', label:'Jadwal Target Terlewat', icon:'⏰', color:'border-red-200 bg-red-50', items: sahabatJadwalTerlewat},
