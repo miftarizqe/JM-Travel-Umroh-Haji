@@ -37,6 +37,28 @@ export async function POST(request) {
       return Response.json({ error: 'Program ini bukan Program Sahabat Baitullah — pakai jalur checkout biasa.' }, { status: 400 });
     }
 
+    // Max 1 booking AKTIF per akun per program eksklusif (dikonfirmasi user
+    // 2026-10-06) — boleh checkout lagi di program yang SAMA begitu booking
+    // sebelumnya 'selesai'/batal, dan bebas checkout program LAIN kapan pun
+    // (gak ada batasan lintas-program). menunggu_batal tetap dihitung aktif
+    // (pembatalannya belum final).
+    const [[bookingAktif]] = await pool.query(
+      `SELECT id FROM bookings WHERE user_id = ? AND prog_id = ? AND status IN ('active','menunggu_batal') LIMIT 1`,
+      [auth.user.id, prog_id]
+    );
+    if (bookingAktif) {
+      return Response.json({ error: 'Anda sudah punya booking aktif di program eksklusif ini. Checkout ulang baru bisa dilakukan setelah booking sebelumnya selesai atau dibatalkan.' }, { status: 400 });
+    }
+
+    // Jalur "daftarin orang lain" cuma buat akun non-Muslim (dikonfirmasi
+    // user 2026-10-06, lihat migration 192_referral-nonis-sahabat) — mereka
+    // sendiri gak bisa umroh, jadi memberangkatkan orang lain (Muslim) pakai
+    // akun/tabungannya. Akun Muslim checkout WAJIB buat diri sendiri — nama
+    // dipaksa dari profil akun di server, APAPUN yang dikirim client (field
+    // "Nama Lengkap" di UI-nya sendiri udah dikunci, ini lapisan server-side-nya).
+    const namaFinal = me.agama === 'non_islam' ? String(nama || '').trim() : me.name;
+    if (!namaFinal) return Response.json({ error: 'Nama jamaah wajib diisi' }, { status: 400 });
+
     // Voucher — pola sama persis POST /api/bookings, gak percaya nominal dari
     // client, dihitung ulang server-side.
     let voucherNominal = 0;
@@ -69,7 +91,7 @@ export async function POST(request) {
       const hasil = await buatSatuBooking(conn, {
         user_id: auth.user.id, ordered_by: auth.user.id, ordered_by_role: 'sahabat_baitullah',
         prog_id, paket, kamar, jumlah_jamaah: 1,
-        namas: [nama], was: [wa], jks: [jk], alamats: [alamat],
+        namas: [namaFinal], was: [wa], jks: [jk], alamats: [alamat],
         voucher_kode_final: voucherKodeFinal, voucher_nominal: voucherNominal,
         opsi_tambahan_ids: opsi_tambahan_ids || [],
         meRole: 'sahabat_baitullah',
