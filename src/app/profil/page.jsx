@@ -540,12 +540,12 @@ export default function ProfilPage() {
             <div className="space-y-2 text-sm">
               {[
                 { label: 'NIK', val: user.nik || '-' },
-                { label: 'Alamat', val: user.alamat || '-' },
+                { label: 'Alamat', val: user.alamat_display || user.alamat || '-' },
                 { label: 'No. Paspor', val: user.no_paspor || '-' },
               ].map(f => (
-                <div key={f.label} className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-400">{f.label}</span>
-                  <span className="font-semibold text-[#0E2F6E]">{f.val}</span>
+                <div key={f.label} className="flex justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-gray-400 shrink-0">{f.label}</span>
+                  <span className="font-semibold text-[#0E2F6E] text-right">{f.val}</span>
                 </div>
               ))}
               {/* Bank/No. Rekening/Nama Pemilik Rekening — sahabat_baitullah

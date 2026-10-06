@@ -5,6 +5,7 @@ import { wajibLogin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { ambilItemDikirimJamaah } from '@/lib/perlengkapan';
 import { KAMAR_KEY, hargaProgram, resolveJamaahHarga } from '@/lib/jamaahHarga';
+import { cariNikDipakaiProgramLain } from '@/lib/booking';
 
 // GET — detail satu booking (untuk halaman cetak formulir)
 export async function GET(request, { params }) {
@@ -249,9 +250,25 @@ export async function PATCH(request, { params }) {
       let adaDokumenBaru = false;
       try {
         await conn.beginTransaction();
-        const [[bkLama]] = await conn.query('SELECT jamaah_data FROM bookings WHERE id = ? FOR UPDATE', [id]);
+        const [[bkLama]] = await conn.query('SELECT prog_id, jamaah_data FROM bookings WHERE id = ? FOR UPDATE', [id]);
         let lama = bkLama?.jamaah_data;
         if (typeof lama === 'string') { try { lama = JSON.parse(lama); } catch { lama = null; } }
+
+        // 1 NIK gak boleh dobel-daftar di program yang sama dalam 1 waktu
+        // (dikonfirmasi user 2026-10-06) — dicek di sini, pas formulir jamaah
+        // disimpan (NIK baru ada di titik ini, bukan pas checkout awal).
+        const nikBaru = (Array.isArray(jamaah_data) ? jamaah_data : [])
+          .filter(j => j?.status_jamaah !== 'dibatalkan')
+          .map(j => (j?.nik || '').trim())
+          .filter(Boolean);
+        if (bkLama?.prog_id && nikBaru.length) {
+          const dup = await cariNikDipakaiProgramLain(conn, { progId: bkLama.prog_id, excludeBookingId: id, niks: nikBaru });
+          if (dup) {
+            await conn.rollback();
+            return Response.json({ error: `NIK ${dup.nik} sudah terdaftar di booking lain (${dup.booking_id}) untuk program yang sama.` }, { status: 400 });
+          }
+        }
+
         const baru = terapkanStatusDokumen(jamaah_data, lama);
         adaDokumenBaru = Array.isArray(baru) && baru.some((j, i) => DOC_KEYS.some(k =>
           j?.[k] && j[k] !== (Array.isArray(lama) ? lama[i]?.[k] : undefined)));
