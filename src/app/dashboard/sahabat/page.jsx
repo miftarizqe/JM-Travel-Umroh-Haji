@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
+import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
 import TombolWA from '@/app/components/TombolWA';
 
@@ -27,6 +28,7 @@ function fmtTanggalJam(iso) {
 export default function DashboardSahabatPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
+  const [pengaturan] = usePengaturan();
   const [data, setData] = useState(null);
   const [menyimpanPersetujuan, setMenyimpanPersetujuan] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -182,6 +184,27 @@ export default function DashboardSahabatPage() {
   return (
     <Layout title="🤝 Dashboard Sahabat Baitullah">
       <div className="max-w-2xl mx-auto space-y-4">
+
+        {/* Aksi Cepat — pintasan sama gaya kayak dashboard jamaah/perwakilan,
+            disesuaikan sidebar Sahabat Baitullah sendiri (dikonfirmasi user
+            2026-10-06). */}
+        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
+          <div className="font-bold text-[#0E2F6E] text-sm mb-2">⚡ Aksi Cepat</div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { icon: '🕌', label: 'Lihat Program', action: () => router.push('/programs') },
+              { icon: '📦', label: 'Booking Saya', action: () => router.push('/dashboard/jamaah') },
+              { icon: '🌳', label: 'Team', action: () => router.push('/dashboard/sahabat/team') },
+              { icon: '🎟️', label: 'Voucher', action: () => router.push('/voucher') },
+              { icon: '📞', label: 'Hubungi Kami', action: () => window.open(waLink(pengaturan.wa_kantor) || '#', '_blank') },
+            ].map(item => (
+              <button key={item.label} onClick={item.action}
+                className="text-xs font-semibold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d6e4f7] px-3 py-1.5 rounded-full">
+                {item.icon} {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Status keaktifan ujroh (aturan 6 bulan, dihitung server —
             lib/keaktifanSahabat.js, dikonfirmasi user 2026-10-02). */}

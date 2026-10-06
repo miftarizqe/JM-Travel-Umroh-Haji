@@ -64,18 +64,45 @@ export default function DashboardJamaah() {
   const stageLabels = STAGE_LABELS;
 
   return (
-    <Layout>
-      {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 mb-6 text-center md:text-left">
-        <h2 className="text-xl md:text-2xl font-bold">Assalamualaikum, {user.name.split(' ')[0]} 👋</h2>
-        <p className="text-sm opacity-85 mt-1">Selamat datang di portal jamaah JM Travel</p>
-        {/* Kode unik jamaah disembunyikan sementara, belum ada kegunaannya buat jamaah
-            (butuh pengembangan lebih lanjut, dikonfirmasi user 2026-09-27). */}
-      </div>
+    <Layout title={user.role !== 'jamaah' ? '📦 Booking Saya' : undefined} showBack={user.role !== 'jamaah'}>
+      {/* Welcome Banner + Aksi Cepat itu konten BERANDA role jamaah — begitu
+          halaman ini dibuka role lain lewat "Booking Saya" (sahabat/
+          perwakilan/admin buka booking yang mereka closing-in), sapaan
+          "portal jamaah" & pintasan generik jamaah gak relevan buat mereka
+          (dikonfirmasi user 2026-10-06, sebelumnya kesorot aneh nongol di
+          halaman yang niatnya cuma daftar booking). Kartu ringkasan angka di
+          bawah TETAP tampil semua role — itu relevan buat "Booking Saya" juga. */}
+      {user.role === 'jamaah' && (
+        <>
+          <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 mb-6 text-center md:text-left">
+            <h2 className="text-xl md:text-2xl font-bold">Assalamualaikum, {user.name.split(' ')[0]} 👋</h2>
+            <p className="text-sm opacity-85 mt-1">Selamat datang di portal jamaah JM Travel</p>
+            {/* Kode unik jamaah disembunyikan sementara, belum ada kegunaannya buat jamaah
+                (butuh pengembangan lebih lanjut, dikonfirmasi user 2026-09-27). */}
+          </div>
 
-      {/* Ringkasan — susunan kartu warna + pintasan pil disamain ke gaya
-          dashboard HoP (dikonfirmasi user 2026-10-05, style/tatanan doang,
-          angka & aksi yang udah ada gak ada yang ditambah/dikurangi). */}
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6">
+            <div className="font-bold text-[#0E2F6E] text-sm mb-2">⚡ Aksi Cepat</div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { icon: '🕌', label: 'Lihat Program', action: () => router.push('/programs') },
+                { icon: '📜', label: 'Riwayat', action: () => document.getElementById('riwayat-section')?.scrollIntoView({ behavior: 'smooth' }) },
+                { icon: '🎟️', label: 'Voucher', action: () => router.push('/voucher') },
+                { icon: '📞', label: 'Hubungi Kami', action: () => window.open(waLink(pengaturan.wa_kantor) || '#', '_blank') },
+              ].map(item => (
+                <button key={item.label} onClick={item.action}
+                  className="text-xs font-semibold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d6e4f7] px-3 py-1.5 rounded-full">
+                  {item.icon} {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Ringkasan — susunan kartu warna disamain ke gaya dashboard HoP
+          (dikonfirmasi user 2026-10-05, style/tatanan doang, angka yang
+          udah ada gak ada yang ditambah/dikurangi). */}
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="bg-green-50 rounded-xl p-3 md:p-4">
           <div className="text-[11px] md:text-xs text-gray-500">Booking Aktif</div>
@@ -84,23 +111,6 @@ export default function DashboardJamaah() {
         <div className="bg-blue-50 rounded-xl p-3 md:p-4">
           <div className="text-[11px] md:text-xs text-gray-500">Riwayat</div>
           <div className="text-2xl font-black text-[#1A4FA0]">{done.length}</div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6">
-        <div className="font-bold text-[#0E2F6E] text-sm mb-2">⚡ Aksi Cepat</div>
-        <div className="flex flex-wrap gap-2">
-          {[
-            { icon: '🕌', label: 'Lihat Program', action: () => router.push('/programs') },
-            { icon: '📜', label: 'Riwayat', action: () => document.getElementById('riwayat-section')?.scrollIntoView({ behavior: 'smooth' }) },
-            { icon: '🎟️', label: 'Voucher', action: () => router.push('/voucher') },
-            { icon: '📞', label: 'Hubungi Kami', action: () => window.open(waLink(pengaturan.wa_kantor) || '#', '_blank') },
-          ].map(item => (
-            <button key={item.label} onClick={item.action}
-              className="text-xs font-semibold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d6e4f7] px-3 py-1.5 rounded-full">
-              {item.icon} {item.label}
-            </button>
-          ))}
         </div>
       </div>
 

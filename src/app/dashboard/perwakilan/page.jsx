@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import DownlineModal from '@/app/components/DownlineModal';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { usePengaturan, waLink } from '@/lib/usePengaturan';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const tglID = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -12,6 +13,7 @@ const tglID = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit
 export default function DashboardPerwakilan() {
   const router = useRouter();
   const [user] = useCurrentUser();
+  const [pengaturan] = usePengaturan();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [openDownlineId, setOpenDownlineId] = useState(null);
@@ -147,6 +149,27 @@ export default function DashboardPerwakilan() {
               🔑 {user.kode_unik}
             </span>
           )}
+        </div>
+      </div>
+
+      {/* Aksi Cepat — pintasan sama gaya kayak dashboard jamaah/sahabat,
+          disesuaikan sidebar Perwakilan sendiri (dikonfirmasi user
+          2026-10-06). */}
+      <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6">
+        <div className="font-bold text-[#0E2F6E] text-sm mb-2">⚡ Aksi Cepat</div>
+        <div className="flex flex-wrap gap-2">
+          {[
+            { icon: '🕌', label: 'Lihat Program', action: () => router.push('/programs') },
+            { icon: '🌳', label: 'Downline', action: () => router.push('/dashboard/downline') },
+            { icon: '💰', label: 'Harga', action: () => router.push('/perwakilan/harga') },
+            { icon: '🎟️', label: 'Voucher', action: () => router.push('/voucher') },
+            { icon: '📞', label: 'Hubungi Kami', action: () => window.open(waLink(pengaturan.wa_kantor) || '#', '_blank') },
+          ].map(item => (
+            <button key={item.label} onClick={item.action}
+              className="text-xs font-semibold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d6e4f7] px-3 py-1.5 rounded-full">
+              {item.icon} {item.label}
+            </button>
+          ))}
         </div>
       </div>
 
