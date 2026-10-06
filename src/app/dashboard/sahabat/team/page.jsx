@@ -11,6 +11,11 @@ const FUNNEL_LABEL = {
   active: 'Aktif', ditolak: 'Ditolak',
 };
 
+function fmtTanggal(iso) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 // Perekrut staf (admin/super_admin/HoP) disamarkan, bedain HoP secara
 // eksplisit (dikonfirmasi user 2026-10-05, mirror Database Anggota).
 function labelPerekrutAdmin(t) {
@@ -240,7 +245,11 @@ function TeamContent() {
   // Daftar akar buat selector "Lihat Jaringan Lain" — relevan buat akun
   // sahabat_baitullah yang DIKASIH wewenang HOP maupun role 'hop' murni.
   useEffect(() => {
-    if (!user || !['sahabat_baitullah', 'hop'].includes(user.role)) return;
+    // admin/super_admin ikut dimasukin (dikonfirmasi user 2026-10-06) — ini
+    // sekarang satu-satunya tempat admin cari & buka jaringan Sahabat
+    // Baitullah, gak perlu lagi mampir ke tab "Hirarki Pohon" di
+    // /admin/sahabat/database yang cuma ngelink balik kesini.
+    if (!user || !['sahabat_baitullah', 'hop', 'admin', 'super_admin'].includes(user.role)) return;
     setLoadingAkar(true);
     fetch('/api/admin/sahabat/hirarki')
       .then(r => (r.ok ? r.json() : Promise.reject()))
@@ -324,17 +333,31 @@ function TeamContent() {
     <Layout title="🌳 Team Sahabat Baitullah" showBack>
       {lihatJaringanOrangLain && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-3 text-xs text-amber-800">
-          👁️ Mode {isAdmin ? 'admin' : 'Head of Program'} — lagi lihat jaringan milik <b>{targetInfo?.name || '...'}</b> {targetInfo?.kode_unik ? `(${targetInfo.kode_unik})` : ''}, bukan jaringan Anda sendiri.
+          {isAdmin ? (
+            <>👁️ Mode admin — lagi lihat jaringan milik <b>{targetInfo?.name || '...'}</b> {targetInfo?.kode_unik ? `(${targetInfo.kode_unik})` : ''}, bukan jaringan Anda sendiri.</>
+          ) : (
+            // HoP itu pengawas SELURUH jaringan Sahabat Baitullah — siapapun
+            // rekrutannya tetap bagian dari yang dia awasi, jadi jangan
+            // diframing seolah "bukan jaringan Anda" (dikonfirmasi user
+            // 2026-10-06, sebelumnya kata-katanya nyamain HoP kayak admin
+            // yang beneran cuma numpang lihat).
+            <>👁️ Lihat jaringan <b>{targetInfo?.name || '...'}</b> {targetInfo?.kode_unik ? `(${targetInfo.kode_unik})` : ''} — bagian dari jaringan Sahabat Baitullah yang Anda awasi.</>
+          )}
         </div>
       )}
 
       {/* Wewenang Head of Program (dikonfirmasi user 2026-09-07) — bisa
           loncat lihat SELURUH jaringan Sahabat Baitullah, gak cuma downline
-          dia sendiri. Ditaruh SEBELUM guard "team.length === 0" biar tetap
-          keliatan walau jaringan pribadinya sendiri masih kosong. */}
-      {isHop && (
+          dia sendiri. admin/super_admin ikut dikasih selector yang sama
+          (dikonfirmasi user 2026-10-06) — satu-satunya tempat cari & buka
+          jaringan, gak perlu lagi mampir ke /admin/sahabat/database.
+          Ditaruh SEBELUM guard "team.length === 0" biar tetap keliatan
+          walau jaringan pribadinya sendiri masih kosong. */}
+      {bolehLihatSemua && (
         <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-3">
-          <div className="text-xs font-bold text-purple-800 mb-2">👑 Head of Program — Lihat Jaringan Lain</div>
+          <div className="text-xs font-bold text-purple-800 mb-2">
+            {isHop ? '👑 Head of Program — Lihat Jaringan Lain' : '🔎 Cari & Buka Jaringan Sahabat Baitullah'}
+          </div>
           {loadingAkar || !semuaAkar ? (
             <div className="text-xs text-purple-600">Memuat daftar jaringan...</div>
           ) : semuaAkar.length === 0 ? (
@@ -354,7 +377,10 @@ function TeamContent() {
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors ${
                       targetId === a.id ? 'bg-purple-700 text-white' : 'text-purple-700 hover:bg-purple-50'
                     }`}>
-                    <span className="font-bold truncate">{a.name} <span className="font-normal opacity-70">({a.kode_unik})</span></span>
+                    <span className="min-w-0">
+                      <span className="font-bold truncate block">{a.name} <span className="font-normal opacity-70">({a.kode_unik})</span></span>
+                      <span className="block opacity-60 text-[10px]">Daftar {fmtTanggal(a.created_at)} · {FUNNEL_LABEL[a.funnel_status] || a.funnel_status}</span>
+                    </span>
                     <span className="shrink-0 opacity-70">{a.jumlah_downline} downline</span>
                   </button>
                 ))}
@@ -366,13 +392,30 @@ function TeamContent() {
       )}
 
       {team.length === 0 ? (
-        <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
-          Belum ada anggota team. Bagikan link referral Anda dari{' '}
-          <button onClick={() => router.push('/dashboard/sahabat')} className="font-bold underline hover:no-underline">
-            halaman Beranda
-          </button>{' '}
-          buat mulai merekrut.
-        </div>
+        !bolehLihatSemua ? (
+          <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
+            Belum ada anggota team. Bagikan link referral Anda dari{' '}
+            <button onClick={() => router.push('/dashboard/sahabat')} className="font-bold underline hover:no-underline">
+              halaman Beranda
+            </button>{' '}
+            buat mulai merekrut.
+          </div>
+        ) : lihatJaringanOrangLain ? (
+          // Root yang dipilih beneran belum punya downline — BUKAN "pilih
+          // jaringan dulu" (udah dipilih), jangan ketuker sama cabang di
+          // bawah ini.
+          <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
+            {targetInfo?.name || 'Jaringan ini'} belum punya downline.
+          </div>
+        ) : (
+          // admin/HoP BELUM milih jaringan manapun — pesan ajakan "mulai
+          // merekrut" di atas gak relevan buat mereka (dikonfirmasi user
+          // 2026-10-06, admin/HoP gak punya link referral pribadi buat
+          // dibagikan di konteks ini).
+          <div className="bg-purple-50 rounded-xl p-6 text-center text-sm text-purple-700">
+            Pilih salah satu jaringan dari daftar di atas buat mulai lihat pohonnya.
+          </div>
+        )
       ) : (
         <>
           <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 mb-4">

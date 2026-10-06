@@ -40,7 +40,11 @@ export async function GET(request) {
        JOIN sahabat_pendaftaran kp ON kp.user_id = u.id
        LEFT JOIN users p ON p.id = u.perekrut_id
        WHERE u.role = 'sahabat_baitullah' AND (u.perekrut_id IS NULL OR p.role IS NULL OR p.role != 'sahabat_baitullah')
-       ORDER BY u.created_at DESC`
+       -- Nomor urut kecil duluan (dikonfirmasi user 2026-10-06), bukan
+       -- terbaru duluan — satu-satunya sumber data buat selector di
+       -- /dashboard/sahabat/team & dulu /admin/sahabat/database, jadi cukup
+       -- diurutkan di sini aja.
+       ORDER BY u.kode_unik ASC`
     );
 
     const counts = new Map(akarRows.map(a => [a.id, 0]));

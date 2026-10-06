@@ -172,13 +172,7 @@ export default function DatabaseJamaahPage() {
   const [koreksiModalFor, setKoreksiModalFor] = useState(null); // user_id yang lagi nunjukin modal konfirmasi
   const [savingKoreksi, setSavingKoreksi] = useState(null); // user_id lagi disubmit
   const isSuperAdmin = user?.role === 'super_admin';
-  // Tab "Hirarki Pohon" — digabung ke sini 2026-08-30 (sebelumnya halaman
-  // /admin/sahabat/hirarki berdiri sendiri), REUSE API /api/admin/sahabat/
-  // hirarki yang sama persis, cuma pindah tempat konsumennya.
-  const [tab, setTab] = useState('daftar'); // 'daftar' | 'hirarki'
-  const [akar, setAkar] = useState([]);
-  const [loadingAkar, setLoadingAkar] = useState(true);
-  const [cariAkar, setCariAkar] = useState('');
+  const [tab, setTab] = useState('daftar');
   // Riwayat Closing PINDAH jadi halaman sendiri, /admin/sahabat/
   // riwayat-closing (dikonfirmasi user 2026-09-06) — state & fetch-nya ikut
   // pindah kesana, gak numpang di sini lagi.
@@ -201,10 +195,6 @@ export default function DatabaseJamaahPage() {
   useEffect(() => {
     if (!user || !hopChecked) return;
     if (!isAdminOrHop) { router.replace('/login'); return; }
-    fetch('/api/admin/sahabat/hirarki').then(r => r.json()).then(d => {
-      setAkar(d.akar || []);
-      setLoadingAkar(false);
-    }).catch(() => setLoadingAkar(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, hopChecked, isAdminOrHop]);
 
@@ -516,9 +506,14 @@ export default function DatabaseJamaahPage() {
           className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'daftar' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
           📋 Daftar Jamaah
         </button>
-        <button onClick={() => setTab('hirarki')}
-          className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'hirarki' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
-          🌳 Hirarki Pohon
+        {/* Dulu tab terpisah yang nge-list akar jaringan terus klik "Lihat
+            Tree" buat loncat ke /dashboard/sahabat/team?sahabat_id=... —
+            ending-nya situ juga, jadi langsung kesana aja (dikonfirmasi user
+            2026-10-06). Halaman itu sekarang punya selector cari+buka
+            jaringan sendiri buat admin, gak perlu listing dobel di sini. */}
+        <button onClick={() => router.push('/dashboard/sahabat/team')}
+          className="text-xs font-bold px-4 py-2 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200">
+          🌳 Hirarki Pohon →
         </button>
       </div>
 
@@ -1197,52 +1192,6 @@ export default function DatabaseJamaahPage() {
         </div>
       )}
       </>)}
-
-      {tab === 'hirarki' && (
-        <>
-          <div className="text-xs text-gray-400 mb-3">
-            Semua akar jaringan Sahabat Baitullah (anggota paling atas: tanpa perekrut, atau direkrut langsung oleh manajemen — admin/HoP). Klik "Lihat Tree" buat buka struktur jaringan lengkap di bawahnya.
-          </div>
-          <input value={cariAkar} onChange={e => setCariAkar(e.target.value)} placeholder="Cari nama / kode..."
-            className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm mb-3" />
-          {loadingAkar ? (
-            <div className="text-center text-gray-400 py-10">Memuat...</div>
-          ) : (() => {
-            const q = cariAkar.trim().toLowerCase();
-            const filteredAkar = q ? akar.filter(a => [a.name, a.kode_unik].some(v => String(v || '').toLowerCase().includes(q))) : akar;
-            return filteredAkar.length === 0 ? (
-              <div className="bg-white rounded-xl border border-gray-200 p-6 text-center text-sm text-gray-400">
-                {akar.length === 0 ? 'Belum ada akar jaringan.' : 'Gak ada yang cocok.'}
-              </div>
-            ) : (
-              <div className="grid sm:grid-cols-2 gap-2">
-                {filteredAkar.map(a => (
-                  <div key={a.id} className="bg-white rounded-xl border border-gray-200 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="text-sm font-bold text-[#0E2F6E] truncate">{a.name} <span className="text-gray-400 font-normal">({a.kode_unik})</span></div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">Daftar {fmtTanggal(a.created_at)}</div>
-                      </div>
-                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full shrink-0 ${PENDAFTARAN_STATUS_WARNA[a.funnel_status] || 'bg-gray-100 text-gray-500'}`}>
-                        {PENDAFTARAN_STATUS_LABEL[a.funnel_status] || a.funnel_status}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between mt-3">
-                      <div className="text-xs text-gray-500">
-                        <span className="font-bold text-purple-700">{a.jumlah_downline}</span> downline
-                      </div>
-                      <button onClick={() => router.push(`/dashboard/sahabat/team?sahabat_id=${a.id}`)}
-                        className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100">
-                        🌳 Lihat Tree →
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </>
-      )}
 
       {rekapFor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setRekapFor(null)}>
