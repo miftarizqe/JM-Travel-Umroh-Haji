@@ -3,6 +3,7 @@ import { wajibPemilikAtauAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { statusAkun } from '@/lib/statusAkun';
+import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 // Seluruh data rekening (tujuan transfer duit, "ngaruh kemana2") — SEMULA
 // dibuka self-service dengan pengaman audit+notifikasi (2026-08-30 pagi),
@@ -42,6 +43,9 @@ export async function GET(request) {
       `SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status, u.wilayah, u.foto_path,
               u.jenis_kelamin, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama, p.role AS perekrut_role, u.reg_status, u.reg_metode, u.reg_jadwal,
               u.alamat_kirim, u.alamat, u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_paspor,
+              u.alamat_ktp_jalan, u.alamat_ktp_no_rumah, u.alamat_ktp_rt, u.alamat_ktp_rw,
+              u.alamat_ktp_kelurahan, u.alamat_ktp_kecamatan, u.alamat_ktp_kota, u.alamat_ktp_provinsi,
+              u.alamat_ktp_negara, u.kode_pos,
               u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
@@ -59,6 +63,19 @@ export async function GET(request) {
     // Badge siap-tampil (lihat src/lib/statusAkun.js); kolom mentah terverifikasi gak ikut dikirim.
     user.status_akun = statusAkun(user);
     delete user.terverifikasi;
+
+    // Alamat berlabel ("Jl. X No. Y, RT.../RW...") buat DITAMPILKAN di
+    // Profil — dihitung dari kolom terstruktur alamat_ktp_* yang udah ADA
+    // (dikonfirmasi user 2026-10-06: isian/kolom gak diubah, cuma outputnya
+    // dirapihin — sama kayak dokumen legal & pendaftaran baru). Fallback ke
+    // kolom flat lama kalau user ini daftar sebelum field terstruktur ada.
+    user.alamat_display = user.alamat_ktp_jalan
+      ? formatAlamatSatuBaris({
+          jalan: user.alamat_ktp_jalan, norumah: user.alamat_ktp_no_rumah, rt: user.alamat_ktp_rt, rw: user.alamat_ktp_rw,
+          kel: user.alamat_ktp_kelurahan, kec: user.alamat_ktp_kecamatan, kota: user.alamat_ktp_kota,
+          provinsi: user.alamat_ktp_provinsi, kp: user.kode_pos, negara: user.alamat_ktp_negara,
+        })
+      : (user.alamat || '-');
 
     // Cek apakah sudah pernah umroh (punya booking selesai) -> syarat upgrade perwakilan
     const [sel] = await pool.query(

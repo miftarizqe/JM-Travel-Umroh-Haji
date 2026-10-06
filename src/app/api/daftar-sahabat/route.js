@@ -4,6 +4,7 @@ import { wajibLogin } from '@/lib/auth';
 import { hargaTermurahProgram } from '@/lib/harga';
 import { hariIniWib, SQL_JADWAL_BELUM_LEWAT } from '@/lib/jadwalTarget';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
+import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 // Formulir data diri pendaftaran sahabat (funnel "Program Sahabat Bisa
 // Umroh & Haji" kerja sama BSI) — tabel staging SENDIRI (sahabat_pendaftaran),
@@ -136,10 +137,13 @@ export async function POST(req) {
       }
     }
 
-    const alamatKtp = [jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara].filter(Boolean).join(', ');
+    const alamatKtp = formatAlamatSatuBaris({ jalan, norumah, rt, rw, kel, kec, kota, provinsi, kp, negara });
     const alamatDomisili = sama_ktp
       ? alamatKtp
-      : [jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom].filter(Boolean).join(', ');
+      : formatAlamatSatuBaris({
+          jalan: jalan_dom, norumah: norumah_dom, rt: rt_dom, rw: rw_dom,
+          kel: kel_dom, kec: kec_dom, kota: kota_dom, provinsi: provinsi_dom, negara: negara_dom,
+        });
 
     const [result] = await db.query(
       `INSERT INTO sahabat_pendaftaran
