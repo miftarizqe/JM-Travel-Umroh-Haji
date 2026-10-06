@@ -182,8 +182,16 @@ export default function DashboardSahabatPage() {
   }
 
   return (
-    <Layout title="🤝 Dashboard Sahabat Baitullah">
+    <Layout>
       <div className="max-w-2xl mx-auto space-y-4">
+
+        {/* Welcome Banner — Beranda mestinya ada sapaan (dikonfirmasi user
+            2026-10-06, samain pola jamaah/perwakilan yang udah ada), bukan
+            cuma title bar statis doang kayak sebelumnya. */}
+        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6">
+          <h2 className="text-xl md:text-2xl font-bold">Assalamualaikum, {data.akun.name.split(' ')[0]} 👋</h2>
+          <p className="text-sm opacity-85 mt-1">Selamat datang di Dashboard Sahabat Baitullah</p>
+        </div>
 
         {/* Aksi Cepat — pintasan sama gaya kayak dashboard jamaah/perwakilan,
             disesuaikan sidebar Sahabat Baitullah sendiri (dikonfirmasi user
