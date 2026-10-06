@@ -5,28 +5,6 @@ import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
 import StatusPendaftaranModal from '@/app/components/StatusPendaftaranModal';
-import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
-
-// Alamat sekarang field terstruktur (AddressFields.jsx), bukan 1 textarea
-// bebas lagi (dikonfirmasi user 2026-10-06) — map nama field form ke nama
-// kolom users.alamat_ktp_* (kp -> kode_pos, kolom generik lama). Dipakai
-// buat prefill DAN cek isDirty (bandingin ke user[kolom], bukan user[key]
-// langsung karena nama field-nya beda dari nama kolom DB).
-const ALAMAT_KTP_FIELD_MAP = {
-  jalan: 'alamat_ktp_jalan', norumah: 'alamat_ktp_no_rumah', rt: 'alamat_ktp_rt', rw: 'alamat_ktp_rw',
-  kel: 'alamat_ktp_kelurahan', kec: 'alamat_ktp_kecamatan', kota: 'alamat_ktp_kota',
-  provinsi: 'alamat_ktp_provinsi', negara: 'alamat_ktp_negara', kp: 'kode_pos',
-};
-function buildFormRekening(u) {
-  const alamatFields = {};
-  for (const [field, kolom] of Object.entries(ALAMAT_KTP_FIELD_MAP)) alamatFields[field] = u[kolom] || '';
-  return {
-    nik: u.nik || '', ...alamatFields, bank: u.bank || '', no_rekening: u.no_rekening || '',
-    nama_pemilik_rekening: u.nama_pemilik_rekening || '', no_paspor: u.no_paspor || '',
-    no_rekening_bsi_biasa: u.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: u.no_rekening_tabungan_umroh || '',
-    nama_pemilik_rekening_umroh: u.nama_pemilik_rekening_umroh || '',
-  };
-}
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -53,7 +31,10 @@ export default function ProfilPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingRekening, setEditingRekening] = useState(false);
-  const [formRekening, setFormRekening] = useState(() => buildFormRekening({}));
+  const [formRekening, setFormRekening] = useState({
+    nik: '', alamat: '', bank: '', no_rekening: '', nama_pemilik_rekening: '', no_paspor: '',
+    no_rekening_bsi_biasa: '', no_rekening_tabungan_umroh: '', nama_pemilik_rekening_umroh: '',
+  });
   const [savingRekening, setSavingRekening] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
   const [pwForm, setPwForm] = useState({ password_lama: '', password_baru: '', konfirmasi: '' });
@@ -74,10 +55,7 @@ export default function ProfilPage() {
     form.email !== (user.email || '') ||
     form.wa !== (user.wa || '')
   );
-  const isDirtyRekening = editingRekening && user && Object.keys(formRekening).some(k => {
-    const userKey = ALAMAT_KTP_FIELD_MAP[k] || k;
-    return formRekening[k] !== (user[userKey] || '');
-  });
+  const isDirtyRekening = editingRekening && user && Object.keys(formRekening).some(k => formRekening[k] !== (user[k] || ''));
   useUnsavedGuard(isDirty || isDirtyRekening);
 
   function muatProfil() {
@@ -91,7 +69,13 @@ export default function ProfilPage() {
         if (d.user) {
           setUser(d.user);
           setForm({ name: d.user.name || '', email: d.user.email || '', wa: d.user.wa || '' });
-          setFormRekening(buildFormRekening(d.user));
+          setFormRekening({
+            nik: d.user.nik || '', alamat: d.user.alamat || '', bank: d.user.bank || '',
+            no_rekening: d.user.no_rekening || '', nama_pemilik_rekening: d.user.nama_pemilik_rekening || '',
+            no_paspor: d.user.no_paspor || '',
+            no_rekening_bsi_biasa: d.user.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: d.user.no_rekening_tabungan_umroh || '',
+            nama_pemilik_rekening_umroh: d.user.nama_pemilik_rekening_umroh || '',
+          });
           // Segarkan cache lokal
           localStorage.setItem('user', JSON.stringify({ ...parsed, ...d.user }));
         }
@@ -159,12 +143,7 @@ export default function ProfilPage() {
     // gak kena guard 403 di server cuma gara2 field-nya "ada di body"
     // (walau value-nya gak berubah — server ngecek keberadaan key, bukan
     // cuma isinya berubah apa nggak).
-    if (!alamatLengkap(formRekening, '')) {
-      alert('Alamat wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!');
-      return;
-    }
-    const alamatFields = Object.keys(ALAMAT_KTP_FIELD_MAP).reduce((o, k) => ({ ...o, [k]: formRekening[k] }), {});
-    const payload = isAdminSelf ? { ...formRekening } : { ...alamatFields, no_paspor: formRekening.no_paspor };
+    const payload = isAdminSelf ? { ...formRekening } : { alamat: formRekening.alamat, no_paspor: formRekening.no_paspor };
     const berubahSensitif = isAdminSelf ? FIELD_SENSITIF_REKENING.filter(k => formRekening[k] !== (user[k] || '')) : [];
     if (berubahSensitif.length > 0 && !confirm('Yakin ubah data rekening/NIK? Perubahan ini tercatat & admin akan diberi tahu.')) {
       return;
@@ -178,10 +157,9 @@ export default function ProfilPage() {
       });
       const d = await res.json();
       if (res.ok) {
-        // Refetch (bukan merge optimistic) — server yang nyusun ulang
-        // kolom flat alamat/alamat_ktp dari field terstruktur, klien gak
-        // tau hasil akhirnya tanpa nanya ulang.
-        muatProfil();
+        const updated = { ...user, ...payload };
+        setUser(updated);
+        localStorage.setItem('user', JSON.stringify(updated));
         setEditingRekening(false);
         alert(d.message);
       } else {
@@ -515,9 +493,9 @@ export default function ProfilPage() {
                   NIK &amp; data rekening cuma bisa diubah admin. Hubungi admin JM Travel kalau ada yang perlu dikoreksi.
                 </div>
               )}
-              <div className="space-y-3">
-                <div className="font-bold text-[#0E2F6E] text-sm">Alamat</div>
-                <AddressFields form={formRekening} setF={(k, v) => setFormRekening(prev => ({ ...prev, [k]: v }))} suffix="" inp={inp} lbl={lbl} />
+              <div>
+                <label className={lbl}>Alamat</label>
+                <input value={formRekening.alamat} onChange={e => setFormRekening({...formRekening, alamat: e.target.value})} className={inp}/>
               </div>
               <div>
                 <label className={lbl}>No. Paspor <span className="text-gray-400 font-normal">(opsional, boleh menyusul)</span></label>
@@ -542,7 +520,13 @@ export default function ProfilPage() {
                 </>
               )}
               <div className="flex gap-2 pt-1">
-                <button onClick={() => { setEditingRekening(false); setFormRekening(buildFormRekening(user)); }}
+                <button onClick={() => { setEditingRekening(false); setFormRekening({
+                    nik: user.nik||'', alamat: user.alamat||'', bank: user.bank||'', no_rekening: user.no_rekening||'',
+                    nama_pemilik_rekening: user.nama_pemilik_rekening||'', no_paspor: user.no_paspor||'',
+                    no_rekening_bsi_biasa: user.no_rekening_bsi_biasa||'',
+                    no_rekening_tabungan_umroh: user.no_rekening_tabungan_umroh||'',
+                    nama_pemilik_rekening_umroh: user.nama_pemilik_rekening_umroh||'',
+                  }); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">
                   Batal
                 </button>
