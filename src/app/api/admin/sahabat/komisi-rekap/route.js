@@ -20,7 +20,7 @@ export async function GET(request) {
 
     const [rows] = await pool.query(
       `SELECT kl.id, kl.jenis, kl.nominal, kl.keterangan, kl.created_at, kl.dikonfirmasi_at, kl.bukti_tf_admin_path,
-              u.id AS penerima_id, u.name AS penerima_nama, u.kode_unik,
+              u.id AS penerima_id, u.name AS penerima_nama, u.kode_unik, u.role AS penerima_role,
               u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_rekening_tabungan_umroh
        FROM komisi_ledger kl
        JOIN users u ON u.id = kl.penerima_id
@@ -42,6 +42,7 @@ export async function GET(request) {
           penerima_id: r.penerima_id,
           penerima_nama: r.penerima_nama,
           kode_unik: r.kode_unik,
+          penerima_role: r.penerima_role,
           bank: r.bank,
           no_rekening: r.no_rekening,
           nama_pemilik_rekening: r.nama_pemilik_rekening,
@@ -57,18 +58,29 @@ export async function GET(request) {
       });
       grp.subtotal += Number(r.nominal || 0);
     }
-    const kelompok = [...kelompokMap.values()];
-    // Rekening cuma buat ADMIN ASLI (dikonfirmasi user 2026-10-05, SENGAJA
-    // digeneralisasi gak cuma cek role 'hop' doang — siapapun yang bukan
-    // admin/super_admin asli, gak boleh tau nomor rekening, cuma kode_unik,
+    // Head of Program selalu ditaruh paling atas, sisanya dari subtotal
+    // terbesar ke terkecil (dikonfirmasi user 2026-10-06) — bukan urut nama.
+    const kelompok = [...kelompokMap.values()].sort((a, b) => {
+      const aHop = a.penerima_role === 'hop';
+      const bHop = b.penerima_role === 'hop';
+      if (aHop !== bHop) return aHop ? -1 : 1;
+      if (b.subtotal !== a.subtotal) return b.subtotal - a.subtotal;
+      return a.penerima_nama.localeCompare(b.penerima_nama);
+    });
+    // Rekening & bukti TF cuma buat ADMIN ASLI (dikonfirmasi user 2026-10-05
+    // & 2026-10-06, SENGAJA digeneralisasi gak cuma cek role 'hop' doang —
+    // siapapun yang bukan admin/super_admin asli, gak boleh tau nomor
+    // rekening atau lihat bukti transfernya, cuma kode_unik & nominal,
     // termasuk role non-admin manapun yang nanti bisa jadi punya akses GET
     // ke endpoint ini lewat wajibAdminAtauHopSahabat). kode_unik TETAP ada,
-    // cukup buat identifikasi tanpa bocorin rekening.
+    // cukup buat identifikasi tanpa bocorin data sensitif.
     if (!['admin', 'super_admin'].includes(auth.user.role)) {
       for (const k of kelompok) {
         k.bank = null; k.no_rekening = null; k.nama_pemilik_rekening = null; k.no_rekening_tabungan_umroh = null;
+        for (const it of k.items) it.bukti_tf_admin_path = null;
       }
     }
+    for (const k of kelompok) delete k.penerima_role;
     const grandTotal = kelompok.reduce((s, k) => s + k.subtotal, 0);
 
     let pengajuan = null;
