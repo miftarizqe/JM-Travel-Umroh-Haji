@@ -224,6 +224,7 @@ function TeamContent() {
   // fetch semuaAkar sama sekali, jadi isHop SELALU false buat akun HOP asli).
   const [semuaAkar, setSemuaAkar] = useState(null);
   const [loadingAkar, setLoadingAkar] = useState(false);
+  const [cariAkar, setCariAkar] = useState('');
 
   // Admin/super_admin ATAU Head of Program boleh buka jaringan siapa pun
   // lewat ?sahabat_id=, bukan cuma jaringan diri sendiri — anggota biasa
@@ -281,6 +282,17 @@ function TeamContent() {
     return m;
   }, [team]);
 
+  // Selector "Lihat Jaringan Lain" HoP dulu flex-wrap pil lepas — gak
+  // kepake kalau akarnya udah puluhan/ratusan (dikonfirmasi user 2026-10-06).
+  // Search + list scroll lebih tahan skala, gak perlu fetch tambahan karena
+  // filter cuma di array semuaAkar yang udah ada.
+  const akarTerfilter = useMemo(() => {
+    if (!semuaAkar) return [];
+    const q = cariAkar.trim().toLowerCase();
+    if (!q) return semuaAkar;
+    return semuaAkar.filter(a => a.name.toLowerCase().includes(q) || a.kode_unik.toLowerCase().includes(q));
+  }, [semuaAkar, cariAkar]);
+
   const byLevel = useMemo(() => {
     const m = new Map();
     for (const t of team) {
@@ -328,19 +340,27 @@ function TeamContent() {
           ) : semuaAkar.length === 0 ? (
             <div className="text-xs text-purple-600">Belum ada akar jaringan.</div>
           ) : (
-            <div className="flex flex-wrap gap-1.5">
+            <>
+              <input value={cariAkar} onChange={e => setCariAkar(e.target.value)} placeholder="Cari nama / kode akar jaringan..."
+                className="w-full px-3 py-1.5 rounded-lg border border-purple-200 focus:border-purple-500 focus:outline-none text-xs mb-2 bg-white" />
               {/* "Jaringan Saya" DIBUANG buat HoP (dikonfirmasi user
                   2026-10-05) — HoP itu kepala/pengawas seluruh jaringan, gak
                   punya jaringan pribadi sendiri buat ditoggle balik. */}
-              {semuaAkar.map(a => (
-                <button key={a.id} onClick={() => router.push(`/dashboard/sahabat/team?sahabat_id=${a.id}`)}
-                  className={`text-[10px] font-bold px-2.5 py-1.5 rounded-full transition-colors ${
-                    targetId === a.id ? 'bg-purple-700 text-white' : 'bg-white text-purple-700 border border-purple-300 hover:bg-purple-100'
-                  }`}>
-                  {a.name} ({a.kode_unik}) · {a.jumlah_downline} downline
-                </button>
-              ))}
-            </div>
+              <div className="max-h-56 overflow-y-auto rounded-lg border border-purple-100 bg-white divide-y divide-purple-50">
+                {akarTerfilter.length === 0 ? (
+                  <div className="text-xs text-purple-400 text-center py-3">Gak ada yang cocok.</div>
+                ) : akarTerfilter.map(a => (
+                  <button key={a.id} onClick={() => router.push(`/dashboard/sahabat/team?sahabat_id=${a.id}`)}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors ${
+                      targetId === a.id ? 'bg-purple-700 text-white' : 'text-purple-700 hover:bg-purple-50'
+                    }`}>
+                    <span className="font-bold truncate">{a.name} <span className="font-normal opacity-70">({a.kode_unik})</span></span>
+                    <span className="shrink-0 opacity-70">{a.jumlah_downline} downline</span>
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] text-purple-400 mt-1">{akarTerfilter.length} dari {semuaAkar.length} jaringan</div>
+            </>
           )}
         </div>
       )}
