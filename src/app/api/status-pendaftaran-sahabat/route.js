@@ -430,7 +430,7 @@ export async function PATCH(request) {
                 await pool.query(
                   `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, level)
                    VALUES (NULL, ?, ?, ?, 'komisi_sahabat', 1, ?, ?, ?)`,
-                  [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (No. Akun: ${u.kode_unik || '-'})`, gen + 1]
+                  [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (Kode Agen: ${u.kode_unik || '-'})`, gen + 1]
                 );
               } else {
                 operasionalTambahan += nominal;
@@ -498,7 +498,7 @@ export async function PATCH(request) {
                 user_id, operasionalTotal,
                 operasionalTambahan > 0
                   ? `Sisa pendaftaran ${p.nama} (Rp${operasionalFlat.toLocaleString('id-ID')}) + jatah gen yang gak kebagian ke ancestor beneran (Rp${operasionalTambahan.toLocaleString('id-ID')}) — rantai perekrut abis, kena HOP, dan/atau upline tidak aktif (aturan 6 bulan)`
-                  : `Sisa pendaftaran Sahabat Baitullah — atas nama ${p.nama} (No. Akun: ${u.kode_unik || '-'})`,
+                  : `Sisa pendaftaran Sahabat Baitullah — atas nama ${p.nama} (Kode Agen: ${u.kode_unik || '-'})`,
               ]
             );
 
