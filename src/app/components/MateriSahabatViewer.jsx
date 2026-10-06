@@ -47,38 +47,42 @@ export default function MateriSahabatViewer({ materi, user, onClose }) {
   }, [idx, materi.id]);
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()} onContextMenu={e => e.preventDefault()}>
-        <div className="text-white text-sm font-bold mb-2">{materi.judul}</div>
-        <div className="relative">
+    <div className="fixed inset-0 bg-black z-50 flex flex-col" onContextMenu={e => e.preventDefault()}>
+      <div className="flex items-center justify-between gap-2 px-3 py-2 text-white shrink-0">
+        <div className="text-sm font-bold truncate">{materi.judul}</div>
+        <button onClick={onClose} className="shrink-0 text-sm font-bold">✕ Tutup</button>
+      </div>
+
+      <div className="relative flex-1 flex items-center justify-center overflow-hidden" onClick={onClose}>
+        <div className="relative max-w-full max-h-full" onClick={e => e.stopPropagation()}>
           {blobUrl ? (
-            <img src={blobUrl} alt="" className="w-full rounded-lg select-none" draggable={false} />
+            <img src={blobUrl} alt="" className="max-w-full max-h-[calc(100dvh-7rem)] select-none" draggable={false} />
           ) : (
-            <div className="w-full aspect-video bg-white/10 rounded-lg animate-pulse" />
+            <div className="w-[90vw] aspect-video bg-white/10 animate-pulse" />
           )}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="text-white/25 text-2xl font-bold rotate-[-20deg] text-center leading-tight">
               {user?.name}<br />{user?.kode_unik}
             </div>
           </div>
-          {idx > 0 && (
-            <button onClick={goPrev} aria-label="Slide sebelumnya"
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 text-white text-xl font-bold flex items-center justify-center active:bg-black/70">
-              ‹
-            </button>
-          )}
-          {idx < slides.length - 1 && (
-            <button onClick={goNext} aria-label="Slide berikutnya"
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 text-white text-xl font-bold flex items-center justify-center active:bg-black/70">
-              ›
-            </button>
-          )}
         </div>
-        <div className="flex items-center justify-center mt-3 text-white text-sm">
-          <span>{idx + 1} / {slides.length}</span>
-        </div>
-        <div className="text-center text-white/50 text-[10px] mt-2">Hanya untuk dilihat — dilarang diunduh atau disebarluaskan</div>
-        <button onClick={onClose} className="absolute -top-10 right-0 text-white text-sm font-bold">✕ Tutup</button>
+        {idx > 0 && (
+          <button onClick={goPrev} aria-label="Slide sebelumnya"
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 text-white text-xl font-bold flex items-center justify-center active:bg-black/70">
+            ‹
+          </button>
+        )}
+        {idx < slides.length - 1 && (
+          <button onClick={goNext} aria-label="Slide berikutnya"
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 text-white text-xl font-bold flex items-center justify-center active:bg-black/70">
+            ›
+          </button>
+        )}
+      </div>
+
+      <div className="shrink-0 text-center text-white text-sm py-2">
+        <div>{idx + 1} / {slides.length}</div>
+        <div className="text-white/50 text-[10px] mt-1">Hanya untuk dilihat — dilarang diunduh atau disebarluaskan</div>
       </div>
     </div>
   );
