@@ -548,6 +548,11 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     sahabat: [
       { icon: '🏠', label: 'Beranda', path: '/dashboard/sahabat' },
       { icon: '🕌', label: 'Program', path: '/programs' },
+      // Booking eksklusif yang udah di-checkout sendiri sebelumnya gak
+      // punya "tempat lari" sama sekali di sidebar (dikonfirmasi user
+      // 2026-10-06) — /dashboard/jamaah sebenarnya generik (query by
+      // user_id, gak gate role), cuma belum pernah ditautkan dari sini.
+      { icon: '📦', label: 'Booking Saya', path: '/dashboard/jamaah' },
       { icon: '🌳', label: 'Team', path: '/dashboard/sahabat/team' },
       { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/sahabat/riwayat-closing' },
       { icon: '🧾', label: 'Riwayat Tabungan Umroh', path: '/dashboard/sahabat/riwayat' },
