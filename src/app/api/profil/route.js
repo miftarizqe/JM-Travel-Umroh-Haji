@@ -3,6 +3,18 @@ import { wajibPemilikAtauAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { statusAkun } from '@/lib/statusAkun';
+import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
+
+// Komponen alamat KTP (AddressFields.jsx) -> kolom users.alamat_ktp_* —
+// self-service sekarang DIPAKSA lewat field terstruktur ini (dikonfirmasi
+// user 2026-10-06, sebelumnya 1 textarea bebas yang bisa nimpa kolom
+// terstruktur jadi gak sinkron). kp -> kode_pos (kolom generik, BUKAN
+// alamat_ktp_*, sudah ada dari dulu).
+const ALAMAT_KTP_KOLOM = {
+  jalan: 'alamat_ktp_jalan', norumah: 'alamat_ktp_no_rumah', rt: 'alamat_ktp_rt', rw: 'alamat_ktp_rw',
+  kel: 'alamat_ktp_kelurahan', kec: 'alamat_ktp_kecamatan', kota: 'alamat_ktp_kota',
+  provinsi: 'alamat_ktp_provinsi', negara: 'alamat_ktp_negara',
+};
 
 // Seluruh data rekening (tujuan transfer duit, "ngaruh kemana2") — SEMULA
 // dibuka self-service dengan pengaman audit+notifikasi (2026-08-30 pagi),
@@ -42,6 +54,9 @@ export async function GET(request) {
       `SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status, u.wilayah, u.foto_path,
               u.jenis_kelamin, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama, p.role AS perekrut_role, u.reg_status, u.reg_metode, u.reg_jadwal,
               u.alamat_kirim, u.alamat, u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_paspor,
+              u.alamat_ktp_jalan, u.alamat_ktp_no_rumah, u.alamat_ktp_rt, u.alamat_ktp_rw,
+              u.alamat_ktp_kelurahan, u.alamat_ktp_kecamatan, u.alamat_ktp_kota, u.alamat_ktp_provinsi,
+              u.alamat_ktp_negara, u.kode_pos,
               u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
@@ -205,6 +220,36 @@ export async function PATCH(request) {
         if (f === 'no_rekening_tabungan_umroh') { setKolom.push('tabungan_haji_status = 1', 'tabungan_haji_updated_at = NOW()'); }
       }
     }
+
+    // Alamat sekarang DIPAKSA lewat field terstruktur (AddressFields.jsx),
+    // bukan 1 textarea bebas lagi (dikonfirmasi user 2026-10-06) — nyimpen
+    // ke alamat_ktp_* (sumber struktur buat dokumen legal, lihat
+    // formatAlamatDuaBaris) SEKALIGUS nyusun ulang kolom flat alamat &
+    // alamat_ktp biar sinkron. alamat_domisili SENGAJA gak disentuh — halaman
+    // ini dari dulu emang cuma punya 1 field alamat, gak pernah bedain
+    // domisili (scope lama, bukan regresi baru).
+    if ('jalan' in body) {
+      const wajib = ['jalan', 'norumah', 'rt', 'rw', 'kel', 'kec', 'kota', 'provinsi', 'negara'];
+      for (const k of wajib) {
+        if (!String(body[k] || '').trim()) {
+          return Response.json({ error: 'Alamat wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)' }, { status: 400 });
+        }
+      }
+      for (const [key, kolom] of Object.entries(ALAMAT_KTP_KOLOM)) {
+        setKolom.push(`${kolom} = ?`);
+        nilai.push(String(body[key]).trim());
+      }
+      const kpBaru = body.kp ? String(body.kp).trim() : null;
+      setKolom.push('kode_pos = ?');
+      nilai.push(kpBaru);
+      const alamatBaru = formatAlamatSatuBaris({
+        jalan: body.jalan, norumah: body.norumah, rt: body.rt, rw: body.rw,
+        kel: body.kel, kec: body.kec, kota: body.kota, provinsi: body.provinsi, kp: kpBaru, negara: body.negara,
+      });
+      setKolom.push('alamat = ?', 'alamat_ktp = ?');
+      nilai.push(alamatBaru, alamatBaru);
+    }
+
     nilai.push(user_id);
 
     await pool.query(`UPDATE users SET ${setKolom.join(', ')} WHERE id = ?`, nilai);

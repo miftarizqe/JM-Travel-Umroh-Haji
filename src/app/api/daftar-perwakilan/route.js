@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
+import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 // Formulir pendaftaran kemitraan perwakilan (role_diajukan='perwakilan' —
 // satu-satunya nilai yang masih ada sejak role agen dihapus). Perekrut
@@ -113,12 +114,13 @@ export async function POST(req) {
       }
     }
 
-    const alamatKtp = [jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara]
-      .filter(Boolean).join(', ');
+    const alamatKtp = formatAlamatSatuBaris({ jalan, norumah, rt, rw, kel, kec, kota, provinsi, kp, negara });
     const alamatDomisili = sama_ktp
       ? alamatKtp
-      : [jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom]
-          .filter(Boolean).join(', ');
+      : formatAlamatSatuBaris({
+          jalan: jalan_dom, norumah: norumah_dom, rt: rt_dom, rw: rw_dom,
+          kel: kel_dom, kec: kec_dom, kota: kota_dom, provinsi: provinsi_dom, negara: negara_dom,
+        });
 
     // metode/jadwal_kunjungan/alamat_kirim BELUM diisi di sini — dipindah ke
     // step /daftar-perwakilan/metode yang baru muncul SETELAH TTD digital

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import db from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
+import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 // PATCH /api/daftar-perwakilan/metode — langkah TERAKHIR pendaftaran
 // kemitraan, baru muncul SETELAH calon perwakilan TTD digital formulir
@@ -61,8 +62,10 @@ export async function PATCH(req) {
         if (!alamatOk(jalan_kirim, norumah_kirim, rt_kirim, rw_kirim, kel_kirim, kec_kirim, kota_kirim, provinsi_kirim, negara_kirim)) {
           return NextResponse.json({ error: 'Alamat pengiriman wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)' }, { status: 400 });
         }
-        alamatKirim = [jalan_kirim, norumah_kirim, rt_kirim, rw_kirim, kel_kirim, kec_kirim, kota_kirim, provinsi_kirim, negara_kirim]
-          .filter(Boolean).join(', ');
+        alamatKirim = formatAlamatSatuBaris({
+          jalan: jalan_kirim, norumah: norumah_kirim, rt: rt_kirim, rw: rw_kirim,
+          kel: kel_kirim, kec: kec_kirim, kota: kota_kirim, provinsi: provinsi_kirim, negara: negara_kirim,
+        });
       }
     }
 
