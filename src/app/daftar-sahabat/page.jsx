@@ -7,13 +7,14 @@ import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
 import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
+import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 
 const emptyForm = () => ({
-  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
+  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   sama_ktp: true,
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
-  wa:'', email:'', pkj:'',
+  wa:'', email:'', pkj:'', pendidikan:'',
   target_program_id:'',
   // Paspor OPSIONAL (dikonfirmasi user 2026-09-20) — sekalian disimpen dari
   // awal kalau jamaah udah punya, biar gak perlu diminta ulang pas beneran
@@ -207,6 +208,8 @@ export default function DaftarSahabatPage() {
             </div>
             <div><label className={lbl}>Nama Ibu Kandung *</label>
               <input value={form.ibu} onChange={e=>setF('ibu',e.target.value)} className={inp}/></div>
+            <div><label className={lbl}>Nama Ayah Kandung <span className="text-gray-400 font-normal">(opsional, dibutuhin buat Siskopatuh)</span></label>
+              <input value={form.ayah} onChange={e=>setF('ayah',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. WhatsApp *</label>
                 <div className={`${inp} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div></div>
@@ -218,6 +221,11 @@ export default function DaftarSahabatPage() {
             <div className="text-[10px] text-gray-400 -mt-1">NIK, No. WhatsApp, Email, dan Agama adalah data verifikasi awal — cuma bisa dikoreksi lewat admin.</div>
             <div><label className={lbl}>Pekerjaan</label>
               <input value={form.pkj} onChange={e=>setF('pkj',e.target.value)} className={inp}/></div>
+            <div><label className={lbl}>Pendidikan Terakhir <span className="text-gray-400 font-normal">(opsional, dibutuhin buat Siskopatuh)</span></label>
+              <select value={form.pendidikan} onChange={e=>setF('pendidikan',e.target.value)} className={inp}>
+                <option value="">— Pilih —</option>
+                {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
+              </select></div>
 
             <div>
               <label className={lbl}>Foto KTP *</label>

@@ -27,12 +27,12 @@ export default function ProfilPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', wa: '' });
+  const [form, setForm] = useState({ name: '', email: '', wa: '', alamat_domisili: '' });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editingRekening, setEditingRekening] = useState(false);
   const [formRekening, setFormRekening] = useState({
-    nik: '', alamat_domisili: '', bank: '', no_rekening: '', nama_pemilik_rekening: '', no_paspor: '',
+    nik: '', bank: '', no_rekening: '', nama_pemilik_rekening: '', no_paspor: '',
     no_rekening_bsi_biasa: '', no_rekening_tabungan_umroh: '', nama_pemilik_rekening_umroh: '',
   });
   const [savingRekening, setSavingRekening] = useState(false);
@@ -53,7 +53,8 @@ export default function ProfilPage() {
   const isDirty = editing && user && (
     form.name !== (user.name || '') ||
     form.email !== (user.email || '') ||
-    form.wa !== (user.wa || '')
+    form.wa !== (user.wa || '') ||
+    form.alamat_domisili !== (user.alamat_domisili || '')
   );
   const isDirtyRekening = editingRekening && user && Object.keys(formRekening).some(k => formRekening[k] !== (user[k] || ''));
   useUnsavedGuard(isDirty || isDirtyRekening);
@@ -68,9 +69,9 @@ export default function ProfilPage() {
       .then(d => {
         if (d.user) {
           setUser(d.user);
-          setForm({ name: d.user.name || '', email: d.user.email || '', wa: d.user.wa || '' });
+          setForm({ name: d.user.name || '', email: d.user.email || '', wa: d.user.wa || '', alamat_domisili: d.user.alamat_domisili || '' });
           setFormRekening({
-            nik: d.user.nik || '', alamat_domisili: d.user.alamat_domisili || '', bank: d.user.bank || '',
+            nik: d.user.nik || '', bank: d.user.bank || '',
             no_rekening: d.user.no_rekening || '', nama_pemilik_rekening: d.user.nama_pemilik_rekening || '',
             no_paspor: d.user.no_paspor || '',
             no_rekening_bsi_biasa: d.user.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: d.user.no_rekening_tabungan_umroh || '',
@@ -129,9 +130,10 @@ export default function ProfilPage() {
       });
       const d = await res.json();
       if (res.ok) {
-        const updated = { ...user, ...d.user };
-        setUser(updated);
-        localStorage.setItem('user', JSON.stringify(updated));
+        // Refetch (bukan merge optimistic) — server yang nyusun ulang
+        // alamat_domisili_display dari alamat_domisili baru, klien gak tau
+        // hasil akhirnya tanpa nanya ulang (sama pola kayak saveRekening).
+        muatProfil();
         setEditing(false);
         alert(d.message);
       } else {
@@ -147,7 +149,7 @@ export default function ProfilPage() {
     // gak kena guard 403 di server cuma gara2 field-nya "ada di body"
     // (walau value-nya gak berubah — server ngecek keberadaan key, bukan
     // cuma isinya berubah apa nggak).
-    const payload = isAdminSelf ? { ...formRekening } : { alamat_domisili: formRekening.alamat_domisili, no_paspor: formRekening.no_paspor };
+    const payload = isAdminSelf ? { ...formRekening } : { no_paspor: formRekening.no_paspor };
     const berubahSensitif = isAdminSelf ? FIELD_SENSITIF_REKENING.filter(k => formRekening[k] !== (user[k] || '')) : [];
     if (berubahSensitif.length > 0 && !confirm('Yakin ubah data rekening/NIK? Perubahan ini tercatat & admin akan diberi tahu.')) {
       return;
@@ -404,8 +406,13 @@ export default function ProfilPage() {
               {!isAdminSelf && (
                 <div className="text-[10px] text-gray-400 -mt-1">Email &amp; No. WhatsApp adalah data verifikasi awal, cuma bisa diubah admin. Hubungi admin JM Travel kalau ada yang perlu dikoreksi.</div>
               )}
+              <div>
+                <label className={lbl}>Alamat Domisili</label>
+                <input value={form.alamat_domisili} onChange={e => setForm({...form, alamat_domisili: e.target.value})} className={inp}/>
+                <div className="text-[10px] text-gray-400 mt-1">Alamat sesuai KTP cuma bisa diubah admin — ini alamat domisili/tempat tinggal Anda sekarang.</div>
+              </div>
               <div className="flex gap-2 pt-1">
-                <button onClick={() => { setEditing(false); setForm({name:user.name||'', email:user.email||'', wa:user.wa||''}); }}
+                <button onClick={() => { setEditing(false); setForm({name:user.name||'', email:user.email||'', wa:user.wa||'', alamat_domisili:user.alamat_domisili||''}); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">
                   Batal
                 </button>
@@ -422,6 +429,8 @@ export default function ProfilPage() {
                 { label: 'Email', val: user.email || '-' },
                 { label: 'No. WhatsApp', val: user.wa || '-' },
                 { label: 'NIK', val: user.nik || '-' },
+                { label: 'Alamat KTP', val: user.alamat_ktp_display || user.alamat || '-' },
+                { label: 'Alamat Domisili', val: user.alamat_domisili_display || user.alamat || '-' },
                 { label: 'Status Akun', val: user.status },
               ].map(f => (
                 <div key={f.label} className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
@@ -503,11 +512,6 @@ export default function ProfilPage() {
                 </div>
               )}
               <div>
-                <label className={lbl}>Alamat Domisili</label>
-                <input value={formRekening.alamat_domisili} onChange={e => setFormRekening({...formRekening, alamat_domisili: e.target.value})} className={inp}/>
-                <div className="text-[10px] text-gray-400 mt-1">Alamat sesuai KTP cuma bisa diubah admin — ini alamat domisili/tempat tinggal Anda sekarang.</div>
-              </div>
-              <div>
                 <label className={lbl}>No. Paspor <span className="text-gray-400 font-normal">(opsional, boleh menyusul)</span></label>
                 <input value={formRekening.no_paspor} onChange={e => setFormRekening({...formRekening, no_paspor: e.target.value})} className={inp}/>
               </div>
@@ -531,7 +535,7 @@ export default function ProfilPage() {
               )}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => { setEditingRekening(false); setFormRekening({
-                    nik: user.nik||'', alamat_domisili: user.alamat_domisili||'', bank: user.bank||'', no_rekening: user.no_rekening||'',
+                    nik: user.nik||'', bank: user.bank||'', no_rekening: user.no_rekening||'',
                     nama_pemilik_rekening: user.nama_pemilik_rekening||'', no_paspor: user.no_paspor||'',
                     no_rekening_bsi_biasa: user.no_rekening_bsi_biasa||'',
                     no_rekening_tabungan_umroh: user.no_rekening_tabungan_umroh||'',
@@ -549,8 +553,6 @@ export default function ProfilPage() {
           ) : (
             <div className="space-y-2 text-sm">
               {[
-                { label: 'NIK', val: user.nik || '-' },
-                { label: 'Alamat', val: user.alamat_display || user.alamat || '-' },
                 { label: 'No. Paspor', val: user.no_paspor || '-' },
               ].map(f => (
                 <div key={f.label} className="flex justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">

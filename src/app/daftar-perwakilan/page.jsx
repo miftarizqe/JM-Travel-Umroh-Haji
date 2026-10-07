@@ -9,15 +9,16 @@ import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { labelPerekrut } from '@/lib/labelPerekrut';
+import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 
 const emptyForm = () => ({
-  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', foto_ktp_path:'',
+  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
   // Alamat KTP
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   // Alamat domisili — sama_ktp true berarti dianggap sama dgn alamat KTP di atas
   sama_ktp: true,
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
-  wa:'', email:'', pkj:'',
+  wa:'', email:'', pkj:'', pendidikan:'',
   bank:'', norek:'', pemilik:'',
   perekrut_id:'',
 });
@@ -235,6 +236,8 @@ export default function DaftarPerwakilanPage() {
             </div>
             <div><label className={lbl}>Nama Ibu Kandung *</label>
               <input value={form.ibu} onChange={e=>setF('ibu',e.target.value)} className={inp}/></div>
+            <div><label className={lbl}>Nama Ayah Kandung <span className="text-gray-400 font-normal">(opsional, dibutuhin buat Siskopatuh)</span></label>
+              <input value={form.ayah} onChange={e=>setF('ayah',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. WhatsApp *</label>
                 <div className={`${inp} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div></div>
@@ -244,6 +247,11 @@ export default function DaftarPerwakilanPage() {
             <div className="text-[10px] text-gray-400 -mt-1">NIK, No. WhatsApp, dan Email adalah data verifikasi awal — cuma bisa dikoreksi lewat admin.</div>
             <div><label className={lbl}>Pekerjaan</label>
               <input value={form.pkj} onChange={e=>setF('pkj',e.target.value)} className={inp}/></div>
+            <div><label className={lbl}>Pendidikan Terakhir <span className="text-gray-400 font-normal">(opsional, dibutuhin buat Siskopatuh)</span></label>
+              <select value={form.pendidikan} onChange={e=>setF('pendidikan',e.target.value)} className={inp}>
+                <option value="">— Pilih —</option>
+                {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
+              </select></div>
 
             <div>
               <label className={lbl}>Foto KTP *</label>

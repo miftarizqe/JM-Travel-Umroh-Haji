@@ -68,15 +68,14 @@ export async function GET(request) {
     user.status_akun = statusAkun(user);
     delete user.terverifikasi;
 
-    // Alamat buat DITAMPILKAN di Profil — domisili diutamakan (dikonfirmasi
-    // user 2026-10-07: alamat KTP dikunci admin-only, yang self-service &
-    // relevan ditampilkan duluan itu domisili/tempat tinggal sekarang).
-    // alamat_domisili teks BEBAS (gak ada kolom terstruktur kayak KTP buat
-    // dirapihin otomatis) — TAPI kalau isinya PERSIS sama kayak alamat_ktp
-    // (lama, comma-join polos — tandanya domisili = KTP, disalin apa
+    // Alamat KTP & Alamat Domisili ditampilkan TERPISAH di Profil
+    // (dikonfirmasi user 2026-10-07) — KTP dikunci admin-only (data
+    // identitas resmi), Domisili self-service (tempat tinggal sekarang,
+    // wajar berubah). alamat_domisili teks BEBAS (gak ada kolom
+    // terstruktur kayak KTP buat dirapihin otomatis) — TAPI kalau isinya
+    // PERSIS sama kayak alamat_ktp lama (comma-join polos, disalin apa
     // adanya pas registrasi SEBELUM format berlabel ada), pakai versi
-    // berlabel KTP-nya aja (ditemukan user 2026-10-07: domisili masih
-    // keliatan teks lama walau alamat_ktp udah berlabel).
+    // berlabel KTP-nya juga buat baris Domisili.
     const ktpBerlabel = user.alamat_ktp_jalan
       ? formatAlamatSatuBaris({
           jalan: user.alamat_ktp_jalan, norumah: user.alamat_ktp_no_rumah, rt: user.alamat_ktp_rt, rw: user.alamat_ktp_rw,
@@ -84,8 +83,9 @@ export async function GET(request) {
           provinsi: user.alamat_ktp_provinsi, kp: user.kode_pos, negara: user.alamat_ktp_negara,
         })
       : null;
+    user.alamat_ktp_display = ktpBerlabel || user.alamat_ktp || user.alamat || '-';
     const domisiliSamaKtpLama = ktpBerlabel && (user.alamat_domisili || '').trim() === (user.alamat_ktp || '').trim();
-    user.alamat_display = domisiliSamaKtpLama ? ktpBerlabel : (user.alamat_domisili || ktpBerlabel || user.alamat || '-');
+    user.alamat_domisili_display = domisiliSamaKtpLama ? ktpBerlabel : (user.alamat_domisili || ktpBerlabel || user.alamat || '-');
 
     // Cek apakah sudah pernah umroh (punya booking selesai) -> syarat upgrade perwakilan
     const [sel] = await pool.query(
