@@ -70,16 +70,22 @@ export async function GET(request) {
 
     // Alamat buat DITAMPILKAN di Profil — domisili diutamakan (dikonfirmasi
     // user 2026-10-07: alamat KTP dikunci admin-only, yang self-service &
-    // relevan ditampilkan duluan itu domisili/tempat tinggal sekarang),
-    // fallback ke alamat KTP berlabel ("Jl. X No. Y, RT.../RW...") dihitung
-    // dari kolom terstruktur alamat_ktp_* kalau domisili belum/kosong.
-    user.alamat_display = user.alamat_domisili || (user.alamat_ktp_jalan
+    // relevan ditampilkan duluan itu domisili/tempat tinggal sekarang).
+    // alamat_domisili teks BEBAS (gak ada kolom terstruktur kayak KTP buat
+    // dirapihin otomatis) — TAPI kalau isinya PERSIS sama kayak alamat_ktp
+    // (lama, comma-join polos — tandanya domisili = KTP, disalin apa
+    // adanya pas registrasi SEBELUM format berlabel ada), pakai versi
+    // berlabel KTP-nya aja (ditemukan user 2026-10-07: domisili masih
+    // keliatan teks lama walau alamat_ktp udah berlabel).
+    const ktpBerlabel = user.alamat_ktp_jalan
       ? formatAlamatSatuBaris({
           jalan: user.alamat_ktp_jalan, norumah: user.alamat_ktp_no_rumah, rt: user.alamat_ktp_rt, rw: user.alamat_ktp_rw,
           kel: user.alamat_ktp_kelurahan, kec: user.alamat_ktp_kecamatan, kota: user.alamat_ktp_kota,
           provinsi: user.alamat_ktp_provinsi, kp: user.kode_pos, negara: user.alamat_ktp_negara,
         })
-      : (user.alamat || '-'));
+      : null;
+    const domisiliSamaKtpLama = ktpBerlabel && (user.alamat_domisili || '').trim() === (user.alamat_ktp || '').trim();
+    user.alamat_display = domisiliSamaKtpLama ? ktpBerlabel : (user.alamat_domisili || ktpBerlabel || user.alamat || '-');
 
     // Cek apakah sudah pernah umroh (punya booking selesai) -> syarat upgrade perwakilan
     const [sel] = await pool.query(
