@@ -67,13 +67,13 @@ export default function MateriSahabatViewer({ materi, user, onClose }) {
           </div>
         </div>
         {idx > 0 && (
-          <button onClick={goPrev} aria-label="Slide sebelumnya"
+          <button onClick={e => { e.stopPropagation(); goPrev(); }} aria-label="Slide sebelumnya"
             className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 text-white text-xl font-bold flex items-center justify-center active:bg-black/70">
             ‹
           </button>
         )}
         {idx < slides.length - 1 && (
-          <button onClick={goNext} aria-label="Slide berikutnya"
+          <button onClick={e => { e.stopPropagation(); goNext(); }} aria-label="Slide berikutnya"
             className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/50 text-white text-xl font-bold flex items-center justify-center active:bg-black/70">
             ›
           </button>
