@@ -8,13 +8,17 @@ import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 // Seluruh data rekening (tujuan transfer duit, "ngaruh kemana2") — SEMULA
 // dibuka self-service dengan pengaman audit+notifikasi (2026-08-30 pagi),
 // TAPI dikunci ulang jadi ADMIN-ONLY (2026-08-30 sore, dikonfirmasi user)
-// karena terlalu sensitif buat self-service walau diaudit. `alamat` TETAP
-// self-service (gak termasuk daftar ini).
+// karena terlalu sensitif buat self-service walau diaudit.
 // NIK DICABUT TOTAL dari sini (dikonfirmasi user 2026-10-03) -- bukan lagi
 // admin-only-editable, tapi GAK BISA DIUBAH SAMA SEKALI lewat endpoint ini
 // (data identitas resmi, beda dari rekening yang memang wajar berubah).
 // Koreksi NIK kalau beneran perlu harus lewat DB langsung, bukan form.
-const FIELD_ADMIN_ONLY = ['bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
+// `alamat` (alias alamat KTP) JUGA dikunci admin-only (dikonfirmasi user
+// 2026-10-07) — data identitas resmi sama kayak NIK. `alamat_domisili`
+// TETAP self-service (tempat tinggal sekarang, wajar berubah) -- lihat
+// FIELD_UMUM & blok khusus di PATCH yang nyinkron ke kolom `alamat` biar
+// tempat lain yang baca kolom itu tetap ikut ke nilai domisili terbaru.
+const FIELD_ADMIN_ONLY = ['alamat', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 // email & wa — SAMA alasannya kayak NIK, ditambahin 2026-09-20 (dikonfirmasi
 // user, berlaku SEMUA role): begitu keisi pas registrasi/verifikasi awal,
 // gak boleh diganti sendiri lagi — nyegah orang "cuci" identitas lewat akun
@@ -26,7 +30,7 @@ const FIELD_ADMIN_ONLY = ['bank', 'no_rekening', 'nama_pemilik_rekening', 'no_re
 // Field umum (semua role, self-service) + field khusus role sahabat
 // (admin-only, lihat FIELD_ADMIN_ONLY) — TIDAK termasuk nama/email/wa
 // (itu tetap lewat jalur wajib di bawah, sudah ada).
-const FIELD_UMUM = ['alamat', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_paspor'];
+const FIELD_UMUM = ['alamat_domisili', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_paspor'];
 const FIELD_SAHABAT = ['no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 
 // GET /api/profil?user_id=xxx — ambil data user TERKINI dari DB
@@ -42,7 +46,7 @@ export async function GET(request) {
     const [rows] = await pool.query(
       `SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status, u.wilayah, u.foto_path,
               u.jenis_kelamin, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama, p.role AS perekrut_role, u.reg_status, u.reg_metode, u.reg_jadwal,
-              u.alamat_kirim, u.alamat, u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_paspor,
+              u.alamat_kirim, u.alamat, u.alamat_domisili, u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_paspor,
               u.alamat_ktp_jalan, u.alamat_ktp_no_rumah, u.alamat_ktp_rt, u.alamat_ktp_rw,
               u.alamat_ktp_kelurahan, u.alamat_ktp_kecamatan, u.alamat_ktp_kota, u.alamat_ktp_provinsi,
               u.alamat_ktp_negara, u.kode_pos,
@@ -64,18 +68,18 @@ export async function GET(request) {
     user.status_akun = statusAkun(user);
     delete user.terverifikasi;
 
-    // Alamat berlabel ("Jl. X No. Y, RT.../RW...") buat DITAMPILKAN di
-    // Profil — dihitung dari kolom terstruktur alamat_ktp_* yang udah ADA
-    // (dikonfirmasi user 2026-10-06: isian/kolom gak diubah, cuma outputnya
-    // dirapihin — sama kayak dokumen legal & pendaftaran baru). Fallback ke
-    // kolom flat lama kalau user ini daftar sebelum field terstruktur ada.
-    user.alamat_display = user.alamat_ktp_jalan
+    // Alamat buat DITAMPILKAN di Profil — domisili diutamakan (dikonfirmasi
+    // user 2026-10-07: alamat KTP dikunci admin-only, yang self-service &
+    // relevan ditampilkan duluan itu domisili/tempat tinggal sekarang),
+    // fallback ke alamat KTP berlabel ("Jl. X No. Y, RT.../RW...") dihitung
+    // dari kolom terstruktur alamat_ktp_* kalau domisili belum/kosong.
+    user.alamat_display = user.alamat_domisili || (user.alamat_ktp_jalan
       ? formatAlamatSatuBaris({
           jalan: user.alamat_ktp_jalan, norumah: user.alamat_ktp_no_rumah, rt: user.alamat_ktp_rt, rw: user.alamat_ktp_rw,
           kel: user.alamat_ktp_kelurahan, kec: user.alamat_ktp_kecamatan, kota: user.alamat_ktp_kota,
           provinsi: user.alamat_ktp_provinsi, kp: user.kode_pos, negara: user.alamat_ktp_negara,
         })
-      : (user.alamat || '-');
+      : (user.alamat || '-'));
 
     // Cek apakah sudah pernah umroh (punya booking selesai) -> syarat upgrade perwakilan
     const [sel] = await pool.query(
@@ -186,6 +190,22 @@ export async function PATCH(request) {
     const [[sebelum]] = await pool.query('SELECT role, email, wa, ' + [...FIELD_UMUM, ...FIELD_SAHABAT].join(', ') + ' FROM users WHERE id = ?', [user_id]);
     if (!sebelum) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
 
+    // No. Rekening Tabungan Umroh gak boleh keisi tanpa Nama Pemiliknya —
+    // rekeningnya sering BUKAN atas nama sahabat sendiri (dikonfirmasi user
+    // 2026-10-03, lihat /api/sahabat/rekening-bsi yang udah nerapin ini buat
+    // jalur self-service). Jalur admin (Database Jamaah) lewat endpoint ini
+    // SEMPAT gak punya validasi yang sama, jadi bisa ke-save pincang
+    // (ditemukan user 2026-10-07: No. Rekening terisi, Nama Pemilik kosong).
+    if ('no_rekening_tabungan_umroh' in body) {
+      const rekeningBaru = String(body.no_rekening_tabungan_umroh || '').trim();
+      const namaBaru = 'nama_pemilik_rekening_umroh' in body
+        ? String(body.nama_pemilik_rekening_umroh || '').trim()
+        : (sebelum.nama_pemilik_rekening_umroh || '');
+      if (rekeningBaru && !namaBaru) {
+        return Response.json({ error: 'Nama Pemilik Rekening Tabungan Umroh wajib diisi kalau No. Rekeningnya diisi.' }, { status: 400 });
+      }
+    }
+
     if (!isAdmin) {
       const emailBerubah = String(email || '').trim() !== String(sebelum.email || '').trim();
       const waBerubah = String(wa).trim() !== String(sebelum.wa || '').trim();
@@ -222,6 +242,16 @@ export async function PATCH(request) {
         if (f === 'no_rekening_tabungan_umroh') { setKolom.push('tabungan_haji_status = 1', 'tabungan_haji_updated_at = NOW()'); }
       }
     }
+
+    // Kolom `alamat` generik (dibaca banyak tempat lain — Database Jamaah,
+    // dokumen, dst) di-mirror ke alamat_domisili begitu domisili diedit,
+    // sama persis semantik pas registrasi (alamat = alamat_domisili ||
+    // alamat_ktp, lihat lib/booking buatSatuBooking & daftar-sahabat/route.js).
+    if ('alamat_domisili' in body) {
+      setKolom.push('alamat = ?');
+      nilai.push(body.alamat_domisili === '' ? null : String(body.alamat_domisili).trim());
+    }
+
     nilai.push(user_id);
 
     await pool.query(`UPDATE users SET ${setKolom.join(', ')} WHERE id = ?`, nilai);
