@@ -550,7 +550,8 @@ export default function ProfilPage() {
             <div className="space-y-2 text-sm">
               {[
                 { label: 'NIK', val: user.nik || '-' },
-                { label: 'Alamat', val: user.alamat_display || user.alamat || '-' },
+                { label: 'Alamat KTP', val: user.alamat_ktp_display || user.alamat || '-' },
+                { label: 'Alamat Domisili', val: user.alamat_domisili_display || user.alamat || '-' },
                 { label: 'No. Paspor', val: user.no_paspor || '-' },
               ].map(f => (
                 <div key={f.label} className="flex justify-between gap-3 py-1.5 border-b border-gray-50 last:border-0">
