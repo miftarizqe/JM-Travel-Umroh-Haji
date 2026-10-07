@@ -20,10 +20,10 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const {
-      nama, tempat_lahir, tl, jk, ibu, foto_ktp_path,
+      nama, tempat_lahir, tl, jk, ibu, ayah, foto_ktp_path,
       jalan, norumah, rt, rw, kp, kel, kec, kota, provinsi, negara,
       sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
-      pkj,
+      pkj, pendidikan,
       no_paspor, tempat_keluar_paspor, masa_berlaku_paspor_dari, masa_berlaku_paspor_sampai, foto_paspor_path,
       bank, norek, pemilik,
       // perekrut_id / target_minat / target_estimasi_harga SENGAJA gak dibaca
@@ -147,15 +147,15 @@ export async function POST(req) {
 
     const [result] = await db.query(
       `INSERT INTO sahabat_pendaftaran
-        (user_id, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu,
-         alamat, alamat_ktp, alamat_domisili, kode_pos, wa, email, pekerjaan,
+        (user_id, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu, nama_ayah,
+         alamat, alamat_ktp, alamat_domisili, kode_pos, wa, email, pekerjaan, pendidikan_terakhir,
          no_paspor, tempat_keluar_paspor, masa_berlaku_paspor_dari, masa_berlaku_paspor_sampai, foto_paspor_path,
          bank, no_rekening, nama_pemilik_rekening, foto_ktp_path, perekrut_id,
          target_minat, target_estimasi_harga, program_id, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
       [
-        user_id, nama, String(nik).trim(), tempat_lahir || null, tl || null, jk || null, ibu || null,
-        alamatKtp, alamatKtp, alamatDomisili, kp || null, wa, email || null, pkj || null,
+        user_id, nama, String(nik).trim(), tempat_lahir || null, tl || null, jk || null, ibu || null, ayah || null,
+        alamatKtp, alamatKtp, alamatDomisili, kp || null, wa, email || null, pkj || null, pendidikan || null,
         no_paspor?.trim() || null, tempat_keluar_paspor || null, masa_berlaku_paspor_dari || null, masa_berlaku_paspor_sampai || null, foto_paspor_path || null,
         bank || null, norek || null, pemilik || null, foto_ktp_path || null, perekrutIdFinal,
         targetMinatServer, targetHargaServer, target_program_id,
@@ -169,20 +169,20 @@ export async function POST(req) {
     // userSaatIni0 di atas), gak perlu ditulis ulang.
     await db.query(
       `UPDATE users SET perekrut_id = ?, tempat_lahir = ?, tanggal_lahir = ?,
-              jenis_kelamin = ?, nama_ibu = ?, alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?,
+              jenis_kelamin = ?, nama_ibu = ?, nama_ayah = ?, alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?,
               alamat_ktp_jalan = ?, alamat_ktp_no_rumah = ?, alamat_ktp_rt = ?, alamat_ktp_rw = ?,
               alamat_ktp_kelurahan = ?, alamat_ktp_kecamatan = ?, alamat_ktp_kota = ?,
               alamat_ktp_provinsi = ?, alamat_ktp_negara = ?,
-              pekerjaan = ?, bank = ?, no_rekening = ?, nama_pemilik_rekening = ?,
+              pekerjaan = ?, pendidikan_terakhir = ?, bank = ?, no_rekening = ?, nama_pemilik_rekening = ?,
               no_paspor = ?, tempat_keluar_paspor = ?, masa_berlaku_paspor_dari = ?, masa_berlaku_paspor_sampai = ?, foto_paspor_path = ?
        WHERE id = ?`,
       [
         perekrutIdFinal, tempat_lahir || null, tl || null,
-        jk || null, ibu || null, alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null,
+        jk || null, ibu || null, ayah || null, alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null,
         jalan || null, norumah || null, rt || null, rw || null,
         kel || null, kec || null, kota || null,
         provinsi || null, negara || null,
-        pkj || null, bank || null, norek || null, pemilik || null,
+        pkj || null, pendidikan || null, bank || null, norek || null, pemilik || null,
         no_paspor?.trim() || null, tempat_keluar_paspor || null, masa_berlaku_paspor_dari || null, masa_berlaku_paspor_sampai || null, foto_paspor_path || null,
         user_id,
       ]
