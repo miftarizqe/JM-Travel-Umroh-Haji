@@ -148,21 +148,17 @@ export async function GET(request) {
 }
 
 // Ringkasan Admin versi Head of Program — HANYA Sahabat Baitullah: jumlah anggota
-// aktif & akun Sahabat yang menunggu verifikasi (nama + kode saja, tanpa email/WA).
-// Antrian lain (jamaah, perwakilan, pembayaran, perlengkapan, dst) sengaja tidak ada.
+// aktif. Antrian aksi admin (akun menunggu verifikasi — dikonfirmasi user
+// 2026-10-06 — jamaah, perwakilan, pembayaran, perlengkapan, dst) sengaja tidak
+// dikirim sama sekali, bukan cuma disembunyikan di tampilan.
 async function ringkasanHop() {
   try {
     const [[{ aktif }]] = await pool.query(
       "SELECT COUNT(*) AS aktif FROM users WHERE role = 'sahabat_baitullah' AND status = 'active'"
     );
-    const [verifikasi] = await pool.query(
-      `SELECT id, name, name AS nama, kode_unik, role, created_at FROM users
-       WHERE role = 'sahabat_baitullah' AND NOT COALESCE(terverifikasi, 0) AND COALESCE(status, '') <> 'rejected'
-       ORDER BY created_at DESC`
-    );
     return Response.json({
       stat: { sahabat: Number(aktif) },
-      pending: { akun_verifikasi: verifikasi },
+      pending: {},
     });
   } catch (error) {
     console.error(error);

@@ -11,9 +11,12 @@ import { tangkapRefPerwakilan } from '@/lib/referralCapture';
 // dikirimin 'perwakilan', perwakilan gak pernah dikirimin 'sahabat_baitullah',
 // dst), jadi di sini cukup dikelompokkan aja: section yang gak ada isinya
 // otomatis gak muncul, gak perlu logic sembunyi-sembunyi tambahan per role.
-// Eksklusif Sahabat Baitullah PALING ATAS (dikonfirmasi user 2026-09-30) —
-// aman buat role lain karena server gak pernah ngirim publish_type ini ke
-// selain akun sahabat, jadi section-nya otomatis gak muncul buat mereka.
+// Paling atas buat akun Sahabat: kartu besar "Program Impian" (target yang
+// dipilih di awal pendaftaran), baru di bawahnya section Eksklusif Sahabat
+// Baitullah — kartunya sama kayak Reguler tapi beda warna (dikonfirmasi
+// user 2026-10-07). Aman buat role lain karena server gak pernah ngirim
+// publish_type sahabat_baitullah/target ke selain akun sahabat, jadi
+// section-nya otomatis gak muncul buat mereka.
 const SECTION_URUTAN = [
   { key: 'sahabat_baitullah', judul: '🤝 Program Eksklusif Sahabat Baitullah', deskripsi: 'Khusus anggota Program Sahabat Baitullah.' },
   { key: 'public', judul: '🕌 Program Reguler', deskripsi: 'Program umroh & haji terbuka untuk umum.' },
@@ -36,7 +39,7 @@ function BadgeTarget({ isTarget, isPendingNewChoice, targetSuspended }) {
 // admin dulu. Target LAMA yang lagi nonaktif sementara (ada pengajuan pindah
 // yang menunggu ACC) JUGA cuma "Lihat Detail", gak bisa checkout sampai
 // pengajuannya diproses.
-function TombolAksi({ p, user, router, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
+function TombolAksi({ p, user, router, v = VARIAN.reguler, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
   if (isPendingNewChoice) {
     return (
       <button onClick={() => router.push(`/program/${p.id}`)}
@@ -45,21 +48,14 @@ function TombolAksi({ p, user, router, isPendingNewChoice, targetSuspended, eksk
       </button>
     );
   }
-  // Eksklusif yang BUKAN target impian: cuma boleh dilihat, kartunya
-  // di-disable total (dikonfirmasi user 2026-09-30). Ganti target tetap bisa
-  // lewat tombol "🔄 Ganti Target Impian" di Beranda (dashboard/sahabat).
-  if (eksklusifBukanTarget) {
-    return (
-      <button disabled
-        className="w-full bg-gray-100 border-2 border-gray-200 text-gray-400 font-bold py-2.5 rounded-full cursor-not-allowed">
-        🔒 Bukan Target Impian Anda
-      </button>
-    );
-  }
-  if (targetSuspended) {
+  // Eksklusif yang BUKAN target impian: tetap bisa "Lihat Detail", kartunya
+  // gak lagi tampil kayak di-disable (dikonfirmasi user 2026-10-07). Ganti
+  // target tetap lewat alur S&K di halaman detail / tombol "🔄 Ganti Target
+  // Impian" di Beranda (dashboard/sahabat).
+  if (eksklusifBukanTarget || targetSuspended) {
     return (
       <button onClick={() => router.push(`/program/${p.id}`)}
-        className="w-full bg-white border-2 border-[#1A4FA0] group-hover:border-[#C9952A] text-[#1A4FA0] group-hover:text-[#C9952A] font-bold py-2.5 rounded-full transition-colors">
+        className={`w-full bg-white border-2 ${v.tombolOutline} group-hover:border-[#C9952A] group-hover:text-[#C9952A] font-bold py-2.5 rounded-full transition-colors`}>
         Lihat Detail →
       </button>
     );
@@ -67,16 +63,35 @@ function TombolAksi({ p, user, router, isPendingNewChoice, targetSuspended, eksk
   return (
     <button
       onClick={() => user ? router.push(`/checkout?prog_id=${p.id}`) : router.push('/login')}
-      className="w-full bg-[#1A4FA0] group-hover:bg-[#C9952A] text-white font-bold py-2.5 rounded-full transition-colors">
+      className={`w-full ${v.tombol} group-hover:bg-[#C9952A] text-white font-bold py-2.5 rounded-full transition-colors`}>
       {user ? 'Daftar Sekarang →' : 'Masuk untuk Daftar →'}
     </button>
   );
 }
 
-function KartuProgram({ p, user, router, isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
+// Warna kartu per varian — Reguler biru, Eksklusif Sahabat hijau zamrud
+// (dikonfirmasi user 2026-10-07: bentuk sama, warna dibedain).
+const VARIAN = {
+  reguler: {
+    header: 'from-[#0E2F6E] to-[#2060C0]', border: 'border-[#e0e8f0]',
+    kotak: 'bg-[#E8F0FB]', teks: 'text-[#0E2F6E]', bar: 'bg-[#1A4FA0]',
+    tombol: 'bg-[#1A4FA0]', tombolOutline: 'border-[#1A4FA0] text-[#1A4FA0]',
+  },
+  eksklusif: {
+    header: 'from-[#0B5D4B] to-[#16956F]', border: 'border-[#16956F]/30',
+    kotak: 'bg-[#E6F4EF]', teks: 'text-[#0B5D4B]', bar: 'bg-[#16956F]',
+    tombol: 'bg-[#0B5D4B]', tombolOutline: 'border-[#0B5D4B] text-[#0B5D4B]',
+  },
+};
+
+function KartuProgram({ p, user, router, varian = 'reguler', isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
+  const v = VARIAN[varian];
   return (
-    <div className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl transition-all group ${(isTarget || isPendingNewChoice) ? 'border-[#C9952A] ring-2 ring-[#C9952A]/30' : 'border-[#e0e8f0]'}`}>
-      <div className="bg-gradient-to-br from-[#0E2F6E] to-[#2060C0] p-5 text-white">
+    <div className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl transition-all group ${(isTarget || isPendingNewChoice) ? 'border-[#C9952A] ring-2 ring-[#C9952A]/30' : v.border}`}>
+      <div className={`bg-gradient-to-br ${v.header} p-5 text-white`}>
+        {varian === 'eksklusif' && (
+          <div className="inline-block bg-[#C9952A] text-[#0E2F6E] text-[10px] font-black tracking-wide px-2.5 py-1 rounded-full mb-2 mr-2">⭐ EKSKLUSIF</div>
+        )}
         <BadgeTarget isTarget={isTarget} isPendingNewChoice={isPendingNewChoice} targetSuspended={targetSuspended} />
         <div className="text-xs opacity-75 mb-1">{p.type} · {p.durasi} Hari</div>
         <div className="text-lg font-bold mb-1">{p.name}</div>
@@ -90,9 +105,9 @@ function KartuProgram({ p, user, router, isTarget, isPendingNewChoice, targetSus
             {label:'Eksekutif', paket:'eksekutif'},
             {label:'Signature', paket:'signature'}
           ].map(ak => (
-            <div key={ak.label} className="flex-1 bg-[#E8F0FB] rounded-lg p-2 text-center">
+            <div key={ak.label} className={`flex-1 ${v.kotak} rounded-lg p-2 text-center`}>
               <div className="text-[10px] text-gray-400">{ak.label}</div>
-              <div className="text-xs font-bold text-[#0E2F6E]">Rp {(hargaTermurahPaket(p, ak.paket)/1000000).toFixed(0)}jt</div>
+              <div className={`text-xs font-bold ${v.teks}`}>Rp {(hargaTermurahPaket(p, ak.paket)/1000000).toFixed(0)}jt</div>
             </div>
           ))}
         </div>
@@ -103,14 +118,14 @@ function KartuProgram({ p, user, router, isTarget, isPendingNewChoice, targetSus
         </div>
 
         <div className="h-1.5 bg-[#e0e8f0] rounded-full overflow-hidden mb-4">
-          <div className="h-full bg-[#1A4FA0] rounded-full transition-all"
+          <div className={`h-full ${v.bar} rounded-full transition-all`}
             style={{width:`${Math.round(p.used_seat/p.total_seat*100)}%`}}></div>
         </div>
 
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="text-xs text-gray-400">Mulai dari</div>
-            <div className="text-xl font-black text-[#0E2F6E]">Rp {(hargaTermurahProgram(p)/1000000).toFixed(0)} jt</div>
+            <div className={`text-xl font-black ${v.teks}`}>Rp {(hargaTermurahProgram(p)/1000000).toFixed(0)} jt</div>
           </div>
           <div className="text-right">
             <div className="text-xs text-gray-400">DP</div>
@@ -118,30 +133,29 @@ function KartuProgram({ p, user, router, isTarget, isPendingNewChoice, targetSus
           </div>
         </div>
 
-        <TombolAksi p={p} user={user} router={router} isPendingNewChoice={isPendingNewChoice}
+        <TombolAksi p={p} user={user} router={router} v={v} isPendingNewChoice={isPendingNewChoice}
           targetSuspended={targetSuspended} eksklusifBukanTarget={eksklusifBukanTarget} />
       </div>
     </div>
   );
 }
 
-// Kartu Program Eksklusif Sahabat Baitullah — sengaja BEDA dari kartu
-// reguler (dikonfirmasi user 2026-09-30): banner lebar penuh, aksen emas,
-// info disusun horizontal di layar lebar. Aturan badge/tombol sama persis
-// (BadgeTarget/TombolAksi di atas).
-function KartuEksklusif({ p, user, router, isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
+// Kartu besar "Program Impian" — target yang dipilih Sahabat di awal
+// pendaftaran (plus pilihan paket baru kalau lagi nunggu ACC ganti target).
+// Banner lebar penuh warna emas, sengaja beda dari kartu Reguler (biru) &
+// Eksklusif (hijau) — dikonfirmasi user 2026-10-07. Aturan badge/tombol
+// sama persis (BadgeTarget/TombolAksi di atas).
+function KartuImpian({ p, user, router, isTarget, isPendingNewChoice, targetSuspended }) {
   const sisaSeat = p.total_seat - p.used_seat;
-  // Pending pilihan baru TETAP bisa diklik (itu pilihan Sahabat sendiri yang
-  // lagi nunggu ACC) — yang di-disable cuma eksklusif lain yang gak dipilih.
-  const nonaktif = eksklusifBukanTarget && !isPendingNewChoice;
   return (
-    <div aria-disabled={nonaktif || undefined}
-      className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0E2F6E] via-[#16408F] to-[#0E2F6E] text-white border-2 shadow-xl ${nonaktif ? 'border-gray-300 grayscale opacity-60 pointer-events-none select-none' : 'border-[#C9952A]'}`}>
-      <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-[#C9952A]/20" aria-hidden="true" />
+    <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#7A5410] via-[#C9952A] to-[#8A6414] text-white border-2 border-[#F3D58A] shadow-xl">
+      <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-white/15" aria-hidden="true" />
       <div className="absolute -left-10 -bottom-20 w-48 h-48 rounded-full bg-white/5" aria-hidden="true" />
       <div className="relative grid md:grid-cols-5 gap-5 p-6 md:p-8">
         <div className="md:col-span-3">
-          <div className="inline-block bg-[#C9952A] text-[#0E2F6E] text-[10px] font-black tracking-wide px-2.5 py-1 rounded-full mb-2 mr-2">⭐ EKSKLUSIF SAHABAT BAITULLAH</div>
+          {p.publish_type === 'sahabat_baitullah' && (
+            <div className="inline-block bg-[#0E2F6E] text-[#F3D58A] text-[10px] font-black tracking-wide px-2.5 py-1 rounded-full mb-2 mr-2">⭐ EKSKLUSIF SAHABAT BAITULLAH</div>
+          )}
           <BadgeTarget isTarget={isTarget} isPendingNewChoice={isPendingNewChoice} targetSuspended={targetSuspended} />
           <div className="text-xs opacity-75 mb-1">{p.type} · {p.durasi} Hari · 📅 {p.tanggal}</div>
           <div className="text-2xl md:text-3xl font-black leading-tight mb-2">{p.name}</div>
@@ -152,9 +166,9 @@ function KartuEksklusif({ p, user, router, isTarget, isPendingNewChoice, targetS
               {label:'Eksekutif', paket:'eksekutif'},
               {label:'Signature', paket:'signature'}
             ].map(ak => (
-              <div key={ak.label} className="flex-1 bg-white/10 border border-white/15 rounded-xl p-2 text-center">
-                <div className="text-[10px] opacity-70">{ak.label}</div>
-                <div className="text-sm font-bold text-[#F3D58A]">Rp {(hargaTermurahPaket(p, ak.paket)/1000000).toFixed(0)}jt</div>
+              <div key={ak.label} className="flex-1 bg-white/15 border border-white/25 rounded-xl p-2 text-center">
+                <div className="text-[10px] opacity-80">{ak.label}</div>
+                <div className="text-sm font-bold text-white">Rp {(hargaTermurahPaket(p, ak.paket)/1000000).toFixed(0)}jt</div>
               </div>
             ))}
           </div>
@@ -177,18 +191,18 @@ function KartuEksklusif({ p, user, router, isTarget, isPendingNewChoice, targetS
             </div>
           </div>
           <TombolAksi p={p} user={user} router={router} isPendingNewChoice={isPendingNewChoice}
-            targetSuspended={targetSuspended} eksklusifBukanTarget={eksklusifBukanTarget} />
+            targetSuspended={targetSuspended} />
         </div>
       </div>
     </div>
   );
 }
 
-// Carousel full-width buat program eksklusif (ala carousel Bootstrap,
+// Carousel full-width buat kartu Program Impian (ala carousel Bootstrap,
 // dikonfirmasi user 2026-09-30) — tanpa library: scroll-snap native jadi
 // bisa digeser jari di HP, plus tombol ‹ › & titik indikator. Kontrol cuma
 // muncul kalau slide-nya lebih dari satu.
-function CarouselEksklusif({ children }) {
+function CarouselImpian({ children }) {
   const trackRef = useRef(null);
   const [aktif, setAktif] = useState(0);
   const jumlah = children.length;
@@ -242,6 +256,14 @@ export default function ProgramsPage() {
 
   useEffect(() => { tangkapRefPerwakilan(); }, []);
 
+  // Kartu besar paling atas: target impian Sahabat, plus pilihan paket baru
+  // yang lagi nunggu ACC (kalau ada) — urutannya target dulu.
+  const impian = [targetProgramId, targetGantiProgramId]
+    .filter(Boolean)
+    .map(id => programs.find(p => p.id === id))
+    .filter(Boolean);
+  const impianIds = new Set(impian.map(p => p.id));
+
   useEffect(() => {
     fetch('/api/programs')
       .then(r => r.json())
@@ -262,39 +284,41 @@ export default function ProgramsPage() {
       )}
 
       <div className="space-y-10">
+        {impian.length > 0 && (
+          <div>
+            <div className="mb-4">
+              <h2 className="text-lg font-bold text-[#0E2F6E]">🎯 Program Impian Anda</h2>
+              <p className="text-xs text-gray-400">Program yang Anda pilih sebagai target di awal pendaftaran Sahabat Baitullah.</p>
+            </div>
+            <CarouselImpian>
+              {impian.map(p => (
+                <KartuImpian key={p.id} p={p} user={user} router={router}
+                  isTarget={p.id === targetProgramId}
+                  isPendingNewChoice={!!targetGantiProgramId && p.id === targetGantiProgramId}
+                  targetSuspended={p.id === targetProgramId && !!targetGantiProgramId} />
+              ))}
+            </CarouselImpian>
+          </div>
+        )}
+
         {SECTION_URUTAN.map(s => {
-          let isi = programs.filter(p => (p.publish_type || 'public') === s.key);
+          // Program yang udah tampil di kartu Program Impian gak diulang lagi.
+          const isi = programs.filter(p => (p.publish_type || 'public') === s.key && !impianIds.has(p.id));
           if (isi.length === 0) return null;
-          // Program target Sahabat Baitullah SELALU disematkan paling
-          // depan section ini (dikonfirmasi user 2026-09-29) — bukan urut
-          // created_at biasa kayak section lain, biar jamaah langsung
-          // lihat progress ke target sebelum ngelirik paket lain.
-          if (s.key === 'sahabat_baitullah' && targetProgramId) {
-            isi = [...isi].sort((a, b) => (a.id === targetProgramId ? -1 : b.id === targetProgramId ? 1 : 0));
-          }
           return (
             <div key={s.key}>
               <div className="mb-4">
                 <h2 className="text-lg font-bold text-[#0E2F6E]">{s.judul}</h2>
                 <p className="text-xs text-gray-400">{s.deskripsi}</p>
               </div>
-              {s.key === 'sahabat_baitullah' ? (
-                <CarouselEksklusif>
-                  {isi.map(p => (
-                    <KartuEksklusif key={p.id} p={p} user={user} router={router}
-                      isTarget={p.id === targetProgramId}
-                      isPendingNewChoice={!!targetGantiProgramId && p.id === targetGantiProgramId}
-                      targetSuspended={p.id === targetProgramId && !!targetGantiProgramId}
-                      eksklusifBukanTarget={!!targetProgramId && p.id !== targetProgramId} />
-                  ))}
-                </CarouselEksklusif>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {isi.map(p => (
-                    <KartuProgram key={p.id} p={p} user={user} router={router} />
-                  ))}
-                </div>
-              )}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {isi.map(p => s.key === 'sahabat_baitullah' ? (
+                  <KartuProgram key={p.id} p={p} user={user} router={router} varian="eksklusif"
+                    eksklusifBukanTarget={!!targetProgramId && p.id !== targetProgramId} />
+                ) : (
+                  <KartuProgram key={p.id} p={p} user={user} router={router} />
+                ))}
+              </div>
             </div>
           );
         })}
