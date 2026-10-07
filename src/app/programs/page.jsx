@@ -48,18 +48,11 @@ function TombolAksi({ p, user, router, v = VARIAN.reguler, isPendingNewChoice, t
       </button>
     );
   }
-  // Eksklusif yang BUKAN target impian: cuma boleh dilihat, kartunya
-  // di-disable total (dikonfirmasi user 2026-09-30). Ganti target tetap bisa
-  // lewat tombol "🔄 Ganti Target Impian" di Beranda (dashboard/sahabat).
-  if (eksklusifBukanTarget) {
-    return (
-      <button disabled
-        className="w-full bg-gray-100 border-2 border-gray-200 text-gray-400 font-bold py-2.5 rounded-full cursor-not-allowed">
-        🔒 Bukan Target Impian Anda
-      </button>
-    );
-  }
-  if (targetSuspended) {
+  // Eksklusif yang BUKAN target impian: tetap bisa "Lihat Detail", kartunya
+  // gak lagi tampil kayak di-disable (dikonfirmasi user 2026-10-07). Ganti
+  // target tetap lewat alur S&K di halaman detail / tombol "🔄 Ganti Target
+  // Impian" di Beranda (dashboard/sahabat).
+  if (eksklusifBukanTarget || targetSuspended) {
     return (
       <button onClick={() => router.push(`/program/${p.id}`)}
         className={`w-full bg-white border-2 ${v.tombolOutline} group-hover:border-[#C9952A] group-hover:text-[#C9952A] font-bold py-2.5 rounded-full transition-colors`}>
@@ -93,10 +86,8 @@ const VARIAN = {
 
 function KartuProgram({ p, user, router, varian = 'reguler', isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
   const v = VARIAN[varian];
-  const nonaktif = eksklusifBukanTarget && !isPendingNewChoice;
   return (
-    <div aria-disabled={nonaktif || undefined}
-      className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl transition-all group ${(isTarget || isPendingNewChoice) ? 'border-[#C9952A] ring-2 ring-[#C9952A]/30' : v.border} ${nonaktif ? 'grayscale opacity-60' : ''}`}>
+    <div className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl transition-all group ${(isTarget || isPendingNewChoice) ? 'border-[#C9952A] ring-2 ring-[#C9952A]/30' : v.border}`}>
       <div className={`bg-gradient-to-br ${v.header} p-5 text-white`}>
         {varian === 'eksklusif' && (
           <div className="inline-block bg-[#C9952A] text-[#0E2F6E] text-[10px] font-black tracking-wide px-2.5 py-1 rounded-full mb-2 mr-2">⭐ EKSKLUSIF</div>
