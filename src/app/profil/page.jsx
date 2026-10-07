@@ -32,7 +32,7 @@ export default function ProfilPage() {
   const [saving, setSaving] = useState(false);
   const [editingRekening, setEditingRekening] = useState(false);
   const [formRekening, setFormRekening] = useState({
-    nik: '', alamat: '', bank: '', no_rekening: '', nama_pemilik_rekening: '', no_paspor: '',
+    nik: '', alamat_domisili: '', bank: '', no_rekening: '', nama_pemilik_rekening: '', no_paspor: '',
     no_rekening_bsi_biasa: '', no_rekening_tabungan_umroh: '', nama_pemilik_rekening_umroh: '',
   });
   const [savingRekening, setSavingRekening] = useState(false);
@@ -70,7 +70,7 @@ export default function ProfilPage() {
           setUser(d.user);
           setForm({ name: d.user.name || '', email: d.user.email || '', wa: d.user.wa || '' });
           setFormRekening({
-            nik: d.user.nik || '', alamat: d.user.alamat || '', bank: d.user.bank || '',
+            nik: d.user.nik || '', alamat_domisili: d.user.alamat_domisili || '', bank: d.user.bank || '',
             no_rekening: d.user.no_rekening || '', nama_pemilik_rekening: d.user.nama_pemilik_rekening || '',
             no_paspor: d.user.no_paspor || '',
             no_rekening_bsi_biasa: d.user.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: d.user.no_rekening_tabungan_umroh || '',
@@ -95,12 +95,16 @@ export default function ProfilPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cetak ulang blanko SK-CIF+Surat Pemblokiran (dipindah dari Beranda ke
-  // sini, dikonfirmasi user 2026-09-29 — dokumen dikonsolidasi 1 tempat).
+  // Cetak ulang blanko SPK-AK + SK-CIF + Surat Pemblokiran, digabung jadi 1
+  // PDF (dipindah dari Beranda ke sini, dikonfirmasi user 2026-09-29 —
+  // dokumen dikonsolidasi 1 tempat; diperluas 2026-10-07 — sebelumnya cuma
+  // SK-CIF+Pemblokiran, Surat Perjanjian/SPK-AK ketinggalan padahal
+  // endpoint gabungan 3-dokumennya udah ada, dipakai di step pendaftaran
+  // "Metode TTD" — reuse di sini, bukan bikin baru).
   async function unduhPdfDokumen() {
     setGeneratingPdfSkCif(true);
     try {
-      const res = await fetch('/api/sahabat/dokumen-legal/pdf-otomatis', { method: 'POST' });
+      const res = await fetch('/api/sahabat/dokumen-legal/unduh-lengkap');
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         alert(d.error || 'Gagal membuat PDF');
@@ -143,7 +147,7 @@ export default function ProfilPage() {
     // gak kena guard 403 di server cuma gara2 field-nya "ada di body"
     // (walau value-nya gak berubah — server ngecek keberadaan key, bukan
     // cuma isinya berubah apa nggak).
-    const payload = isAdminSelf ? { ...formRekening } : { alamat: formRekening.alamat, no_paspor: formRekening.no_paspor };
+    const payload = isAdminSelf ? { ...formRekening } : { alamat_domisili: formRekening.alamat_domisili, no_paspor: formRekening.no_paspor };
     const berubahSensitif = isAdminSelf ? FIELD_SENSITIF_REKENING.filter(k => formRekening[k] !== (user[k] || '')) : [];
     if (berubahSensitif.length > 0 && !confirm('Yakin ubah data rekening/NIK? Perubahan ini tercatat & admin akan diberi tahu.')) {
       return;
@@ -206,7 +210,7 @@ export default function ProfilPage() {
   const lbl = "block text-xs font-semibold text-[#0E2F6E] mb-1.5";
 
   const roleLabel = {
-    jamaah: '🧳 Jamaah', perwakilan: '🏢 Perwakilan', sahabat: '🤝 Sahabat Baitullah', admin: '⚙️ Admin', super_admin: '🔒 Super Admin',
+    jamaah: '🧳 Jamaah', perwakilan: '🏢 Perwakilan', sahabat_baitullah: '🤝 Sahabat Baitullah', hop: '👑 Head of Program', admin: '⚙️ Admin', super_admin: '🔒 Super Admin',
   }[user.role] || user.role;
 
   return (
@@ -276,7 +280,12 @@ export default function ProfilPage() {
                 data rahasia bank, gak diinput siapa pun lagi). */}
             <div className="bg-gray-50 rounded-lg p-2 text-center mb-3">
               <div className="text-lg">{user.tabungan_haji_status ? '✅' : '⏳'}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">Tabungan Umroh</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">Rekening Tabungan Umroh</div>
+              <div className="text-[10px] text-gray-400 mt-0.5">
+                {user.tabungan_haji_status
+                  ? 'Rekening BSI khusus tabungan umroh Anda sudah aktif — ujroh & setoran masuk ke sini.'
+                  : 'Belum ada rekening tabungan umroh — isi di halaman Status Pendaftaran begitu rekeningnya jadi.'}
+              </div>
             </div>
             {(user.dokumen?.spk_ak || user.dokumen?.sk_cif || user.dokumen?.surat_pemblokiran) && (
               <div className="space-y-1 mb-3">
@@ -295,10 +304,10 @@ export default function ProfilPage() {
                 )}
               </div>
             )}
-            <div className="text-[10px] text-gray-400 mb-2">Butuh cetak ulang SK-CIF & Surat Pemblokiran (blanko kosong, identitas Anda sudah terisi otomatis)?</div>
+            <div className="text-[10px] text-gray-400 mb-2">Butuh baca ulang/cetak ulang Surat Perjanjian, SK-CIF & Surat Pemblokiran (identitas Anda sudah terisi otomatis)?</div>
             <button onClick={unduhPdfDokumen} disabled={generatingPdfSkCif}
               className="bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-xs font-bold px-4 py-2 rounded-lg">
-              {generatingPdfSkCif ? 'Membuat PDF...' : 'Unduh PDF (SK-CIF & Surat Pemblokiran)'}
+              {generatingPdfSkCif ? 'Membuat PDF...' : 'Unduh PDF (Surat Perjanjian, SK-CIF & Surat Pemblokiran)'}
             </button>
           </div>
         )}
@@ -494,8 +503,9 @@ export default function ProfilPage() {
                 </div>
               )}
               <div>
-                <label className={lbl}>Alamat</label>
-                <input value={formRekening.alamat} onChange={e => setFormRekening({...formRekening, alamat: e.target.value})} className={inp}/>
+                <label className={lbl}>Alamat Domisili</label>
+                <input value={formRekening.alamat_domisili} onChange={e => setFormRekening({...formRekening, alamat_domisili: e.target.value})} className={inp}/>
+                <div className="text-[10px] text-gray-400 mt-1">Alamat sesuai KTP cuma bisa diubah admin — ini alamat domisili/tempat tinggal Anda sekarang.</div>
               </div>
               <div>
                 <label className={lbl}>No. Paspor <span className="text-gray-400 font-normal">(opsional, boleh menyusul)</span></label>
@@ -521,7 +531,7 @@ export default function ProfilPage() {
               )}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => { setEditingRekening(false); setFormRekening({
-                    nik: user.nik||'', alamat: user.alamat||'', bank: user.bank||'', no_rekening: user.no_rekening||'',
+                    nik: user.nik||'', alamat_domisili: user.alamat_domisili||'', bank: user.bank||'', no_rekening: user.no_rekening||'',
                     nama_pemilik_rekening: user.nama_pemilik_rekening||'', no_paspor: user.no_paspor||'',
                     no_rekening_bsi_biasa: user.no_rekening_bsi_biasa||'',
                     no_rekening_tabungan_umroh: user.no_rekening_tabungan_umroh||'',
