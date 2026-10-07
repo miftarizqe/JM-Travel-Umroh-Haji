@@ -19,10 +19,10 @@ export async function POST(req) {
   try {
     const body = await req.json();
     const {
-      nama, tempat_lahir, tl, jk, ibu, foto_ktp_path,
+      nama, tempat_lahir, tl, jk, ibu, ayah, foto_ktp_path,
       jalan, norumah, rt, rw, kp, kel, kec, kota, provinsi, negara,
       sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
-      pkj,
+      pkj, pendidikan,
       bank, norek, pemilik,
       perekrut_id,
     } = body;
@@ -128,14 +128,14 @@ export async function POST(req) {
     // PATCH /api/daftar-perwakilan/metode.
     const [result] = await db.query(
       `INSERT INTO agen_pendaftaran
-        (user_id, role_diajukan, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu,
-         alamat, alamat_ktp, alamat_domisili, foto_ktp_path, kode_pos, wa, email, pekerjaan,
+        (user_id, role_diajukan, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu, nama_ayah,
+         alamat, alamat_ktp, alamat_domisili, foto_ktp_path, kode_pos, wa, email, pekerjaan, pendidikan_terakhir,
          bank, no_rekening, nama_pemilik_rekening,
          perekrut_id, jadwal_kunjungan, metode, status, created_at)
-       VALUES (?, 'perwakilan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'pending', NOW())`,
+       VALUES (?, 'perwakilan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'pending', NOW())`,
       [
-        user_id, nama, String(nik).trim(), tempat_lahir || null, tl, jk, ibu,
-        alamatKtp, alamatKtp, alamatDomisili, foto_ktp_path, kp || null, wa, email, pkj || null,
+        user_id, nama, String(nik).trim(), tempat_lahir || null, tl, jk, ibu, ayah || null,
+        alamatKtp, alamatKtp, alamatDomisili, foto_ktp_path, kp || null, wa, email, pkj || null, pendidikan || null,
         bank, norek, pemilik,
         perekrutIdFinal,
       ]
@@ -155,8 +155,8 @@ export async function POST(req) {
     await db.query(
       `UPDATE users SET role = 'perwakilan', status = 'pending', reg_status = 'pending',
               reg_metode = NULL, reg_jadwal = NULL, perekrut_id = ?,
-              tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?,
-              alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?, pekerjaan = ?,
+              tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?, nama_ayah = ?,
+              alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?, pekerjaan = ?, pendidikan_terakhir = ?,
               alamat_ktp_jalan = ?, alamat_ktp_no_rumah = ?, alamat_ktp_rt = ?, alamat_ktp_rw = ?,
               alamat_ktp_kelurahan = ?, alamat_ktp_kecamatan = ?, alamat_ktp_kota = ?,
               alamat_ktp_provinsi = ?, alamat_ktp_negara = ?,
@@ -164,8 +164,8 @@ export async function POST(req) {
        WHERE id = ?`,
       [
         perekrutIdFinal,
-        tempat_lahir || null, tl, jk, ibu,
-        alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null, pkj || null,
+        tempat_lahir || null, tl, jk, ibu, ayah || null,
+        alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null, pkj || null, pendidikan || null,
         jalan || null, norumah || null, rt || null, rw || null,
         kel || null, kec || null, kota || null,
         provinsi || null, negara || null,

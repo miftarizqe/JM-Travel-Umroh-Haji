@@ -5,13 +5,14 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung';
 import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, validasiIsianJamaah } from '@/lib/dataJamaah';
+import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 
 const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
 
 const emptyJamaah = () => ({
   nama: '', nik: '', paspor: '', tl: '', ttl: '', exp_mulai: '', exp_paspor: '',
   tkp: '', jk: 'Laki-Laki', alamat: '', alamat_kirim: '', wa: '', email: '',
-  pkj: '', penyakit: '', mahram: '', hub_mahram: 'Suami/Istri',
+  pkj: '', ayah: '', pendidikan: '', penyakit: '', mahram: '', hub_mahram: 'Suami/Istri',
   kdnama: '', kdwa: '', kdhub: '',
   // Dokumen pendukung — OPSIONAL, gak wajib buat lanjut submit formulir.
   doc_paspor: '', doc_kk: '', doc_ktp: '', doc_vaksin: '', doc_foto: ''
@@ -581,6 +582,20 @@ function FormJamaahPageInner() {
               <div>
                 <label className={lbl}>Email (opsional)</label>
                 <input value={j.email} onChange={e => setField('email', e.target.value)} className={inp}/>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={lbl}>Nama Ayah Kandung (opsional, buat Siskopatuh)</label>
+                <input value={j.ayah} onChange={e => setField('ayah', e.target.value)} className={inp}/>
+              </div>
+              <div>
+                <label className={lbl}>Pendidikan Terakhir (opsional, buat Siskopatuh)</label>
+                <select value={j.pendidikan} onChange={e => setField('pendidikan', e.target.value)} className={inp}>
+                  <option value="">— Pilih —</option>
+                  {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
               </div>
             </div>
 
