@@ -3,6 +3,7 @@ import { wajibLogin } from '@/lib/auth';
 import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
+import { saldoSahabat } from '@/lib/saldoSahabat';
 
 // POST /api/sahabat/checkout-mandiri — checkout Program Sahabat Baitullah
 // (publish_type='sahabat_baitullah') buat DIRI SENDIRI. Beda dari
@@ -73,20 +74,13 @@ export async function POST(request) {
     try {
       await conn.beginTransaction();
 
-      // Saldo tersedia — jenis SAMA kayak /api/sahabat/dashboard, DITAMBAH
-      // pemakaian_saldo_sahabat biar pemakaian booking sebelumnya udah
-      // kepotong. 'setoran_mandiri_sahabat' SEMPAT ketinggalan dari daftar
-      // ini (bug ditemukan & diperbaiki 2026-09-29) — akibatnya setoran
-      // mandiri jamaah (nabung sendiri ke rekening tabungan umroh pribadi,
-      // dicatat admin via /api/admin/sahabat/setoran-mandiri) kehitung di
-      // dashboard tapi TIDAK kehitung di sini pas checkout, jadi jamaah
-      // dikira kurang saldo padahal sebenarnya udah cukup.
-      const [saldoRows] = await conn.query(
-        `SELECT nominal FROM komisi_ledger WHERE penerima_id = ? AND dikonfirmasi_at IS NOT NULL
-         AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
-        [auth.user.id]
-      );
-      const saldoTersedia = Math.max(0, saldoRows.reduce((s, r) => s + Number(r.nominal || 0), 0));
+      // Saldo tersedia — pakai fungsi pusat saldoSahabat() (dipakai sama di
+      // /api/sahabat/dashboard, dll) biar gak ada lagi query duplikat yang
+      // gampang ketinggalan sinkron (bug 2026-09-29: 'setoran_mandiri_sahabat'
+      // sempat ketinggalan dari daftar jenis di sini doang). Pemakaian saldo
+      // checkout sebelumnya (confirmed MAUPUN masih pending hold) otomatis
+      // ikut kepotong lewat fungsi ini (lihat komentar di saldoSahabat()).
+      const saldoTersedia = await saldoSahabat(conn, auth.user.id);
 
       const hasil = await buatSatuBooking(conn, {
         user_id: auth.user.id, ordered_by: auth.user.id, ordered_by_role: 'sahabat_baitullah',
