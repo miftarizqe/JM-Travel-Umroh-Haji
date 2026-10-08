@@ -11,7 +11,7 @@ export async function GET(request) {
       `SELECT p.id, p.user_id, u.name AS user_name, u.kode_unik, u.no_rekening_tabungan_umroh,
               p.nominal, p.bukti_path, p.bukti_nama, p.created_at
        FROM sahabat_setoran_mandiri_pengajuan p
-       JOIN users u ON u.id = p.user_id
+       JOIN users u ON u.id = p.user_id COLLATE utf8mb4_unicode_ci
        WHERE p.status = 'diajukan'
        ORDER BY p.created_at ASC`
     );

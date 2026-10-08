@@ -71,6 +71,7 @@ function labelItemCluster(key, it) {
     : key==='penyesuaian_harga_pending' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.harga_lama)} → ${rp(it.harga_baru)})`
     : key==='refund_belum_ditransfer' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.refund_nominal)})`
     : key==='kalkulator_perwakilan_pending' ? `${it.perwakilan_nama||'Perwakilan'} — ${it.nama_quote||it.template_nama} (${rp(it.harga_jual_perwakilan)})`
+    : key==='setoran_mandiri' ? `${it.nama||'User'} (${it.kode_unik||'-'}) — ${rp(it.nominal)} · ${tgl(it.created_at)}`
     : key==='janji_temu_kantor' ? `${it.nama||'User'} (${it.kode_unik||'-'}) — ${it.sumber} — ${tgl(it.tanggal)}`
     : `${it.name} — ${it.email||it.wa||''}`
   );
@@ -320,6 +321,17 @@ function AdminPageInner() {
       setActiveTab(tabParam);
       setOpenProgram(null);
     }
+  }
+
+  // Pindah tab dari dalam halaman (quick action "Perlu Perhatian", dst) —
+  // WAJIB lewat URL juga (dikonfirmasi user 2026-10-08): sidebar nentuin
+  // menu aktif dari ?tab= (matchTab di Layout.jsx), jadi setActiveTab doang
+  // bikin sidebar nyangkut di Dashboard & URL gak berubah. push (bukan
+  // replace) biar tombol Back balik ke Dashboard.
+  function pindahTab(tab) {
+    setActiveTab(tab);
+    setSyncedTabParam(tab);
+    router.push(`/admin?tab=${tab}`);
   }
 
   useEffect(() => {
@@ -866,6 +878,10 @@ function AdminPageInner() {
     {key:'penyesuaian_harga_pending', label:'Penyesuaian Harga Menunggu Persetujuan', icon:'💰', color:'border-orange-200 bg-orange-50', group:'program_harga', items: pending.penyesuaian_harga_pending||[]},
 
     {key:'pembayaran', label:'Pending Konfirmasi Pembayaran', icon:'💳', color:'border-red-200 bg-red-50', group:'pembayaran_dokumen', items: pending.pembayaran||[]},
+    // Pindah dari kartu di section "🤝 Sahabat Baitullah" (ketutup default,
+    // gampang kelewat) — dikonfirmasi user 2026-10-08. Ditaruh di grup
+    // Pembayaran karena sama-sama uang masuk yang nunggu konfirmasi admin.
+    {key:'setoran_mandiri', label:'Pengajuan Setoran Mandiri Sahabat Baitullah', icon:'💵', color:'border-emerald-200 bg-emerald-50', group:'pembayaran_dokumen', items: pending.setoran_mandiri||[]},
     {key:'ttu_belum_dikirim', label:'Tanda Terima Uang Belum Dikirim', icon:'🧾', color:'border-pink-200 bg-pink-50', group:'pembayaran_dokumen', items: pending.ttu_belum_dikirim||[]},
     {key:'perjanjian_belum_selesai', label:'Perjanjian Jamaah Belum Selesai', icon:'📜', color:'border-indigo-200 bg-indigo-50', group:'pembayaran_dokumen', items: pending.perjanjian_belum_selesai||[]},
 
@@ -1033,7 +1049,7 @@ function AdminPageInner() {
                     {groupClusters.map(c => {
                       const isOpen = expandCluster === c.key;
                       const tampil = isOpen ? c.items : c.items.slice(0,3);
-                      const bisaKlikItem = ['perlengkapan','kalkulator_lead','ttu_belum_dikirim','perjanjian_belum_selesai','penyesuaian_harga_pending','refund_belum_ditransfer','kalkulator_perwakilan_pending','janji_temu_kantor'].includes(c.key);
+                      const bisaKlikItem = ['setoran_mandiri','perlengkapan','kalkulator_lead','ttu_belum_dikirim','perjanjian_belum_selesai','penyesuaian_harga_pending','refund_belum_ditransfer','kalkulator_perwakilan_pending','janji_temu_kantor'].includes(c.key);
                       // Janji temu tampil sebagai agenda (blok kalender + sisa
                       // hari, sama kayak versi HoP) — lebar penuh biar gak
                       // sempit (dikonfirmasi user 2026-10-08, sebelumnya cuma
@@ -1064,7 +1080,7 @@ function AdminPageInner() {
                                 </div>
                               ) : (
                               <div key={idx}
-                                onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : c.key==='janji_temu_kantor' ? () => router.push('/admin/janji-temu-kantor') : undefined}
+                                onClick={c.key==='setoran_mandiri' ? () => router.push('/admin/sahabat/setoran-mandiri-pengajuan') : c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { pindahTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : c.key==='janji_temu_kantor' ? () => router.push('/admin/janji-temu-kantor') : undefined}
                                 className={`text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate ${bisaKlikItem ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
                                 {labelItemCluster(c.key, it)}
                               </div>
@@ -1076,18 +1092,19 @@ function AdminPageInner() {
                               </button>
                             )}
                             <button onClick={() => {
-                              if (c.key==='pembayaran') setActiveTab('payments');
-                              else if (c.key==='akun_verifikasi') { setActiveTab('users'); setFilterUserStatus(''); }
+                              if (c.key==='pembayaran') pindahTab('payments');
+                              else if (c.key==='setoran_mandiri') router.push('/admin/sahabat/setoran-mandiri-pengajuan');
+                              else if (c.key==='akun_verifikasi') { pindahTab('users'); setFilterUserStatus(''); }
                               else if (c.key==='sahabat_baru_daftar') router.push('/admin/sahabat');
-                              else if (c.key.startsWith('akun_')) { setActiveTab('users'); setFilterUserStatus('pending'); }
-                              else if (c.key==='program_umroh') setActiveTab('programs');
-                              else if (c.key==='custom_harga') setActiveTab('customharga');
+                              else if (c.key.startsWith('akun_')) { pindahTab('users'); setFilterUserStatus('pending'); }
+                              else if (c.key==='program_umroh') pindahTab('programs');
+                              else if (c.key==='custom_harga') pindahTab('customharga');
                               else if (c.key==='perlengkapan' && c.items[0]) router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(c.items[0].prog_name)}`);
                               else if (c.key==='kalkulator_lead') router.push('/admin/kalkulator-leads');
                               else if (c.key==='ttu_belum_dikirim' && c.items[0]) router.push(`/admin/cetak-invoice/${c.items[0].id}`);
                               else if (c.key==='perjanjian_belum_selesai' && c.items[0]) router.push(`/admin/cetak-perjanjian/${c.items[0].id}`);
                               else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
-                              else if (c.key==='refund_belum_ditransfer' && c.items[0]) { setActiveTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
+                              else if (c.key==='refund_belum_ditransfer' && c.items[0]) { pindahTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
                               else if (c.key==='kalkulator_perwakilan_pending') router.push('/admin/kalkulator-perwakilan');
                               else if (c.key==='janji_temu_kantor') router.push('/admin/janji-temu-kantor');
                             }} className="block text-[11px] font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
@@ -1187,7 +1204,6 @@ function AdminPageInner() {
                 {/* Antrian Sahabat yang juga punya badge di sidebar (dikonfirmasi
                     user 2026-10-08) — biar gak cuma ketahuan dari sidebar. */}
                 {sahabatAntrian && [
-                  { icon: '💵', label: 'Pengajuan Setoran Mandiri', path: '/admin/sahabat/setoran-mandiri-pengajuan' },
                   { icon: '🎯', label: 'Pengajuan Ganti Target', path: '/admin/sahabat/ganti-target' },
                   { icon: '⚠️', label: 'Laporan Data dari HoP', path: '/admin/sahabat/laporan-data' },
                 ].map(k => {
@@ -1247,7 +1263,7 @@ function AdminPageInner() {
                       ) : (pending.akun_perwakilan||[]).map(u => (
                         <div key={u.id} className="text-xs text-gray-500 bg-white/60 rounded px-2 py-1">{u.name} — {u.email||u.wa||''}</div>
                       ))}
-                      <button onClick={() => { setActiveTab('users'); setFilterUserStatus('pending'); }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
+                      <button onClick={() => { pindahTab('users'); setFilterUserStatus('pending'); }} className="text-xs font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
                     </div>
                   )}
                 </div>
