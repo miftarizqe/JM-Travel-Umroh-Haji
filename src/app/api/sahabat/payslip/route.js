@@ -1,5 +1,5 @@
 import pool from '@/lib/db';
-import { wajibPemilikAtauAdmin } from '@/lib/auth';
+import { wajibPemilikAtauAdminHopSahabat } from '@/lib/hopAuth';
 
 const KATEGORI_LABEL = {
   komisi_sahabat: 'Ujroh Rekrutan', closing_langsung_sahabat: 'Closing Jamaah',
@@ -19,7 +19,7 @@ export async function GET(request) {
     const sahabatId = searchParams.get('sahabat_id');
     if (!sahabatId) return Response.json({ error: 'sahabat_id wajib diisi' }, { status: 400 });
 
-    const auth = wajibPemilikAtauAdmin(request, sahabatId);
+    const auth = await wajibPemilikAtauAdminHopSahabat(request, sahabatId);
     if (auth.error) return auth.error;
 
     const [rows] = await pool.query(

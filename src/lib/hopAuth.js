@@ -24,6 +24,25 @@ export function isHopRole(user) {
   return user?.role === 'hop';
 }
 
+// Versi wajibPemilikAtauAdmin (src/lib/auth.js) yang ikut ngebolehin HoP
+// liat data MILIK SAHABAT LAIN (dikonfirmasi user 2026-10-08) -- JANGAN
+// dipakai gantiin wajibPemilikAtauAdmin biasa di endpoint non-sahabat
+// (profil, perwakilan, dst), itu TETAP harus pakai versi original yang
+// gak ngasih HoP akses ke data orang lain yang gak relevan.
+export async function wajibPemilikAtauAdminHopSahabat(request, pemilikId) {
+  const user = verifikasiToken(request);
+  if (!user) {
+    return { error: Response.json({ error: 'Tidak terautentikasi.' }, { status: 401 }) };
+  }
+  const boleh = ['admin', 'super_admin'].includes(user.role)
+    || (isHopRole(user) && request.method === 'GET')
+    || String(user.id) === String(pemilikId);
+  if (!boleh) {
+    return { error: Response.json({ error: 'Akses ditolak. Anda hanya bisa mengakses data milik sendiri.' }, { status: 403 }) };
+  }
+  return { user };
+}
+
 // KHUSUS aksi milik HoP sendiri (dikonfirmasi user 2026-10-01): menandai
 // "data bermasalah" + catatan ke admin. Ini satu-satunya "tulis" yang boleh
 // dilakukan HoP, dan cuma ke tabel laporannya sendiri (sahabat_laporan_data)
