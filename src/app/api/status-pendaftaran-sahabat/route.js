@@ -86,6 +86,7 @@ export async function GET(request) {
       data_diri_terkirim: !!pendaftaran,
       bukti_tf_uploaded: !!pendaftaran?.bukti_tf_path,
       bukti_tf_verified: !!pendaftaran?.bukti_tf_verified_at,
+      bukti_tf_path: pendaftaran?.bukti_tf_path || null,
       // Jamaah SETUJU SPK-AK (checkbox di /pks) — dipakai sebagai gerbang
       // funnel (dikonfirmasi user 2026-09-28), BEDA dari spk_ak_selesai di
       // bawah (materai+TTD beneran, baru diproses pas admin klik "Aktifkan").
