@@ -3,6 +3,7 @@ import { wajibLogin, wajibRole } from '@/lib/auth';
 import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { lepasVoucher } from '@/lib/voucher';
+import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
 
 /**
  * Pembatalan Program
@@ -262,6 +263,12 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
     if (p.jamaah_idx == null) {
       // ---- Batalkan SELURUH booking (perilaku lama, tidak berubah) ----
       await conn.query("UPDATE bookings SET status = 'dibatalkan' WHERE id = ?", [p.booking_id]);
+      // Lepas hold saldo checkout mandiri Sahabat Baitullah yang belum
+      // sempat dikonfirmasi admin (dikonfirmasi user 2026-10-08) -- kalau
+      // enggak, saldo jamaah ketahan selamanya padahal bookingnya batal.
+      // No-op kalau booking ini bukan checkout mandiri atau udah terlanjur
+      // dikonfirmasi (itu kasus refund beneran, bukan lepas hold).
+      await lepasHoldSaldoSahabat(conn, p.booking_id);
       if (bk) {
         await conn.query(
           'UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?',

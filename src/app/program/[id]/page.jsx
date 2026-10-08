@@ -130,9 +130,23 @@ export default function ProgramDetailPage() {
     const tujuan = `/checkout?prog_id=${id}`;
     if (!user) {
       router.push(`/login?redirect=${encodeURIComponent(tujuan)}`);
-    } else {
-      router.push(tujuan);
+      return;
     }
+    // Akun belum aktif (verifikasi admin / ACC perwakilan-sahabat) TETAP
+    // boleh browsing & lihat detail program bebas (dikonfirmasi user
+    // 2026-10-08) — gerbangnya baru ditutup PERSIS di titik klik tombol ini,
+    // sebelum checkout dimulai, bukan lebih awal (nge-block browsing) atau
+    // lebih telat (biarin isi form dulu baru gagal pas submit akhir —
+    // server di cekPemesanBolehOrder nolak hal sama, ini cuma UX lebih awal).
+    if (!user.terverifikasi) {
+      alert('Akun Anda masih menunggu verifikasi admin. Anda belum bisa melakukan pendaftaran program.');
+      return;
+    }
+    if (['perwakilan', 'sahabat_baitullah'].includes(user.role) && user.status !== 'active') {
+      alert(`Akun ${user.role} Anda masih menunggu ACC admin. Anda belum bisa checkout sampai akun ini aktif.`);
+      return;
+    }
+    router.push(tujuan);
   }
 
   if (loading) {

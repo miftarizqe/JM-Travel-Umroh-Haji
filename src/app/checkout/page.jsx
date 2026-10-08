@@ -190,7 +190,11 @@ function CheckoutPageInner() {
         setNamaMandiri(d.user?.name || '');
         setWaMandiri(d.user?.wa || '');
         setJkMandiri(d.user?.jenis_kelamin || '');
-        setAlamatMandiri(d.user?.alamat_kirim || '');
+        // alamat_kirim kosong buat Sahabat Baitullah -- daftar-sahabat gak
+        // pernah nyimpen ke kolom itu (cuma dipakai form-jamaah/perwakilan),
+        // alamat sahabat kesimpen di alamat_domisili/alamat (dikonfirmasi
+        // user 2026-10-08, autofill sebelumnya selalu kosong akibat ini).
+        setAlamatMandiri(d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '');
         setNoRekeningUmrohMandiri(d.user?.no_rekening_tabungan_umroh || '');
       })
       .catch(() => {});
@@ -297,9 +301,23 @@ function CheckoutPageInner() {
     <Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat program...</div></Layout>
   );
 
-  // Perwakilan/sahabat yang belum di-ACC admin belum boleh checkout —
-  // blokir di awal, jangan biarkan isi form dulu baru gagal di submit akhir
-  // (buatSatuBooking di server nolak hal yang sama, ini cuma UX lebih awal).
+  // Akun belum terverifikasi (semua role) atau perwakilan/sahabat yang
+  // belum di-ACC admin belum boleh checkout — blokir di awal, jangan
+  // biarkan isi form dulu baru gagal di submit akhir (cekPemesanBolehOrder
+  // di server nolak hal yang sama, ini cuma UX lebih awal / jaring
+  // pengaman kalau halaman ini diakses langsung lewat URL, bukan lewat
+  // tombol "Daftar Program Ini Sekarang" yang udah ngeblok duluan).
+  if (!user?.terverifikasi) {
+    return (
+      <Layout title="🛒 Checkout" backHref="/programs">
+        <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
+          <div className="text-3xl mb-2">⏳</div>
+          <h3 className="font-bold text-yellow-800 mb-1">Akun Anda Belum Diverifikasi Admin</h3>
+          <p className="text-sm text-yellow-700">Akun Anda masih menunggu verifikasi admin. Anda belum bisa checkout sampai akun ini terverifikasi.</p>
+        </div>
+      </Layout>
+    );
+  }
   if (['perwakilan', 'sahabat_baitullah'].includes(user?.role) && user?.status !== 'active') {
     return (
       <Layout title="🛒 Checkout" backHref="/programs">
@@ -411,7 +429,8 @@ function CheckoutPageInner() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">No. WhatsApp *</label>
-                  <input value={waMandiri} onChange={e => setWaMandiri(e.target.value)}
+                  <input value={waMandiri} onChange={e => setWaMandiri(e.target.value.replace(/\D/g, ''))}
+                    inputMode="numeric" maxLength={13}
                     className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
                 </div>
                 <div>
