@@ -65,6 +65,12 @@ export default function StatusPendaftaranSahabatPage() {
   // sama "Cetak & kirim sendiri" yang 1 tombol doang).
   const [pilihDatangKantor, setPilihDatangKantor] = useState(false);
   const [savingMetodeTtd, setSavingMetodeTtd] = useState(false);
+  // Konfirmasi jamaah "sudah kirim" dokumen fisik (resi+tanggal) --
+  // sebelumnya gak ada status antara "udah dikirim, masih di jalan" vs
+  // "diterima" (dikonfirmasi user 2026-10-08).
+  const [resiInput, setResiInput] = useState('');
+  const [savingKirimFisik, setSavingKirimFisik] = useState(false);
+  const [editKirimFisik, setEditKirimFisik] = useState(false);
 
   // Sudah/belum punya rekening BSI (dikonfirmasi user 2026-09-30) — cuma
   // pilihan tampilan lokal, gak perlu disimpan ke server. Yang UDAH PUNYA
@@ -179,6 +185,21 @@ export default function StatusPendaftaranSahabatPage() {
     setSavingMetodeTtd(false);
   }
 
+  async function konfirmasiKirimDokumen() {
+    setSavingKirimFisik(true);
+    try {
+      const res = await fetch('/api/sahabat/konfirmasi-kirim', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ resi: resiInput }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSavingKirimFisik(false); return; }
+      setEditKirimFisik(false);
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setSavingKirimFisik(false);
+  }
+
   // Buka preview pasal SK-CIF + Surat Pemblokiran SEKALIGUS (satu step baca
   // gabungan, dikonfirmasi user 2026-09-19) — masing-masing endpoint juga
   // yang mendaftarkan sesi dokumen_signature fisiknya & membekukan nomor
@@ -284,7 +305,11 @@ export default function StatusPendaftaranSahabatPage() {
   // kantor (TTD di tempat, gak ada unggahan yang perlu dicek di sini), ATAU
   // pilih kirim sendiri DAN ketiga scan (SPK-AK, SK-CIF, Surat Pemblokiran)
   // sudah diunggah.
-  const dokumenKetigaSelesai = prasyarat.spk_ak_selesai && prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai;
+  // Jamaah yang juga setuju bantuan BSI manual kirim 4 dokumen fisik,
+  // bukan 3 -- dokumen ke-4 (Formulir Pendaftaran Rekening BSI) ikut
+  // disyaratkan (dikonfirmasi user 2026-10-08).
+  const dokumenKetigaSelesai = prasyarat.spk_ak_selesai && prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai
+    && (!u.bantuan_bsi_manual_disetujui_at || prasyarat.formulir_bsi_fisik_selesai);
   const metodeTtdSelesai = u.metode_ttd_sahabat === 'kantor' || (u.metode_ttd_sahabat === 'kirim' && dokumenKetigaSelesai);
 
   return (
@@ -683,6 +708,28 @@ export default function StatusPendaftaranSahabatPage() {
                     <div>1. Print ketiga dokumen di atas.</div>
                     <div>2. TTD di atas materai asli, pada kolom TTD Anda masing-masing dokumen.</div>
                     <div>3. Kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.</div>
+                  </div>
+                  <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
+                    <div className="text-[10px] font-bold text-[#0E2F6E]">📦 Konfirmasi Pengiriman</div>
+                    {u.dokumen_fisik_dikirim_at && !editKirimFisik ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-[10px] text-green-700">
+                          ✅ Sudah dikirim {new Date(u.dokumen_fisik_dikirim_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {u.dokumen_fisik_resi && <> · Resi: <b>{u.dokumen_fisik_resi}</b></>}
+                        </div>
+                        <button onClick={() => { setResiInput(u.dokumen_fisik_resi || ''); setEditKirimFisik(true); }}
+                          className="text-[10px] text-gray-400 underline shrink-0">Ubah</button>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input value={resiInput} onChange={e => setResiInput(e.target.value)} placeholder="Nomor resi (opsional)"
+                          className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+                        <button onClick={konfirmasiKirimDokumen} disabled={savingKirimFisik}
+                          className="bg-green-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 whitespace-nowrap">
+                          {savingKirimFisik ? '...' : '✅ Saya Sudah Kirim'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum JM Travel, saya membutuhkan bantuan terkait Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran.') || '#'}
                     target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs">
