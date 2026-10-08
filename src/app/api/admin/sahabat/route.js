@@ -15,6 +15,7 @@ export async function GET(request) {
     const [rows] = await pool.query(
       `SELECT kp.*, u.kode_unik, u.role AS user_role, u.status AS user_status, u.agama,
               u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
+              u.bantuan_bsi_manual_disetujui_at, u.formulir_bsi_disubmit_at,
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
               u.dokumen_pemblokiran_fisik_diterima_at, u.dokumen_spk_ak_fisik_diterima_at, u.metode_ttd_sahabat,
               u.dokumen_surat_pemblokiran_fisik_path,

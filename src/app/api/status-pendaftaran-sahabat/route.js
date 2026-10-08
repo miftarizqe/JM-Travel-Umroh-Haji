@@ -230,6 +230,19 @@ export async function PATCH(request) {
     // aslinya udah nyampe di kantor apa belum" per-dokumen (khusus jamaah
     // yang pilih metode TTD "kirim" — yang "kantor" gak butuh ini sama
     // sekali, dokumennya diserahkan langsung di tempat).
+    // Checklist "admin udah submit Formulir Pendaftaran Rekening BSI ke
+    // bank" (dikonfirmasi user 2026-10-08) — cuma relevan kalau jamaah
+    // udah setuju bantuan BSI manual (gak bisa daftar sendiri via BYOND) &
+    // rekeningnya sendiri belum jadi. Informasional, sama kayak toggle
+    // dokumen fisik lain — TIDAK ikut validasi prasyarat advance ke 'active'.
+    if (action === 'toggle_formulir_bsi_disubmit') {
+      await pool.query(
+        'UPDATE users SET formulir_bsi_disubmit_at = ? WHERE id = ?',
+        [body.value ? new Date() : null, user_id]
+      );
+      return Response.json({ message: 'Status Formulir Pendaftaran Rekening BSI diperbarui.' });
+    }
+
     if (action === 'toggle_pemblokiran_fisik') {
       await pool.query(
         'UPDATE users SET dokumen_pemblokiran_fisik_diterima_at = ? WHERE id = ?',
