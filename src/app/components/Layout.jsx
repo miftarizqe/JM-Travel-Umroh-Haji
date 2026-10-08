@@ -133,7 +133,25 @@ function flattenLeaves(children) {
 // halaman, gak "loncat-loncat".
 let sidebarOpenGroupsStore = new Set();
 
-function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNavigate }) {
+// Badge angka merah "ada yang harus dikerjakan" (dikonfirmasi user
+// 2026-10-08) — angkanya dari /api/admin/sidebar-badges, key = item.path.
+// 0/kosong = gak dirender sama sekali. Item ber-children (grup/subgrup)
+// = total semua leaf di dalamnya.
+function jumlahBadge(item, badges) {
+  if (item.children) return flattenLeaves(item.children).reduce((t, c) => t + (badges[c.path] || 0), 0);
+  return badges[item.path] || 0;
+}
+
+function Badge({ n }) {
+  if (!n) return null;
+  return (
+    <span className="shrink-0 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-bold leading-none flex items-center justify-center">
+      {n > 99 ? '99+' : n}
+    </span>
+  );
+}
+
+function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNavigate, badges = {} }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab') || 'dashboard';
@@ -210,6 +228,7 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
             return (
               <button key={g.label} onClick={() => pergi(c.path)} className={linkCls(matchTab(c, pathname, currentTab))}>
                 <span>{c.icon}</span><span className="flex-1">{g.label}</span>
+                <Badge n={jumlahBadge(c, badges)} />
               </button>
             );
           }
@@ -218,6 +237,8 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
             <div key={g.label}>
               <button onClick={() => toggle(g.label)} className={linkCls(groupAktif(g) && !terbuka)}>
                 <span>{g.icon}</span><span className="flex-1">{g.label}</span>
+                {/* Total cuma pas grup ketutup — pas kebuka angkanya udah keliatan di anaknya. */}
+                {!terbuka && <Badge n={jumlahBadge(g, badges)} />}
                 <span className="text-[9px] opacity-60">{terbuka ? '▲' : '▼'}</span>
               </button>
               {terbuka && (
@@ -234,6 +255,7 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
                         <div key={subKey}>
                           <button onClick={() => toggle(subKey)} className={linkCls(subAktif && !subTerbuka)}>
                             <span>{c.icon}</span><span className="flex-1">{c.label}</span>
+                            {!subTerbuka && <Badge n={jumlahBadge(c, badges)} />}
                             <span className="text-[9px] opacity-60">{subTerbuka ? '▲' : '▼'}</span>
                           </button>
                           {subTerbuka && (
@@ -241,6 +263,7 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
                               {c.children.map(cc => (
                                 <button key={cc.label} onClick={() => pergi(cc.path)} className={linkCls(matchTab(cc, pathname, currentTab))}>
                                   <span>{cc.icon}</span><span className="flex-1">{cc.label}</span>
+                                  <Badge n={jumlahBadge(cc, badges)} />
                                 </button>
                               ))}
                             </div>
@@ -251,6 +274,7 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
                   ) : (
                     <button key={c.label} onClick={() => pergi(c.path)} className={linkCls(matchTab(c, pathname, currentTab))}>
                       <span>{c.icon}</span><span className="flex-1">{c.label}</span>
+                      <Badge n={jumlahBadge(c, badges)} />
                     </button>
                   ))}
                 </div>
@@ -589,6 +613,23 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   const isAdminNav = navRole === 'admin';
   const items = (user && navItems[navRole]) ? navItems[navRole] : [];
 
+  // Badge antrian admin (lihat /api/admin/sidebar-badges) — dimuat ulang tiap
+  // pindah halaman (abis ngerjain sesuatu, angkanya langsung turun) + tiap
+  // 60 detik selama tab kebuka. Admin & super_admin doang.
+  const [sidebarBadges, setSidebarBadges] = useState({});
+  useEffect(() => {
+    if (!isAdminNav) return;
+    let batal = false;
+    const muat = () => fetch('/api/admin/sidebar-badges')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (!batal && d?.badges) setSidebarBadges(d.badges); })
+      .catch(() => {});
+    muat();
+    const id = setInterval(() => { if (document.visibilityState === 'visible') muat(); }, 60000);
+    return () => { batal = true; clearInterval(id); };
+  }, [isAdminNav, pathname]);
+  const totalBadge = Object.values(sidebarBadges).reduce((t, n) => t + n, 0);
+
   // Sidebar sekarang juga dipakai jamaah/perwakilan/sahabat_baitullah (dulu
   // navbar pill horizontal + tab bawah mobile) — dikonfirmasi user
   // 2026-09-21, biar konsisten sama admin & gak kepepet nabrak logo kalau
@@ -644,7 +685,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
               className="hidden md:flex ml-auto w-7 h-7 items-center justify-center rounded-full text-white/70 hover:text-white hover:bg-white/10 text-sm leading-none">«</button>
           </div>
           <Suspense fallback={<div className="flex-1" />}>
-            <SidebarNav dashboardItem={sidebarDashboardItem} groups={sidebarGroups} pathname={pathname} guardedNavigate={guardedNavigate} onNavigate={() => setSidebarOpen(false)} />
+            <SidebarNav dashboardItem={sidebarDashboardItem} groups={sidebarGroups} pathname={pathname} guardedNavigate={guardedNavigate} onNavigate={() => setSidebarOpen(false)} badges={sidebarBadges} />
           </Suspense>
           {user && (
             <div className="border-t border-white/10 p-3 shrink-0 space-y-2">
@@ -667,6 +708,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
           <button onClick={toggleSidebarCollapsed} aria-label="Tampilkan menu" title="Tampilkan menu"
             className="no-print hidden md:flex fixed top-4 left-4 z-50 w-9 h-9 items-center justify-center rounded-full bg-[#0E2F6E] text-white shadow-lg hover:bg-[#1A4FA0] transition-colors">
             ☰
+            {totalBadge > 0 && <span className="absolute -top-1 -right-1"><Badge n={totalBadge} /></span>}
           </button>
         )}
 
@@ -678,7 +720,10 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         <div className={`layout-shell transition-[padding] duration-200 ${sidebarCollapsed ? '' : 'md:pl-64'}`}>
           <nav className="no-print sticky top-0 z-30 bg-[#0E2F6E] text-white shadow-lg md:hidden">
             <div className="px-4 py-3 flex items-center gap-3">
-              <button onClick={() => setSidebarOpen(true)} aria-label="Buka menu" className="text-xl leading-none">☰</button>
+              <button onClick={() => setSidebarOpen(true)} aria-label="Buka menu" className="relative text-xl leading-none">
+                ☰
+                {totalBadge > 0 && <span className="absolute -top-2 -right-3"><Badge n={totalBadge} /></span>}
+              </button>
               {logo}
             </div>
           </nav>
