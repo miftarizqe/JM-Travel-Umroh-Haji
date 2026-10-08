@@ -109,6 +109,25 @@ export default function AdminSahabatPage() {
     setBusy(false);
   }
 
+  // Admin unggah scan dokumen fisik yang udah diterima di kantor -- endpoint
+  // upload-dokumen-sahabat-fisik dari awal udah ngebolehin admin, cuma
+  // tombolnya belum ada di sini (ketemu user 2026-10-09).
+  async function unggahScan(jenis, userId, file) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('user_id', userId);
+      fd.append('jenis', jenis);
+      const res = await fetch('/api/admin/upload-dokumen-sahabat-fisik', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal mengunggah dokumen'); setBusy(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan saat mengunggah'); }
+    setBusy(false);
+  }
+
   const kelompok = useMemo(() => {
     const m = Object.fromEntries(PROSES.map(p => [p.key, []]));
     for (const p of list) { if (m[p.status]) m[p.status].push(p); }
@@ -199,7 +218,11 @@ export default function AdminSahabatPage() {
             <div className="flex justify-between items-start mb-4">
               <div>
                 <div className="font-bold text-[#0E2F6E] text-lg">{detail.nama}</div>
-                <div className="text-xs text-gray-400">{detail.kode_unik} · Perekrut: {detail.perekrut_nama || '-'}</div>
+                <div className="text-xs text-gray-500">{detail.kode_unik}</div>
+                <div className="inline-flex items-center gap-2 mt-2 bg-[#C9952A]/10 border border-[#C9952A] rounded-lg px-3 py-1.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#C9952A]">🤝 Perekrut</span>
+                  <span className="text-sm font-bold text-[#0E2F6E]">{detail.perekrut_nama || '-'}</span>
+                </div>
               </div>
               <button onClick={() => setDetailUserId(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
@@ -316,19 +339,26 @@ export default function AdminSahabatPage() {
                 </div>
               )}
               {detail.metode_ttd_sahabat === 'kirim' && [
-                { label: 'Dokumen Fisik Surat Perjanjian Jamaah Sahabat Baitullah Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik', scanPath: detail.dokumen_spk_ak_fisik_path },
-                { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik', scanPath: detail.dokumen_sk_cif_fisik_path },
-                { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik', scanPath: detail.dokumen_surat_pemblokiran_fisik_path },
+                { label: 'Dokumen Fisik Surat Perjanjian Jamaah Sahabat Baitullah Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik', jenis: 'spk_ak', scanPath: detail.dokumen_spk_ak_fisik_path },
+                { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik', jenis: 'sk_cif', scanPath: detail.dokumen_sk_cif_fisik_path },
+                { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik', jenis: 'surat_pemblokiran', scanPath: detail.dokumen_surat_pemblokiran_fisik_path },
                 // Dokumen ke-4 cuma relevan buat jamaah yang juga setuju
                 // bantuan BSI manual -- bundelnya 4 dokumen, bukan 3
                 // (dikonfirmasi user 2026-10-08).
                 ...(detail.bantuan_bsi_manual_disetujui_at ? [
-                  { label: 'Dokumen Fisik Formulir Pendaftaran Rekening BSI Diterima di Kantor', field: 'dokumen_formulir_bsi_fisik_diterima_at', action: 'toggle_formulir_bsi_fisik', scanPath: null },
+                  { label: 'Dokumen Fisik Formulir Pendaftaran Rekening BSI Diterima di Kantor', field: 'dokumen_formulir_bsi_fisik_diterima_at', action: 'toggle_formulir_bsi_fisik', jenis: null, scanPath: null },
                 ] : []),
-              ].map(({ label, field, action, scanPath }) => (
+              ].map(({ label, field, action, jenis, scanPath }) => (
                 <div key={field} className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                   <span>{label}{scanPath && (
                     <a href={scanPath} target="_blank" rel="noopener noreferrer" className="ml-1.5 text-[#1A4FA0] underline whitespace-nowrap">(lihat scan)</a>
+                  )}
+                  {!isHop && jenis && (
+                    <label className={`ml-1.5 text-[#C9952A] font-bold underline whitespace-nowrap ${busy ? 'opacity-50' : 'cursor-pointer'}`}>
+                      {scanPath ? '(ganti scan)' : '📎 Unggah scan'}
+                      <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={busy}
+                        onChange={e => { unggahScan(jenis, detail.user_id, e.target.files?.[0]); e.target.value = ''; }} />
+                    </label>
                   )}</span>
                   {isHop ? (
                     <span className={detail[field] ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>

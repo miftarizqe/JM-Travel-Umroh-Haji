@@ -153,7 +153,7 @@ export async function POST(req) {
 
     if (perekrutIdFinal) {
       const [p] = await db.query(
-        "SELECT id FROM users WHERE id = ? AND (role IN ('sahabat_baitullah','admin','super_admin') OR role_kedua = 'sahabat_baitullah') AND status = 'active'",
+        "SELECT id FROM users WHERE id = ? AND (role IN ('sahabat_baitullah','admin','super_admin','hop') OR role_kedua = 'sahabat_baitullah') AND status = 'active'",
         [perekrutIdFinal]
       );
       if (p.length === 0) {

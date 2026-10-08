@@ -912,15 +912,17 @@ function AdminPageInner() {
     // isinya macem-macem role: gabungan cluster khusus Sahabat Baitullah
     // yang sebelumnya cuma ada di section "🤝 Sahabat Baitullah" (gak kebuka
     // di cabang HoP ini) + janji_temu_kantor difilter sumber Sahabat doang.
-    const hopLabelItem = (it) => `${it.nama} (${it.kode_unik})`;
+    // Item Pending Tamu: nama + kode + tanggal rencana kunjungan.
+    const hopLabelItem = (it) => `${it.nama} (${it.kode_unik})${it.tanggal ? ` · ${new Date(it.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`;
     // "Akun Baru Menunggu Verifikasi" & "Voucher Menunggu ACC" sengaja gak
     // ditampilkan ke HoP (dikonfirmasi user 2026-10-06) — dua-duanya antrian
     // aksi admin, bukan wewenang HoP.
+    // Dibatasi lagi jadi CUMA Pending Tamu (dikonfirmasi user 2026-10-09) —
+    // Siap Berangkat / Di Bawah Progress / Jadwal Target Terlewat dicabut
+    // dari sini. Datanya sama dengan janji temu kantor sumber Sahabat, tapi
+    // tampil sebagai daftar ringkas (bukan agenda kalender).
     const hopClusters = [
-      {key:'siap_berangkat', label:'Siap Berangkat (≥80%)', icon:'🎯', color:'border-amber-200 bg-amber-50', items: sahabatSiapBerangkat},
-      {key:'dibawah_progress', label:'Di Bawah Progress Tabungan', icon:'⚠️', color:'border-orange-200 bg-orange-50', items: sahabatDibawahProgress},
-      {key:'jadwal_terlewat', label:'Jadwal Target Terlewat', icon:'⏰', color:'border-red-200 bg-red-50', items: sahabatJadwalTerlewat},
-      {key:'janji_temu_sahabat', label:'Janji Temu Datang ke Kantor', icon:'🏢', color:'border-cyan-200 bg-cyan-50', items: janjiTemuKantor.filter(j=>j.sumber==='Sahabat Baitullah')},
+      {key:'pending_tamu', label:'Pending Tamu', icon:'🏢', color:'border-cyan-200 bg-cyan-50', items: janjiTemuKantor.filter(j=>j.sumber==='Sahabat Baitullah')},
     ];
     const totalPending = hopClusters.reduce((n, c) => n + c.items.length, 0);
     const urut = [...hopClusters].sort((a, b) => (b.items.length > 0) - (a.items.length > 0));
@@ -955,19 +957,13 @@ function AdminPageInner() {
               {urut.map(c => {
                 const isOpen = expandCluster === c.key;
                 const tampil = isOpen ? c.items : c.items.slice(0, 3);
-                // Janji temu tampil sebagai agenda (blok kalender + sisa hari),
-                // lebar penuh biar gak sempit — cluster lain tetap baris teks.
-                const agenda = c.key === 'janji_temu_sahabat' && c.items.length > 0;
                 return (
-                  <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3 ${agenda ? 'md:col-span-2' : ''}`}>
+                  <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3 md:col-span-2`}>
                     <div className="flex items-center justify-between gap-2">
                       <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
                       <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
                     </div>
-                    {agenda ? (
-                      <AgendaJanjiTemu items={c.items} tampilSumber={false} terbuka={isOpen}
-                        onToggle={() => setExpandCluster(isOpen ? null : c.key)} />
-                    ) : c.items.length > 0 && (
+                    {c.items.length > 0 && (
                       <div className="mt-2 space-y-1">
                         {tampil.map((it, idx) => (
                           <div key={idx} className="text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate">{hopLabelItem(it)}</div>
