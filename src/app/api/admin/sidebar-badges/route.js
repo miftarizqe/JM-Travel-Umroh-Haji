@@ -35,6 +35,14 @@ export async function GET(request) {
     hitung('/admin?tab=payments', () => count(
       "SELECT COUNT(*) AS n FROM payments WHERE status = 'pending'")),
 
+    // Pending Pendaftaran Program Umroh — kriteria persis cluster
+    // program_umroh di /api/admin/dashboard (booking aktif yang form
+    // jamaahnya belum lengkap ATAU DP masih pending), dikonfirmasi user
+    // 2026-10-08. Dibuka admin lewat tab Kelola Program.
+    hitung('/admin?tab=programs', () => count(
+      `SELECT COUNT(*) AS n FROM bookings
+       WHERE status = 'active' AND (form_filled < form_total OR dp_status = 'pending')`)),
+
     // Pembatalan: ajuan baru + refund udah disetujui tapi bukti TF belum
     // diunggah (lihat daftarRefundBelumDitransfer di src/lib/perjanjianJamaah.js).
     hitung('/admin?tab=pembatalan', () => count(

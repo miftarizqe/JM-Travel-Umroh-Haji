@@ -132,6 +132,22 @@ export async function GET(request) {
     // 12. Ajuan Kalkulator Perwakilan (quote HPP+margin sendiri) menunggu review.
     const pendingKalkulatorPerwakilan = await daftarAjuanKalkulatorPerwakilan(pool);
 
+    // 13. Pengajuan Setoran Mandiri Sahabat Baitullah nunggu disetujui/ditolak
+    // (dikonfirmasi user 2026-10-08, pindah dari kartu di section Sahabat
+    // Baitullah yang ketutup default). Kriteria SAMA dengan badge sidebar
+    // /admin/sahabat/setoran-mandiri-pengajuan (status 'diajukan'). Yang
+    // paling lama nunggu duluan. COLLATE eksplisit: p.user_id general_ci vs
+    // users.id unicode_ci (beda collation antar tabel, join biasa error
+    // ER_CANT_AGGREGATE_2COLLATIONS). Dibungkus catch biar 1 cluster ini
+    // gak bisa bikin seluruh dashboard 500.
+    const [pendingSetoranMandiri] = await pool.query(
+      `SELECT p.id, p.nominal, p.created_at, u.name AS nama, u.kode_unik
+       FROM sahabat_setoran_mandiri_pengajuan p
+       LEFT JOIN users u ON u.id = p.user_id COLLATE utf8mb4_unicode_ci
+       WHERE p.status = 'diajukan'
+       ORDER BY p.created_at ASC`
+    ).catch(err => { console.error('dashboard setoran_mandiri:', err.message); return [[]]; });
+
     return Response.json({
       stat: {
         jamaah: jamaahUnik,
@@ -143,6 +159,7 @@ export async function GET(request) {
         program_umroh: pendingProgram,
         custom_harga: pendingCustomHarga,
         pembayaran: pendingPayment,
+        setoran_mandiri: pendingSetoranMandiri,
         akun_verifikasi: pendingVerifikasi,
         sahabat_baru_daftar: sahabatBaruDaftar,
         akun_jamaah: pendingAkunJamaah,
