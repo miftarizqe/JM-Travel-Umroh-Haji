@@ -17,6 +17,15 @@ const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KAMAR = ['quad', 'triple', 'double'];
 const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
 const KAMAR_LABEL = { quad: 'Quad (4/kamar)', triple: 'Triple (3/kamar)', double: 'Double (2/kamar)' };
+// Teks tombol "Umumkan" ikut target audiens dari field Publikasi (bukan
+// generik "ke Client") — biar admin langsung kebaca siapa yang bakal lihat
+// program ini begitu diumumkan (dikonfirmasi user 2026-10-09).
+const UMUMKAN_LABEL = {
+  public: 'Simpan & Umumkan ke Publik',
+  perwakilan: 'Simpan & Umumkan ke Perwakilan',
+  private: 'Simpan & Umumkan ke Jamaah Private',
+  sahabat_baitullah: 'Simpan & Umumkan ke Sahabat Baitullah',
+};
 // `type` (label kategori buat tampilan publik, "Umroh · 9 Hari" dkk di kartu
 // program) diturunin otomatis dari Jenis Program — cuma 1 field yang admin
 // pilih (Jenis Program), gak ada 2 dropdown yang isinya tumpang tindih lagi.
@@ -849,9 +858,9 @@ export default function ProgramsPage() {
     setKatalogModulSnapshot(buildKatalogModulSnapshot(modulTambahan, katalogModul));
   }
 
-  // publish=true: "Simpan & Umumkan ke Client" (active, tampil ke jamaah).
-  // publish=false: "Simpan sebagai Draft" (disimpan ke DB, tapi disembunyikan
-  // dari jamaah sampai nanti dibuka lagi & disimpan ulang sebagai umumkan).
+  // publish=true: "Simpan & Umumkan ke ..." (active, tampil sesuai target
+  // Publikasi — lihat UMUMKAN_LABEL). publish=false: "Simpan sebagai Draft"
+  // (disimpan ke DB, tapi disembunyikan sampai nanti dibuka lagi & diumumkan).
   async function simpan(publish) {
     if (!editing.name?.trim()) { alert('Nama program wajib diisi!'); return; }
     if (!editing.tanggal_berangkat) { alert('Tanggal keberangkatan wajib diisi! Tanpa ini, booking program tidak akan pernah bisa ditandai selesai.'); return; }
@@ -1175,8 +1184,8 @@ export default function ProgramsPage() {
               )}
 
               <div className="text-[10px] text-gray-400">
-                Status tampil/tidaknya ke jamaah ditentukan lewat tombol &quot;Simpan &amp; Umumkan ke Client&quot; atau
-                &quot;Simpan sebagai Draft&quot; di bagian paling bawah form ini, bukan di sini.
+                Status tampil/tidaknya ditentukan lewat tombol &quot;{UMUMKAN_LABEL[editing.publish_type] || 'Simpan & Umumkan'}&quot;
+                atau &quot;Simpan sebagai Draft&quot; di bagian paling bawah form ini, bukan di sini.
               </div>
             </div>
 
@@ -1642,7 +1651,7 @@ export default function ProgramsPage() {
             <div className="flex flex-col sm:flex-row gap-2">
               <button onClick={() => simpan(true)} disabled={saving}
                 className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50">
-                {saving ? 'Menyimpan...' : '📢 Simpan & Umumkan ke Client'}
+                {saving ? 'Menyimpan...' : `📢 ${UMUMKAN_LABEL[editing.publish_type] || 'Simpan & Umumkan'}`}
               </button>
               <button onClick={() => simpan(false)} disabled={saving}
                 className="flex-1 bg-white border-2 border-[#1A4FA0] text-[#1A4FA0] hover:bg-blue-50 font-bold py-3 rounded-full transition-colors disabled:opacity-50">
@@ -1650,8 +1659,8 @@ export default function ProgramsPage() {
               </button>
             </div>
             <div className="text-[10px] text-gray-400 mt-2 text-center">
-              &quot;Simpan &amp; Umumkan ke Client&quot; langsung tampil ke jamaah. &quot;Simpan sebagai Draft&quot; kesimpen di sistem
-              tapi disembunyikan dulu dari jamaah sampai nanti dibuka &amp; diumumkan.
+              &quot;{UMUMKAN_LABEL[editing.publish_type] || 'Simpan & Umumkan'}&quot; langsung tampil sesuai target Publikasi di atas.
+              &quot;Simpan sebagai Draft&quot; kesimpen di sistem tapi disembunyikan dulu sampai nanti dibuka &amp; diumumkan.
             </div>
             </>
             )}
