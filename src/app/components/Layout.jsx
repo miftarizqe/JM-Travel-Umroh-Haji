@@ -615,21 +615,31 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   const isAdminNav = navRole === 'admin';
   const items = (user && navItems[navRole]) ? navItems[navRole] : [];
 
-  // Badge antrian admin (lihat /api/admin/sidebar-badges) — dimuat ulang tiap
-  // pindah halaman (abis ngerjain sesuatu, angkanya langsung turun) + tiap
-  // 60 detik selama tab kebuka. Admin & super_admin doang.
+  // Badge antrian per role (lihat /api/<role>/sidebar-badges) — dimuat ulang
+  // tiap pindah halaman (abis ngerjain sesuatu, angkanya langsung turun) +
+  // tiap 60 detik selama tab kebuka. Awalnya admin/super_admin doang
+  // (2026-10-08), diperluas ke jamaah/perwakilan/sahabat/hop hari yang sama
+  // (dikonfirmasi user) — HOP tetap dikasih walau "baca saja", biar bisa
+  // follow up manual ke admin.
+  const badgeEndpoint = {
+    admin: '/api/admin/sidebar-badges',
+    jamaah: '/api/jamaah/sidebar-badges',
+    perwakilan: '/api/perwakilan/sidebar-badges',
+    sahabat: '/api/sahabat/sidebar-badges',
+    hop: '/api/hop/sidebar-badges',
+  }[navRole];
   const [sidebarBadges, setSidebarBadges] = useState({});
   useEffect(() => {
-    if (!isAdminNav) return;
+    if (!badgeEndpoint) return;
     let batal = false;
-    const muat = () => fetch('/api/admin/sidebar-badges')
+    const muat = () => fetch(badgeEndpoint)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (!batal && d?.badges) setSidebarBadges(d.badges); })
+      .then(d => { if (!batal) setSidebarBadges(d?.badges || {}); })
       .catch(() => {});
     muat();
     const id = setInterval(() => { if (document.visibilityState === 'visible') muat(); }, 60000);
     return () => { batal = true; clearInterval(id); };
-  }, [isAdminNav, pathname]);
+  }, [badgeEndpoint, pathname]);
   const totalBadge = Object.values(sidebarBadges).reduce((t, n) => t + n, 0);
 
   // Sidebar sekarang juga dipakai jamaah/perwakilan/sahabat_baitullah (dulu
