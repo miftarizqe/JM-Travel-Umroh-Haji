@@ -119,7 +119,11 @@ function RiwayatSaldoContent() {
   }, [data]);
 
   const paramId = searchParams.get('sahabat_id');
-  const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
+  // HoP ikut diizinin liat riwayat sahabat lain (dikonfirmasi user
+  // 2026-10-08, sebelumnya role 'hop' gak masuk daftar ini sama sekali --
+  // tombol "Riwayat Lengkap" di Database Sahabat jadi nge-redirect HoP ke
+  // /dashboard/jamaah lewat guard di bawah, bukan nampilin riwayat).
+  const isAdmin = user && ['admin', 'super_admin', 'hop'].includes(user.role);
   const targetId = (paramId && isAdmin) ? paramId : user?.id;
   const lihatOrangLain = isAdmin && paramId && paramId !== user?.id;
 
@@ -132,7 +136,7 @@ function RiwayatSaldoContent() {
 
   useEffect(() => {
     if (!user) return;
-    if (!['sahabat_baitullah', 'admin', 'super_admin'].includes(user.role)) { router.push('/dashboard/jamaah'); return; }
+    if (!['sahabat_baitullah', 'admin', 'super_admin', 'hop'].includes(user.role)) { router.push('/dashboard/jamaah'); return; }
     if (!targetId) return;
     fetch(`/api/sahabat/riwayat-saldo?sahabat_id=${targetId}`)
       .then(r => r.json())
