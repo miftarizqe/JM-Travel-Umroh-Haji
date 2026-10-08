@@ -3,6 +3,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { isHopRole } from '@/lib/hopAuth';
 
 const DIR = path.join(process.cwd(), 'private-uploads', 'materi-koperasi');
 const MIME = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' };
@@ -16,12 +17,16 @@ const MIME = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
 // lewat fetch()+blob URL (lihat halaman viewer), jadi gak ada link mentah
 // yang gampang di-copy/paste buat dibagikan ke luar.
 export async function GET(request, { params }) {
-  const auth = wajibRole(request, ['sahabat_baitullah', 'admin', 'super_admin']);
+  // HoP perlu ikut diizinin (dikonfirmasi user 2026-10-08, sebelumnya gak
+  // kebaca sama sekali di sini walau halaman preview-nya di
+  // /admin/sahabat/materi udah ngebolehin HoP buka viewer-nya — slide-nya
+  // sendiri selalu gagal diambil/gambar rusak karena endpoint ini nolak role 'hop').
+  const auth = wajibRole(request, ['sahabat_baitullah', 'admin', 'super_admin', 'hop']);
   if (auth.error) return auth.error;
   try {
     const { id, slideId } = await params;
 
-    const isAdmin = auth.user.role === 'admin' || auth.user.role === 'super_admin';
+    const isAdmin = ['admin', 'super_admin'].includes(auth.user.role) || isHopRole(auth.user);
     // Sama kayak /api/sahabat/materi — status di JWT bisa basi, cek ulang
     // ke DB (dikonfirmasi user 2026-09-19).
     if (!isAdmin) {

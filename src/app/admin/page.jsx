@@ -1027,13 +1027,23 @@ function AdminPageInner() {
                       const isOpen = expandCluster === c.key;
                       const tampil = isOpen ? c.items : c.items.slice(0,3);
                       const bisaKlikItem = ['perlengkapan','kalkulator_lead','ttu_belum_dikirim','perjanjian_belum_selesai','penyesuaian_harga_pending','refund_belum_ditransfer','kalkulator_perwakilan_pending','janji_temu_kantor'].includes(c.key);
+                      // Janji temu tampil sebagai agenda (blok kalender + sisa
+                      // hari, sama kayak versi HoP) — lebar penuh biar gak
+                      // sempit (dikonfirmasi user 2026-10-08, sebelumnya cuma
+                      // daftar teks polos di sini padahal versi HoP udah bagus).
+                      const agenda = c.key === 'janji_temu_kantor' && c.items.length > 0;
                       return (
-                      <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3`}>
+                      <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3 ${agenda ? 'md:col-span-2' : ''}`}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
                           <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
                         </div>
-                        {c.items.length > 0 && (
+                        {agenda ? (
+                          <>
+                            <AgendaJanjiTemu items={c.items} terbuka={isOpen} onToggle={() => setExpandCluster(isOpen ? null : c.key)} />
+                            <button onClick={() => router.push('/admin/janji-temu-kantor')} className="block text-[11px] font-bold text-[#1A4FA0] underline mt-2">Tindak lanjut →</button>
+                          </>
+                        ) : c.items.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {tampil.map((it,idx) => (
                               c.key==='sahabat_baru_daftar' ? (
