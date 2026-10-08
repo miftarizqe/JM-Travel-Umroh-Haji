@@ -72,6 +72,40 @@ export async function POST(request) {
   }
 }
 
+// DELETE /api/admin/perlengkapan?id=xxx
+// Hapus beneran (dikonfirmasi user 2026-10-08) -- CUMA boleh kalau
+// stok_saat_ini = 0. Kalau belum pernah ada transaksi sama sekali, stoknya
+// emang udah 0 dari awal (langsung bisa dihapus). Kalau udah pernah ada
+// transaksi tapi stoknya belum 0, WAJIB dikosongin dulu (keluarin semua
+// stok) baru bisa dihapus -- di luar itu cuma bisa edit/nonaktifkan.
+// Baris riwayat di perlengkapan_stok_ledger SENGAJA DIBIARKAN (gak ikut
+// dihapus) -- itu jejak audit stok, item_id-nya cuma jadi orphan (LEFT
+// JOIN di /api/admin/perlengkapan/ledger udah nangani, nama item tampil
+// kosong buat baris lama).
+export async function DELETE(request) {
+  const auth = wajibSuperAdmin(request);
+  if (auth.error) return auth.error;
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
+
+    const [[item]] = await pool.query('SELECT nama, stok_saat_ini FROM perlengkapan_jamaah WHERE id = ?', [id]);
+    if (!item) return Response.json({ error: 'Item tidak ditemukan' }, { status: 404 });
+    if (Number(item.stok_saat_ini) !== 0) {
+      return Response.json({
+        error: `Stok "${item.nama}" masih ${item.stok_saat_ini}, belum bisa dihapus. Kosongkan dulu stoknya sampai 0, atau nonaktifkan aja item-nya.`,
+      }, { status: 400 });
+    }
+
+    await pool.query('DELETE FROM perlengkapan_jamaah WHERE id = ?', [id]);
+    return Response.json({ message: `Item "${item.nama}" dihapus.` });
+  } catch (error) {
+    console.error(error);
+    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
+}
+
 // PUT /api/admin/perlengkapan  body: { id, stok_minimum?, gender_spesifik?, kategori_program?, nama?, deskripsi?, aktif? }
 export async function PUT(request) {
   const auth = wajibSuperAdmin(request);
