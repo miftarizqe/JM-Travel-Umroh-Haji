@@ -14,7 +14,7 @@ export async function GET(request) {
     // relevan buat diagregasi) biar re-issue lama gak numpuk jadi row ganda.
     const [rows] = await pool.query(
       `SELECT kp.*, u.kode_unik, u.role AS user_role, u.status AS user_status, u.agama,
-              u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at,
+              u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at, u.setuju_pks, u.bantuan_bsi_manual_disetujui_at,
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
               u.dokumen_pemblokiran_fisik_diterima_at, u.dokumen_spk_ak_fisik_diterima_at, u.metode_ttd_sahabat,
               u.dokumen_surat_pemblokiran_fisik_path,
@@ -39,11 +39,13 @@ export async function GET(request) {
        ORDER BY kp.created_at DESC`
     );
 
-    // spk_ak_selesai: sama persis logic GET /api/status-pendaftaran-sahabat
-    // (dipakai buat validasi prasyarat advance ke menunggu_sk_cif) — surface
-    // di sini juga biar admin lihat blocker SEBELUM klik tombol & kena 400.
+    // spk_ak_selesai: sama logic GET /api/status-pendaftaran-sahabat (TTD
+    // digital selesai ATAU fisik dikonfirmasi diterima kantor) + scan lama
+    // dokumen_spk_ak_fisik_path buat data sebelum scan dicabut 2026-10-03.
+    // Cuma info di popup — BUKAN syarat ACC (SPK_AK_SEMENTARA_FISIK, lihat
+    // syaratBelum di /admin/sahabat/page.jsx).
     for (const r of rows) {
-      r.spk_ak_selesai = r.spk_ak_fase === 'selesai' || !!r.dokumen_spk_ak_fisik_path;
+      r.spk_ak_selesai = r.spk_ak_fase === 'selesai' || !!r.dokumen_spk_ak_fisik_diterima_at || !!r.dokumen_spk_ak_fisik_path;
       // PDF buat dilihat admin — digital (kalau TTD-nya lewat pipeline
       // dokumen_signature) diutamakan, fallback ke scan fisik.
       r.spk_ak_doc_path = r.spk_ak_pdf_path || r.dokumen_spk_ak_fisik_path || null;

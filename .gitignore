@@ -17,6 +17,12 @@
 /.next/
 /out/
 
+/hash.js
+
+# dokumentasi internal (PDF, handoff, catatan) — simpan lokal, tidak di-commit
+/docs/
+
+
 # production
 /build
 
@@ -31,7 +37,9 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # env files (can opt-in for committing if needed)
+# (.env.local = lokal, .env.dev = server dev, .env.prod = server prod)
 .env*
+!.env.example
 
 # vercel
 .vercel

@@ -1,5 +1,6 @@
 'use client';
 import { Fragment, useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import KalkulatorBiaya, { hitungHppKamar, cariTierModulNegara, totalModulNegaraTerpilih, modulTambahanArray, totalTiketPesawat, subtotalPerKelompok, tlShareTiket, tlShareVisa, nilaiItem, itemAktif, paxBerbayarModul, rincianAddonModul, nilaiTarifModul, bulatkanKeAtas, itineraryHariModul, includeExcludeModul, transportasiOtomatis } from '@/app/components/KalkulatorBiaya';
 
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
@@ -879,7 +880,7 @@ export default function KalkulatorTerpadu({
                             {!!modul.pakai_periode && (
                               <div>
                                 <label className={lbl}>Tanggal Keberangkatan</label>
-                                <input type="date" value={entry.tanggal || ''} onChange={e => { if (e.target.value) ubahModul(idx, { tanggal: e.target.value }); }} className={inp} />
+                                <InputTanggal value={entry.tanggal || ''} onChange={e => { if (e.target.value) ubahModul(idx, { tanggal: e.target.value }); }} className={inp} />
                               </div>
                             )}
                             {!!modul.pakai_hotel_star && (

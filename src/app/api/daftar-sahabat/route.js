@@ -86,6 +86,11 @@ export async function POST(req) {
     if (!sama_ktp && !alamatOk(jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom)) {
       return NextResponse.json({ error: 'Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)' }, { status: 400 });
     }
+    // Nomor paspor opsional, tapi kalau diisi maks 9 karakter huruf/angka
+    // (standar ICAO; paspor RI 8 karakter, mis. A1234567).
+    if (no_paspor?.trim() && !/^[A-Za-z0-9]{1,9}$/.test(no_paspor.trim())) {
+      return NextResponse.json({ error: 'Nomor paspor maksimal 9 karakter huruf/angka' }, { status: 400 });
+    }
 
     // Baris lama berstatus 'ditolak' DIABAIKAN (dikonfirmasi user 2026-10-03,
     // samain pola daftar-perwakilan) — admin kasih izin daftar ulang lewat

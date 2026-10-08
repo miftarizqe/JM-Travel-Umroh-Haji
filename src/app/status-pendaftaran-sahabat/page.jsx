@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
@@ -47,6 +48,11 @@ export default function StatusPendaftaranSahabatPage() {
   // rencana kunjungan, 'kirim' langsung lanjut print-scan-unggah seperti biasa.
   const [tanggalKunjunganInput, setTanggalKunjunganInput] = useState('');
   const [savingMetodeTtd, setSavingMetodeTtd] = useState(false);
+  // Pilihan metode TTD = 2 kartu setara, pilih dulu baru disimpan
+  // (dikonfirmasi user 2026-10-08) — dulu "kirim sendiri" langsung kesimpan
+  // sekali klik & opsi "datang kantor" ketutup, user gak sadar ada 2 pilihan.
+  const [pilihanMetode, setPilihanMetode] = useState(null);
+  const [gantiMetode, setGantiMetode] = useState(false);
 
   // Sudah/belum punya rekening BSI (dikonfirmasi user 2026-09-30) — cuma
   // pilihan tampilan lokal, gak perlu disimpan ke server. Yang UDAH PUNYA
@@ -156,9 +162,18 @@ export default function StatusPendaftaranSahabatPage() {
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setSavingMetodeTtd(false); return; }
+      setGantiMetode(false); setPilihanMetode(null); setTanggalKunjunganInput('');
       muat();
     } catch { alert('Terjadi kesalahan'); }
     setSavingMetodeTtd(false);
+  }
+
+  function bukaGantiMetode() {
+    setPilihanMetode(u.metode_ttd_sahabat || null);
+    // Tanggal lokal (bukan slice ISO UTC — bisa mundur sehari di WIB).
+    const t = u.rencana_kunjungan_kantor_at ? new Date(u.rencana_kunjungan_kantor_at) : null;
+    setTanggalKunjunganInput(t && !isNaN(t) ? `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}` : '');
+    setGantiMetode(true);
   }
 
   // Buka preview pasal SK-CIF + Surat Pemblokiran SEKALIGUS (satu step baca
@@ -250,7 +265,7 @@ export default function StatusPendaftaranSahabatPage() {
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
         <div className="text-3xl mb-2">📝</div>
         <h4 className="font-bold text-yellow-800 mb-1">Belum Mengisi Data Diri</h4>
-        <button onClick={() => router.push('/daftar-sahabat')} className="mt-2 bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">
+        <button onClick={() => router.push('/daftar-sahabat')} className="mt-2 bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full hover:bg-[#0E2F6E] transition-colors cursor-pointer">
           Isi Data Diri →
         </button>
       </div>
@@ -268,6 +283,33 @@ export default function StatusPendaftaranSahabatPage() {
   // sudah diunggah.
   const dokumenKetigaSelesai = prasyarat.spk_ak_selesai && prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai;
   const metodeTtdSelesai = u.metode_ttd_sahabat === 'kantor' || (u.metode_ttd_sahabat === 'kirim' && dokumenKetigaSelesai);
+
+  // Isi SK-CIF + Surat Pemblokiran — dipakai di step baca & setuju, dan
+  // bisa dibuka lagi (read-only) setelah disetujui (dikonfirmasi user 2026-10-08).
+  const isiSuratGabungan = skCif && suratPemblokiran ? (
+    <div ref={scrollGabunganRef} onScroll={cekScrollGabungan}
+      className="max-h-[350px] overflow-y-auto border border-gray-200 rounded-lg p-3 text-gray-600 space-y-4"
+      style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
+      <div>
+        <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA KERJASAMA MULTI CIF</div>
+        <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
+        {(skCif.pasal || []).map(p => (<div key={`skcif-${p.nomor}`}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
+        {!(skCif.pasal || []).length && (
+          <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
+        )}
+      </div>
+      <div className="pt-4 border-t border-gray-100">
+        <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
+        <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
+        {(suratPemblokiran.pasal || []).map(p => (<div key={`pemblokiran-${p.nomor}`}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
+        {!(suratPemblokiran.pasal || []).length && (
+          <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
+        )}
+      </div>
+    </div>
+  ) : null;
+
+  const linkHubungiAdmin = (pesan) => waLink(pengaturan?.wa_kantor, pesan) || '#';
 
   return (
     <Layout title="🤝 Status Pendaftaran Sahabat Baitullah" showBack>
@@ -292,7 +334,7 @@ export default function StatusPendaftaranSahabatPage() {
             biar e-materai gak kebakar duluan). */}
         <Item done={prasyarat.spk_ak_disetujui} label="Surat Perjanjian Jamaah Sahabat Baitullah">
           {!prasyarat.spk_ak_disetujui && (
-            <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
+            <button onClick={() => router.push('/pks?jenis=sahabat_baitullah')} className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">
               Baca & Setujui Surat Perjanjian Jamaah Sahabat Baitullah →
             </button>
           )}
@@ -323,6 +365,19 @@ export default function StatusPendaftaranSahabatPage() {
               </label>
             </div>
           )}
+          {/* Bukti TF bisa dilihat lagi, tapi gantinya lewat admin — unggah
+              ulang sendiri bakal nyatat setoran Rp1jt dobel di rekening
+              Sahabat Baitullah (lihat upload-bukti-tf/route.js). */}
+          {prasyarat.bukti_tf_uploaded && pendaftaran.bukti_tf_path && (
+            <div className="space-y-1">
+              <a href={pendaftaran.bukti_tf_path} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">📄 Lihat bukti transfer</a>
+              <div className="text-[10px] text-gray-400">
+                Salah unggah? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengganti bukti transfer pendaftaran Sahabat Baitullah saya.')}
+                  target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk menggantinya.
+              </div>
+            </div>
+          )}
         </Item>
 
         <Item done={prasyarat.rekening_umroh_terisi} label="Rekening Tabungan Umroh">
@@ -330,7 +385,16 @@ export default function StatusPendaftaranSahabatPage() {
           {prasyarat.bukti_tf_verified && (
             prasyarat.rekening_umroh_terisi ? (
               u.no_rekening_tabungan_umroh ? (
-                <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
+                <div className="space-y-1">
+                  <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
+                  {/* Koreksi rekening cuma lewat admin (FIELD_ADMIN_ONLY di
+                      /api/profil) — nomornya ikut tercetak di SK-CIF & Surat
+                      Pemblokiran, jadi perubahannya perlu dicek admin. */}
+                  <div className="text-[10px] text-gray-400">
+                    Salah nomor/nama? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening Tabungan Umroh saya.')}
+                      target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk mengoreksi.
+                  </div>
+                </div>
               ) : (
                 <div className="text-xs text-amber-600">⏳ Menunggu pembuatan rekening manual oleh BSI — admin JM Travel akan infokan begitu selesai.</div>
               )
@@ -339,11 +403,11 @@ export default function StatusPendaftaranSahabatPage() {
                 <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening BSI (biasa)?</div>
                 <div className="flex gap-2">
                   <button onClick={() => setSudahPunyaRekeningBsi(true)}
-                    className="flex-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-2 rounded-lg">
+                    className="flex-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-2 rounded-lg hover:bg-[#D3E2F7] transition-colors cursor-pointer">
                     ✅ Sudah Punya
                   </button>
                   <button onClick={() => setSudahPunyaRekeningBsi(false)}
-                    className="flex-1 text-xs font-bold text-gray-600 bg-gray-100 px-3 py-2 rounded-lg">
+                    className="flex-1 text-xs font-bold text-gray-600 bg-gray-100 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">
                     Belum Punya
                   </button>
                 </div>
@@ -355,11 +419,11 @@ export default function StatusPendaftaranSahabatPage() {
                     filenya udah termasuk cara buka Tabungan Umroh juga. */}
                 {sudahPunyaRekeningBsi && pengaturan?.panduan_buka_tabungan_umroh_path && (
                   <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-bold text-[#1A4FA0] underline block">📘 Panduan Buka Tabungan Umroh (BSI Byond)</a>
+                    className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Panduan Buka Tabungan Umroh (BSI Byond)</a>
                 )}
                 {!sudahPunyaRekeningBsi && pengaturan?.panduan_buka_rekening_bsi_path && (
                   <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-bold text-[#1A4FA0] underline block">📘 Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
+                    className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
                 )}
 
                 {bantuanBsiManualView ? (
@@ -372,15 +436,19 @@ export default function StatusPendaftaranSahabatPage() {
                     </label>
                     <div className="flex gap-2">
                       <button onClick={() => { setBantuanBsiManualView(false); setSetujuBantuanBsi(false); }}
-                        className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">Batal</button>
+                        className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-2 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">Batal</button>
                       <button onClick={kirimBantuanBsiManual} disabled={savingBantuanBsi || !setujuBantuanBsi}
-                        className="flex-1 bg-[#1A4FA0] text-white text-xs font-bold px-3 py-2 rounded-lg disabled:opacity-50">
+                        className="flex-1 bg-[#1A4FA0] text-white text-xs font-bold px-3 py-2 rounded-lg disabled:opacity-50 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
                         {savingBantuanBsi ? '...' : 'Lanjutkan'}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <>
+                    {/* Kolom isian rekening cuma buat yang SUDAH punya rekening BSI
+                        (dikonfirmasi user 2026-10-08) -- yang belum punya diarahkan
+                        ke panduan / bantuan manual JM di bawah. */}
+                    {sudahPunyaRekeningBsi && (<>
                     <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
                       onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
                       placeholder="Nomor rekening tabungan umroh"
@@ -391,21 +459,22 @@ export default function StatusPendaftaranSahabatPage() {
                         placeholder="Nama pemilik rekening (sesuai buku tabungan)"
                         className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
                       <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh, namaPemilikUmrohInput)} disabled={savingRekUmroh}
-                        className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+                        className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
                         {savingRekUmroh ? '...' : 'Simpan'}
                       </button>
                     </div>
+                    </>)}
                     {/* Gak semua KTP bisa daftar via BYOND self-service (dikonfirmasi
                         user 2026-10-03) -- cuma relevan buat yang BELUM punya rekening
                         BSI sama sekali (yang sudah punya tinggal buka Tabungan Umroh,
                         gak ada hambatan serupa). */}
                     {!sudahPunyaRekeningBsi && (
                       <button onClick={() => setBantuanBsiManualView(true)}
-                        className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg block w-full text-left">
-                        ⚠️ Tidak bisa membuat rekening via BYOND? <span className="underline">Klik di sini</span> untuk JM bantu pembuatan rekening manual ke cabang pilihan JM Travel
+                        className="text-sm font-semibold text-amber-900 bg-amber-100 border-2 border-amber-400 px-3 py-2.5 rounded-lg block w-full text-left leading-snug hover:bg-amber-200 transition-colors cursor-pointer">
+                        ⚠️ Tidak bisa membuat rekening via BYOND? <span className="font-extrabold text-blue-600 underline">KLIK DI SINI</span> untuk JM bantu pembuatan rekening manual ke cabang pilihan JM Travel
                       </button>
                     )}
-                    <button onClick={() => setSudahPunyaRekeningBsi(null)} className="text-[10px] text-gray-400 underline">← Ganti jawaban</button>
+                    <button onClick={() => setSudahPunyaRekeningBsi(null)} className="text-[10px] text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">← Ganti jawaban</button>
                   </>
                 )}
               </div>
@@ -463,7 +532,7 @@ export default function StatusPendaftaranSahabatPage() {
                     </div>
                   ) : (
                   <button onClick={simpanDataBlokir} disabled={savingBlokirData}
-                    className="bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50">
+                    className="bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
                     {savingBlokirData ? 'Menyimpan...' : 'Setuju & Simpan Data Blokir'}
                   </button>
                   )}
@@ -476,7 +545,7 @@ export default function StatusPendaftaranSahabatPage() {
             <div className="space-y-2">
               {!skCif || !suratPemblokiran ? (
                 <button onClick={bukaPreviewGabungan} disabled={loadingPreview}
-                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full disabled:opacity-50">
+                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full disabled:opacity-50 enabled:hover:bg-[#D3E2F7] transition-colors cursor-pointer disabled:cursor-not-allowed">
                   {loadingPreview ? 'Memuat...' : 'Baca SK-CIF & Surat Kuasa Blokir Rekening →'}
                 </button>
               ) : (
@@ -487,26 +556,7 @@ export default function StatusPendaftaranSahabatPage() {
                       (bukan buat dibaca langsung). Cetak/TTD fisik TETAP
                       pakai template PDF resmi (tombol "Unduh Dokumen
                       Lengkap" di langkah selanjutnya), gak kesentuh. */}
-                  <div ref={scrollGabunganRef} onScroll={cekScrollGabungan}
-                    className="max-h-[350px] overflow-y-auto border border-gray-200 rounded-lg p-3 text-gray-600 space-y-4"
-                    style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
-                    <div>
-                      <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT KUASA KERJASAMA MULTI CIF</div>
-                      <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {skCif.nomor}</div>
-                      {(skCif.pasal || []).map(p => (<div key={`skcif-${p.nomor}`}>{renderPasalBlock(p, skCif.mergeData)}</div>))}
-                      {!(skCif.pasal || []).length && (
-                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
-                      )}
-                    </div>
-                    <div className="pt-4 border-t border-gray-100">
-                      <div className="font-bold text-center" style={{ fontSize: UKURAN_DOKUMEN.judul }}>SURAT PERNYATAAN KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN</div>
-                      <div className="text-center text-gray-400" style={{ fontSize: UKURAN_DOKUMEN.nomor }}>Nomor: {suratPemblokiran.nomor}</div>
-                      {(suratPemblokiran.pasal || []).map(p => (<div key={`pemblokiran-${p.nomor}`}>{renderPasalBlock(p, suratPemblokiran.mergeData)}</div>))}
-                      {!(suratPemblokiran.pasal || []).length && (
-                        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
-                      )}
-                    </div>
-                  </div>
+                  {isiSuratGabungan}
                   {!sudahBacaGabungan && !pasalGabunganKosong && (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-center text-xs text-yellow-700">
                       ⬇️ Gulir ke bawah sampai selesai membaca kedua surat
@@ -518,7 +568,7 @@ export default function StatusPendaftaranSahabatPage() {
                     <span className="text-xs text-gray-600">Saya sudah membaca dan setuju atas isi SK-CIF & Surat Pernyataan Kuasa Blokir Rekening di atas.</span>
                   </label>
                   <button onClick={submitSetujuGabungan} disabled={!setujuGabungan || submittingSetuju}
-                    className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2.5 rounded-full text-sm disabled:opacity-40">
+                    className="w-full bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full text-sm disabled:opacity-40 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
                     {submittingSetuju ? 'Menyimpan...' : '✅ Setuju & Lanjutkan'}
                   </button>
                 </>
@@ -527,7 +577,21 @@ export default function StatusPendaftaranSahabatPage() {
           )}
 
           {prasyarat.setuju_sk_cif_pemblokiran && (
-            <div className="text-xs text-gray-500">Sudah dibaca & disetujui.</div>
+            <div className="space-y-2">
+              <div className="text-xs text-gray-500">Sudah dibaca & disetujui.</div>
+              {isiSuratGabungan ? (
+                <>
+                  {isiSuratGabungan}
+                  <button onClick={() => { setSkCif(null); setSuratPemblokiran(null); }}
+                    className="text-[10px] text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">Tutup</button>
+                </>
+              ) : (
+                <button onClick={bukaPreviewGabungan} disabled={loadingPreview}
+                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full disabled:opacity-50 enabled:hover:bg-[#D3E2F7] transition-colors cursor-pointer disabled:cursor-not-allowed">
+                  {loadingPreview ? 'Memuat...' : '📖 Baca Lagi SK-CIF & Surat Kuasa Blokir Rekening'}
+                </button>
+              )}
+            </div>
           )}
         </Item>
 
@@ -560,38 +624,64 @@ export default function StatusPendaftaranSahabatPage() {
                   "kirim sendiri"; yang "datang kantor" gak perlu diarahkan
                   unduh apa-apa sama sekali, dokumennya udah disiapin admin
                   (lihat tombol "Cetak Dokumen" di Database Jamaah). */}
-              {!u.metode_ttd_sahabat && (
+              {(!u.metode_ttd_sahabat || gantiMetode) && (
                 <div className="space-y-2">
-                  <div className="text-xs text-gray-500">Pilih cara Anda menandatangani ketiga dokumen di atas materai asli:</div>
-                  <button onClick={() => pilihMetodeTtd('kirim')} disabled={savingMetodeTtd}
-                    className="w-full text-left text-xs bg-[#E8F0FB] text-[#1A4FA0] font-bold px-3 py-2.5 rounded-lg disabled:opacity-50">
-                    📄 Cetak &amp; kirim sendiri — print, TTD di atas materai asli, kirim fisik ke kantor
-                  </button>
-                  <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
-                    <div className="text-xs font-bold text-[#1A4FA0]">🏢 Datang langsung ke Head Office</div>
-                    <div className="text-[10px] text-gray-500">TTD ketiga dokumen di tempat, bawa ketiga materai.</div>
-                    <div className="flex gap-2">
-                      <input type="date" value={tanggalKunjunganInput} onChange={e => setTanggalKunjunganInput(e.target.value)}
-                        className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
-                      <button onClick={() => pilihMetodeTtd('kantor')} disabled={savingMetodeTtd || !tanggalKunjunganInput}
-                        className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 whitespace-nowrap">
-                        {savingMetodeTtd ? '...' : 'Pilih Tanggal Ini'}
-                      </button>
+                  <div className="text-xs text-gray-600">Pilih <b>salah satu dari 2 cara</b> berikut untuk menandatangani ketiga dokumen di atas materai asli:</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { key: 'kirim', icon: '📄', judul: 'Cetak & Kirim Sendiri', ket: 'Print dokumen, TTD di atas materai asli, lalu kirim fisik ke kantor via pos/kurir.' },
+                      { key: 'kantor', icon: '🏢', judul: 'Datang ke Head Office', ket: 'TTD ketiga dokumen langsung di kantor JM Travel, bawa 3 materai. Pilih tanggal kunjungan.' },
+                    ].map(o => {
+                      const aktif = pilihanMetode === o.key;
+                      return (
+                        <button key={o.key} type="button" onClick={() => setPilihanMetode(o.key)}
+                          className={`text-left rounded-lg border-2 p-3 transition-colors cursor-pointer ${aktif ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 bg-white hover:border-[#1A4FA0]/50 hover:bg-gray-50'}`}>
+                          <div className="flex items-start gap-2">
+                            <span className={`mt-0.5 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${aktif ? 'border-[#1A4FA0]' : 'border-gray-300'}`}>
+                              {aktif && <span className="w-2 h-2 rounded-full bg-[#1A4FA0]" />}
+                            </span>
+                            <div>
+                              <div className="text-xs font-bold text-[#0E2F6E]">{o.icon} {o.judul}</div>
+                              <div className="text-[10px] text-gray-500 mt-0.5 leading-snug">{o.ket}</div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {pilihanMetode === 'kantor' && (
+                    <div>
+                      <div className="text-[10px] text-gray-500 mb-1">Tanggal rencana kunjungan:</div>
+                      <InputTanggal value={tanggalKunjunganInput} onChange={e => setTanggalKunjunganInput(e.target.value)}
+                        className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
                     </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    {gantiMetode && (
+                      <button onClick={() => { setGantiMetode(false); setPilihanMetode(null); setTanggalKunjunganInput(''); }}
+                        className="text-xs font-bold text-gray-500 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">Batal</button>
+                    )}
+                    <button onClick={() => pilihMetodeTtd(pilihanMetode)}
+                      disabled={savingMetodeTtd || !pilihanMetode || (pilihanMetode === 'kantor' && !tanggalKunjunganInput)}
+                      className="flex-1 bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
+                      {savingMetodeTtd ? 'Menyimpan...' : !pilihanMetode ? 'Pilih salah satu cara di atas' : 'Simpan Pilihan'}
+                    </button>
                   </div>
                 </div>
               )}
 
-              {u.metode_ttd_sahabat === 'kantor' && (
+              {u.metode_ttd_sahabat === 'kantor' && !gantiMetode && (
                 <div className="text-xs text-gray-500 space-y-1">
                   <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD ketiga dokumen langsung.</div>
                   <div>Jangan lupa bawa 3 materai (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.{u.bantuan_bsi_manual_disetujui_at && <> Formulir Pendaftaran Rekening BSI ikut disiapkan juga, gak perlu materai.</>}</div>
-                  <button onClick={() => { setTanggalKunjunganInput(''); pilihMetodeTtd('kirim'); }} disabled={savingMetodeTtd}
-                    className="text-[10px] text-gray-400 underline">Ganti jadi cetak &amp; kirim sendiri</button>
+                  <button onClick={bukaGantiMetode}
+                    className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Metode TTD</button>
                 </div>
               )}
 
-              {u.metode_ttd_sahabat === 'kirim' && (
+              {u.metode_ttd_sahabat === 'kirim' && !gantiMetode && (
                 <div className="space-y-3">
                   <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
                     <div className="text-xs font-bold text-[#0E2F6E]">📑 Dokumen Lengkap Sahabat Baitullah</div>
@@ -603,12 +693,12 @@ export default function StatusPendaftaranSahabatPage() {
                     <PdfDokumenResmi url="/api/sahabat/dokumen-legal/unduh-lengkap" tinggi="50vh" />
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1">
                       <button onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
-                        className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full">
+                        className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">
                         ⬇️ Unduh Dokumen Lengkap ({u.bantuan_bsi_manual_disetujui_at ? 4 : 3} Dokumen)
                       </button>
                       <span className="text-[10px] text-gray-400">atau unduh terpisah:</span>
-                      <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline">Surat Perjanjian Jamaah Sahabat Baitullah</button>
-                      <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50">
+                      <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors cursor-pointer">Surat Perjanjian Jamaah Sahabat Baitullah</button>
+                      <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50 enabled:hover:text-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
                         {generatingPdfSkCif ? 'Membuat...' : 'SK-CIF & Surat Pemblokiran'}
                       </button>
                     </div>
@@ -622,20 +712,11 @@ export default function StatusPendaftaranSahabatPage() {
                     📄 Print, TTD di atas materai asli pada kolom TTD Anda, lalu kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.
                   </div>
                   <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum JM Travel, saya membutuhkan bantuan terkait Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran.') || '#'}
-                    target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs">
+                    target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs hover:text-green-700 hover:underline transition-colors">
                     Hubungi Admin via WhatsApp
                   </a>
-                  <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
-                    <div className="text-[10px] font-bold text-[#1A4FA0]">Ganti jadi datang langsung ke kantor?</div>
-                    <div className="flex gap-2">
-                      <input type="date" value={tanggalKunjunganInput} onChange={e => setTanggalKunjunganInput(e.target.value)}
-                        className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
-                      <button onClick={() => pilihMetodeTtd('kantor')} disabled={savingMetodeTtd || !tanggalKunjunganInput}
-                        className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-lg disabled:opacity-50 whitespace-nowrap">
-                        {savingMetodeTtd ? '...' : 'Pilih Tanggal Ini'}
-                      </button>
-                    </div>
-                  </div>
+                  <button onClick={bukaGantiMetode}
+                    className="block text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Metode TTD</button>
                 </div>
               )}
             </div>
@@ -680,7 +761,7 @@ export default function StatusPendaftaranSahabatPage() {
             <div className="text-2xl mb-1">🎉</div>
             <div className="font-bold text-green-700">Anda sudah jadi Jamaah Sahabat Baitullah aktif!</div>
             <div className="text-xs text-green-600 mt-1">Voucher Rp1.000.000, Program Eksklusif, dan Materi Presentasi sudah kebuka.</div>
-            <button onClick={() => router.push('/dashboard/sahabat')} className="mt-2 bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">
+            <button onClick={() => router.push('/dashboard/sahabat')} className="mt-2 bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full hover:bg-[#0E2F6E] transition-colors cursor-pointer">
               Buka Dashboard →
             </button>
           </div>

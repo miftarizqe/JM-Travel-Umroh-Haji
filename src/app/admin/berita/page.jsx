@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -85,7 +86,7 @@ export default function AdminBeritaPage() {
           placeholder="Ceritakan kegiatannya atau info event yang akan datang..."
           className={`${inp} mb-3`} />
         <label className={lbl}>Tanggal (kosongkan kalau gak spesifik)</label>
-        <input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className={`${inp} mb-3`} />
+        <InputTanggal value={tanggal} onChange={e => setTanggal(e.target.value)} className={`${inp} mb-3`} />
         <label className={lbl}>Foto (opsional, bisa pilih banyak sekaligus, JPG/PNG maks 5MB)</label>
         <input type="file" accept=".jpg,.jpeg,.png" multiple onChange={e => setFiles(e.target.files)}
           className="w-full text-sm mb-3" />

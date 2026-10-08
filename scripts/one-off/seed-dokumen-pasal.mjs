@@ -2,7 +2,7 @@
 // Transkrip awal isi pasal SPKA-Ins/Jamaah dari src/lib/pksIsi.jsx
 // & src/lib/pksContent.js ke tabel dokumen_pasal, supaya admin bisa edit
 // lewat /admin/pasal tanpa minta developer ubah kode.
-// Jalankan SEKALI dari folder project:  node seed-dokumen-pasal.mjs
+// Jalankan SEKALI dari folder project:  node scripts/one-off/seed-dokumen-pasal.mjs
 // Aman dijalankan ulang — pakai INSERT ... ON DUPLICATE KEY UPDATE.
 
 import mysql from 'mysql2/promise';

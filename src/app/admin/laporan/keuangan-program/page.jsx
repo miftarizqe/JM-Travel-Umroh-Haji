@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -111,12 +112,12 @@ export default function LaporanKeuanganProgramPage() {
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Dari Tanggal</label>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+          <InputTanggal value={from} onChange={e => setFrom(e.target.value)}
             className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Sampai Tanggal</label>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)}
+          <InputTanggal value={to} onChange={e => setTo(e.target.value)}
             className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
         </div>
         <div>

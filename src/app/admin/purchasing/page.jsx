@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBon from '@/app/components/UploadBon';
@@ -78,7 +79,7 @@ export default function PurchasingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={lbl}>Tanggal</label>
-            <input type="date" value={form.tanggal} onChange={e => { if (e.target.value) setForm({ ...form, tanggal: e.target.value }); }} className={inp} />
+            <InputTanggal value={form.tanggal} onChange={e => { if (e.target.value) setForm({ ...form, tanggal: e.target.value }); }} className={inp} />
           </div>
           <div>
             <label className={lbl}>Tipe</label>

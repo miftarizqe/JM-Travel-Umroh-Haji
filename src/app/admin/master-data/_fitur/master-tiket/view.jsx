@@ -1,5 +1,6 @@
 'use client';
 import { inp, lbl, rp, sudahKadaluarsa, labelPeriode } from '../util';
+import InputTanggal from '@/app/components/InputTanggal';
 import { RUTE_LABEL } from './helpers';
 
 export default function MasterTiketView({
@@ -53,15 +54,15 @@ export default function MasterTiketView({
           <div className="grid sm:grid-cols-3 gap-3 mb-3">
             <div>
               <label className={lbl}>Periode Mulai (opsional, kosong = selamanya)</label>
-              <input type="date" value={formTiket.periode_mulai} onChange={e => onUbahForm({ periode_mulai: e.target.value })} className={inp} />
+              <InputTanggal value={formTiket.periode_mulai} onChange={e => onUbahForm({ periode_mulai: e.target.value })} className={inp} />
             </div>
             <div>
               <label className={lbl}>Periode Selesai</label>
-              <input type="date" value={formTiket.periode_selesai} onChange={e => onUbahForm({ periode_selesai: e.target.value })} className={inp} />
+              <InputTanggal value={formTiket.periode_selesai} onChange={e => onUbahForm({ periode_selesai: e.target.value })} className={inp} />
             </div>
             <div>
               <label className={lbl}>Berlaku Sampai (kalau gak pakai periode)</label>
-              <input type="date" value={formTiket.berlaku_sampai} onChange={e => onUbahForm({ berlaku_sampai: e.target.value })} className={inp} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — dipakai kalau Periode di atas dibiarin kosong." />
+              <InputTanggal value={formTiket.berlaku_sampai} onChange={e => onUbahForm({ berlaku_sampai: e.target.value })} className={inp} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — dipakai kalau Periode di atas dibiarin kosong." />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 mb-4">

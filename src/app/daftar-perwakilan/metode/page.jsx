@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
@@ -102,7 +103,7 @@ export default function DaftarPerwakilanMetodePage() {
 
           {form.metode === 'kantor' && (
             <div><label className={lbl}>Jadwal Kunjungan Kantor *</label>
-              <input type="date" value={form.jadwal} onChange={e => { if (e.target.value) setF('jadwal', e.target.value); }} className={inp} /></div>
+              <InputTanggal value={form.jadwal} onChange={e => { if (e.target.value) setF('jadwal', e.target.value); }} className={inp} /></div>
           )}
 
           {form.metode === 'paket' && (

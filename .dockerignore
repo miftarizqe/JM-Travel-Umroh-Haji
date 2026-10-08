@@ -6,4 +6,5 @@ node_modules
 private-uploads
 public/uploads
 *.pdf
-jm-travel-dokumentasi-sistem.html
+docs
+hash.js

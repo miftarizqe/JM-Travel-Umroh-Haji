@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
@@ -201,7 +202,7 @@ export default function DaftarSahabatPage() {
               <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>Tanggal Lahir *</label>
-                <input type="date" value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
+                <InputTanggal value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
               <div><label className={lbl}>Jenis Kelamin *</label>
                 <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={inp}>
                   <option>Laki-Laki</option><option>Perempuan</option></select></div>
@@ -251,7 +252,8 @@ export default function DaftarSahabatPage() {
               <div className="font-bold text-[#0E2F6E]">🛂 Paspor (opsional)</div>
               <div className="text-[10px] text-gray-400 -mt-0.5 mb-1.5">Kalau udah punya paspor, boleh diisi sekalian — biar gak perlu diminta ulang pas beneran siap berangkat nanti.</div>
               <label className={lbl}>Nomor Paspor</label>
-              <input value={form.no_paspor} onChange={e=>setF('no_paspor',e.target.value.toUpperCase())} className={inp}/>
+              <input value={form.no_paspor} maxLength={9} placeholder="Contoh: A1234567"
+                onChange={e=>setF('no_paspor',e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,9))} className={inp}/>
             </div>
 
             {form.no_paspor.trim() && (<>
@@ -259,9 +261,9 @@ export default function DaftarSahabatPage() {
                 <input value={form.tempat_keluar_paspor} onChange={e=>setF('tempat_keluar_paspor',e.target.value)} className={inp}/></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={lbl}>Masa Berlaku Dari</label>
-                  <input type="date" value={form.masa_berlaku_paspor_dari} onChange={e=>setF('masa_berlaku_paspor_dari',e.target.value)} className={inp}/></div>
+                  <InputTanggal value={form.masa_berlaku_paspor_dari} onChange={e=>setF('masa_berlaku_paspor_dari',e.target.value)} className={inp}/></div>
                 <div><label className={lbl}>Masa Berlaku Sampai</label>
-                  <input type="date" value={form.masa_berlaku_paspor_sampai} onChange={e=>setF('masa_berlaku_paspor_sampai',e.target.value)} className={inp}/></div>
+                  <InputTanggal value={form.masa_berlaku_paspor_sampai} onChange={e=>setF('masa_berlaku_paspor_sampai',e.target.value)} className={inp}/></div>
               </div>
               <div>
                 <label className={lbl}>Foto/Scan Paspor</label>

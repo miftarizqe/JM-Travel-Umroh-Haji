@@ -1,5 +1,6 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -96,12 +97,12 @@ function RiwayatClosingContent() {
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Dari Tanggal</label>
-          <input type="date" value={dari} onChange={e => setDari(e.target.value)}
+          <InputTanggal value={dari} onChange={e => setDari(e.target.value)}
             className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 mb-1">Sampai Tanggal</label>
-          <input type="date" value={sampai} onChange={e => setSampai(e.target.value)}
+          <InputTanggal value={sampai} onChange={e => setSampai(e.target.value)}
             className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
         </div>
         <button onClick={muat} className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-5 py-2.5 rounded-xl">

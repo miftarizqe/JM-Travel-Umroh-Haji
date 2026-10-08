@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -81,7 +82,7 @@ export default function KalkulatorCustomPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Tanggal Keberangkatan (opsional)</label>
-                <input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)} className={inp} />
+                <InputTanggal value={tanggal} onChange={e => setTanggal(e.target.value)} className={inp} />
               </div>
               <div>
                 <label className={lbl}>Jumlah Pax (opsional)</label>

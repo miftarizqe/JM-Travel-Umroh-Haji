@@ -1,5 +1,6 @@
 'use client';
 import { Fragment, Suspense, useEffect, useMemo, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
@@ -224,6 +225,10 @@ function AdminPageInner() {
   const [sahabatJamaahDb, setSahabatJamaahDb] = useState([]);
   const [sahabatPencairan, setSahabatPencairan] = useState(null);
   const [sahabatRekon, setSahabatRekon] = useState(null); // status pencocokan saldo BSI hari ini
+  // Angka antrian dari /api/admin/sidebar-badges (sumber sama dengan badge
+  // sidebar, biar angka dashboard & sidebar gak pernah beda). null = HoP /
+  // gagal dimuat -> kartu antriannya gak ditampilkan.
+  const [sahabatAntrian, setSahabatAntrian] = useState(null);
   const [loadingSahabatDash, setLoadingSahabatDash] = useState(true);
   const [openSahabatCluster, setOpenSahabatCluster] = useState(null);
   const [busySahabat, setBusySahabat] = useState(false);
@@ -380,11 +385,13 @@ function AdminPageInner() {
       fetch('/api/admin/sahabat/database').then(r => r.json()),
       fetch('/api/admin/sahabat/pencairan-ringkasan').then(r => r.json()),
       user?.role === 'hop' ? Promise.resolve(null) : fetch('/api/admin/sahabat/rekonsiliasi').then(r => r.json()).catch(() => null),
-    ]).then(([pend, db, pencairan, rekon]) => {
+      user?.role === 'hop' ? Promise.resolve(null) : fetch('/api/admin/sidebar-badges').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ]).then(([pend, db, pencairan, rekon, antrian]) => {
       setSahabatPendaftaran(pend.pendaftaran || []);
       setSahabatJamaahDb(db.jamaah || []);
       setSahabatPencairan(pencairan);
       setSahabatRekon(rekon);
+      setSahabatAntrian(antrian?.badges || null);
       setLoadingSahabatDash(false);
     }).catch(() => setLoadingSahabatDash(false));
   }
@@ -1149,6 +1156,24 @@ function AdminPageInner() {
                     </button>
                   </div>
                 )}
+
+                {/* Antrian Sahabat yang juga punya badge di sidebar (dikonfirmasi
+                    user 2026-10-08) — biar gak cuma ketahuan dari sidebar. */}
+                {sahabatAntrian && [
+                  { icon: '💵', label: 'Pengajuan Setoran Mandiri', path: '/admin/sahabat/setoran-mandiri-pengajuan' },
+                  { icon: '🎯', label: 'Pengajuan Ganti Target', path: '/admin/sahabat/ganti-target' },
+                  { icon: '⚠️', label: 'Laporan Data dari HoP', path: '/admin/sahabat/laporan-data' },
+                ].map(k => {
+                  const n = sahabatAntrian[k.path] || 0;
+                  return (
+                    <div key={k.path} className={`border rounded-xl overflow-hidden ${n > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'}`}>
+                      <button onClick={() => router.push(k.path)} className="w-full flex items-center justify-between p-4 text-left">
+                        <div className="font-bold text-gray-700 text-sm">{k.icon} {k.label}</div>
+                        <span className={`text-xs font-black px-2 py-1 rounded-full ${n > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{n}</span>
+                      </button>
+                    </div>
+                  );
+                })}
 
                 {/* Ujroh Pending Belum Diajukan */}
                 <div className="border border-cyan-200 bg-cyan-50 rounded-xl overflow-hidden">
@@ -2008,11 +2033,11 @@ function AdminPageInner() {
           <div className="flex flex-wrap items-end gap-2 bg-white rounded-xl border border-[#e0e8f0] p-3">
             <div>
               <label className="block text-[10px] text-gray-400 mb-1">Dari Tanggal</label>
-              <input type="date" value={hierarkiFrom} onChange={e => setHierarkiFrom(e.target.value)} className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
+              <InputTanggal value={hierarkiFrom} onChange={e => setHierarkiFrom(e.target.value)} className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
             </div>
             <div>
               <label className="block text-[10px] text-gray-400 mb-1">Sampai Tanggal</label>
-              <input type="date" value={hierarkiTo} onChange={e => setHierarkiTo(e.target.value)} className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
+              <InputTanggal value={hierarkiTo} onChange={e => setHierarkiTo(e.target.value)} className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
             </div>
             {(hierarkiFrom || hierarkiTo) && (
               <button onClick={() => { setHierarkiFrom(''); setHierarkiTo(''); }}
@@ -2233,7 +2258,7 @@ function AdminPageInner() {
                   <input type="checkbox" checked={vForm.batasTanggal} onChange={e => setVForm({...vForm, batasTanggal:e.target.checked})} />
                   Batasi Tanggal Berakhir
                 </label>
-                <input type="date" value={vForm.valid_until} disabled={!vForm.batasTanggal}
+                <InputTanggal value={vForm.valid_until} disabled={!vForm.batasTanggal}
                   onChange={e => setVForm({...vForm, valid_until:e.target.value})}
                   className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm disabled:bg-gray-100 disabled:text-gray-400"/>
               </div>

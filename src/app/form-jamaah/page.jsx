@@ -1,5 +1,6 @@
 'use client';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -480,11 +481,11 @@ function FormJamaahPageInner() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-gray-400 mb-1">Tanggal Mulai</div>
-                  <input type="date" value={j.exp_mulai} onChange={e => { if (e.target.value) setField('exp_mulai', e.target.value); }} className={inp}/>
+                  <InputTanggal value={j.exp_mulai} onChange={e => { if (e.target.value) setField('exp_mulai', e.target.value); }} className={inp}/>
                 </div>
                 <div>
                   <div className="text-xs text-gray-400 mb-1">Tanggal Berakhir</div>
-                  <input type="date" value={j.exp_paspor} onChange={e => { if (e.target.value) setField('exp_paspor', e.target.value); }} className={inp}/>
+                  <InputTanggal value={j.exp_paspor} onChange={e => { if (e.target.value) setField('exp_paspor', e.target.value); }} className={inp}/>
                 </div>
               </div>
               {statusPaspor && (
@@ -508,7 +509,7 @@ function FormJamaahPageInner() {
               </div>
               <div>
                 <label className={lbl}>Tanggal Lahir *</label>
-                <input type="date" value={j.ttl} onChange={e => {
+                <InputTanggal value={j.ttl} onChange={e => {
                   const v = e.target.value;
                   if (!v) return; // input tanggal browser bisa sempat kirim event kosong pas segmen lagi diketik — jangan sampai numpuk hapus NIK/ttl yang sudah keisi (lihat setField di atas)
                   setField('ttl', v);
