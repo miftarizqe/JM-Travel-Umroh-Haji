@@ -377,7 +377,7 @@ export default function ProgramsPage() {
     const itemD = anyId ? await (await fetch(`/api/admin/biaya-breakdown?id=${anyId}`)).json() : null;
     setKalkulatorShared({
       ...shared,
-      items: (itemD?.breakdown?.items || []).map(it => ({ master_item_id: it.master_item_id, kelompok: it.kelompok, nama: it.nama, nominal: it.nominal, mata_uang: it.mata_uang, basis: it.basis, trigger_kunci: it.trigger_kunci, modul_negara_id: it.modul_negara_id })),
+      items: (itemD?.breakdown?.items || []).map(it => ({ master_item_id: it.master_item_id, kelompok: it.kelompok, nama: it.nama, nominal: it.nominal, mata_uang: it.mata_uang, basis: it.basis, trigger_kunci: it.trigger_kunci, modul_negara_id: it.modul_negara_id, frekuensi: it.frekuensi })),
     });
     setKalkulatorHotel(hotel); setKalkulatorMalam(malam); setKalkulatorKomisi(komisi); setKalkulatorMargin(margin);
     // Aktifin kalkulator ketiga paket sekaligus begitu template dipilih, biar
@@ -565,7 +565,12 @@ export default function ProgramsPage() {
       // Ambil item breakdown — cukup dari SALAH SATU row karena isinya sama di ketiga row.
       const anyId = Object.values(ids)[0];
       fetch(`/api/admin/biaya-breakdown?id=${anyId}`).then(r => r.json()).then(dd => {
-        const items = (dd.breakdown?.items || []).map(it => ({ master_item_id: it.master_item_id, kelompok: it.kelompok, nama: it.nama, nominal: it.nominal, mata_uang: it.mata_uang, basis: it.basis, trigger_kunci: it.trigger_kunci, modul_negara_id: it.modul_negara_id }));
+        // frekuensi SEMPAT kelewat dari daftar field yang di-copy (ditemukan
+        // user 2026-10-09, "real bug karena ngeganti beda budgetnya") --
+        // tersimpan bener di DB, tapi pas program dibuka ulang buat diedit,
+        // field ini gak ikut ketarik, jadi dropdown-nya balik keliatan
+        // "default" padahal pilihan aslinya masih utuh di database.
+        const items = (dd.breakdown?.items || []).map(it => ({ master_item_id: it.master_item_id, kelompok: it.kelompok, nama: it.nama, nominal: it.nominal, mata_uang: it.mata_uang, basis: it.basis, trigger_kunci: it.trigger_kunci, modul_negara_id: it.modul_negara_id, frekuensi: it.frekuensi }));
         setKalkulatorShared({ ...shared, items });
       }).catch(() => setKalkulatorShared(shared));
     }).catch(() => {});
