@@ -252,7 +252,20 @@ export default function DashboardJamaah() {
                         </div>
                       )}
 
-                      {stage === 4 && (
+                      {/* Checkout mandiri Sahabat Baitullah LANGSUNG lunas
+                          penuh dari saldo pas checkout, gak ada tahap
+                          "lanjut pelunasan" yang jamaah perlu lakukan --
+                          cuma nunggu admin konfirmasi pemakaian saldonya
+                          (dikonfirmasi user 2026-10-08), tombol ke
+                          /pelunasan gak relevan & bakal nyasar kalau
+                          diklik. */}
+                      {stage === 4 && b.prog_publish_type === 'sahabat_baitullah' && (
+                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full">
+                          ⏳ Menunggu admin konfirmasi pemakaian saldo tabungan umroh
+                        </div>
+                      )}
+
+                      {stage === 4 && b.prog_publish_type !== 'sahabat_baitullah' && (
                         <button
                           onClick={() => router.push(`/pelunasan?booking_id=${b.id}`)}
                           className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"

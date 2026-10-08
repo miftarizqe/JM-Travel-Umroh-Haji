@@ -37,8 +37,14 @@ export async function GET(request) {
     // user_id doang, jadi booking yang di-closing-in buat orang lain gak
     // pernah muncul di "Booking Saya" pengclosing-nya sendiri (dikonfirmasi
     // user 2026-10-06).
+    // prog_publish_type ikut diambil -- dipakai getStage()/perjanjianSelesai()
+    // (src/lib/bookingStage.js) buat ngenalin booking checkout mandiri
+    // Sahabat Baitullah (program eksklusif), yang gak pernah lewat tahap
+    // Perjanjian Jamaah biasa (dikonfirmasi user 2026-10-08).
     const [bookings] = await pool.query(
-      'SELECT * FROM bookings WHERE user_id = ? OR ordered_by = ? ORDER BY created_at DESC',
+      `SELECT b.*, p.publish_type AS prog_publish_type FROM bookings b
+       LEFT JOIN programs p ON p.id = b.prog_id
+       WHERE b.user_id = ? OR b.ordered_by = ? ORDER BY b.created_at DESC`,
       [userId, userId]
     );
 
