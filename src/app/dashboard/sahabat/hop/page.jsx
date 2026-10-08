@@ -17,6 +17,7 @@ const PINTASAN = [
   { icon: '📝', label: 'Pendaftaran', path: '/admin/sahabat' },
   { icon: '🗂️', label: 'Database Anggota', path: '/admin/sahabat/database' },
   { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
+  { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing' },
   { icon: '💸', label: 'Pencairan', path: '/admin/sahabat/pencairan' },
   { icon: '🛡️', label: 'Ringkasan Admin', path: '/admin' },
 ];

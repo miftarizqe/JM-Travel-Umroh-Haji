@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { useIsHop } from '@/lib/useIsHop';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 
@@ -78,26 +79,26 @@ function DetailProgram({ grouped, adaKategori }) {
 }
 
 // ==================== TABEL CLOSING (sudah cair) ====================
-function BarisClosing({ orang }) {
+function BarisClosing({ orang, showBsi = true }) {
   const [buka, setBuka] = useState(false);
   const grouped = groupByProgram(orang.realized_detail);
   return (
     <>
       <tr onClick={() => setBuka(b => !b)} className="cursor-pointer hover:bg-[#F8F9FD] border-t border-gray-100">
         <td className="px-3 py-2.5">
-          <div className="font-semibold text-gray-700">{orang.name}</div>
+          <div className="font-semibold text-gray-700">{orang.name} {orang.role === 'hop' && <span className="text-[9px] font-bold text-white bg-[#1A4FA0] px-1.5 py-0.5 rounded-full align-middle">HOP</span>}</div>
           <div className="text-[10px] text-gray-400">
             {orang.kode_unik} {orang.bank ? `· ${orang.bank} ${orang.no_rekening || ''}` : <span className="text-red-400">· rekening belum diisi</span>}
           </div>
         </td>
-        <td className="px-3 py-2.5 text-right text-gray-600 whitespace-nowrap">{rp(orang.realized_pribadi)}</td>
-        <td className="px-3 py-2.5 text-right text-purple-600 whitespace-nowrap">{rp(orang.realized_bsi)}</td>
+        {showBsi && <td className="px-3 py-2.5 text-right text-gray-600 whitespace-nowrap">{rp(orang.realized_pribadi)}</td>}
+        {showBsi && <td className="px-3 py-2.5 text-right text-purple-600 whitespace-nowrap">{rp(orang.realized_bsi)}</td>}
         <td className="px-3 py-2.5 text-right font-black text-green-600 whitespace-nowrap">{rp(orang.realized_total)}</td>
         <td className="px-3 py-2.5 text-center text-gray-400 w-6">{buka ? '▲' : '▼'}</td>
       </tr>
       {buka && (
         <tr>
-          <td colSpan={5} className="bg-gray-50 border-t border-gray-100 p-3">
+          <td colSpan={showBsi ? 5 : 3} className="bg-gray-50 border-t border-gray-100 p-3">
             <DetailProgram grouped={grouped} adaKategori />
           </td>
         </tr>
@@ -106,7 +107,11 @@ function BarisClosing({ orang }) {
   );
 }
 
-function TabelClosing({ list }) {
+// showBsi=false buat Sahabat Baitullah -- jenis ujroh-nya gak pernah
+// kekunci Tabungan BSI (lihat kategoriRekening di laporanUjroh.js), kolom
+// itu bakal selalu Rp0 kalau dipaksa tampil, jadi dibuang aja bukan
+// nampilin kolom percuma.
+function TabelClosing({ list, showBsi = true }) {
   const total = list.reduce((acc, o) => ({
     realized_pribadi: acc.realized_pribadi + o.realized_pribadi,
     realized_bsi: acc.realized_bsi + o.realized_bsi,
@@ -119,24 +124,24 @@ function TabelClosing({ list }) {
         <thead>
           <tr className="bg-green-50 text-green-700 text-xs uppercase">
             <th className="text-left px-3 py-2.5 font-bold whitespace-nowrap">Nama</th>
-            <th className="text-right px-3 py-2.5 font-bold whitespace-nowrap">Rekening Pribadi</th>
-            <th className="text-right px-3 py-2.5 font-bold whitespace-nowrap">Tabungan BSI</th>
+            {showBsi && <th className="text-right px-3 py-2.5 font-bold whitespace-nowrap">Rekening Pribadi</th>}
+            {showBsi && <th className="text-right px-3 py-2.5 font-bold whitespace-nowrap">Tabungan BSI</th>}
             <th className="text-right px-3 py-2.5 font-bold whitespace-nowrap">Total Closing</th>
             <th className="w-6"></th>
           </tr>
         </thead>
         <tbody>
           {list.length === 0 && (
-            <tr><td colSpan={5} className="text-center text-gray-400 py-8">Belum ada yang cair pada periode ini.</td></tr>
+            <tr><td colSpan={showBsi ? 5 : 3} className="text-center text-gray-400 py-8">Belum ada yang cair pada periode ini.</td></tr>
           )}
-          {list.map(o => <BarisClosing key={o.id} orang={o} />)}
+          {list.map(o => <BarisClosing key={o.id} orang={o} showBsi={showBsi} />)}
         </tbody>
         {list.length > 0 && (
           <tfoot>
             <tr className="border-t-2 border-green-600 bg-green-50/60 font-bold">
               <td className="px-3 py-2.5 text-green-700">TOTAL</td>
-              <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{rp(total.realized_pribadi)}</td>
-              <td className="px-3 py-2.5 text-right text-purple-700 whitespace-nowrap">{rp(total.realized_bsi)}</td>
+              {showBsi && <td className="px-3 py-2.5 text-right text-gray-700 whitespace-nowrap">{rp(total.realized_pribadi)}</td>}
+              {showBsi && <td className="px-3 py-2.5 text-right text-purple-700 whitespace-nowrap">{rp(total.realized_bsi)}</td>}
               <td className="px-3 py-2.5 text-right text-green-700 whitespace-nowrap">{rp(total.realized_total)}</td>
               <td></td>
             </tr>
@@ -155,7 +160,7 @@ function BarisForecast({ orang }) {
     <>
       <tr onClick={() => setBuka(b => !b)} className="cursor-pointer hover:bg-[#F8F9FD] border-t border-gray-100">
         <td className="px-3 py-2.5">
-          <div className="font-semibold text-gray-700">{orang.name}</div>
+          <div className="font-semibold text-gray-700">{orang.name} {orang.role === 'hop' && <span className="text-[9px] font-bold text-white bg-[#1A4FA0] px-1.5 py-0.5 rounded-full align-middle">HOP</span>}</div>
           <div className="text-[10px] text-gray-400">{orang.kode_unik}</div>
         </td>
         <td className="px-3 py-2.5 text-right font-black text-[#C9952A] whitespace-nowrap">{rp(orang.forecast_total)}</td>
@@ -208,6 +213,7 @@ function TabelForecast({ list }) {
 export default function LaporanUjrohClosingPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
+  const { isAdminOrHop, isHop, checked: hopChecked } = useIsHop(user);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [data, setData] = useState(null);
@@ -224,18 +230,24 @@ export default function LaporanUjrohClosingPage() {
   }
 
   useEffect(() => {
-    if (!user) return;
-    if (!['admin','super_admin'].includes(user.role)) { router.replace('/login'); }
-  }, [user]);
+    if (!user || !hopChecked) return;
+    if (!isAdminOrHop) { router.replace('/login'); }
+  }, [user, hopChecked, isAdminOrHop]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { muat(); }, []);
+  useEffect(() => { if (hopChecked) muat(); }, [hopChecked]);
 
-  if (!user || !['admin','super_admin'].includes(user.role)) {
+  if (!user || !hopChecked || !isAdminOrHop) {
     return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
   }
 
   const list = data?.perwakilan || [];
+  const sahabatList = data?.sahabat || [];
+  // HoP (role 'hop') itu sendiri ikut muncul di sahabatList kalau pernah
+  // dapat bagian 'Bagian Head of Program' — ditonjolkan terpisah biar HoP
+  // gampang lihat forecast PRIBADINYA tanpa harus nyari di tabel panjang
+  // (dikonfirmasi user 2026-10-08: "forecast yang dia dapet pribadi brp").
+  const meForecast = isHop ? sahabatList.find(o => o.id === data?.me_id) : null;
   const t = data?.totals;
 
   function exportExcel() {
@@ -246,9 +258,11 @@ export default function LaporanUjrohClosingPage() {
   }
 
   return (
-    <Layout title="💰 Closing & Forecast Ujroh" backHref="/admin?tab=dashboard">
+    <Layout title="💰 Closing & Forecast Ujroh" backHref={isHop ? '/dashboard/sahabat/hop' : '/admin?tab=dashboard'}>
       <div className="text-xs text-gray-400 mb-4">
-        Cuma perwakilan yang punya minimal 1 closing yang ditampilkan, 1 baris per orang. Tabel <b>Closing</b> (sudah cair, dipecah Rekening Pribadi vs Tabungan BSI) dan tabel <b>Forecast</b> (proyeksi, belum closing) sengaja tabel terpisah — klik barisnya buat lihat rincian per program (jumlah jamaah, dll). Export Excel berisi rincian transaksi lengkap di sheet terpisah.
+        {isHop
+          ? 'Ujroh dari closing booking program reguler yang dibantu/direferensikan anggota Sahabat Baitullah — baris Anda sendiri ditandai badge "HOP". Tabel Closing (sudah cair) dan Forecast (proyeksi, belum closing) terpisah — klik barisnya buat lihat rincian per program.'
+          : 'Cuma yang punya minimal 1 closing yang ditampilkan, 1 baris per orang. Tabel Closing (sudah cair, dipecah Rekening Pribadi vs Tabungan BSI buat Perwakilan) dan tabel Forecast (proyeksi, belum closing) sengaja tabel terpisah — klik barisnya buat lihat rincian per program (jumlah jamaah, dll). Export Excel berisi rincian transaksi lengkap di sheet terpisah.'}
       </div>
 
       {/* Filter periode + export */}
@@ -267,18 +281,30 @@ export default function LaporanUjrohClosingPage() {
           className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-5 py-2.5 rounded-xl">
           Terapkan Filter
         </button>
-        <button onClick={exportExcel}
-          className="ml-auto bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-5 py-2.5 rounded-xl">
-          ⬇️ Export ke Excel
-        </button>
+        {!isHop && (
+          <button onClick={exportExcel}
+            className="ml-auto bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-5 py-2.5 rounded-xl">
+            ⬇️ Export ke Excel
+          </button>
+        )}
       </div>
 
       {loading ? (
         <div className="text-center text-gray-400 py-10">Memuat...</div>
       ) : (
         <>
-          {/* Grand total */}
-          {t && (
+          {/* Kartu forecast pribadi HoP — paling atas, paling nonjol */}
+          {isHop && meForecast && (
+            <div className="bg-[#0E2F6E] rounded-xl p-4 mb-6 text-white">
+              <div className="text-xs text-blue-100">🎖️ Forecast &amp; Closing Anda Pribadi (Head of Program)</div>
+              <div className="flex gap-6 mt-1">
+                <div><div className="text-[10px] text-blue-200">Sudah Cair</div><div className="font-black text-lg text-green-300">{rp(meForecast.realized_total)}</div></div>
+                <div><div className="text-[10px] text-blue-200">Forecast</div><div className="font-black text-lg text-amber-300">{rp(meForecast.forecast_total)}</div></div>
+              </div>
+            </div>
+          )}
+
+          {!isHop && t && (
             <div className="grid grid-cols-2 gap-3 mb-6">
               <div className="bg-purple-50 rounded-xl p-4">
                 <div className="text-xs text-gray-400">Perwakilan — Sudah Cair</div>
@@ -291,14 +317,40 @@ export default function LaporanUjrohClosingPage() {
             </div>
           )}
 
+          {!isHop && (
+            <>
+              <div className="mb-8">
+                <div className="font-bold text-green-700 mb-3">✅ Perwakilan — Sudah Cair (Wajib Ditransfer)</div>
+                <TabelClosing list={list} />
+              </div>
+              <div className="mb-8">
+                <div className="font-bold text-[#8a6516] mb-3">⏳ Perwakilan — Forecast (Proyeksi)</div>
+                <TabelForecast list={list} />
+              </div>
+            </>
+          )}
+
+          {t && (
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <div className="bg-[#E8F0FB] rounded-xl p-4">
+                <div className="text-xs text-gray-400">Sahabat Baitullah — Sudah Cair</div>
+                <div className="font-black text-lg mt-0.5 text-green-600">{rp(t.sahabat_realized)}</div>
+              </div>
+              <div className="bg-[#E8F0FB] rounded-xl p-4">
+                <div className="text-xs text-gray-400">Sahabat Baitullah — Forecast</div>
+                <div className="font-black text-lg mt-0.5 text-[#C9952A]">{rp(t.sahabat_forecast)}</div>
+              </div>
+            </div>
+          )}
+
           <div className="mb-8">
-            <div className="font-bold text-green-700 mb-3">✅ Closing — Sudah Cair (Wajib Ditransfer)</div>
-            <TabelClosing list={list} />
+            <div className="font-bold text-green-700 mb-3">✅ Sahabat Baitullah — Sudah Cair (Wajib Ditransfer)</div>
+            <TabelClosing list={sahabatList} showBsi={false} />
           </div>
 
           <div className="mb-4">
-            <div className="font-bold text-[#8a6516] mb-3">⏳ Forecast — Belum Closing (Proyeksi)</div>
-            <TabelForecast list={list} />
+            <div className="font-bold text-[#8a6516] mb-3">⏳ Sahabat Baitullah — Forecast (Proyeksi)</div>
+            <TabelForecast list={sahabatList} />
           </div>
         </>
       )}
