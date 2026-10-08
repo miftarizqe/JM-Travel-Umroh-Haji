@@ -22,6 +22,18 @@ export async function PATCH(request) {
     if (metode === 'kantor' && !tanggal_kunjungan) {
       return Response.json({ error: 'Tanggal rencana kunjungan wajib diisi' }, { status: 400 });
     }
+    // Maks 2 minggu dari sekarang (dikonfirmasi user 2026-10-08) — client
+    // udah ngunci lewat max date picker, dicek ulang di server biar gak
+    // bisa dilewatin via request langsung.
+    if (metode === 'kantor') {
+      const tgl = new Date(tanggal_kunjungan);
+      const duaMingguLagi = new Date();
+      duaMingguLagi.setDate(duaMingguLagi.getDate() + 14);
+      duaMingguLagi.setHours(23, 59, 59, 999);
+      if (isNaN(tgl) || tgl > duaMingguLagi) {
+        return Response.json({ error: 'Tanggal rencana kunjungan maksimal 2 minggu dari sekarang' }, { status: 400 });
+      }
+    }
 
     const [[user]] = await pool.query('SELECT name, role FROM users WHERE id = ?', [auth.user.id]);
     if (!user) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
