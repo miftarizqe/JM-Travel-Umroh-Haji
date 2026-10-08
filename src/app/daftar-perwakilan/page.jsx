@@ -13,7 +13,11 @@ import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
 
 const emptyForm = () => ({
-  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
+  // Default Tanggal Lahir diisi persis tgl termuda yang masih valid (17
+  // tahun dari hari ini, dikonfirmasi user 2026-10-08) — biar date picker
+  // gak nongol tahun sekarang yang jelas-jelas gak valid pas pertama
+  // dibuka, pendaftar tinggal mundur dari situ.
+  nama:'', nik:'', tempat_lahir:'', tl: maksTglLahir17Tahun(), jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
   // Alamat KTP
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   // Alamat domisili — sama_ktp true berarti dianggap sama dgn alamat KTP di atas
