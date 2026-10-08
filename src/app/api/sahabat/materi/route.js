@@ -7,7 +7,9 @@ import { wajibRole } from '@/lib/auth';
 // /api/sahabat/materi/[id]/slide/[slideId] yang ngecek role di server tiap
 // request, biar gak ada satupun URL statis yang bisa diakses tanpa login.
 export async function GET(request) {
-  const auth = wajibRole(request, ['sahabat_baitullah', 'admin', 'super_admin']);
+  // HoP ikut diizinin konsisten sama slide image route (dikonfirmasi user
+  // 2026-10-08, preview materi di /admin/sahabat/materi kepake HoP juga).
+  const auth = wajibRole(request, ['sahabat_baitullah', 'admin', 'super_admin', 'hop']);
   if (auth.error) return auth.error;
   try {
     // Materi cuma buat anggota sahabat yang UDAH ACC admin (status='active')
