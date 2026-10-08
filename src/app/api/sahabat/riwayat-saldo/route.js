@@ -16,6 +16,13 @@ export async function GET(request) {
     const auth = await wajibPemilikAtauAdminHopSahabat(request, sahabatId);
     if (auth.error) return auth.error;
 
+    // Cuma baris yang UDAH dikonfirmasi admin (dikonfirmasi user
+    // 2026-10-08, "kalo belom di acc admin maka jangan masuk dulu ke
+    // cashflow tabungan") -- sebelumnya baris pending ikut nongol di sini
+    // campur sama yang confirmed, bikin bingung "ini udah masuk apa
+    // belum". Baris pending sekarang cuma muncul di tab Forecast
+    // ("Menunggu Konfirmasi Admin", lihat /api/sahabat/dashboard) --
+    // Cashflow jadi murni rekening koran yang BENERAN udah kejadian.
     const [rows] = await pool.query(
       `SELECT kl.id, kl.jenis, kl.ref_id, kl.nominal, kl.keterangan, kl.dikonfirmasi_at, kl.bukti_tf_admin_path, kl.created_at,
               kl.level, pendaftar.name AS nama_pendaftar
@@ -23,17 +30,15 @@ export async function GET(request) {
        LEFT JOIN users pendaftar
          ON pendaftar.id = kl.ref_id AND kl.jenis IN ('komisi_sahabat','head_of_program_registrasi')
        WHERE kl.penerima_id = ? AND kl.jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')
+             AND kl.dikonfirmasi_at IS NOT NULL
        ORDER BY kl.created_at ASC, kl.id ASC`,
       [sahabatId]
     );
 
-    // Saldo berjalan cuma naik dari baris yang UDAH dikonfirmasi admin —
-    // baris pending nampilin saldo terakhir yang confirmed (belum berubah),
-    // biar keliatan jelas "ini belum resmi masuk saldo".
     let saldoBerjalan = 0;
     const withSaldo = rows.map(r => {
-      if (r.dikonfirmasi_at) saldoBerjalan += Number(r.nominal || 0);
-      return { ...r, saldo_setelah: r.dikonfirmasi_at ? saldoBerjalan : null };
+      saldoBerjalan += Number(r.nominal || 0);
+      return { ...r, saldo_setelah: saldoBerjalan };
     });
 
     return Response.json({
