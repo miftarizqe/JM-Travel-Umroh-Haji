@@ -15,6 +15,10 @@ const JENIS_LABEL = {
   reseller_perwakilan: 'Margin Reseller (dari downline)',
   margin_pribadi: 'Closing Langsung (Margin Pribadi)',
   margin_reseller: 'Margin Reseller (dari downline)',
+  closing_langsung_sahabat: 'Closing Langsung (Booking Program)',
+  referral_closing_reguler_sahabat: 'Ujroh Referral Sahabat',
+  komisi_sahabat: 'Ujroh Generasi (Rekrutan)',
+  head_of_program_registrasi: 'Komisi Registrasi HOP',
 };
 
 // Rekap 1 orang punya banyak transaksi per program+sumber jadi 1 baris —
@@ -261,8 +265,8 @@ export default function LaporanUjrohClosingPage() {
     <Layout title="💰 Closing & Forecast Ujroh" backHref={isHop ? '/dashboard/sahabat/hop' : '/admin?tab=dashboard'}>
       <div className="text-xs text-gray-400 mb-4">
         {isHop
-          ? 'Ujroh dari closing booking program reguler yang dibantu/direferensikan anggota Sahabat Baitullah — baris Anda sendiri ditandai badge "HOP". Tabel Closing (sudah cair) dan Forecast (proyeksi, belum closing) terpisah — klik barisnya buat lihat rincian per program.'
-          : 'Cuma yang punya minimal 1 closing yang ditampilkan, 1 baris per orang. Tabel Closing (sudah cair, dipecah Rekening Pribadi vs Tabungan BSI buat Perwakilan) dan tabel Forecast (proyeksi, belum closing) sengaja tabel terpisah — klik barisnya buat lihat rincian per program (jumlah jamaah, dll). Export Excel berisi rincian transaksi lengkap di sheet terpisah.'}
+          ? 'Ujroh Sahabat Baitullah dari 2 sumber: closing booking program reguler, DAN komisi generasi (Gen1-5 + registrasi HOP) dari rekrutan baru — baris Anda sendiri ditandai badge "HOP". Forecast closing dihitung dari booking yang masih aktif; forecast generasi dihitung dari pendaftaran yang masih dalam proses (belum di-ACC admin). Tabel Closing (sudah cair) dan Forecast (proyeksi) terpisah — klik barisnya buat lihat rincian.'
+          : 'Cuma yang punya minimal 1 closing/komisi yang ditampilkan, 1 baris per orang. Sahabat Baitullah mencakup 2 sumber ujroh: closing booking program, dan komisi generasi (Gen1-5 + registrasi HOP) dari rekrutan baru. Tabel Closing (sudah cair, dipecah Rekening Pribadi vs Tabungan BSI buat Perwakilan) dan tabel Forecast (proyeksi, belum closing/belum aktif) sengaja tabel terpisah — klik barisnya buat lihat rincian per program/rekrutan. Export Excel berisi rincian transaksi lengkap di sheet terpisah.'}
       </div>
 
       {/* Filter periode + export */}

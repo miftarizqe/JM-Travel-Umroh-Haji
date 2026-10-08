@@ -1,5 +1,6 @@
 import { cariPotensiResellerLangsung, costBasisPerwakilan } from '@/lib/closing';
 import { groupJamaahAktif } from '@/lib/jamaahHarga';
+import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 
 // 'closing_bsi' dikunci ke tabungan BSI (bukan ditransfer ke rekening
 // pribadi) — semua jenis lain ditransfer ke rekening pribadi penerima.
@@ -193,8 +194,10 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
   async function ambilUserRingkas(id) {
     if (!id) return null;
     if (userCache.has(id)) return userCache.get(id);
+    // status+perekrut_id ikut diambil -- dipakai buat jalan rantai ancestor
+    // forecast komisi generasi di bawah, bukan buat ditampilkan.
     const [[u]] = await pool.query(
-      'SELECT id, name, role, kode_unik, bank, no_rekening, nama_pemilik_rekening FROM users WHERE id = ?', [id]
+      'SELECT id, name, role, status, perekrut_id, kode_unik, bank, no_rekening, nama_pemilik_rekening FROM users WHERE id = ?', [id]
     );
     userCache.set(id, u || null);
     return u || null;
@@ -215,10 +218,17 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
   // --- Realized (sudah closing/'selesai'), langsung dari ledger -- lebih
   // simpel dari perwakilan karena nominalnya fix/flat, bukan margin
   // dinamis, jadi gak perlu dihitung ulang, cukup jumlahin ledger. ---
+  // 'komisi_sahabat' (ujroh Gen1-5 rekrutan) + 'head_of_program_registrasi'
+  // (jatah HOP per rekrutan baru aktif) IKUT DIHITUNG di sini juga
+  // (dikonfirmasi user 2026-10-08: "gak cuma program kan, tapi juga ujroh
+  // generasi2") -- beda SUMBER (dipicu pas rekrutan baru 'active', bukan
+  // pas booking closing) tapi tetap ujroh sahabat, jadi satu laporan.
+  // 'tabungan_awal_sahabat' SENGAJA tidak ikut -- itu saldo pribadi
+  // rekrutan sendiri, bukan ujroh/komisi ke orang lain.
   const [sahabatLedger] = await pool.query(
     `SELECT kl.penerima_id, kl.jenis, kl.nominal, kl.booking_id, kl.jumlah_jamaah, kl.keterangan, kl.created_at, b.prog_name
      FROM komisi_ledger kl LEFT JOIN bookings b ON b.id = kl.booking_id
-     WHERE kl.jenis IN ('closing_langsung_sahabat','referral_closing_reguler_sahabat')${ledgerWhere}
+     WHERE kl.jenis IN ('closing_langsung_sahabat','referral_closing_reguler_sahabat','komisi_sahabat','head_of_program_registrasi')${ledgerWhere}
      ORDER BY kl.created_at DESC`,
     ledgerParams
   );
@@ -304,6 +314,57 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
   for (const b of aktifReferralReguler) {
     const oReferrer = orangSahabat(await ambilUserRingkas(b.perekrut_sahabat_jamaah_id));
     tambahForecastSahabat(oReferrer, 'referral_closing_reguler_sahabat', 1_000_000, b, 'Referral pendaftaran — belum closing');
+  }
+
+  // Forecast ujroh Gen1-5 + komisi registrasi HOP -- dari pendaftaran
+  // Sahabat Baitullah yang MASIH DALAM PROSES (users.status masih
+  // 'pending', belum di-ACC admin jadi 'active'). Replikasi PERSIS
+  // ancestor-walk di PATCH action='advance' status_baru='active'
+  // (src/app/api/status-pendaftaran-sahabat/route.js) biar forecast
+  // konsisten sama yang beneran bakal tercatat begitu pendaftar ini aktif.
+  const [[pengaturanGen]] = await pool.query(
+    `SELECT sahabat_gen1_nominal, sahabat_gen2_nominal, sahabat_gen3_nominal, sahabat_gen4_nominal, sahabat_gen5_nominal,
+            sahabat_head_of_program_nominal, head_of_program_user_id
+     FROM pengaturan WHERE id = 1`
+  );
+  const genNominal = [
+    pengaturanGen?.sahabat_gen1_nominal, pengaturanGen?.sahabat_gen2_nominal, pengaturanGen?.sahabat_gen3_nominal,
+    pengaturanGen?.sahabat_gen4_nominal, pengaturanGen?.sahabat_gen5_nominal,
+  ];
+  const hopUserIdGen = pengaturanGen?.head_of_program_user_id || null;
+  const hopRegistrasiNominal = Number(pengaturanGen?.sahabat_head_of_program_nominal || 0);
+
+  const [pendaftarBelumAktif] = await pool.query(
+    "SELECT id, name, perekrut_id FROM users WHERE role = 'sahabat_baitullah' AND status = 'pending'"
+  );
+  const refPendaftaran = (nama) => ({ id: null, prog_name: 'Pendaftaran Sahabat Baitullah Baru', jumlah_jamaah: 1, __nama: nama });
+  for (const pend of pendaftarBelumAktif) {
+    let current = pend.perekrut_id;
+    let rantaiAbis = false;
+    for (let gen = 0; gen < 5; gen++) {
+      const nominal = Number(genNominal[gen] || 0);
+      let ancestor = null;
+      if (!rantaiAbis && current) {
+        ancestor = await ambilUserRingkas(current);
+        if (ancestor) current = ancestor.perekrut_id; else rantaiAbis = true;
+      } else {
+        rantaiAbis = true;
+      }
+      const ancestorManajemen = ancestor && ['admin', 'super_admin', 'hop'].includes(ancestor.role);
+      if (nominal > 0 && ancestor) {
+        const ancestorAktif = !ancestorManajemen && !(hopUserIdGen && String(ancestor.id) === String(hopUserIdGen))
+          && (await statusKeaktifanUjroh(pool, ancestor.id)).aktif;
+        if (ancestorAktif) {
+          tambahForecastSahabat(orangSahabat(ancestor), 'komisi_sahabat', nominal,
+            refPendaftaran(pend.name), `Ujroh Generasi ${gen + 1} — atas nama ${pend.name} (belum aktif)`);
+        }
+      }
+      if (ancestorManajemen) { current = null; rantaiAbis = true; }
+    }
+    if (hopUserIdGen && hopRegistrasiNominal > 0) {
+      tambahForecastSahabat(orangSahabat(await ambilUserRingkas(hopUserIdGen)), 'head_of_program_registrasi', hopRegistrasiNominal,
+        refPendaftaran(pend.name), `Komisi registrasi dari ${pend.name} (belum aktif)`);
+    }
   }
 
   const sahabatList = [...sahabatMap.values()]
