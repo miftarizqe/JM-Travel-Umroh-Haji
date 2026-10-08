@@ -124,7 +124,7 @@ export async function GET(request) {
     // Detail per-baris (buat rekening koran lengkap) ada di
     // /api/sahabat/riwayat-saldo — di sini cukup agregatnya buat kartu ringkasan.
     const [komisi] = await pool.query(
-      `SELECT jenis, nominal, dikonfirmasi_at
+      `SELECT id, jenis, nominal, keterangan, created_at, dikonfirmasi_at
        FROM komisi_ledger
        WHERE penerima_id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
       [sahabatId]
@@ -143,6 +143,22 @@ export async function GET(request) {
     // dikonfirmasi_at aja).
     const pendingRows = komisi.filter(k => !k.dikonfirmasi_at);
     const saldoPending = pendingRows.reduce((s, k) => s + Number(k.nominal || 0), 0);
+
+    // Detail per-baris saldo pending (dikonfirmasi user 2026-10-08) --
+    // sebelumnya baris ini nongol campur di "Cashflow Tabungan" (Riwayat
+    // Lengkap), bikin bingung karena kelihatan kayak udah masuk padahal
+    // admin belum acc. Sekarang dipindah ke sini, ikut ditampilin di tab
+    // Forecast sebagai kategori terpisah "Menunggu Konfirmasi Admin" --
+    // ini BEDA dari calon_ujroh/closing_jamaah (yang proyeksi, belum
+    // beneran kejadian): baris ini udah BENERAN tercatat di ledger, cuma
+    // belum di-acc admin. 'pemakaian_saldo_sahabat' DIBUANG dari list ini
+    // -- itu pengeluaran/hold (nominal negatif), bukan pemasukan yang
+    // "ditunggu", udah kepotong duluan dari saldo lewat saldoSahabat().
+    const pendingDetail = pendingRows
+      .filter(k => k.jenis !== 'pemakaian_saldo_sahabat')
+      .map(k => ({ id: k.id, jenis: k.jenis, keterangan: k.keterangan, nominal: Number(k.nominal || 0), created_at: k.created_at }))
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const pendingDetailTotal = pendingDetail.reduce((s, k) => s + k.nominal, 0);
 
     // Rincian per jenis — buat kartu "Total Ujroh Terkonfirmasi" yang bisa
     // di-expand (mirror pola dashboard perwakilan yang mecah closing per
@@ -353,6 +369,8 @@ export async function GET(request) {
         potensi_total: potensiUjrohTotal,
         closing_jamaah: forecastClosingJamaah,
         closing_jamaah_total: forecastClosingJamaahTotal,
+        menunggu_konfirmasi: pendingDetail,
+        menunggu_konfirmasi_total: pendingDetailTotal,
       },
       perlu_perhatian: perluPerhatian,
       closing_langsung: {
