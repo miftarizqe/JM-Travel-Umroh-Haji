@@ -10,6 +10,7 @@ import { kamarKeyOf } from '@/app/components/CartPaketKamar';
 import { resolveJamaahHarga } from '@/lib/jamaahHarga';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { keArray, keObjek } from '@/lib/jsonKolomAman';
+import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
@@ -34,12 +35,6 @@ function labelHari(tglBerangkat, idx) {
   const d = new Date(base);
   d.setDate(d.getDate() + idx);
   return `${HARI_ID[d.getDay()]}, ${d.getDate()} ${BULAN_ID[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-// Draft otomatis (localStorage) — form ini paling berat (30+ field), jadi
-// keluar tanpa klik Simpan gak bikin ilang, tinggal dibuka lagi nanti.
-function draftKeyFor(id) {
-  return id ? `draft_admin_program_${id}` : 'draft_admin_program_new';
 }
 
 function emptyProgram() {
@@ -75,6 +70,13 @@ export default function ProgramsPage() {
   const [tabProgram, setTabProgram] = useState('detail'); // 'detail' | 'realisasi' — lihat RealisasiCosting
   const [saving, setSaving] = useState(false);
   const [opsiTambahanBaru, setOpsiTambahanBaru] = useState([]); // staging lokal Opsi Tambahan buat Program yang belum pernah disimpan
+
+  // Draft otomatis (localStorage) sempat ada di sini tapi dicabut total
+  // (dikonfirmasi user 2026-10-09) — ganti jadi dua tombol simpan eksplisit
+  // (lihat simpan(publish) & tombol "Simpan & Umumkan"/"Simpan sebagai
+  // Draft" di bawah) + warning kalau mau keluar sebelum klik salah satu.
+  const formDirty = !!editing?.name?.trim();
+  useUnsavedGuard(formDirty);
 
   // Filter kategori publikasi (tab di atas daftar) — filter list ke kategori
   // itu aja + jadi default pas bikin program baru dari sini. `?publish_type=`
@@ -440,41 +442,11 @@ export default function ProgramsPage() {
     ]).then(([a, b]) => setPrivateJamaahList([...(a.users || []), ...(b.users || [])]));
   }
 
-  // Draft dibungkus { editing, formsMap, opsiTambahanBaru } — dulu cuma
-  // `editing` doang yang ke-draft, jadi ancang-ancang Harga Jual per
-  // Perwakilan & Opsi Tambahan yang belum sempat disimpan ilang kalau
-  // browser ke-refresh/nutup sebelum klik "Buat Program"/"Simpan". Tetap
-  // dukung format draft LAMA (cuma `editing` polos, gak ada wrapper) buat
-  // draft yang udah kesimpen sebelum perubahan ini — dibaca via `draft.editing || draft`.
-  function ambilDraft(key, fallbackEditing) {
-    const fallback = { editing: fallbackEditing, formsMap: {}, opsiTambahanBaru: [] };
-    try {
-      const raw = localStorage.getItem(key);
-      if (!raw) return fallback;
-      const draft = JSON.parse(raw);
-      const draftEditing = draft.editing || draft;
-      // Draft TANPA Nama Program (field wajib pertama, belum sempat diisi
-      // sama sekali) bukan draft beneran — cuma sisa form yang kebuka lalu
-      // ditinggal tanpa diapa-apain. Buang diem-diem, jangan ditanyain (bikin
-      // bingung kalau "ditemukan draft" padahal belum pernah ngetik apa-apa).
-      if (!draftEditing?.name?.trim()) { localStorage.removeItem(key); return fallback; }
-      // Dulu nanya dulu lewat confirm() sebelum restore — dicabut
-      // (dikonfirmasi user 2026-10-02, popup-nya muncul tiap buka form
-      // yang masih ada sisa draft, keliatan "selalu kayak gini" & ganggu).
-      // Sekarang restore LANGSUNG diam-diam — tetap jaga dari kehilangan
-      // isian 30+ field kalau gak sengaja nutup/pindah tanpa Simpan, cuma
-      // tanpa interupsi popup lagi.
-      return { editing: draftEditing, formsMap: draft.formsMap || {}, opsiTambahanBaru: draft.opsiTambahanBaru || [] };
-    } catch {}
-    return fallback;
-  }
-
   function newProgram() {
     const fallback = filterPublishType ? { ...emptyProgram(), publish_type: filterPublishType } : emptyProgram();
-    const draft = ambilDraft(draftKeyFor(null), fallback);
-    setEditing(draft.editing);
-    setFormsMap(draft.formsMap);
-    setOpsiTambahanBaru(draft.opsiTambahanBaru);
+    setEditing(fallback);
+    setFormsMap({});
+    setOpsiTambahanBaru([]);
     setHargaDataMap({}); perwFetchedRef.current = new Set(); fetchPerwList();
     fetchPrivateJamaahList();
     resetKalkulator();
@@ -495,10 +467,9 @@ export default function ProgramsPage() {
     if (p.manasik_tanggal) {
       merged.manasik_tanggal = String(p.manasik_tanggal).slice(0, 10);
     }
-    const draft = ambilDraft(draftKeyFor(p.id), merged);
-    setEditing(draft.editing);
-    setFormsMap(draft.formsMap);
-    setOpsiTambahanBaru(draft.opsiTambahanBaru);
+    setEditing(merged);
+    setFormsMap({});
+    setOpsiTambahanBaru([]);
     setHargaDataMap({}); perwFetchedRef.current = new Set();
     fetchPerwList();
     fetchPrivateJamaahList();
@@ -575,18 +546,6 @@ export default function ProgramsPage() {
       }).catch(() => setKalkulatorShared(shared));
     }).catch(() => {});
   }
-
-  // Simpan draft tiap ada perubahan, selama editor lagi kebuka — TAPI cuma
-  // kalau Nama Program udah keisi (lihat ambilDraft()), biar buka form terus
-  // ditinggal kosong gak ninggalin draft "hantu" yang nanti nanya-nanya pas
-  // dibuka lagi padahal isinya kosong melompong. formsMap (ancang-ancang
-  // Harga Jual per Perwakilan) & opsiTambahanBaru ikut ke-draft juga, biar
-  // gak ilang kalau browser ke-refresh sebelum sempat disimpan beneran.
-  useEffect(() => {
-    if (!editing) return;
-    if (!editing.name?.trim()) { try { localStorage.removeItem(draftKeyFor(editing.id)); } catch {} return; }
-    try { localStorage.setItem(draftKeyFor(editing.id), JSON.stringify({ editing, formsMap, opsiTambahanBaru })); } catch {}
-  }, [editing, formsMap, opsiTambahanBaru]);
 
   // Form-nya kerja pakai UJROH (selisih), bukan harga absolut — dikonversi
   // ke/dari harga absolut pas ambil/simpan data, biar konsisten sama gaya
@@ -890,10 +849,14 @@ export default function ProgramsPage() {
     setKatalogModulSnapshot(buildKatalogModulSnapshot(modulTambahan, katalogModul));
   }
 
-  async function simpan() {
+  // publish=true: "Simpan & Umumkan ke Client" (active, tampil ke jamaah).
+  // publish=false: "Simpan sebagai Draft" (disimpan ke DB, tapi disembunyikan
+  // dari jamaah sampai nanti dibuka lagi & disimpan ulang sebagai umumkan).
+  async function simpan(publish) {
     if (!editing.name?.trim()) { alert('Nama program wajib diisi!'); return; }
     if (!editing.tanggal_berangkat) { alert('Tanggal keberangkatan wajib diisi! Tanpa ini, booking program tidak akan pernah bisa ditandai selesai.'); return; }
     const payload = buildPayload();
+    payload.active = publish;
     // Bekukan fotokopi katalog modul negara SEKARANG kalau belum pernah ada
     // (Program baru, atau Program lama dari sebelum fitur ini ada) — mulai
     // dari save ini dan seterusnya HPP-nya kekunci ke angka ini, gak lagi
@@ -937,11 +900,8 @@ export default function ProgramsPage() {
               await simpanHargaPerw(perwId, d.id);
             }
           }
-          // draft "new" pindah jadi draft ber-id
-          try { localStorage.removeItem(draftKeyFor(null)); } catch {}
-          setEditing(prev => ({ ...prev, id: d.id })); loadPrograms(); return;
+          setEditing(prev => ({ ...prev, id: d.id, active: publish })); loadPrograms(); return;
         }
-        try { localStorage.removeItem(draftKeyFor(payload.id)); } catch {}
         setEditing(null);
         loadPrograms();
       } else {
@@ -958,7 +918,6 @@ export default function ProgramsPage() {
       const res = await fetch(`/api/admin/programs?id=${p.id}`, { method: 'DELETE' });
       const d = await res.json();
       if (res.ok) {
-        try { localStorage.removeItem(draftKeyFor(p.id)); } catch {}
         alert('Program dihapus!'); loadPrograms();
       }
       else alert(d.error || 'Gagal menghapus');
@@ -974,7 +933,8 @@ export default function ProgramsPage() {
   const durasiHari = Math.max(0, Number(editing?.durasi || 0));
 
   return (
-    <Layout title="🕌 Kelola Program" backHref="/admin?tab=programs">
+    <Layout title="🕌 Kelola Program" backHref="/admin?tab=programs" confirmLeave={formDirty}
+      confirmMessage="Yakin ingin keluar? Perubahan yang belum disimpan (Umumkan/Draft) akan hilang.">
       <div className="max-w-3xl mx-auto">
         {/* LIST */}
         {!editing && (
@@ -1214,10 +1174,10 @@ export default function ProgramsPage() {
                 </div>
               )}
 
-              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                <input type="checkbox" checked={editing.active} onChange={e => setF('active', e.target.checked)} className="w-4 h-4 accent-[#1A4FA0]"/>
-                Program aktif (tampil untuk jamaah)
-              </label>
+              <div className="text-[10px] text-gray-400">
+                Status tampil/tidaknya ke jamaah ditentukan lewat tombol &quot;Simpan &amp; Umumkan ke Client&quot; atau
+                &quot;Simpan sebagai Draft&quot; di bagian paling bawah form ini, bukan di sini.
+              </div>
             </div>
 
             {/* Detail Harga — HPP selalu diisi (jadi HPP Kantor juga di skema
@@ -1679,10 +1639,20 @@ export default function ProgramsPage() {
               </div>
             )}
 
-            <button onClick={simpan} disabled={saving}
-              className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50">
-              {saving ? 'Menyimpan...' : (editing.id ? '💾 Simpan Perubahan' : '➕ Buat Program')}
-            </button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button onClick={() => simpan(true)} disabled={saving}
+                className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50">
+                {saving ? 'Menyimpan...' : '📢 Simpan & Umumkan ke Client'}
+              </button>
+              <button onClick={() => simpan(false)} disabled={saving}
+                className="flex-1 bg-white border-2 border-[#1A4FA0] text-[#1A4FA0] hover:bg-blue-50 font-bold py-3 rounded-full transition-colors disabled:opacity-50">
+                {saving ? 'Menyimpan...' : '📝 Simpan sebagai Draft'}
+              </button>
+            </div>
+            <div className="text-[10px] text-gray-400 mt-2 text-center">
+              &quot;Simpan &amp; Umumkan ke Client&quot; langsung tampil ke jamaah. &quot;Simpan sebagai Draft&quot; kesimpen di sistem
+              tapi disembunyikan dulu dari jamaah sampai nanti dibuka &amp; diumumkan.
+            </div>
             </>
             )}
           </div>
