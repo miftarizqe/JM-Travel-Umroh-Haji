@@ -14,8 +14,13 @@ export async function GET(request) {
     let where = '';
     if (itemId) { where = 'WHERE l.item_id = ?'; params.push(itemId); }
 
+    // COALESCE(l.nama_item, p.nama) -- nama_item itu snapshot yang dibekukan
+    // pas baris ledger dicatat (dikonfirmasi user 2026-10-08, biar riwayat
+    // tetap kebaca namanya walau item aslinya udah dihapus). p.nama dari JOIN
+    // cuma fallback buat baris lama sebelum kolom ini ada (seharusnya udah
+    // kebackfill semua lewat migration, tapi dijaga tetap aman).
     const [rows] = await pool.query(
-      `SELECT l.*, p.nama AS item_nama, u.name AS input_oleh_nama
+      `SELECT l.*, COALESCE(l.nama_item, p.nama) AS item_nama, u.name AS input_oleh_nama
        FROM perlengkapan_stok_ledger l
        LEFT JOIN perlengkapan_jamaah p ON p.id = l.item_id
        LEFT JOIN users u ON u.id = l.input_oleh
