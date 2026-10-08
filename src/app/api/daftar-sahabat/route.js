@@ -52,6 +52,28 @@ export async function POST(req) {
     if (!/^\d{16}$/.test(String(nik).trim())) {
       return NextResponse.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
     }
+    // Minimal 17 tahun, Nama Ayah Kandung & Pendidikan Terakhir wajib
+    // (dikonfirmasi user 2026-10-08, buat syarat Siskopatuh) — dicek
+    // server-side juga, bukan cuma client, biar gak bisa dilewatin via
+    // request langsung ke endpoint ini.
+    if (tl) {
+      const lahir = new Date(tl);
+      if (!isNaN(lahir)) {
+        const now = new Date();
+        let umur = now.getFullYear() - lahir.getFullYear();
+        const m = now.getMonth() - lahir.getMonth();
+        if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
+        if (umur < 17) {
+          return NextResponse.json({ error: 'Pendaftar Sahabat Baitullah wajib minimal berusia 17 tahun' }, { status: 400 });
+        }
+      }
+    }
+    if (!ayah || !String(ayah).trim()) {
+      return NextResponse.json({ error: 'Nama ayah kandung wajib diisi' }, { status: 400 });
+    }
+    if (!pendidikan || !String(pendidikan).trim()) {
+      return NextResponse.json({ error: 'Pendidikan terakhir wajib diisi' }, { status: 400 });
+    }
     // Target wajib diisi (dikonfirmasi user 2026-09-19), dan sejak
     // 2026-09-20 wajib pilih Program Eksklusif Sahabat Baitullah yang
     // beneran ada (publish_type='sahabat_baitullah'), bukan teks bebas lagi

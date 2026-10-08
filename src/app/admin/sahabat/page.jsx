@@ -237,6 +237,28 @@ export default function AdminSahabatPage() {
                   <span className="text-green-600 font-bold">✅ {detail.no_rekening_tabungan_umroh}</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diisi jamaah</span>}
               </div>
+              {/* Checklist "udah submit Formulir Pendaftaran Rekening BSI ke
+                  bank" — cuma relevan selama rekeningnya sendiri belum jadi
+                  (ditemukan user 2026-10-08, sebelumnya gak ada cara admin
+                  nandain progres pengajuan manual ini). Informasional,
+                  mirror pola 3 checkbox "Dokumen Fisik...Diterima" di bawah. */}
+              {!detail.no_rekening_tabungan_umroh && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                  <span>Formulir Pendaftaran Rekening BSI Disubmit ke Bank</span>
+                  {isHop ? (
+                    <span className={detail.formulir_bsi_disubmit_at ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
+                      {detail.formulir_bsi_disubmit_at ? '✅ Sudah' : '⏳ Belum'}
+                    </span>
+                  ) : (
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={!!detail.formulir_bsi_disubmit_at} disabled={busy}
+                        onChange={e => aksi({ action: 'toggle_formulir_bsi_disubmit', user_id: detail.user_id, value: e.target.checked })}
+                        className="w-4 h-4 accent-[#1A4FA0]" />
+                      Sudah
+                    </label>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Baca & Setuju SK-CIF/Surat Kuasa Blokir</span>
                 {detail.setuju_sk_cif_pemblokiran_at ? (
