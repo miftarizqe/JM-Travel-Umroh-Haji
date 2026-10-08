@@ -205,6 +205,32 @@ export default function AdminSahabatPage() {
             </div>
 
             <div className="space-y-2 text-xs">
+              {/* Semua dokumen & aksi pendaftaran digabung di 1 tempat ini
+                  (dikonfirmasi user 2026-10-08, sebelumnya mencar-car: cetak
+                  dokumen lewat halaman/endpoint terpisah) -- tombol ini
+                  nge-generate PDF gabungan SPK-AK+SK-CIF+Pemblokiran (+
+                  Formulir BSI kalau relevan) punya ORANG INI, admin boleh
+                  buka punya siapa aja lewat ?user_id= (lihat
+                  /api/sahabat/dokumen-legal/unduh-lengkap). */}
+              <button onClick={() => window.open(`/api/sahabat/dokumen-legal/unduh-lengkap?user_id=${detail.user_id}`, '_blank')}
+                className="w-full text-xs font-bold text-white bg-[#1A4FA0] py-2.5 rounded-lg">
+                🖨️ Lihat &amp; Cetak Dokumen Lengkap (SPK-AK, SK-CIF, Surat Pemblokiran{detail.bantuan_bsi_manual_disetujui_at ? ', Formulir BSI' : ''})
+              </button>
+              {/* KTP wajib diunggah pas daftar-sahabat, Paspor opsional --
+                  sebelumnya gak ada link buka keduanya sama sekali di admin
+                  (ditemukan user 2026-10-08). */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                <span>KTP</span>
+                {detail.foto_ktp_path ? (
+                  <a href={detail.foto_ktp_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
+                ) : <span className="text-red-500 font-bold">⏳ Belum diunggah</span>}
+              </div>
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                <span>Paspor</span>
+                {detail.foto_paspor_path ? (
+                  <a href={detail.foto_paspor_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
+                ) : <span className="text-gray-400">- (opsional)</span>}
+              </div>
               {/* Cuma 1 baris (dulu 2: "diunggah" + "diverifikasi" terpisah)
                   — sejak 2026-09-02 upload = otomatis langsung terverifikasi
                   (referral-only, gak ada gate admin di titik ini lagi, lihat
@@ -244,6 +270,28 @@ export default function AdminSahabatPage() {
                   <span className="text-amber-600 font-bold">🏦 Dibantu BSI manual</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diisi jamaah</span>}
               </div>
+              {/* Checklist "udah submit Formulir Pendaftaran Rekening BSI ke
+                  bank" — cuma relevan selama rekeningnya sendiri belum jadi
+                  (ditemukan user 2026-10-08, sebelumnya gak ada cara admin
+                  nandain progres pengajuan manual ini). Informasional,
+                  mirror pola 3 checkbox "Dokumen Fisik...Diterima" di bawah. */}
+              {!detail.no_rekening_tabungan_umroh && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                  <span>Formulir Pendaftaran Rekening BSI Disubmit ke Bank</span>
+                  {isHop ? (
+                    <span className={detail.formulir_bsi_disubmit_at ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
+                      {detail.formulir_bsi_disubmit_at ? '✅ Sudah' : '⏳ Belum'}
+                    </span>
+                  ) : (
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input type="checkbox" checked={!!detail.formulir_bsi_disubmit_at} disabled={busy}
+                        onChange={e => aksi({ action: 'toggle_formulir_bsi_disubmit', user_id: detail.user_id, value: e.target.checked })}
+                        className="w-4 h-4 accent-[#1A4FA0]" />
+                      Sudah
+                    </label>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Baca & Setuju SK-CIF/Surat Kuasa Blokir</span>
                 {detail.setuju_sk_cif_pemblokiran_at ? (
@@ -256,13 +304,32 @@ export default function AdminSahabatPage() {
                   dokumen_cif_fisik_diterima_at yang udah ada. Cuma relevan
                   buat metode 'kirim' — 'kantor' gak butuh ini sama sekali,
                   dokumennya diserahkan & ditandatangani langsung di tempat. */}
+              {/* Jamaah konfirmasi sendiri "sudah kirim" (resi+tanggal) --
+                  info doang, BUKAN syarat, admin tetep yang nentuin
+                  "diterima" lewat checklist di bawah (dikonfirmasi user
+                  2026-10-08). */}
+              {detail.metode_ttd_sahabat === 'kirim' && detail.dokumen_fisik_dikirim_at && (
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 text-[10px] text-[#1A4FA0]">
+                  📦 Jamaah konfirmasi sudah kirim pada {new Date(detail.dokumen_fisik_dikirim_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {detail.dokumen_fisik_resi && <> · Resi: <b>{detail.dokumen_fisik_resi}</b></>}
+                  {detail.dokumen_fisik_resi_foto_path && <> · <a href={detail.dokumen_fisik_resi_foto_path} target="_blank" rel="noopener noreferrer" className="font-bold underline hover:text-[#0E2F6E]">Lihat foto resi</a></>}
+                </div>
+              )}
               {detail.metode_ttd_sahabat === 'kirim' && [
-                { label: 'Dokumen Fisik Surat Perjanjian Jamaah Sahabat Baitullah Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik' },
-                { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik' },
-                { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik' },
-              ].map(({ label, field, action }) => (
+                { label: 'Dokumen Fisik Surat Perjanjian Jamaah Sahabat Baitullah Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik', scanPath: detail.dokumen_spk_ak_fisik_path },
+                { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik', scanPath: detail.dokumen_sk_cif_fisik_path },
+                { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik', scanPath: detail.dokumen_surat_pemblokiran_fisik_path },
+                // Dokumen ke-4 cuma relevan buat jamaah yang juga setuju
+                // bantuan BSI manual -- bundelnya 4 dokumen, bukan 3
+                // (dikonfirmasi user 2026-10-08).
+                ...(detail.bantuan_bsi_manual_disetujui_at ? [
+                  { label: 'Dokumen Fisik Formulir Pendaftaran Rekening BSI Diterima di Kantor', field: 'dokumen_formulir_bsi_fisik_diterima_at', action: 'toggle_formulir_bsi_fisik', scanPath: null },
+                ] : []),
+              ].map(({ label, field, action, scanPath }) => (
                 <div key={field} className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                  <span>{label}</span>
+                  <span>{label}{scanPath && (
+                    <a href={scanPath} target="_blank" rel="noopener noreferrer" className="ml-1.5 text-[#1A4FA0] underline whitespace-nowrap">(lihat scan)</a>
+                  )}</span>
                   {isHop ? (
                     <span className={detail[field] ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
                       {detail[field] ? '✅ Sudah' : '⏳ Belum'}

@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { alasanKunciMetodeTtd } from '@/lib/kunciMetodeTtdSahabat';
 import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 import { wajibLogin, wajibRole } from '@/lib/auth';
@@ -43,7 +44,9 @@ export async function GET(request) {
               dokumen_spk_ak_fisik_path, dokumen_sk_cif_fisik_path,
               dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
               metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at,
-              dokumen_cif_fisik_diterima_at, dokumen_pemblokiran_fisik_diterima_at, dokumen_spk_ak_fisik_diterima_at
+              dokumen_cif_fisik_diterima_at, dokumen_pemblokiran_fisik_diterima_at, dokumen_spk_ak_fisik_diterima_at,
+              dokumen_formulir_bsi_fisik_diterima_at, dokumen_fisik_dikirim_at, dokumen_fisik_resi, dokumen_fisik_resi_foto_path,
+              DATE_FORMAT(rencana_kunjungan_kantor_at, '%Y-%m-%d') AS tanggal_kunjungan
        FROM users WHERE id = ?`, [auth.user.id]
     );
     if (users.length === 0) return Response.json({ error: 'User tidak ditemukan' }, { status: 404 });
@@ -79,6 +82,7 @@ export async function GET(request) {
     const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_diterima_at;
     const skCifSelesai = !!u.dokumen_cif_fisik_diterima_at;
     const suratPemblokiranSelesai = !!u.dokumen_pemblokiran_fisik_diterima_at;
+    const formulirBsiFisikSelesai = !!u.dokumen_formulir_bsi_fisik_diterima_at;
 
     const prasyarat = {
       akun_terverifikasi: !!u.terverifikasi,
@@ -86,6 +90,7 @@ export async function GET(request) {
       data_diri_terkirim: !!pendaftaran,
       bukti_tf_uploaded: !!pendaftaran?.bukti_tf_path,
       bukti_tf_verified: !!pendaftaran?.bukti_tf_verified_at,
+      bukti_tf_path: pendaftaran?.bukti_tf_path || null,
       // Jamaah SETUJU SPK-AK (checkbox di /pks) — dipakai sebagai gerbang
       // funnel (dikonfirmasi user 2026-09-28), BEDA dari spk_ak_selesai di
       // bawah (materai+TTD beneran, baru diproses pas admin klik "Aktifkan").
@@ -101,6 +106,9 @@ export async function GET(request) {
       setuju_sk_cif_pemblokiran: !!u.setuju_sk_cif_pemblokiran_at,
       sk_cif_selesai: skCifSelesai,
       surat_pemblokiran_selesai: suratPemblokiranSelesai,
+      // Cuma relevan buat jamaah yang juga setuju bantuan BSI manual (lihat
+      // migrations/214) -- bundel dokumennya jadi 4, bukan 3.
+      formulir_bsi_fisik_selesai: formulirBsiFisikSelesai,
     };
 
     const statusSekarang = pendaftaran?.status || null;
@@ -126,6 +134,10 @@ export async function GET(request) {
         tanggal_mulai_blokir: u.tanggal_mulai_blokir,
         metode_ttd_sahabat: u.metode_ttd_sahabat, rencana_kunjungan_kantor_at: u.rencana_kunjungan_kantor_at,
         dokumen_spk_ak_dikirim_balik_at: u.dokumen_spk_ak_dikirim_balik_at,
+        dokumen_fisik_dikirim_at: u.dokumen_fisik_dikirim_at, dokumen_fisik_resi: u.dokumen_fisik_resi,
+        dokumen_fisik_resi_foto_path: u.dokumen_fisik_resi_foto_path,
+        // Alasan tombol "Ganti Metode TTD" disembunyikan (null = boleh ganti).
+        kunci_ganti_metode_ttd: alasanKunciMetodeTtd(u),
       },
       pendaftaran,
       steps: STEP_PENDAFTARAN_SAHABAT,
@@ -229,6 +241,30 @@ export async function PATCH(request) {
     // aslinya udah nyampe di kantor apa belum" per-dokumen (khusus jamaah
     // yang pilih metode TTD "kirim" — yang "kantor" gak butuh ini sama
     // sekali, dokumennya diserahkan langsung di tempat).
+    // Checklist "admin udah submit Formulir Pendaftaran Rekening BSI ke
+    // bank" (dikonfirmasi user 2026-10-08) — cuma relevan kalau jamaah
+    // udah setuju bantuan BSI manual (gak bisa daftar sendiri via BYOND) &
+    // rekeningnya sendiri belum jadi. Informasional, sama kayak toggle
+    // dokumen fisik lain — TIDAK ikut validasi prasyarat advance ke 'active'.
+    if (action === 'toggle_formulir_bsi_disubmit') {
+      await pool.query(
+        'UPDATE users SET formulir_bsi_disubmit_at = ? WHERE id = ?',
+        [body.value ? new Date() : null, user_id]
+      );
+      return Response.json({ message: 'Status Formulir Pendaftaran Rekening BSI diperbarui.' });
+    }
+
+    // 4th dokumen fisik "diterima di kantor" -- cuma relevan buat jamaah
+    // yang juga setuju bantuan BSI manual (bundel dokumennya 4, bukan 3,
+    // lihat migrations/214, dikonfirmasi user 2026-10-08).
+    if (action === 'toggle_formulir_bsi_fisik') {
+      await pool.query(
+        'UPDATE users SET dokumen_formulir_bsi_fisik_diterima_at = ? WHERE id = ?',
+        [body.value ? new Date() : null, user_id]
+      );
+      return Response.json({ message: 'Status dokumen Formulir Pendaftaran Rekening BSI fisik diperbarui.' });
+    }
+
     if (action === 'toggle_pemblokiran_fisik') {
       await pool.query(
         'UPDATE users SET dokumen_pemblokiran_fisik_diterima_at = ? WHERE id = ?',

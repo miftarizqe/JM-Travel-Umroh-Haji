@@ -465,11 +465,12 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
                   value={current.was?.[i] || ''}
                   onChange={e => {
                     const was = resizeNamas(current.was, current.jumlah);
-                    was[i] = e.target.value;
+                    was[i] = e.target.value.replace(/\D/g, '');
                     onChangeCurrent({ ...current, was });
                   }}
                   placeholder={`No. WhatsApp jamaah #${i + 1} (opsional)`}
                   inputMode="numeric"
+                  maxLength={13}
                   className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
               </div>
               <input

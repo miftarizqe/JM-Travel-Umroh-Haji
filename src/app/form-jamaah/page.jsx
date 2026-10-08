@@ -7,6 +7,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung';
 import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, validasiIsianJamaah } from '@/lib/dataJamaah';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
+import { hitungUmur } from '@/lib/umur';
 
 const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
 
@@ -38,16 +39,6 @@ function statusMasaBerlakuPaspor(expPaspor) {
   return null;
 }
 
-function hitungUmur(tgl) {
-  if (!tgl) return null;
-  const lahir = new Date(tgl);
-  if (isNaN(lahir)) return null;
-  const now = new Date();
-  let umur = now.getFullYear() - lahir.getFullYear();
-  const m = now.getMonth() - lahir.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
-  return umur;
-}
 
 export default function FormJamaahPage() {
   return (
@@ -173,6 +164,10 @@ function FormJamaahPageInner() {
   const j = jamaahList[currentJ] || emptyJamaah();
   const umur = hitungUmur(j.ttl);
   const nikAktif = umur !== null && umur > 17;
+  // Ayah/Pendidikan pakai ambang beda dari NIK (dikonfirmasi user
+  // 2026-10-08: "di bawah 17 tahun" optional, jadi >=17 wajib — bukan >17
+  // kayak NIK).
+  const wajibAyahPendidikan = umur === null || umur >= 17;
   const statusPaspor = statusMasaBerlakuPaspor(j.exp_paspor);
 
   // Exact-match doang (dipicu pas paspor/NIK selesai diisi) — bukan search
@@ -282,6 +277,16 @@ function FormJamaahPageInner() {
       if (!/^\d{16}$/.test(String(d.nik).trim())) {
         alert('No. KTP (NIK) harus 16 digit angka!');
         return false;
+      }
+    }
+    // Nama Ayah Kandung & Pendidikan Terakhir — wajib buat Siskopatuh,
+    // KECUALI jamaah di bawah 17 tahun (dikonfirmasi user 2026-10-08).
+    if (umurJ === null || umurJ >= 17) {
+      if (!d.ayah || !String(d.ayah).trim()) {
+        alert('Nama Ayah Kandung wajib diisi!'); return false;
+      }
+      if (!d.pendidikan || !String(d.pendidikan).trim()) {
+        alert('Pendidikan Terakhir wajib diisi!'); return false;
       }
     }
 
@@ -588,11 +593,11 @@ function FormJamaahPageInner() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className={lbl}>Nama Ayah Kandung (opsional, buat Siskopatuh)</label>
+                <label className={lbl}>Nama Ayah Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
                 <input value={j.ayah} onChange={e => setField('ayah', e.target.value)} className={inp}/>
               </div>
               <div>
-                <label className={lbl}>Pendidikan Terakhir (opsional, buat Siskopatuh)</label>
+                <label className={lbl}>Pendidikan Terakhir {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
                 <select value={j.pendidikan} onChange={e => setField('pendidikan', e.target.value)} className={inp}>
                   <option value="">— Pilih —</option>
                   {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}

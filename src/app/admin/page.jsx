@@ -9,7 +9,7 @@ import TombolWA from '@/app/components/TombolWA';
 import AgendaJanjiTemu from '@/app/components/AgendaJanjiTemu';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import { useCurrentUser } from '@/lib/useCurrentUser';
-import { usePengaturan } from '@/lib/usePengaturan';
+import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { urutkan, cocok } from '@/lib/sortTable';
 import { statusJadwalTarget } from '@/lib/jadwalTarget';
 import { downloadExcel as downloadExcelFile } from '@/lib/downloadExcel';
@@ -849,6 +849,11 @@ function AdminPageInner() {
   // operasional pra-keberangkatan → pembatalan).
   const clusters = [
     {key:'akun_verifikasi', label:'Akun Baru Menunggu Verifikasi', icon:'🔐', color:'border-amber-200 bg-amber-50', group:'akun_lead', items: pending.akun_verifikasi||[]},
+    // Sahabat Baitullah auto-terverifikasi=1 pas daftar (lihat
+    // /api/auth/register), jadi gak pernah kecover cluster akun_verifikasi
+    // di atas — sebelumnya GAK ADA sinyal apapun di sini buat pendaftar
+    // sahabat baru (ditemukan user 2026-10-08).
+    {key:'sahabat_baru_daftar', label:'Sahabat Baitullah Baru Daftar (belum TF)', icon:'🤝', color:'border-purple-200 bg-purple-50', group:'akun_lead', items: pending.sahabat_baru_daftar||[]},
     {key:'akun_jamaah', label:'Pending Pendaftaran Akun Jamaah', icon:'🧳', color:'border-green-200 bg-green-50', group:'akun_lead', items: pending.akun_jamaah||[]},
     // akun_perwakilan PINDAH ke section "🏢 Perwakilan" di bawah (dikonfirmasi
     // user 2026-09-06, mirror kenapa Sahabat Baitullah gak lagi nyampah di
@@ -1029,20 +1034,41 @@ function AdminPageInner() {
                       const isOpen = expandCluster === c.key;
                       const tampil = isOpen ? c.items : c.items.slice(0,3);
                       const bisaKlikItem = ['perlengkapan','kalkulator_lead','ttu_belum_dikirim','perjanjian_belum_selesai','penyesuaian_harga_pending','refund_belum_ditransfer','kalkulator_perwakilan_pending','janji_temu_kantor'].includes(c.key);
+                      // Janji temu tampil sebagai agenda (blok kalender + sisa
+                      // hari, sama kayak versi HoP) — lebar penuh biar gak
+                      // sempit (dikonfirmasi user 2026-10-08, sebelumnya cuma
+                      // daftar teks polos di sini padahal versi HoP udah bagus).
+                      const agenda = c.key === 'janji_temu_kantor' && c.items.length > 0;
                       return (
-                      <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3`}>
+                      <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3 ${agenda ? 'md:col-span-2' : ''}`}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
                           <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
                         </div>
-                        {c.items.length > 0 && (
+                        {agenda ? (
+                          <>
+                            <AgendaJanjiTemu items={c.items} terbuka={isOpen} onToggle={() => setExpandCluster(isOpen ? null : c.key)} />
+                            <button onClick={() => router.push('/admin/janji-temu-kantor')} className="block text-[11px] font-bold text-[#1A4FA0] underline mt-2">Tindak lanjut →</button>
+                          </>
+                        ) : c.items.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {tampil.map((it,idx) => (
+                              c.key==='sahabat_baru_daftar' ? (
+                                <div key={idx} className="flex items-center justify-between gap-2 text-xs text-gray-600 bg-white/70 rounded px-2 py-1">
+                                  <span className="truncate">{labelItemCluster(c.key, it)}</span>
+                                  <a href={waLink(it.wa, `Assalamu'alaikum ${it.name}, saya dari JM Travel ingin follow up pendaftaran Sahabat Baitullah Anda.`) || '#'}
+                                    target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                                    className="shrink-0 text-[10px] font-bold text-white bg-green-600 hover:bg-green-700 px-2 py-1 rounded-full whitespace-nowrap">
+                                    💬 WA
+                                  </a>
+                                </div>
+                              ) : (
                               <div key={idx}
                                 onClick={c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { setActiveTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : c.key==='janji_temu_kantor' ? () => router.push('/admin/janji-temu-kantor') : undefined}
                                 className={`text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate ${bisaKlikItem ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
                                 {labelItemCluster(c.key, it)}
                               </div>
+                              )
                             ))}
                             {c.items.length>3 && (
                               <button onClick={() => setExpandCluster(isOpen ? null : c.key)} className="text-[11px] text-gray-500 underline pl-1">
@@ -1052,6 +1078,7 @@ function AdminPageInner() {
                             <button onClick={() => {
                               if (c.key==='pembayaran') setActiveTab('payments');
                               else if (c.key==='akun_verifikasi') { setActiveTab('users'); setFilterUserStatus(''); }
+                              else if (c.key==='sahabat_baru_daftar') router.push('/admin/sahabat');
                               else if (c.key.startsWith('akun_')) { setActiveTab('users'); setFilterUserStatus('pending'); }
                               else if (c.key==='program_umroh') setActiveTab('programs');
                               else if (c.key==='custom_harga') setActiveTab('customharga');

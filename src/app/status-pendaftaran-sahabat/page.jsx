@@ -20,7 +20,24 @@ function Item({ done, label, children }) {
   );
 }
 
+// Batas date picker "Datang ke Kantor" — minimal besok, maksimal 2 minggu
+// dari sekarang (dikonfirmasi user 2026-10-08, sebelumnya gak ada batas
+// atas sama sekali, bisa pilih tanggal taun depan).
+function rentangTanggalKunjungan() {
+  const besok = new Date();
+  besok.setDate(besok.getDate() + 1);
+  const duaMinggu = new Date();
+  duaMinggu.setDate(duaMinggu.getDate() + 14);
+  // Tanggal LOKAL, bukan toISOString() (UTC) — di WIB sebelum jam 07.00
+  // toISOString masih tanggal kemarin, rentangnya jadi geser sehari.
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const h2 = new Date();
+  h2.setDate(h2.getDate() + 2);
+  return { min: iso(besok), max: iso(duaMinggu), batasH2: iso(h2) };
+}
+
 export default function StatusPendaftaranSahabatPage() {
+  const { min: minTanggalKunjungan, max: maksTanggalKunjungan, batasH2: batasH2Kunjungan } = rentangTanggalKunjungan();
   const router = useRouter();
   const [user] = useCurrentUser();
   const [pengaturan] = usePengaturan();
@@ -28,6 +45,7 @@ export default function StatusPendaftaranSahabatPage() {
   const [loading, setLoading] = useState(true);
   const [savingBlokirData, setSavingBlokirData] = useState(false);
   const [uploadingTf, setUploadingTf] = useState(false);
+  const [gantiBuktiTf, setGantiBuktiTf] = useState(false);
   const [rekUmrohInput, setRekUmrohInput] = useState('');
   const [namaPemilikUmrohInput, setNamaPemilikUmrohInput] = useState('');
   const [savingRekUmroh, setSavingRekUmroh] = useState(false);
@@ -53,6 +71,15 @@ export default function StatusPendaftaranSahabatPage() {
   // sekali klik & opsi "datang kantor" ketutup, user gak sadar ada 2 pilihan.
   const [pilihanMetode, setPilihanMetode] = useState(null);
   const [gantiMetode, setGantiMetode] = useState(false);
+  // Konfirmasi jamaah "sudah kirim" dokumen fisik (resi+tanggal) --
+  // sebelumnya gak ada status antara "udah dikirim, masih di jalan" vs
+  // "diterima" (dikonfirmasi user 2026-10-08).
+  const [resiInput, setResiInput] = useState('');
+  // Foto resi WAJIB (dikonfirmasi user 2026-10-08) — pas ubah data kiriman,
+  // boleh kosong = pakai foto lama.
+  const [fotoResi, setFotoResi] = useState(null);
+  const [savingKirimFisik, setSavingKirimFisik] = useState(false);
+  const [editKirimFisik, setEditKirimFisik] = useState(false);
 
   // Sudah/belum punya rekening BSI (dikonfirmasi user 2026-09-30) — cuma
   // pilihan tampilan lokal, gak perlu disimpan ke server. Yang UDAH PUNYA
@@ -119,7 +146,7 @@ export default function StatusPendaftaranSahabatPage() {
       fd.append('file', file);
       const res = await fetch('/api/sahabat/upload-bukti-tf', { method: 'POST', body: fd });
       const d = await res.json();
-      if (res.ok) muat();
+      if (res.ok) { muat(); setGantiBuktiTf(false); }
       else alert(d.error || 'Gagal mengunggah bukti transfer');
     } catch { alert('Terjadi kesalahan saat mengunggah'); }
     setUploadingTf(false);
@@ -169,11 +196,31 @@ export default function StatusPendaftaranSahabatPage() {
   }
 
   function bukaGantiMetode() {
+    if (u.kunci_ganti_metode_ttd) { alert(u.kunci_ganti_metode_ttd); return; }
     setPilihanMetode(u.metode_ttd_sahabat || null);
     // Tanggal lokal (bukan slice ISO UTC — bisa mundur sehari di WIB).
     const t = u.rencana_kunjungan_kantor_at ? new Date(u.rencana_kunjungan_kantor_at) : null;
     setTanggalKunjunganInput(t && !isNaN(t) ? `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}` : '');
     setGantiMetode(true);
+  }
+
+  async function konfirmasiKirimDokumen() {
+    const resi = resiInput.trim();
+    if (!/^[A-Za-z0-9-]{6,40}$/.test(resi)) { alert('Nomor resi wajib diisi (6-40 karakter huruf/angka)'); return; }
+    if (!fotoResi && !u.dokumen_fisik_resi_foto_path) { alert('Foto resi wajib diunggah'); return; }
+    if (fotoResi && fotoResi.size > 5 * 1024 * 1024) { alert('Ukuran foto resi maksimal 5MB'); return; }
+    setSavingKirimFisik(true);
+    try {
+      const fd = new FormData();
+      fd.append('resi', resi);
+      if (fotoResi) fd.append('foto', fotoResi);
+      const res = await fetch('/api/sahabat/konfirmasi-kirim', { method: 'PATCH', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSavingKirimFisik(false); return; }
+      setEditKirimFisik(false); setFotoResi(null);
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setSavingKirimFisik(false);
   }
 
   // Buka preview pasal SK-CIF + Surat Pemblokiran SEKALIGUS (satu step baca
@@ -281,8 +328,13 @@ export default function StatusPendaftaranSahabatPage() {
   // kantor (TTD di tempat, gak ada unggahan yang perlu dicek di sini), ATAU
   // pilih kirim sendiri DAN ketiga scan (SPK-AK, SK-CIF, Surat Pemblokiran)
   // sudah diunggah.
-  const dokumenKetigaSelesai = prasyarat.spk_ak_selesai && prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai;
+  // Jamaah yang juga setuju bantuan BSI manual kirim 4 dokumen fisik,
+  // bukan 3 -- dokumen ke-4 (Formulir Pendaftaran Rekening BSI) ikut
+  // disyaratkan (dikonfirmasi user 2026-10-08).
+  const dokumenKetigaSelesai = prasyarat.spk_ak_selesai && prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai
+    && (!u.bantuan_bsi_manual_disetujui_at || prasyarat.formulir_bsi_fisik_selesai);
   const metodeTtdSelesai = u.metode_ttd_sahabat === 'kantor' || (u.metode_ttd_sahabat === 'kirim' && dokumenKetigaSelesai);
+  const pengirimanSudahDiterima = prasyarat.spk_ak_selesai || prasyarat.sk_cif_selesai || prasyarat.surat_pemblokiran_selesai || prasyarat.formulir_bsi_fisik_selesai;
 
   // Isi SK-CIF + Surat Pemblokiran — dipakai di step baca & setuju, dan
   // bisa dibuka lagi (read-only) setelah disetujui (dikonfirmasi user 2026-10-08).
@@ -365,17 +417,30 @@ export default function StatusPendaftaranSahabatPage() {
               </label>
             </div>
           )}
-          {/* Bukti TF bisa dilihat lagi, tapi gantinya lewat admin — unggah
-              ulang sendiri bakal nyatat setoran Rp1jt dobel di rekening
-              Sahabat Baitullah (lihat upload-bukti-tf/route.js). */}
-          {prasyarat.bukti_tf_uploaded && pendaftaran.bukti_tf_path && (
-            <div className="space-y-1">
-              <a href={pendaftaran.bukti_tf_path} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">📄 Lihat bukti transfer</a>
-              <div className="text-[10px] text-gray-400">
-                Salah unggah? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengganti bukti transfer pendaftaran Sahabat Baitullah saya.')}
-                  target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk menggantinya.
-              </div>
+          {/* Bisa dilihat ulang & diganti selama belum tahap akhir
+              (dikonfirmasi user 2026-10-08) — sebelumnya dikunci total
+              begitu terunggah, gak ada cara ngecek apa yang keupload atau
+              koreksi kalau salah file. */}
+          {prasyarat.bukti_tf_verified && (
+            <div className="space-y-2">
+              <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">📎 Lihat Bukti Transfer</a>
+              {metodeTtdSelesai ? (
+                <div className="text-[10px] text-gray-400">
+                  Salah unggah? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengganti bukti transfer pendaftaran Sahabat Baitullah saya.')}
+                    target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk menggantinya.
+                </div>
+              ) : (
+                gantiBuktiTf ? (
+                  <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer text-xs ${uploadingTf ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
+                    {uploadingTf ? 'Mengunggah...' : '📄 Klik untuk unggah bukti transfer pengganti'}
+                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={uploadingTf}
+                      onChange={e => pilihBuktiTf(e.target.files?.[0])} />
+                  </label>
+                ) : (
+                  <button onClick={() => setGantiBuktiTf(true)} className="block text-[10px] font-bold text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">Ganti bukti transfer</button>
+                )
+              )}
             </div>
           )}
         </Item>
@@ -626,11 +691,24 @@ export default function StatusPendaftaranSahabatPage() {
                   (lihat tombol "Cetak Dokumen" di Database Jamaah). */}
               {(!u.metode_ttd_sahabat || gantiMetode) && (
                 <div className="space-y-2">
+                  {/* Preview isi dokumen SEBELUM pilih metode (dikonfirmasi
+                      user 2026-10-08) — sebelumnya cuma bisa diliat SETELAH
+                      pilih "kirim sendiri", padahal keputusan metode itu
+                      sendiri wajar butuh tau dulu dokumennya kayak apa. */}
+                  {!u.metode_ttd_sahabat && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span className="text-[10px] text-gray-400">Mau lihat isinya dulu?</span>
+                      <button onClick={() => window.open('/api/sahabat/unduh-spk-ak', '_blank')} className="text-[10px] font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors cursor-pointer">Surat Perjanjian Jamaah Sahabat Baitullah</button>
+                      <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50 enabled:hover:text-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
+                        {generatingPdfSkCif ? 'Membuat...' : 'SK-CIF & Surat Pemblokiran'}
+                      </button>
+                    </div>
+                  )}
                   <div className="text-xs text-gray-600">Pilih <b>salah satu dari 2 cara</b> berikut untuk menandatangani ketiga dokumen di atas materai asli:</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       { key: 'kirim', icon: '📄', judul: 'Cetak & Kirim Sendiri', ket: 'Print dokumen, TTD di atas materai asli, lalu kirim fisik ke kantor via pos/kurir.' },
-                      { key: 'kantor', icon: '🏢', judul: 'Datang ke Head Office', ket: 'TTD ketiga dokumen langsung di kantor JM Travel, bawa 3 materai. Pilih tanggal kunjungan.' },
+                      { key: 'kantor', icon: '🏢', judul: 'Datang ke Head Office', ket: 'TTD ketiga dokumen langsung di kantor JM Travel, bawa 3 materai. Pilih tanggal kunjungan (maks. 2 minggu dari sekarang).' },
                     ].map(o => {
                       const aktif = pilihanMetode === o.key;
                       return (
@@ -652,9 +730,15 @@ export default function StatusPendaftaranSahabatPage() {
 
                   {pilihanMetode === 'kantor' && (
                     <div>
-                      <div className="text-[10px] text-gray-500 mb-1">Tanggal rencana kunjungan:</div>
-                      <InputTanggal value={tanggalKunjunganInput} onChange={e => setTanggalKunjunganInput(e.target.value)}
+                      <div className="text-[10px] text-gray-500 mb-1">Tanggal rencana kunjungan (maks. 2 minggu dari sekarang):</div>
+                      <InputTanggal min={minTanggalKunjungan} max={maksTanggalKunjungan} value={tanggalKunjunganInput} onChange={e => setTanggalKunjunganInput(e.target.value)}
                         className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+                      {/* Mulai H-2 metode TTD dikunci (kunciMetodeTtdSahabat.js)
+                          — kasih tau di muka kalau tanggal yang dipilih udah
+                          masuk rentang itu. */}
+                      {tanggalKunjunganInput && tanggalKunjunganInput <= batasH2Kunjungan && (
+                        <div className="text-[10px] text-amber-700 mt-1">⚠️ Tanggal ini sudah H-2 atau kurang — setelah disimpan, metode TTD tidak bisa diganti lagi.</div>
+                      )}
                     </div>
                   )}
 
@@ -676,8 +760,15 @@ export default function StatusPendaftaranSahabatPage() {
                 <div className="text-xs text-gray-500 space-y-1">
                   <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD ketiga dokumen langsung.</div>
                   <div>Jangan lupa bawa 3 materai (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.{u.bantuan_bsi_manual_disetujui_at && <> Formulir Pendaftaran Rekening BSI ikut disiapkan juga, gak perlu materai.</>}</div>
-                  <button onClick={bukaGantiMetode}
-                    className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Metode TTD</button>
+                  {/* Dikunci server (lihat kunciMetodeTtdSahabat.js): paket udah
+                      dikonfirmasi dikirim / udah H-2 kunjungan / dokumen udah
+                      mulai diterima — dikonfirmasi user 2026-10-08. */}
+                  {u.kunci_ganti_metode_ttd ? (
+                    <div className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">🔒 {u.kunci_ganti_metode_ttd}</div>
+                  ) : (
+                    <button onClick={bukaGantiMetode}
+                      className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Metode TTD</button>
+                  )}
                 </div>
               )}
 
@@ -708,15 +799,73 @@ export default function StatusPendaftaranSahabatPage() {
                       2026-10-03) — tracking-nya sekarang murni "diterima
                       fisik di kantor" yang dicentang admin (lihat Database
                       Jamaah), bukan lagi self-report scan jamaah. */}
-                  <div className="text-xs text-gray-500">
-                    📄 Print, TTD di atas materai asli pada kolom TTD Anda, lalu kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.
+                  <div className="text-xs text-gray-500 space-y-1">
+                    <div className="font-bold text-[#0E2F6E]">📄 Langkah selanjutnya:</div>
+                    <div>1. Print ketiga dokumen di atas.</div>
+                    <div>2. TTD di atas materai asli, pada kolom TTD Anda masing-masing dokumen.</div>
+                    <div>3. Kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.</div>
+                  </div>
+                  <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
+                    <div className="text-[10px] font-bold text-[#0E2F6E]">📦 Konfirmasi Pengiriman</div>
+                    {u.dokumen_fisik_dikirim_at && !editKirimFisik ? (
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="text-[10px] text-green-700">
+                          ✅ Sudah dikirim {new Date(u.dokumen_fisik_dikirim_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {u.dokumen_fisik_resi && <> · Resi: <b>{u.dokumen_fisik_resi}</b></>}
+                          {u.dokumen_fisik_resi_foto_path && <> · <a href={u.dokumen_fisik_resi_foto_path} target="_blank" rel="noopener noreferrer" className="font-bold underline hover:text-green-900 transition-colors">Lihat foto resi</a></>}
+                        </div>
+                        {/* Ubah resi/foto cuma selama kantor belum mulai
+                            nerima dokumen (server juga ngecek). */}
+                        {!pengirimanSudahDiterima && (
+                          <button onClick={() => { setResiInput(u.dokumen_fisik_resi || ''); setFotoResi(null); setEditKirimFisik(true); }}
+                            className="text-[10px] text-gray-400 underline shrink-0 hover:text-gray-600 transition-colors cursor-pointer">Ubah</button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="text-[10px] text-gray-500">Setelah paket dikirim, isi nomor resi & unggah foto resi pengirimannya. <b>Setelah dikonfirmasi, metode TTD tidak bisa diganti lagi.</b></div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">Nomor Resi *</label>
+                          <input value={resiInput} maxLength={40} required
+                            onChange={e => setResiInput(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
+                            placeholder="Contoh: JP1234567890"
+                            className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-600 mb-1">Foto Resi *{u.dokumen_fisik_resi_foto_path && <span className="font-normal text-gray-400"> (kosongkan kalau tidak diganti)</span>}</label>
+                          <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer text-xs transition-colors ${fotoResi ? 'border-green-300 bg-green-50 text-green-700' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
+                            {fotoResi ? `✅ ${fotoResi.name}` : '📷 Klik untuk unggah foto resi (JPG/PNG, maks 5MB)'}
+                            <input type="file" accept="image/jpeg,image/png" className="hidden"
+                              onChange={e => setFotoResi(e.target.files?.[0] || null)} />
+                          </label>
+                        </div>
+                        <div className="flex gap-2">
+                          {editKirimFisik && (
+                            <button onClick={() => { setEditKirimFisik(false); setFotoResi(null); }}
+                              className="text-xs font-bold text-gray-500 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">Batal</button>
+                          )}
+                          <button onClick={konfirmasiKirimDokumen}
+                            disabled={savingKirimFisik || resiInput.trim().length < 6 || (!fotoResi && !u.dokumen_fisik_resi_foto_path)}
+                            className="flex-1 bg-green-600 text-white text-xs font-bold px-3 py-2 rounded-lg disabled:opacity-50 enabled:hover:bg-green-700 transition-colors cursor-pointer disabled:cursor-not-allowed">
+                            {savingKirimFisik ? 'Menyimpan...' : editKirimFisik ? 'Simpan Perubahan' : '✅ Saya Sudah Kirim'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <a href={waLink(pengaturan?.wa_kantor, 'Assalamu\'alaikum JM Travel, saya membutuhkan bantuan terkait Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran.') || '#'}
                     target="_blank" rel="noopener noreferrer" className="text-green-600 font-bold text-xs hover:text-green-700 hover:underline transition-colors">
                     Hubungi Admin via WhatsApp
                   </a>
-                  <button onClick={bukaGantiMetode}
-                    className="block text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Metode TTD</button>
+                  {/* Dikunci server (lihat kunciMetodeTtdSahabat.js): paket udah
+                      dikonfirmasi dikirim / udah H-2 kunjungan / dokumen udah
+                      mulai diterima — dikonfirmasi user 2026-10-08. */}
+                  {u.kunci_ganti_metode_ttd ? (
+                    <div className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">🔒 {u.kunci_ganti_metode_ttd}</div>
+                  ) : (
+                    <button onClick={bukaGantiMetode}
+                      className="block text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Metode TTD</button>
+                  )}
                 </div>
               )}
             </div>

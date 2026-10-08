@@ -26,7 +26,7 @@ export function absolutePathDariUrl(publicPath) {
 // mengandung underscore — lihat komentar di tiap route upload terkait):
 const USER_ID_DI_NAMA_FILE = new Set([
   'ktp', 'paspor', 'foto', 'dokumen-jamaah', 'formulir-fisik', 'dokumen-pks-fisik',
-  'dokumen-koperasi-fisik', 'bukti-tf-koperasi',
+  'dokumen-koperasi-fisik', 'bukti-tf-koperasi', 'resi-dokumen-sahabat',
 ]);
 
 function userIdDariNamaFile(filename) {
@@ -131,7 +131,7 @@ export async function resolveOwnerId(category, filename, urlPath) {
 
 export const KATEGORI_TERPROTEKSI = new Set([
   'ktp', 'paspor', 'foto', 'dokumen-jamaah', 'formulir-fisik', 'dokumen-pks-fisik',
-  'dokumen-koperasi-fisik', 'bukti-tf-koperasi',
+  'dokumen-koperasi-fisik', 'bukti-tf-koperasi', 'resi-dokumen-sahabat',
   'perjanjian-jamaah-scan', 'invoice-kwitansi-scan', 'bukti-refund',
   'bukti', 'bukti-tf-komisi', 'bukti-ttd-ujroh', 'bukti-ttd-ujroh-perwakilan',
   'dokumen-signature',

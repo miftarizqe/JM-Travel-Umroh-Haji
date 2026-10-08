@@ -65,6 +65,7 @@ function rapikan(mentah) {
 export default function InputTanggal({ value, onChange, className = '', disabled, required, title, id, name, min, max }) {
   const [teks, setTeks] = useState(() => dariIso(value));
   const [valueLalu, setValueLalu] = useState(value);
+  const [pesan, setPesan] = useState('');
   const picker = useRef(null);
 
   // value diganti dari luar (reset form, buka data lain) -> sinkronkan teks.
@@ -77,17 +78,27 @@ export default function InputTanggal({ value, onChange, className = '', disabled
     onChange?.({ target: { value: iso, name } });
   }
 
+  // min/max ('YYYY-MM-DD') ditegakkan juga buat ketikan, bukan cuma picker
+  // — tanggal di luar rentang gak dikirim ke onChange, cuma dikasih pesan.
+  function cekRentang(iso) {
+    if (!iso || Number(iso.slice(0, 4)) < 1000) return null;
+    if (min && iso < min) return `Minimal ${dariIso(min)}`;
+    if (max && iso > max) return `Maksimal ${dariIso(max)}`;
+    return '';
+  }
+
   function ketik(e) {
     const baru = rapikan(e.target.value);
     setTeks(baru);
+    setPesan('');
     if (!baru) return kirim('');
-    const iso = keIso(baru);
-    if (iso && Number(iso.slice(0, 4)) >= 1000) kirim(iso);
+    const salah = cekRentang(keIso(baru));
+    if (salah === '') kirim(keIso(baru));
+    else if (salah) setPesan(salah);
   }
 
   function blur() {
-    const iso = keIso(teks);
-    if (teks && !(iso && Number(iso.slice(0, 4)) >= 1000)) setTeks(dariIso(value));
+    if (teks && cekRentang(keIso(teks)) !== '') { setTeks(dariIso(value)); setPesan(''); }
   }
 
   function bukaKalender() {
@@ -100,7 +111,8 @@ export default function InputTanggal({ value, onChange, className = '', disabled
   const punyaLebar = layout.some(t => /(^|:)(flex-|grow|basis-|w-)/.test(t));
 
   return (
-    <div className={`relative ${punyaLebar ? '' : 'inline-block'} ${layout.join(' ')}`}>
+    <div className={`${punyaLebar ? '' : 'inline-block'} ${layout.join(' ')}`}>
+      <div className="relative">
       <input
         type="text"
         inputMode="numeric"
@@ -125,7 +137,7 @@ export default function InputTanggal({ value, onChange, className = '', disabled
         min={min}
         max={max}
         value={String(value || '').slice(0, 10)}
-        onChange={e => { if (e.target.value) { setTeks(dariIso(e.target.value)); kirim(e.target.value); } }}
+        onChange={e => { if (e.target.value && cekRentang(e.target.value) === '') { setTeks(dariIso(e.target.value)); setPesan(''); kirim(e.target.value); } }}
         className="absolute left-0 bottom-0 w-full h-0 opacity-0 pointer-events-none"
       />
       <button
@@ -143,6 +155,8 @@ export default function InputTanggal({ value, onChange, className = '', disabled
           <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
       </button>
+      </div>
+      {pesan && <div className="text-[10px] text-red-500 mt-0.5">{pesan}</div>}
     </div>
   );
 }

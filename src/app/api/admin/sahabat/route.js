@@ -14,10 +14,13 @@ export async function GET(request) {
     // relevan buat diagregasi) biar re-issue lama gak numpuk jadi row ganda.
     const [rows] = await pool.query(
       `SELECT kp.*, u.kode_unik, u.role AS user_role, u.status AS user_status, u.agama,
-              u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at, u.setuju_pks, u.bantuan_bsi_manual_disetujui_at,
+              u.no_rekening_tabungan_umroh, u.setuju_sk_cif_pemblokiran_at, u.setuju_pks,
+              u.bantuan_bsi_manual_disetujui_at, u.formulir_bsi_disubmit_at,
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
               u.dokumen_pemblokiran_fisik_diterima_at, u.dokumen_spk_ak_fisik_diterima_at, u.metode_ttd_sahabat,
               u.dokumen_surat_pemblokiran_fisik_path,
+              u.dokumen_formulir_bsi_fisik_diterima_at, u.dokumen_fisik_dikirim_at, u.dokumen_fisik_resi, u.dokumen_fisik_resi_foto_path,
+              u.foto_ktp_path, u.foto_paspor_path,
               perekrut.name AS perekrut_nama,
               v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,
               -- SPK-AK sekarang 1 RANGKAP (rangkap='tunggal', dikonfirmasi

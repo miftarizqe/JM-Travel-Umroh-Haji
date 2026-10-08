@@ -9,9 +9,14 @@ import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
 import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
+import { hitungUmur } from '@/lib/umur';
 
 const emptyForm = () => ({
-  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
+  // Default Tanggal Lahir diisi persis tgl termuda yang masih valid (17
+  // tahun dari hari ini, dikonfirmasi user 2026-10-08) — biar date picker
+  // gak nongol tahun sekarang yang jelas-jelas gak valid pas pertama
+  // dibuka, jamaah tinggal mundur dari situ.
+  nama:'', nik:'', tempat_lahir:'', tl: maksTglLahir17Tahun(), jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   sama_ktp: true,
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
@@ -26,7 +31,17 @@ const emptyForm = () => ({
   target_minat:'', target_estimasi_harga:'',
 });
 
+// Batas atas date picker Tanggal Lahir — pendaftar wajib minimal 17 tahun
+// (dikonfirmasi user 2026-10-08), "max" di <input type=date> nyegah milih
+// tanggal yang bikin kurang dari itu, validasi beneran tetap di validStep().
+function maksTglLahir17Tahun() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 17);
+  return d.toISOString().slice(0, 10);
+}
+
 export default function DaftarSahabatPage() {
+  const maksTanggalLahir17Tahun = maksTglLahir17Tahun();
   const router = useRouter();
   const [user] = useCurrentUser();
   const mounted = useMounted();
@@ -116,8 +131,11 @@ export default function DaftarSahabatPage() {
       if (!/^\d{16}$/.test(form.nik.trim())) return alert('NIK harus 16 digit angka!') || false;
       if (!form.tempat_lahir.trim()) return alert('Tempat lahir wajib diisi!') || false;
       if (!form.tl) return alert('Tanggal lahir wajib diisi!') || false;
+      if ((hitungUmur(form.tl) ?? 0) < 17) return alert('Pendaftar Sahabat Baitullah wajib minimal berusia 17 tahun!') || false;
       if (!form.ibu.trim()) return alert('Nama ibu kandung wajib diisi!') || false;
+      if (!form.ayah.trim()) return alert('Nama ayah kandung wajib diisi!') || false;
       if (!form.wa.trim()) return alert('No. WhatsApp wajib diisi!') || false;
+      if (!form.pendidikan) return alert('Pendidikan terakhir wajib diisi!') || false;
       if (!form.foto_ktp_path) return alert('Foto KTP wajib diunggah!') || false;
     }
     if (step === 2) {
@@ -201,15 +219,15 @@ export default function DaftarSahabatPage() {
             <div><label className={lbl}>Tempat Lahir *</label>
               <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><label className={lbl}>Tanggal Lahir *</label>
-                <InputTanggal value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
+              <div><label className={lbl}>Tanggal Lahir * <span className="text-gray-400 font-normal">(minimal 17 tahun)</span></label>
+                <InputTanggal max={maksTanggalLahir17Tahun} value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
               <div><label className={lbl}>Jenis Kelamin *</label>
                 <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={inp}>
                   <option>Laki-Laki</option><option>Perempuan</option></select></div>
             </div>
             <div><label className={lbl}>Nama Ibu Kandung *</label>
               <input value={form.ibu} onChange={e=>setF('ibu',e.target.value)} className={inp}/></div>
-            <div><label className={lbl}>Nama Ayah Kandung <span className="text-gray-400 font-normal">(opsional, dibutuhin buat Siskopatuh)</span></label>
+            <div><label className={lbl}>Nama Ayah Kandung *</label>
               <input value={form.ayah} onChange={e=>setF('ayah',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. WhatsApp *</label>
@@ -222,7 +240,7 @@ export default function DaftarSahabatPage() {
             <div className="text-[10px] text-gray-400 -mt-1">NIK, No. WhatsApp, Email, dan Agama adalah data verifikasi awal — cuma bisa dikoreksi lewat admin.</div>
             <div><label className={lbl}>Pekerjaan</label>
               <input value={form.pkj} onChange={e=>setF('pkj',e.target.value)} className={inp}/></div>
-            <div><label className={lbl}>Pendidikan Terakhir <span className="text-gray-400 font-normal">(opsional, dibutuhin buat Siskopatuh)</span></label>
+            <div><label className={lbl}>Pendidikan Terakhir *</label>
               <select value={form.pendidikan} onChange={e=>setF('pendidikan',e.target.value)} className={inp}>
                 <option value="">— Pilih —</option>
                 {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
