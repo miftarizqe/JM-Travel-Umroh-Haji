@@ -263,6 +263,25 @@ export default function KalkulatorTerpadu({
     setS({ kurs_sar_idr: masterKurs.kurs_sar_idr, kurs_usd_idr: masterKurs.kurs_usd_idr });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showOpsiPublik, masterKurs]);
+  // Auto-filter entri Master (hotel/tiket) berdasar tanggal program
+  // (dikonfirmasi user 2026-10-08) -- entri yang masa berlakunya gak
+  // nyakup tanggalBerangkat program ini gak usah dikasih liat sama sekali
+  // di dropdown "Isi dari Master", biar admin gak salah pilih harga yang
+  // udah expired atau belum berlaku. Sama pola kayak cariTierModulNegara
+  // di src/lib/kalkulatorBiaya.js. Kalau tanggalBerangkat belum keisi
+  // (program baru / dipakai di Costing Program template yang gak punya
+  // tanggal spesifik) ATAU entrinya sendiri gak punya data periode sama
+  // sekali, JANGAN difilter (selalu tampil) -- lebih aman nampilin semua
+  // daripada nyembunyiin semua gara-gara data belum lengkap.
+  function cocokPeriode(entry, tanggal) {
+    if (!tanggal) return true;
+    const target = new Date(tanggal);
+    if (entry.periode_mulai && entry.periode_selesai) {
+      return target >= new Date(entry.periode_mulai) && target <= new Date(entry.periode_selesai);
+    }
+    if (entry.berlaku_sampai) return target <= new Date(entry.berlaku_sampai);
+    return true;
+  }
   function labelMasterHotel(h) {
     const f = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : null;
     const periode = h.periode_mulai || h.periode_selesai ? ` (${f(h.periode_mulai) || '?'}–${f(h.periode_selesai) || '?'})` : '';
@@ -1122,7 +1141,7 @@ export default function KalkulatorTerpadu({
                       ))}
                     </div>
                     {(() => {
-                      const masterTiketFilter = masterTiket.filter(m => !m.rute || m.rute === filterRuteTiket);
+                      const masterTiketFilter = masterTiket.filter(m => (!m.rute || m.rute === filterRuteTiket) && cocokPeriode(m, tanggalBerangkat));
                       return showOpsiPublik ? (
                         <div className="space-y-1">
                           <div className="text-[10px] text-gray-400">Centang opsi tiket yang boleh dipilih jamaah (generate dari Master Tiket Pesawat):</div>
@@ -1296,7 +1315,7 @@ export default function KalkulatorTerpadu({
                     // kesempitan, 4 input rate + dropdown master numpuk di 1 sel).
                     const renderBlokHotel = (kota, labelKota) => {
                       const field = (suffix) => `${kota}_${suffix}`;
-                      const kandidat = masterHotel.filter(h => h.kota === kota && h.aktif && h.bintang === i + 3 && (!showOpsiHotelAlternatif || opsiHotel(paket, kota).some(o => o.master_id === h.id)));
+                      const kandidat = masterHotel.filter(h => h.kota === kota && h.aktif && h.bintang === i + 3 && (!showOpsiHotelAlternatif || opsiHotel(paket, kota).some(o => o.master_id === h.id)) && cocokPeriode(h, tanggalBerangkat));
                       return (
                         <div key={kota} className="bg-gray-50 rounded-lg p-3">
                           <div className="text-[10px] font-bold text-gray-500 mb-1.5">🏨 Hotel {labelKota}</div>
@@ -1441,10 +1460,10 @@ export default function KalkulatorTerpadu({
                               <option value="madinah">Madinah</option>
                             </select>
                             <input value={h.nama} onChange={e => ubahHotelDaftar(hi, { nama: e.target.value })} placeholder="Mis. Dubai - Hotel Address" className={`${inp} w-40`} />
-                            {masterHotel.some(m => m.kota === (h.kota || 'mekkah') && m.aktif) && (
+                            {masterHotel.some(m => m.kota === (h.kota || 'mekkah') && m.aktif && cocokPeriode(m, tanggalBerangkat)) && (
                               <select value="" onChange={e => isiHotelDaftarDariMaster(hi, e.target.value)} className={`${inp} w-40 mt-1 text-[10px] text-[#1A4FA0]`}>
                                 <option value="">🔄 Isi dari Master...</option>
-                                {masterHotel.filter(m => m.kota === (h.kota || 'mekkah') && m.aktif).map(m => <option key={m.id} value={m.id}>{labelMasterHotel(m)}</option>)}
+                                {masterHotel.filter(m => m.kota === (h.kota || 'mekkah') && m.aktif && cocokPeriode(m, tanggalBerangkat)).map(m => <option key={m.id} value={m.id}>{labelMasterHotel(m)}</option>)}
                               </select>
                             )}
                           </td>

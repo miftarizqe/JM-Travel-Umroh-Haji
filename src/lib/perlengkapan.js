@@ -185,9 +185,9 @@ export async function tandaiPengirimanJamaah(pool, { bookingId, jamaahIdx, jk, k
       }
       for (const it of dipilih) {
         await conn.query(
-          `INSERT INTO perlengkapan_stok_ledger (item_id, tipe, qty, keterangan, booking_id, jamaah_idx, input_oleh)
-           VALUES (?, 'out', 1, 'Pengiriman kit jamaah', ?, ?, ?)`,
-          [it.id, bookingId, jamaahIdx, actorId || null]
+          `INSERT INTO perlengkapan_stok_ledger (item_id, nama_item, tipe, qty, keterangan, booking_id, jamaah_idx, input_oleh)
+           VALUES (?, ?, 'out', 1, 'Pengiriman kit jamaah', ?, ?, ?)`,
+          [it.id, it.nama, bookingId, jamaahIdx, actorId || null]
         );
         await conn.query('UPDATE perlengkapan_jamaah SET stok_saat_ini = stok_saat_ini - 1 WHERE id = ?', [it.id]);
       }
@@ -206,9 +206,14 @@ export async function tandaiPengirimanJamaah(pool, { bookingId, jamaahIdx, jk, k
 // tabel baru, ledger sudah nyimpen booking_id+jamaah_idx per baris 'out').
 // Dipakai buat cetak Tanda Terima.
 export async function ambilItemDikirimJamaah(pool, { bookingId, jamaahIdx }) {
+  // LEFT JOIN + COALESCE(l.nama_item, p.nama) -- dikonfirmasi user
+  // 2026-10-08: dulu INNER JOIN, kalau item-nya dihapus dari katalog baris
+  // ini bisa HILANG TOTAL dari Tanda Terima (dokumen resmi), bukan cuma
+  // namanya kosong. nama_item = snapshot yang dibekukan pas dikirim, aman
+  // walau item aslinya udah gak ada.
   const [rows] = await pool.query(
-    `SELECT l.qty, l.created_at, p.nama, p.gender_spesifik
-     FROM perlengkapan_stok_ledger l JOIN perlengkapan_jamaah p ON p.id = l.item_id
+    `SELECT l.qty, l.created_at, COALESCE(l.nama_item, p.nama) AS nama, p.gender_spesifik
+     FROM perlengkapan_stok_ledger l LEFT JOIN perlengkapan_jamaah p ON p.id = l.item_id
      WHERE l.booking_id = ? AND l.jamaah_idx = ? AND l.tipe = 'out'
      ORDER BY l.created_at ASC`,
     [bookingId, jamaahIdx]
@@ -322,9 +327,9 @@ export async function tambahStokMasuk(pool, { itemId, qty, hargaSatuan, akunId, 
     }
 
     await conn.query(
-      `INSERT INTO perlengkapan_stok_ledger (item_id, tipe, qty, harga_satuan, keterangan, cashflow_transaksi_id, input_oleh)
-       VALUES (?, 'in', ?, ?, ?, ?, ?)`,
-      [itemId, qty, hargaValid ? Number(hargaSatuan) : null, keterangan || null, cashflowTransaksiId, actorId || null]
+      `INSERT INTO perlengkapan_stok_ledger (item_id, nama_item, tipe, qty, harga_satuan, keterangan, cashflow_transaksi_id, input_oleh)
+       VALUES (?, ?, 'in', ?, ?, ?, ?, ?)`,
+      [itemId, item.nama, qty, hargaValid ? Number(hargaSatuan) : null, keterangan || null, cashflowTransaksiId, actorId || null]
     );
     await conn.query('UPDATE perlengkapan_jamaah SET stok_saat_ini = stok_saat_ini + ? WHERE id = ?', [qty, itemId]);
     await conn.commit();

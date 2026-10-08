@@ -176,6 +176,14 @@ export default function PerlengkapanPage() {
     if (res.ok) muat(); else alert((await res.json()).error);
   }
 
+  // Hapus beneran CUMA kalau stok_saat_ini = 0 (dikonfirmasi user
+  // 2026-10-08) -- server yang nentuin boleh/enggak, di sini cuma konfirmasi.
+  async function hapusItem(item) {
+    if (!confirm(`Hapus "${item.nama}"? Ini gak bisa dibatalin.`)) return;
+    const res = await fetch(`/api/admin/perlengkapan?id=${item.id}`, { method: 'DELETE' });
+    if (res.ok) muat(); else alert((await res.json()).error);
+  }
+
   if (!user || user.role !== 'super_admin') {
     return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
   }
@@ -230,10 +238,19 @@ export default function PerlengkapanPage() {
                   </td>
                   <td className="px-3 py-2 text-right text-gray-500">{it.kebutuhan_mendatang}</td>
                   <td className="px-3 py-2 text-right">
-                    <button onClick={() => setModalItem(it)}
-                      className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-full">
-                      ➕ Stok Masuk
-                    </button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => setModalItem(it)}
+                        className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
+                        ➕ Stok Masuk
+                      </button>
+                      {/* Cuma aktif (gak disabled) kalau stok udah 0 -- kalau
+                          masih ada stok, klik tetap jalan tapi server nolak &
+                          kasih tau alasannya (dikonfirmasi user 2026-10-08). */}
+                      <button onClick={() => hapusItem(it)} title={it.stok_saat_ini !== 0 ? 'Stok belum 0, kosongkan dulu atau nonaktifkan' : 'Hapus item'}
+                        className="text-red-500 hover:bg-red-50 text-xs font-bold px-2 py-1.5 rounded-full">
+                        🗑️
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
