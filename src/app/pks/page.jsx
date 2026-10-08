@@ -94,9 +94,17 @@ function PKSPageInner() {
     setLoading(false);
   }
 
-  // Khusus jamaah: selain "setuju" (checkbox, tetap jadi gerbang lanjut
-  // seperti sebelumnya — TIDAK diubah), ada opsi lanjut TTD digital
-  // sungguhan (bikin PDF + sesi tanda tangan) alih-alih cuma checkbox.
+  // Opsi "Tanda Tangan Digital" buat jamaah DICABUT (dikonfirmasi user
+  // 2026-10-08) -- vendor esign/e-materai belum connect sama sekali, dulu
+  // tombol ini bikin sesi di /tanda-tangan/[id] yang ternyata cuma MOCK
+  // (klik sendiri "Tanda Tangan Sekarang" langsung selesai, gak ada TTD
+  // beneran), menyesatkan jamaah seolah-olah ada proses esign resmi.
+  // Jamaah sekarang SAMA kayak perwakilan: 1 tombol "Setuju & Lanjutkan"
+  // (fungsi simpan() di bawah) -- cuma nyimpen persetujuan, dokumen
+  // dicetak & ditandatangani fisik lewat admin (lihat
+  // /admin/cetak-perjanjian/[booking_id]). Fungsi simpanLaluTtdDigital
+  // DIBIARKAN hidup (dipakai sahabat_baitullah doang sekarang) — JANGAN
+  // dihapus, sama pola kayak SPK_AK_SEMENTARA_FISIK di src/lib/spkAkFlag.js.
   //
   // sahabat_baitullah BEDA (dikonfirmasi user 2026-09-28) — tombol ini
   // SEKARANG cuma nyimpen persetujuan (`users.setuju_pks`), TIDAK langsung
@@ -209,29 +217,18 @@ function PKSPageInner() {
           </span>
         </label>
 
-        {(jenis === 'jamaah' && bookingId) || (jenis === 'sahabat_baitullah' && userId) ? (
+        {jenis === 'sahabat_baitullah' && userId ? (
           <div className="mt-4 space-y-2">
             {/* SPK-AK Sahabat Baitullah SEMENTARA fisik (vendor esign belum
                 siap, dikonfirmasi user 2026-09-30) -- tombol ini cuma nyimpen
-                persetujuan & lanjut buat jenis ini (lihat simpanLaluTtdDigital,
-                skip POST dokumen-signature kalau sahabat_baitullah), BUKAN
-                beneran mulai sesi TTD digital. Label disamain sama tombol
-                "Setuju & Lanjutkan" biasa biar gak menyesatkan (dikonfirmasi
-                user 2026-10-03). */}
+                persetujuan & lanjut (lihat simpanLaluTtdDigital, skip POST
+                dokumen-signature buat jenis ini), BUKAN beneran mulai sesi
+                TTD digital. Label disamain sama tombol "Setuju & Lanjutkan"
+                biasa biar gak menyesatkan (dikonfirmasi user 2026-10-03). */}
             <button onClick={simpanLaluTtdDigital} disabled={!setuju || loading || loadingDigital}
-              className={`w-full text-white font-bold py-3 rounded-full disabled:opacity-40 ${
-                jenis === 'sahabat_baitullah' ? 'bg-[#1A4FA0] hover:bg-[#0E2F6E]' : 'bg-[#C9952A] hover:bg-yellow-600'}`}>
-              {loadingDigital ? 'Memproses...' : jenis === 'sahabat_baitullah' ? '✅ Setuju & Lanjutkan' : '✍️ Setujui & Tanda Tangan Digital'}
+              className="w-full text-white font-bold py-3 rounded-full disabled:opacity-40 bg-[#1A4FA0] hover:bg-[#0E2F6E]">
+              {loadingDigital ? 'Memproses...' : '✅ Setuju & Lanjutkan'}
             </button>
-            {/* SPK-AK Sahabat Baitullah wajib TTD digital + e-materai
-                (dikonfirmasi user 2026-09-19) — opsi fisik dihapus khusus
-                jenis ini, jamaah/perwakilan tetap punya dua opsi. */}
-            {jenis !== 'sahabat_baitullah' && (
-              <button onClick={simpan} disabled={!setuju || loading || loadingDigital}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full disabled:opacity-40 text-sm">
-                {loading ? 'Menyimpan...' : '📝 Setujui — TTD Fisik Nanti'}
-              </button>
-            )}
           </div>
         ) : (
           <button onClick={simpan} disabled={!setuju || loading}
