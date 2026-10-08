@@ -603,6 +603,15 @@ export default function DatabaseJamaahPage() {
                       {!isHop && (
                         <div className="text-xs text-gray-500 mt-0.5">
                           {fmtRp(j.saldo_tabungan_umroh)}
+                          {/* Tanpa ini, orang yang ujroh-nya SEMUA masih pending
+                              (belum ada yang di-acc admin sama sekali) keliatan
+                              "Rp0" polos di baris list, seolah gak punya apa-apa
+                              padahal ada duit nunggu di-acc (dikonfirmasi user
+                              2026-10-08, ketemu kasus nyata: saldo Rp0 padahal
+                              ada Rp200rb pending). */}
+                          {Number(j.saldo_pending || 0) > 0 && (
+                            <span className="text-amber-600 font-semibold"> (+{fmtRp(j.saldo_pending)} pending)</span>
+                          )}
                           {j.saldo_updated_at && <span className="text-gray-400"> · diperbarui {fmtTanggal(j.saldo_updated_at)}</span>}
                         </div>
                       )}
@@ -723,11 +732,13 @@ export default function DatabaseJamaahPage() {
                         </div>
                       ) : (
                       <>
-                        <div className="grid grid-cols-3 gap-2">
-                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                            <div className="font-bold text-[#0E2F6E]">{fmtRp(Number(j.saldo_tabungan_umroh || 0) + Number(j.saldo_pending || 0))}</div>
-                            <div className="text-gray-400">Total Saldo</div>
-                          </div>
+                        {/* Box "Total" (saldo_tabungan_umroh + saldo_pending)
+                            DIHAPUS (dikonfirmasi user 2026-10-08) -- bagian
+                            pending itu belum diajukan/di-TF/di-acc admin sama
+                            sekali, dijumlahin ke "total" nyesatin kesannya
+                            udah duit nyata. Sisa 2 angka yang beneran jelas
+                            & terpisah: yang udah cair vs yang masih pending. */}
+                        <div className="grid grid-cols-2 gap-2">
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
                             <div className="font-bold text-green-600">{fmtRp(j.saldo_tabungan_umroh)}</div>
                             <div className="text-gray-400">Sudah Cair</div>
