@@ -456,6 +456,39 @@ function RiwayatSaldoContent() {
                 </div>
               )}
             </div>
+
+            {/* "Menunggu Konfirmasi Admin" — baris ledger yang UDAH BENERAN
+                tercatat (beda dari 2 section di atas yang masih proyeksi/
+                belum kejadian), cuma belum di-acc admin. Dipindah dari
+                Cashflow Tabungan ke sini (dikonfirmasi user 2026-10-08). */}
+            <div>
+              <div className="font-bold text-[#0E2F6E] text-sm mb-2">⏳ Menunggu Konfirmasi Admin</div>
+              <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-xl p-4 mb-2">
+                <div className="text-[10px] opacity-75 uppercase tracking-wider">Total Menunggu</div>
+                <div className="text-2xl font-black text-[#C9952A]">{fmtRp(forecast.menunggu_konfirmasi_total)}</div>
+              </div>
+              {(forecast.menunggu_konfirmasi || []).length === 0 ? (
+                <div className="bg-[#E8F0FB] rounded-xl p-4 text-center text-sm text-[#1A4FA0]">Tidak ada yang menunggu konfirmasi admin saat ini.</div>
+              ) : (
+                <div className="space-y-2">
+                  {forecast.menunggu_konfirmasi.map(k => {
+                    const kat = KATEGORI_LABEL[k.jenis] || { label: k.jenis, warna: 'bg-gray-100 text-gray-600' };
+                    return (
+                      <div key={k.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${kat.warna}`}>{kat.label}</span>
+                            {k.keterangan && <div className="text-sm text-gray-700 mt-1 truncate">{k.keterangan}</div>}
+                            <div className="text-[10px] text-gray-400">{fmtTanggalJam(k.created_at)}</div>
+                          </div>
+                          <div className="font-bold text-[#C9952A] shrink-0">{fmtRp(k.nominal)}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )
       )}
