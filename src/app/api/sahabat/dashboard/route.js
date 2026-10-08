@@ -123,10 +123,19 @@ export async function GET(request) {
     // beda ladger context walau 1 tabel.
     // Detail per-baris (buat rekening koran lengkap) ada di
     // /api/sahabat/riwayat-saldo — di sini cukup agregatnya buat kartu ringkasan.
+    // ref_id + kode_unik LIVE (dikonfirmasi user 2026-10-08) -- keterangan
+    // yang kesimpen di ledger pas baris ini dicatat BISA ketinggalan jaman
+    // (format lama sempat salah nulis "No. Akun" kosong, sebelum dibenerin
+    // jadi "Kode Agen"). Kode_unik pendaftar/rekrutan di-fetch ULANG dari
+    // users di sini biar tampilannya selalu akurat & konsisten, gak
+    // tergantung teks statis yang udah telanjur tersimpan.
     const [komisi] = await pool.query(
-      `SELECT id, jenis, nominal, keterangan, created_at, dikonfirmasi_at
-       FROM komisi_ledger
-       WHERE penerima_id = ? AND jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
+      `SELECT kl.id, kl.jenis, kl.nominal, kl.keterangan, kl.created_at, kl.dikonfirmasi_at, kl.ref_id,
+              pendaftar.name AS nama_pendaftar, pendaftar.kode_unik AS kode_unik_pendaftar
+       FROM komisi_ledger kl
+       LEFT JOIN users pendaftar
+         ON pendaftar.id = kl.ref_id AND kl.jenis IN ('komisi_sahabat','head_of_program_registrasi')
+       WHERE kl.penerima_id = ? AND kl.jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
       [sahabatId]
     );
     const confirmedRows = komisi.filter(k => k.dikonfirmasi_at);
@@ -154,9 +163,19 @@ export async function GET(request) {
     // belum di-acc admin. 'pemakaian_saldo_sahabat' DIBUANG dari list ini
     // -- itu pengeluaran/hold (nominal negatif), bukan pemasukan yang
     // "ditunggu", udah kepotong duluan dari saldo lewat saldoSahabat().
+    // Jangan percaya mentah-mentah teks parentetis "(...)" yang udah
+    // kesimpen di keterangan -- itu snapshot lama, bisa aja format-nya
+    // ketinggalan jaman (mis. nunjukin "No. Akun" kosong padahal
+    // seharusnya kode unik, dikonfirmasi user 2026-10-08). Potong bagian
+    // "(...)" dari teks lama, ganti sama kode_unik yang di-fetch LIVE barusan.
+    function keteranganBersih(k) {
+      if (!k.keterangan) return k.keterangan;
+      const prefix = k.keterangan.split(' (')[0];
+      return k.kode_unik_pendaftar ? `${prefix} (Kode: ${k.kode_unik_pendaftar})` : prefix;
+    }
     const pendingDetail = pendingRows
       .filter(k => k.jenis !== 'pemakaian_saldo_sahabat')
-      .map(k => ({ id: k.id, jenis: k.jenis, keterangan: k.keterangan, nominal: Number(k.nominal || 0), created_at: k.created_at }))
+      .map(k => ({ id: k.id, jenis: k.jenis, keterangan: keteranganBersih(k), nominal: Number(k.nominal || 0), created_at: k.created_at }))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const pendingDetailTotal = pendingDetail.reduce((s, k) => s + k.nominal, 0);
 

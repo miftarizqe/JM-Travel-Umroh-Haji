@@ -50,9 +50,12 @@ export async function GET(request) {
         });
       }
       const grp = periodeMap.get(r.pengajuan_ujroh_id);
+      // Buang parentetis "(...)" dari teks lama (dikonfirmasi user
+      // 2026-10-08) -- format lama sempat nunjukin "No. Akun" kosong,
+      // konsisten sama pembersihan di /api/sahabat/riwayat-saldo & dashboard.
       grp.items.push({
         id: r.id, jenis: r.jenis, kategori_label: KATEGORI_LABEL[r.jenis] || r.jenis,
-        nominal: r.nominal, keterangan: r.keterangan, created_at: r.created_at,
+        nominal: r.nominal, keterangan: r.keterangan ? r.keterangan.split(' (')[0] : r.keterangan, created_at: r.created_at,
       });
       grp.total += Number(r.nominal || 0);
     }

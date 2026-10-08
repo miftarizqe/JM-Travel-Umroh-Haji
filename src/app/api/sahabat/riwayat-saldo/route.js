@@ -25,7 +25,7 @@ export async function GET(request) {
     // Cashflow jadi murni rekening koran yang BENERAN udah kejadian.
     const [rows] = await pool.query(
       `SELECT kl.id, kl.jenis, kl.ref_id, kl.nominal, kl.keterangan, kl.dikonfirmasi_at, kl.bukti_tf_admin_path, kl.created_at,
-              kl.level, pendaftar.name AS nama_pendaftar
+              kl.level, pendaftar.name AS nama_pendaftar, pendaftar.kode_unik AS kode_unik_pendaftar
        FROM komisi_ledger kl
        LEFT JOIN users pendaftar
          ON pendaftar.id = kl.ref_id AND kl.jenis IN ('komisi_sahabat','head_of_program_registrasi')
@@ -35,8 +35,14 @@ export async function GET(request) {
       [sahabatId]
     );
 
+    // Buang parentetis "(...)" dari teks keterangan lama (dikonfirmasi user
+    // 2026-10-08) -- format lama sempat nunjukin "No. Akun" kosong, sekarang
+    // nama_pendaftar+kode_unik_pendaftar (LIVE, baru di-fetch di atas) yang
+    // ditampilkan FE sebagai pengganti, bukan teks statis yang kadang basi.
+    const rowsBersih = rows.map(r => ({ ...r, keterangan: r.keterangan ? r.keterangan.split(' (')[0] : r.keterangan }));
+
     let saldoBerjalan = 0;
-    const withSaldo = rows.map(r => {
+    const withSaldo = rowsBersih.map(r => {
       saldoBerjalan += Number(r.nominal || 0);
       return { ...r, saldo_setelah: saldoBerjalan };
     });
