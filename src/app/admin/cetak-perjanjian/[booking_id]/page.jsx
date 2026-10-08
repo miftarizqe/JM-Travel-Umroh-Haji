@@ -5,6 +5,7 @@ import { renderPasalBlock, KopPasalDokumen, TtdBoxHtml, FONT_DOKUMEN, UKURAN_DOK
 import { usePengaturan } from '@/lib/usePengaturan';
 import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
+import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 
 function fmtTgl(t) {
   if (!t) return '';
@@ -39,6 +40,14 @@ export default function CetakPerjanjian() {
   const [pasal, setPasal] = useState(null);
   const [signer, setSigner] = useState(null);
   const [pengaturan] = usePengaturan();
+  const [busyDoc, setBusyDoc] = useState(null);
+
+  function muatBooking() {
+    fetch(`/api/bookings/${bookingId}`)
+      .then(r => r.json())
+      .then(d => { if (d.booking) setBooking(d.booking); setLoading(false); })
+      .catch(() => setLoading(false));
+  }
 
   useEffect(() => {
     const u = localStorage.getItem('user');
@@ -60,7 +69,34 @@ export default function CetakPerjanjian() {
       .catch(() => setLoading(false));
     fetch(`/api/admin/pasal?dokumen=jamaah&ref_id=${bookingId}`).then(r => r.json())
       .then(d => { setPasal(d.pasal || []); setSigner(d.signer || null); }).catch(() => setPasal([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
+
+  // Verifikasi dokumen pendukung jamaah (scan paspor/KK/KTP/vaksin/pas foto)
+  // langsung dari halaman ini -- sebelumnya admin harus pindah ke
+  // /admin/dokumen-pendukung terpisah buat booking yang sama lagi dibuka di
+  // sini (ditemukan user 2026-10-08, "gaada button approve dokumen
+  // pendukung"). Sumber kebenaran tetap satu endpoint yang sama.
+  async function aksiDok(idx, docKey, path, label, namaJamaah, status) {
+    let alasan = '';
+    if (status === 'ditolak') {
+      alasan = prompt(`Alasan menolak ${label} — ${namaJamaah}:`);
+      if (alasan === null) return;
+      if (!alasan.trim()) { alert('Alasan penolakan wajib diisi.'); return; }
+    }
+    const id = `${idx}:${docKey}`;
+    setBusyDoc(id);
+    try {
+      const res = await fetch('/api/admin/dokumen-pendukung', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId, idx, doc_key: docKey, path, status, alasan }),
+      });
+      const d = await res.json();
+      if (!res.ok) alert(d.error || 'Gagal menyimpan');
+      muatBooking();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusyDoc(null);
+  }
 
   if (loading) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Memuat data...</div>;
 
@@ -94,11 +130,52 @@ export default function CetakPerjanjian() {
         </div>
       </div>
 
-      <DokumenSignatureAksi dokumen="jamaah" refId={booking.id} onCetakFisik={() => window.print()} hideCetakFisik />
+      {/* Kirim TTD Digital DICABUT (dikonfirmasi user 2026-10-08) -- vendor
+          esign belum connect, tombol itu cuma buka sesi mock. Perjanjian
+          Jamaah sekarang murni jalur fisik: cetak di sini, lalu unggah
+          scan-nya lewat UploadScanDokumen di bawah. */}
+      <DokumenSignatureAksi dokumen="jamaah" refId={booking.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />
 
       <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/bookings/${booking.id}/scan-perjanjian`}
         userId={booking.id} path={booking.perjanjian_scan_path} uploadedAt={booking.perjanjian_scan_uploaded_at}
         onUploaded={(path) => setBooking(bk => ({ ...bk, perjanjian_scan_path: path, perjanjian_scan_uploaded_at: new Date().toISOString() }))} />
+
+      {/* Verifikasi dokumen pendukung jamaah langsung di sini (dikonfirmasi
+          user 2026-10-08, "gaada button approve dokumen pendukung") --
+          sebelumnya cuma bisa lewat /admin/dokumen-pendukung terpisah.
+          Sama endpoint/logic, cuma di-scope ke booking ini aja. */}
+      {jamaahArr.some(j => DOC_LIST.some(dl => j?.[dl.key])) && (
+        <div className="no-print" style={{ width: 720, margin: '0 auto 16px', background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}>
+          <div style={{ fontWeight: 700, color: '#0E2F6E', marginBottom: 10, fontSize: 14 }}>📎 Dokumen Pendukung Jamaah</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {jamaahArr.flatMap((j, idx) => DOC_LIST.filter(dl => j?.[dl.key]).map(dl => {
+              const st = statusDokumen(j, dl.key);
+              const info = STATUS_DOKUMEN[st.status];
+              const id = `${idx}:${dl.key}`;
+              const nama = j.nama || `Jamaah ${idx + 1}`;
+              return (
+                <div key={id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#F8F9FD', borderRadius: 8, fontSize: 12 }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <div style={{ fontWeight: 700, color: '#333' }}>{dl.label} — {nama}</div>
+                    {info && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 8px', borderRadius: 10, background: info.cls.includes('green') ? '#dcfce7' : info.cls.includes('red') ? '#fee2e2' : '#fef9c3', color: info.cls.includes('green') ? '#15803d' : info.cls.includes('red') ? '#b91c1c' : '#854d0e' }}>{info.ikon} {info.label}</span>}
+                    {st.status === 'ditolak' && st.alasan && <div style={{ fontSize: 10, color: '#b91c1c', marginTop: 2 }}>Alasan: {st.alasan}</div>}
+                  </div>
+                  <a href={j[dl.key]} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 11, fontWeight: 700, color: '#1A4FA0', background: '#E8F0FB', padding: '5px 12px', borderRadius: 16, textDecoration: 'none' }}>Lihat</a>
+                  {st.status !== 'diverifikasi' && (
+                    <button disabled={busyDoc === id} onClick={() => aksiDok(idx, dl.key, j[dl.key], dl.label, nama, 'diverifikasi')}
+                      style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: '#16a34a', border: 'none', padding: '5px 12px', borderRadius: 16, cursor: 'pointer', opacity: busyDoc === id ? 0.5 : 1 }}>✅ Verifikasi</button>
+                  )}
+                  {st.status !== 'ditolak' && (
+                    <button disabled={busyDoc === id} onClick={() => aksiDok(idx, dl.key, j[dl.key], dl.label, nama, 'ditolak')}
+                      style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', background: '#fee2e2', border: 'none', padding: '5px 12px', borderRadius: 16, cursor: 'pointer', opacity: busyDoc === id ? 0.5 : 1 }}>❌ Tolak</button>
+                  )}
+                </div>
+              );
+            }))}
+          </div>
+        </div>
+      )}
 
       <div className="sheet" style={{ background: '#fff', width: 720, minHeight: '29.7cm', margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal, lineHeight: 1.6, color: '#111' }}>
         <KopPasalDokumen pengaturan={pengaturan} />
