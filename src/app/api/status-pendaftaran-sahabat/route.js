@@ -1,4 +1,5 @@
 import pool from '@/lib/db';
+import { alasanKunciMetodeTtd } from '@/lib/kunciMetodeTtdSahabat';
 import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 import { wajibLogin, wajibRole } from '@/lib/auth';
@@ -44,7 +45,8 @@ export async function GET(request) {
               dokumen_surat_pemblokiran_fisik_path, nominal_blokir_tabungan, jangka_waktu_blokir_hari, tanggal_mulai_blokir,
               metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at,
               dokumen_cif_fisik_diterima_at, dokumen_pemblokiran_fisik_diterima_at, dokumen_spk_ak_fisik_diterima_at,
-              dokumen_formulir_bsi_fisik_diterima_at, dokumen_fisik_dikirim_at, dokumen_fisik_resi
+              dokumen_formulir_bsi_fisik_diterima_at, dokumen_fisik_dikirim_at, dokumen_fisik_resi, dokumen_fisik_resi_foto_path,
+              DATE_FORMAT(rencana_kunjungan_kantor_at, '%Y-%m-%d') AS tanggal_kunjungan
        FROM users WHERE id = ?`, [auth.user.id]
     );
     if (users.length === 0) return Response.json({ error: 'User tidak ditemukan' }, { status: 404 });
@@ -133,6 +135,9 @@ export async function GET(request) {
         metode_ttd_sahabat: u.metode_ttd_sahabat, rencana_kunjungan_kantor_at: u.rencana_kunjungan_kantor_at,
         dokumen_spk_ak_dikirim_balik_at: u.dokumen_spk_ak_dikirim_balik_at,
         dokumen_fisik_dikirim_at: u.dokumen_fisik_dikirim_at, dokumen_fisik_resi: u.dokumen_fisik_resi,
+        dokumen_fisik_resi_foto_path: u.dokumen_fisik_resi_foto_path,
+        // Alasan tombol "Ganti Metode TTD" disembunyikan (null = boleh ganti).
+        kunci_ganti_metode_ttd: alasanKunciMetodeTtd(u),
       },
       pendaftaran,
       steps: STEP_PENDAFTARAN_SAHABAT,

@@ -31,10 +31,15 @@ const PROSES = [
 ];
 
 function syaratBelum(p) {
-  // Sinkron sama validasi PATCH /api/status-pendaftaran-sahabat action=advance.
+  // Sinkron sama validasi PATCH /api/status-pendaftaran-sahabat action=advance
+  // ke 'active' (dan badge /admin/sahabat di /api/admin/sidebar-badges).
+  // TTD fisik Surat Perjanjian SENGAJA bukan syarat — nyusul setelah aktif
+  // (SPK_AK_SEMENTARA_FISIK), yang wajib cuma jamaah udah SETUJU (/pks).
   if (p.status === 'menunggu_sk_cif') {
     return [
-      !p.spk_ak_selesai && 'Surat Perjanjian Jamaah Sahabat Baitullah',
+      !p.setuju_pks && 'Setuju Surat Perjanjian Jamaah Sahabat Baitullah',
+      !p.bukti_tf_verified_at && 'Bukti TF',
+      !p.no_rekening_tabungan_umroh && !p.bantuan_bsi_manual_disetujui_at && 'Rekening Tabungan Umroh',
       !p.setuju_sk_cif_pemblokiran_at && 'Baca & Setuju SK-CIF/Surat Blokir',
     ].filter(Boolean);
   }
@@ -253,7 +258,7 @@ export default function AdminSahabatPage() {
                   detail.spk_ak_doc_path ? (
                     <a href={detail.spk_ak_doc_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
                   ) : <span className="text-green-600 font-bold">✅ Ya</span>
-                ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
+                ) : <span className="text-gray-400 font-bold text-right">⏳ Belum <span className="font-normal">(boleh nyusul setelah aktif)</span></span>}
               </div>
               {/* Rekening BSI Biasa dihapus (dikonfirmasi user 2026-09-03) —
                   Sahabat Baitullah cuma punya 1 rekening: Tabungan Umroh. */}
@@ -261,6 +266,8 @@ export default function AdminSahabatPage() {
                 <span>Rekening Tabungan Umroh</span>
                 {detail.no_rekening_tabungan_umroh ? (
                   <span className="text-green-600 font-bold">✅ {detail.no_rekening_tabungan_umroh}</span>
+                ) : detail.bantuan_bsi_manual_disetujui_at ? (
+                  <span className="text-amber-600 font-bold">🏦 Dibantu BSI manual</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diisi jamaah</span>}
               </div>
               {/* Checklist "udah submit Formulir Pendaftaran Rekening BSI ke
@@ -305,6 +312,7 @@ export default function AdminSahabatPage() {
                 <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 text-[10px] text-[#1A4FA0]">
                   📦 Jamaah konfirmasi sudah kirim pada {new Date(detail.dokumen_fisik_dikirim_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                   {detail.dokumen_fisik_resi && <> · Resi: <b>{detail.dokumen_fisik_resi}</b></>}
+                  {detail.dokumen_fisik_resi_foto_path && <> · <a href={detail.dokumen_fisik_resi_foto_path} target="_blank" rel="noopener noreferrer" className="font-bold underline hover:text-[#0E2F6E]">Lihat foto resi</a></>}
                 </div>
               )}
               {detail.metode_ttd_sahabat === 'kirim' && [

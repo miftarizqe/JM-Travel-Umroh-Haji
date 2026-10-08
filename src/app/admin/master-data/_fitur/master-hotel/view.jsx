@@ -1,5 +1,6 @@
 'use client';
 import { inp, lbl, rp, sudahKadaluarsa, labelPeriode, KOTA_LABEL } from '../util';
+import InputTanggal from '@/app/components/InputTanggal';
 
 export default function MasterHotelView({
   hotelList,
@@ -56,15 +57,15 @@ export default function MasterHotelView({
                   <div className="grid sm:grid-cols-3 gap-3 mb-3">
                     <div>
                       <label className={lbl}>Periode Mulai (opsional, kosong = selamanya)</label>
-                      <input type="date" value={p.periode_mulai} onChange={e => onUbahBarisPeriodeBaru(idx, { periode_mulai: e.target.value })} className={inp} />
+                      <InputTanggal value={p.periode_mulai} onChange={e => onUbahBarisPeriodeBaru(idx, { periode_mulai: e.target.value })} className={inp} />
                     </div>
                     <div>
                       <label className={lbl}>Periode Selesai</label>
-                      <input type="date" value={p.periode_selesai} onChange={e => onUbahBarisPeriodeBaru(idx, { periode_selesai: e.target.value })} className={inp} />
+                      <InputTanggal value={p.periode_selesai} onChange={e => onUbahBarisPeriodeBaru(idx, { periode_selesai: e.target.value })} className={inp} />
                     </div>
                     <div>
                       <label className={lbl}>Berlaku Sampai (kalau gak pakai periode)</label>
-                      <input type="date" value={p.berlaku_sampai} onChange={e => onUbahBarisPeriodeBaru(idx, { berlaku_sampai: e.target.value })} className={inp} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — dipakai kalau Periode di atas dibiarin kosong." />
+                      <InputTanggal value={p.berlaku_sampai} onChange={e => onUbahBarisPeriodeBaru(idx, { berlaku_sampai: e.target.value })} className={inp} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — dipakai kalau Periode di atas dibiarin kosong." />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -133,15 +134,15 @@ export default function MasterHotelView({
                               <div className="grid sm:grid-cols-3 gap-2 mb-2">
                                 <div>
                                   <label className={lbl}>Periode Mulai (opsional, kosong = selamanya)</label>
-                                  <input type="date" value={formPeriode.periode_mulai} onChange={e => onUbahFormPeriode({ periode_mulai: e.target.value })} className={inp} />
+                                  <InputTanggal value={formPeriode.periode_mulai} onChange={e => onUbahFormPeriode({ periode_mulai: e.target.value })} className={inp} />
                                 </div>
                                 <div>
                                   <label className={lbl}>Periode Selesai</label>
-                                  <input type="date" value={formPeriode.periode_selesai} onChange={e => onUbahFormPeriode({ periode_selesai: e.target.value })} className={inp} />
+                                  <InputTanggal value={formPeriode.periode_selesai} onChange={e => onUbahFormPeriode({ periode_selesai: e.target.value })} className={inp} />
                                 </div>
                                 <div>
                                   <label className={lbl}>Berlaku Sampai (kalau gak pakai periode)</label>
-                                  <input type="date" value={formPeriode.berlaku_sampai} onChange={e => onUbahFormPeriode({ berlaku_sampai: e.target.value })} className={inp} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — dipakai kalau Periode di atas dibiarin kosong." />
+                                  <InputTanggal value={formPeriode.berlaku_sampai} onChange={e => onUbahFormPeriode({ berlaku_sampai: e.target.value })} className={inp} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — dipakai kalau Periode di atas dibiarin kosong." />
                                 </div>
                               </div>
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import DaftarEditor from '@/app/components/DaftarEditor';
@@ -1102,7 +1103,7 @@ export default function ProgramsPage() {
                 </div>
                 <div>
                   <label className={lbl}>Tanggal Berangkat (untuk itinerary) *</label>
-                  <input type="date" value={editing.tanggal_berangkat || ''} onChange={e => { if (e.target.value) setF('tanggal_berangkat', e.target.value); }} className={inp} required/>
+                  <InputTanggal value={editing.tanggal_berangkat || ''} onChange={e => { if (e.target.value) setF('tanggal_berangkat', e.target.value); }} className={inp} required/>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1623,7 +1624,7 @@ export default function ProgramsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className={lbl}>📅 Tanggal Manasik</label>
-                  <input type="date" value={editing.manasik_tanggal || ''} onChange={e => setF('manasik_tanggal', e.target.value)} className={inp}/>
+                  <InputTanggal value={editing.manasik_tanggal || ''} onChange={e => setF('manasik_tanggal', e.target.value)} className={inp}/>
                 </div>
                 <div>
                   <label className={lbl}>📍 Lokasi</label>

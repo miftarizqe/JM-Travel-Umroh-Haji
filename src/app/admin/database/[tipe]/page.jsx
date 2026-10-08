@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import SortTh from '@/app/components/SortTh';
@@ -637,9 +638,9 @@ export default function DatabasePage() {
                     <input value={editForm.paspor} onChange={e => setE('paspor', e.target.value)} className={inp} />
                     <div className="grid grid-cols-2 gap-2">
                       <div><label className={lbl}>Masa Berlaku (Mulai)</label>
-                        <input type="date" value={editForm.exp_mulai} onChange={e => { if (e.target.value) setE('exp_mulai', e.target.value); }} className={inp} /></div>
+                        <InputTanggal value={editForm.exp_mulai} onChange={e => { if (e.target.value) setE('exp_mulai', e.target.value); }} className={inp} /></div>
                       <div><label className={lbl}>Masa Berlaku (Akhir)</label>
-                        <input type="date" value={editForm.exp_paspor} onChange={e => { if (e.target.value) setE('exp_paspor', e.target.value); }} className={inp} /></div>
+                        <InputTanggal value={editForm.exp_paspor} onChange={e => { if (e.target.value) setE('exp_paspor', e.target.value); }} className={inp} /></div>
                     </div>
                     <label className={lbl}>Tempat Keluar Paspor</label>
                     <input value={editForm.tkp} onChange={e => setE('tkp', e.target.value)} className={inp} />
@@ -647,7 +648,7 @@ export default function DatabasePage() {
                       <div><label className={lbl}>Tempat Lahir</label>
                         <input value={editForm.tl} onChange={e => setE('tl', e.target.value)} className={inp} /></div>
                       <div><label className={lbl}>Tanggal Lahir</label>
-                        <input type="date" value={editForm.ttl} onChange={e => { if (e.target.value) setE('ttl', e.target.value); }} className={inp} /></div>
+                        <InputTanggal value={editForm.ttl} onChange={e => { if (e.target.value) setE('ttl', e.target.value); }} className={inp} /></div>
                     </div>
                     <label className={lbl}>NIK</label>
                     <input value={editForm.nik} onChange={e => setE('nik', e.target.value.replace(/\D/g, '').slice(0, 16))} inputMode="numeric" className={inp} />
@@ -704,7 +705,7 @@ export default function DatabasePage() {
                     <label className={lbl}>Tempat Lahir</label>
                     <input value={editForm.tempat_lahir} onChange={e => setE('tempat_lahir', e.target.value)} className={inp} />
                     <label className={lbl}>Tanggal Lahir</label>
-                    <input type="date" value={editForm.tanggal_lahir} onChange={e => { if (e.target.value) setE('tanggal_lahir', e.target.value); }} className={inp} />
+                    <InputTanggal value={editForm.tanggal_lahir} onChange={e => { if (e.target.value) setE('tanggal_lahir', e.target.value); }} className={inp} />
                     <label className={lbl}>Jenis Kelamin</label>
                     <select value={editForm.jenis_kelamin} onChange={e => setE('jenis_kelamin', e.target.value)} className={inp}>
                       <option>Laki-Laki</option><option>Perempuan</option>

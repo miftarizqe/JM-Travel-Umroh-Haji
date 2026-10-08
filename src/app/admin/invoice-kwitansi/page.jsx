@@ -1,5 +1,6 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -484,7 +485,7 @@ function InvoiceKwitansiPageInner() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-400 block mb-1">Tanggal</label>
-                <input type="date" value={form.tanggal} onChange={e => { if (e.target.value) setForm(f => ({ ...f, tanggal: e.target.value })); }}
+                <InputTanggal value={form.tanggal} onChange={e => { if (e.target.value) setForm(f => ({ ...f, tanggal: e.target.value })); }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
               </div>
               <div>

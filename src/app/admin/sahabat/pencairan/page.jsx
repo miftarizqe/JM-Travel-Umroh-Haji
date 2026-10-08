@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -157,10 +158,10 @@ export default function PencairanKomisiPage() {
                 <div className="bg-white rounded-xl border border-gray-200 p-3">
                   <div className="text-xs font-bold text-[#0E2F6E] mb-2">Pilih periode pengajuan</div>
                   <div className="flex items-center gap-2 mb-2">
-                    <input type="date" value={periodeMulai} onChange={e => setPeriodeMulai(e.target.value)}
+                    <InputTanggal value={periodeMulai} onChange={e => setPeriodeMulai(e.target.value)}
                       className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs" />
                     <span className="text-xs text-gray-400">s/d</span>
-                    <input type="date" value={periodeSelesai} onChange={e => setPeriodeSelesai(e.target.value)}
+                    <InputTanggal value={periodeSelesai} onChange={e => setPeriodeSelesai(e.target.value)}
                       className="flex-1 border border-gray-200 rounded-lg px-2 py-1.5 text-xs" />
                   </div>
                   {periodeTerpakai.length > 0 && (

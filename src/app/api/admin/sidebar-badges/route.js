@@ -75,17 +75,21 @@ export async function GET(request) {
             AND ap.metode = 'kantor' AND u.janji_temu_kantor_selesai_at IS NULL
             AND ap.jadwal_kunjungan < CURDATE() + INTERVAL 1 DAY) AS n`)),
 
-    // Sahabat 'Menunggu ACC Admin' yang syaratnya UDAH lengkap (SPK-AK
-    // selesai + setuju SK-CIF) — yang masih kurang syarat itu nunggu jamaah,
-    // bukan admin (lihat syaratBelum di /admin/sahabat/page.jsx).
+    // Sahabat 'Menunggu ACC Admin' yang udah SIAP diaktifkan — kriteria
+    // persis gate action=advance ke 'active' di
+    // /api/status-pendaftaran-sahabat (setuju SPK-AK + TF verified +
+    // rekening/bantuan BSI manual + setuju SK-CIF). SPK-AK selesai (TTD
+    // fisik) SENGAJA bukan syarat (SPK_AK_SEMENTARA_FISIK, nyusul setelah
+    // aktif) — dulu ikut disyaratkan lewat scan dokumen_spk_ak_fisik_path
+    // yang udah dicabut dari sisi jamaah, jadi badge-nya gak pernah muncul
+    // (ditemukan user 2026-10-08). Yang masih kurang syarat = nunggu jamaah.
     hitung('/admin/sahabat', () => count(
       `SELECT COUNT(*) AS n FROM sahabat_pendaftaran kp
        JOIN users u ON u.id = kp.user_id
-       WHERE kp.status = 'menunggu_sk_cif' AND u.setuju_sk_cif_pemblokiran_at IS NOT NULL
-         AND (u.dokumen_spk_ak_fisik_path IS NOT NULL OR (
-           SELECT fase FROM dokumen_signature
-           WHERE dokumen = IF(u.agama = 'non_islam', 'spk_ak_nonis', 'spk_ak') AND rangkap = 'tunggal' AND ref_id = kp.user_id
-           ORDER BY id DESC LIMIT 1) = 'selesai')`)),
+       WHERE kp.status = 'menunggu_sk_cif' AND u.setuju_pks
+         AND kp.bukti_tf_verified_at IS NOT NULL
+         AND (NULLIF(u.no_rekening_tabungan_umroh, '') IS NOT NULL OR u.bantuan_bsi_manual_disetujui_at IS NOT NULL)
+         AND u.setuju_sk_cif_pemblokiran_at IS NOT NULL`)),
 
     // Perwakilan 'Verifikasi Data oleh Admin' yang syaratnya udah lengkap
     // (formulir TTD + PKS + metode) — lihat syaratBelum di /admin/perwakilan.

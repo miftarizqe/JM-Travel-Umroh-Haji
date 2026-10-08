@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
@@ -247,7 +248,7 @@ export default function DaftarPerwakilanPage() {
               <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>Tanggal Lahir * <span className="text-gray-400 font-normal">(minimal 17 tahun)</span></label>
-                <input type="date" max={maksTanggalLahir17Tahun} value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
+                <InputTanggal max={maksTanggalLahir17Tahun} value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
               <div><label className={lbl}>Jenis Kelamin *</label>
                 <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={inp}>
                   <option>Laki-Laki</option><option>Perempuan</option></select></div>

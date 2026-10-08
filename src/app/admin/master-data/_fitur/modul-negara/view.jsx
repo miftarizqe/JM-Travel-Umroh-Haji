@@ -1,5 +1,6 @@
 'use client';
 import { inp, lbl, MATA_UANG_LIST, sudahKadaluarsa } from '../util';
+import InputTanggal from '@/app/components/InputTanggal';
 import { KOSONG_ADDON, KOSONG_BRACKET, KOSONG_CLUSTER, BASIS_ADDON_LIST, variantUnikTier, cityTourUnikTier, kelompokkanTier, ratakanCluster } from './helpers';
 
 // View — presentational murni: gak ada fetch, gak ada useState. Semua data
@@ -154,19 +155,19 @@ function FormModulNegara({ value, onChange, onSimpan, onBatal, busy }) {
                     {!!value.pakai_periode && (
                       <div>
                         <div className="text-[10px] text-gray-400 mb-1">Periode Mulai</div>
-                        <input type="date" value={c.periode_mulai} onChange={e => { if (e.target.value) ubahCluster(ci, { periode_mulai: e.target.value }); }} className={`${inp} w-36`} />
+                        <InputTanggal value={c.periode_mulai} onChange={e => { if (e.target.value) ubahCluster(ci, { periode_mulai: e.target.value }); }} className={`${inp} w-36`} />
                       </div>
                     )}
                     {!!value.pakai_periode && (
                       <div>
                         <div className="text-[10px] text-gray-400 mb-1">Periode Selesai</div>
-                        <input type="date" value={c.periode_selesai} onChange={e => { if (e.target.value) ubahCluster(ci, { periode_selesai: e.target.value }); }} className={`${inp} w-36`} />
+                        <InputTanggal value={c.periode_selesai} onChange={e => { if (e.target.value) ubahCluster(ci, { periode_selesai: e.target.value }); }} className={`${inp} w-36`} />
                       </div>
                     )}
                     {!value.pakai_periode && (
                       <div>
                         <div className="text-[10px] text-gray-400 mb-1">Berlaku Sampai (opsional)</div>
-                        <input type="date" value={c.berlaku_sampai} onChange={e => ubahCluster(ci, { berlaku_sampai: e.target.value })} className={`${inp} w-36`} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — gak pakai musim/periode, kosongkan kalau emang berlaku selamanya." />
+                        <InputTanggal value={c.berlaku_sampai} onChange={e => ubahCluster(ci, { berlaku_sampai: e.target.value })} className={`${inp} w-36`} title="Jaring pengaman biar gak diem-diem kepake kalau harganya udah basi — gak pakai musim/periode, kosongkan kalau emang berlaku selamanya." />
                       </div>
                     )}
                     {!!value.pakai_hotel_star && (

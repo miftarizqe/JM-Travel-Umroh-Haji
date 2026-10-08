@@ -1,5 +1,6 @@
 'use client';
 import { Fragment, Suspense, useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBon from '@/app/components/UploadBon';
@@ -44,7 +45,7 @@ function FormTransaksi({ form, setForm, akunList, kategoriList, programList, sav
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className={lbl}>Tanggal</label>
-          <input type="date" value={form.tanggal} onChange={e => { if (e.target.value) setForm({ ...form, tanggal: e.target.value }); }} className={inp} />
+          <InputTanggal value={form.tanggal} onChange={e => { if (e.target.value) setForm({ ...form, tanggal: e.target.value }); }} className={inp} />
         </div>
         <div>
           <label className={lbl}>Akun</label>
@@ -696,7 +697,7 @@ function CashflowPeriodeInner() {
           <div className="border-2 border-[#1A4FA0] rounded-lg p-3 mb-3 space-y-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input value={formReimburse.nama_staff} onChange={e => setFormReimburse({ ...formReimburse, nama_staff: e.target.value })} placeholder="Nama staff" className={inp} />
-              <input type="date" value={formReimburse.tanggal_pengeluaran} onChange={e => { if (e.target.value) setFormReimburse({ ...formReimburse, tanggal_pengeluaran: e.target.value }); }} className={inp} />
+              <InputTanggal value={formReimburse.tanggal_pengeluaran} onChange={e => { if (e.target.value) setFormReimburse({ ...formReimburse, tanggal_pengeluaran: e.target.value }); }} className={inp} />
             </div>
             <input value={formReimburse.deskripsi} onChange={e => setFormReimburse({ ...formReimburse, deskripsi: e.target.value })} placeholder="Dipakai buat apa (mis. bensin Karawang-Bandung)" className={inp} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -782,7 +783,7 @@ function CashflowPeriodeInner() {
             <div className="text-xs text-gray-400">Mis. &quot;Pindah dana cash to bank&quot; — dicatat otomatis sebagai OUT di akun asal + IN di akun tujuan.</div>
             <div>
               <label className={lbl}>Tanggal</label>
-              <input type="date" value={transferForm.tanggal} onChange={e => { if (e.target.value) setTransferForm({ ...transferForm, tanggal: e.target.value }); }} className={inp} />
+              <InputTanggal value={transferForm.tanggal} onChange={e => { if (e.target.value) setTransferForm({ ...transferForm, tanggal: e.target.value }); }} className={inp} />
             </div>
             <div>
               <label className={lbl}>Deskripsi</label>
@@ -934,7 +935,7 @@ function CashflowPeriodeInner() {
                       <div className="flex items-start gap-2">
                         <input type="checkbox" checked={r.sertakan} onChange={e => ubahBarisImport(idx, { sertakan: e.target.checked })} className="mt-2" />
                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          <input type="date" value={r.tanggal} onChange={e => { if (e.target.value) ubahBarisImport(idx, { tanggal: e.target.value }); }} className={inp} />
+                          <InputTanggal value={r.tanggal} onChange={e => { if (e.target.value) ubahBarisImport(idx, { tanggal: e.target.value }); }} className={inp} />
                           <input type="number" value={r.nominal} onChange={e => ubahBarisImport(idx, { nominal: e.target.value })} className={inp} />
                           <input value={r.deskripsi} onChange={e => ubahBarisImport(idx, { deskripsi: e.target.value })} className={`${inp} sm:col-span-2`} />
                           <div className="flex gap-2">
@@ -1148,7 +1149,7 @@ function CashflowPeriodeInner() {
                                 )}
                               </div>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                <input type="date" value={item.tanggal} onChange={e => { if (e.target.value) ubahItemRincikan(idx, { tanggal: e.target.value }); }} className={inp} />
+                                <InputTanggal value={item.tanggal} onChange={e => { if (e.target.value) ubahItemRincikan(idx, { tanggal: e.target.value }); }} className={inp} />
                                 <input value={item.deskripsi} onChange={e => ubahItemRincikan(idx, { deskripsi: e.target.value })} placeholder="Item apa" className={inp} />
                                 <input type="number" value={item.nominal} onChange={e => ubahItemRincikan(idx, { nominal: e.target.value })} placeholder="Nominal" className={inp} />
                               </div>

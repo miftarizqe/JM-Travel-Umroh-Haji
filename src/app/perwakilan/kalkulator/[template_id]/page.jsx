@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -378,7 +379,7 @@ export default function KalkulatorPerwakilanDetailPage() {
         )}
         <div>
           <label className={lbl}>Tanggal Keberangkatan</label>
-          <input type="date" value={tanggal} onChange={e => { if (e.target.value) setTanggal(e.target.value); }} className={inp} />
+          <InputTanggal value={tanggal} onChange={e => { if (e.target.value) setTanggal(e.target.value); }} className={inp} />
         </div>
 
         {paketList.length > 1 && (

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -138,7 +139,7 @@ export default function RekeningDashboardPage() {
                 <input type="number" value={editSaldoAwal.nominal} placeholder="0"
                   onChange={e => setEditSaldoAwal(s => ({ ...s, nominal: e.target.value }))}
                   className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
-                <input type="date" value={editSaldoAwal.tanggal}
+                <InputTanggal value={editSaldoAwal.tanggal}
                   onChange={e => setEditSaldoAwal(s => ({ ...s, tanggal: e.target.value }))}
                   className="px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
               </div>

@@ -400,7 +400,10 @@ export default function Home() {
               <div className="text-sm text-gray-500 mb-5">
                 Belum ada jadwal keberangkatan yang dibuka untuk umum saat ini. Tim kami sedang menyiapkan jadwal berikutnya.
               </div>
-              {user ? (
+              {/* `mounted &&` sama kayak navbar: server selalu render "belum
+                  login", jadi tombol versi login baru boleh muncul setelah
+                  mount — kalau gak, hydration mismatch tiap kali user login. */}
+              {mounted && user ? (
                 <button onClick={() => router.push(dashboardPathForRole(user.role))}
                   className="inline-block bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2.5 px-6 rounded-full transition-colors">
                   Cek Program Eksklusif di Dashboard Anda →

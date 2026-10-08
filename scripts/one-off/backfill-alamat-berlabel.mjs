@@ -18,7 +18,7 @@
 // field terpisah yang juga gak disentuh script ini).
 //
 // Idempotent — aman dijalankan ulang kapan pun, hasilnya sama.
-// Jalankan SEKALI dari folder project:  node backfill-alamat-berlabel.mjs
+// Jalankan SEKALI dari folder project:  node scripts/one-off/backfill-alamat-berlabel.mjs
 //   Tambahkan --dry-run buat lihat preview tanpa nulis ke DB.
 
 import mysql from 'mysql2/promise';

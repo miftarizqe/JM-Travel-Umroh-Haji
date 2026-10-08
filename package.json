@@ -4,11 +4,16 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:dev": "node scripts/with-env.mjs dev next dev",
+    "dev:prod": "node scripts/with-env.mjs prod next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "migrate": "node scripts/migrate.mjs",
-    "migrate:dry-run": "node scripts/migrate.mjs --dry-run"
+    "migrate:dry-run": "node scripts/migrate.mjs --dry-run",
+    "migrate:dev": "node scripts/with-env.mjs dev node scripts/migrate.mjs",
+    "migrate:dev:dry-run": "node scripts/with-env.mjs dev node scripts/migrate.mjs --dry-run",
+    "migrate:prod:dry-run": "node scripts/with-env.mjs prod node scripts/migrate.mjs --dry-run"
   },
   "overrides": {
     "sharp": "$sharp"
