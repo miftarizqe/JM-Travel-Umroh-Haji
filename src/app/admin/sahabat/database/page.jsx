@@ -732,16 +732,13 @@ export default function DatabaseJamaahPage() {
                         </div>
                       ) : (
                       <>
-                        <div className="grid grid-cols-3 gap-2">
-                          {/* Label "Total Ujroh", BUKAN "Total Saldo" (dikonfirmasi
-                              user 2026-10-08) -- bagian pending itu belum
-                              diajukan/di-TF/di-acc admin sama sekali, labelin
-                              "Saldo" nyesatin kesannya duit itu udah nyata/siap
-                              dipakai padahal belum. */}
-                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                            <div className="font-bold text-[#0E2F6E]">{fmtRp(Number(j.saldo_tabungan_umroh || 0) + Number(j.saldo_pending || 0))}</div>
-                            <div className="text-gray-400">Total Ujroh</div>
-                          </div>
+                        {/* Box "Total" (saldo_tabungan_umroh + saldo_pending)
+                            DIHAPUS (dikonfirmasi user 2026-10-08) -- bagian
+                            pending itu belum diajukan/di-TF/di-acc admin sama
+                            sekali, dijumlahin ke "total" nyesatin kesannya
+                            udah duit nyata. Sisa 2 angka yang beneran jelas
+                            & terpisah: yang udah cair vs yang masih pending. */}
+                        <div className="grid grid-cols-2 gap-2">
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
                             <div className="font-bold text-green-600">{fmtRp(j.saldo_tabungan_umroh)}</div>
                             <div className="text-gray-400">Sudah Cair</div>
