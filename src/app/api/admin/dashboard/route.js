@@ -78,6 +78,20 @@ export async function GET(request) {
       !u.terverifikasi && !['admin', 'super_admin', 'hop'].includes(u.role) && u.status !== 'rejected'
     );
 
+    // Sahabat Baitullah baru daftar, belum unggah bukti transfer —
+    // SENGAJA gak kecover pendingVerifikasi di atas (sahabat auto-
+    // terverifikasi=1 pas daftar, lihat /api/auth/register), jadi
+    // sebelumnya GAK ADA sinyal apapun di "Perlu Perhatian" buat
+    // pendaftar sahabat baru (ditemukan user 2026-10-08) — admin gak
+    // tau ada yang baru daftar & perlu di-follow-up WA.
+    const [sahabatBaruDaftar] = await pool.query(
+      `SELECT u.id, u.name, u.wa, u.created_at, sp.created_at AS daftar_at
+       FROM sahabat_pendaftaran sp
+       JOIN users u ON u.id = sp.user_id
+       WHERE sp.status = 'pending' AND sp.bukti_tf_path IS NULL
+       ORDER BY sp.created_at DESC`
+    );
+
     // 6. Perlengkapan yang belum dikirim (DP confirmed, status belum
     // dikirim/diterima) — lihat src/lib/perlengkapan.js.
     const semuaJamaahKit = await daftarJamaahPerluKit(pool);
@@ -130,6 +144,7 @@ export async function GET(request) {
         custom_harga: pendingCustomHarga,
         pembayaran: pendingPayment,
         akun_verifikasi: pendingVerifikasi,
+        sahabat_baru_daftar: sahabatBaruDaftar,
         akun_jamaah: pendingAkunJamaah,
         akun_perwakilan: pendingAkunPerw,
         perlengkapan: pendingPerlengkapan,
