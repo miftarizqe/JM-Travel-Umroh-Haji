@@ -123,7 +123,9 @@ export default function KalkulatorBiayaHubPage() {
     const anyId = Object.values(ids)[0];
     const itemRes = await fetch(`/api/admin/biaya-breakdown?id=${anyId}`);
     const itemD = await itemRes.json();
-    const items = (itemD.breakdown?.items || []).map(it => ({ master_item_id: it.master_item_id, kelompok: it.kelompok, nama: it.nama, nominal: it.nominal, mata_uang: it.mata_uang, basis: it.basis, trigger_kunci: it.trigger_kunci, modul_negara_id: it.modul_negara_id }));
+    // frekuensi ikut dibenerin di sini juga (dikonfirmasi user 2026-10-09,
+    // bug yang sama kayak di admin/programs/page.jsx).
+    const items = (itemD.breakdown?.items || []).map(it => ({ master_item_id: it.master_item_id, kelompok: it.kelompok, nama: it.nama, nominal: it.nominal, mata_uang: it.mata_uang, basis: it.basis, trigger_kunci: it.trigger_kunci, modul_negara_id: it.modul_negara_id, frekuensi: it.frekuensi }));
     setKalkulatorShared({ ...shared, items });
     setEditorTerbuka(true);
   }
