@@ -338,7 +338,7 @@ function RiwayatSaldoContent() {
                             <div className="min-w-0">
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${kat.warna}`}>{kat.label}</span>
                               {r.level ? <span className="ml-1 text-[10px] font-bold text-[#1A4FA0]">Level {r.level}</span> : null}
-                              {r.nama_pendaftar && <div className="text-gray-700 font-semibold mt-0.5">{r.nama_pendaftar}</div>}
+                              {r.nama_pendaftar && <div className="text-gray-700 font-semibold mt-0.5">{r.nama_pendaftar}{r.kode_unik_pendaftar && <span className="text-gray-400 font-normal"> ({r.kode_unik_pendaftar})</span>}</div>}
                               <div className="text-gray-500">{r.keterangan}</div>
                               <div className="text-[10px] text-gray-400 mt-0.5">{fmtTanggalJam(r.created_at)} · ID Transaksi #{r.id}</div>
                             </div>
@@ -363,7 +363,7 @@ function RiwayatSaldoContent() {
                       <span className="ml-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F0FB] text-[#1A4FA0]">Level {r.level}</span>
                     ) : null}
                     {r.nama_pendaftar ? (
-                      <div className="text-sm font-semibold text-gray-800 mt-1">{r.nama_pendaftar}</div>
+                      <div className="text-sm font-semibold text-gray-800 mt-1">{r.nama_pendaftar}{r.kode_unik_pendaftar && <span className="text-gray-400 font-normal"> ({r.kode_unik_pendaftar})</span>}</div>
                     ) : null}
                     <div className="text-sm text-gray-700 mt-1">{r.keterangan}</div>
                     <div className="text-[10px] text-gray-400 mt-0.5">
