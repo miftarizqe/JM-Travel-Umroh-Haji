@@ -596,9 +596,16 @@ export default function StatusPendaftaranSahabatPage() {
                       Program target Anda belum punya tanggal keberangkatan, jadi jangka waktu blokir belum bisa dihitung. Hubungi admin JM Travel untuk memperbaiki jadwal program.
                     </div>
                   ) : (
+                  // Label SENGAJA gak pakai kata "Setuju" (dikonfirmasi
+                  // user 2026-10-08, "klik setuju, baru buka pasal trus
+                  // setuju lagi" -- jamaah ngerasa diminta setuju 2x) --
+                  // langkah ini cuma nyimpen ANGKA (nominal/tanggal/jangka
+                  // waktu) buat diisi ke draft surat, BELUM baca isi
+                  // suratnya sama sekali. Persetujuan beneran cuma 1x, di
+                  // tombol "Setuju & Lanjutkan" setelah baca pasal di bawah.
                   <button onClick={simpanDataBlokir} disabled={savingBlokirData}
                     className="bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
-                    {savingBlokirData ? 'Menyimpan...' : 'Setuju & Simpan Data Blokir'}
+                    {savingBlokirData ? 'Menyimpan...' : 'Lanjutkan →'}
                   </button>
                   )}
                 </div>
