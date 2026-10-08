@@ -425,7 +425,8 @@ function CheckoutPageInner() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">No. WhatsApp *</label>
-                  <input value={waMandiri} onChange={e => setWaMandiri(e.target.value)}
+                  <input value={waMandiri} onChange={e => setWaMandiri(e.target.value.replace(/\D/g, ''))}
+                    inputMode="numeric" maxLength={13}
                     className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
                 </div>
                 <div>
