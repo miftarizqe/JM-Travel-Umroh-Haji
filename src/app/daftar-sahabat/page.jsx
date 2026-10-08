@@ -11,7 +11,11 @@ import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
 
 const emptyForm = () => ({
-  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
+  // Default Tanggal Lahir diisi persis tgl termuda yang masih valid (17
+  // tahun dari hari ini, dikonfirmasi user 2026-10-08) — biar date picker
+  // gak nongol tahun sekarang yang jelas-jelas gak valid pas pertama
+  // dibuka, jamaah tinggal mundur dari situ.
+  nama:'', nik:'', tempat_lahir:'', tl: maksTglLahir17Tahun(), jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   sama_ktp: true,
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
