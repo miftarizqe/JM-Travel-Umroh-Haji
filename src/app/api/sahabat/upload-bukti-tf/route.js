@@ -45,7 +45,8 @@ export async function POST(request) {
     if (pendaftaran.bukti_tf_verified_at) {
       const [[u]] = await pool.query(
         `SELECT agama, metode_ttd_sahabat, dokumen_spk_ak_fisik_diterima_at,
-                dokumen_cif_fisik_diterima_at, dokumen_pemblokiran_fisik_diterima_at
+                dokumen_cif_fisik_diterima_at, dokumen_pemblokiran_fisik_diterima_at,
+                dokumen_formulir_bsi_fisik_diterima_at, bantuan_bsi_manual_disetujui_at
          FROM users WHERE id = ?`, [auth.user.id]
       );
       const dokumenSpkAk = u.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
@@ -54,7 +55,11 @@ export async function POST(request) {
         [dokumenSpkAk, auth.user.id]
       );
       const spkAkSelesai = (sigSpkAk?.fase === 'selesai') || !!u.dokumen_spk_ak_fisik_diterima_at;
-      const dokumenKetigaSelesai = spkAkSelesai && !!u.dokumen_cif_fisik_diterima_at && !!u.dokumen_pemblokiran_fisik_diterima_at;
+      // Jamaah yang juga setuju bantuan BSI manual kirim 4 dokumen fisik,
+      // bukan 3 -- dokumen ke-4 (Formulir Pendaftaran Rekening BSI) ikut
+      // disyaratkan (lihat migrations/214, dikonfirmasi user 2026-10-08).
+      const dokumenKetigaSelesai = spkAkSelesai && !!u.dokumen_cif_fisik_diterima_at && !!u.dokumen_pemblokiran_fisik_diterima_at
+        && (!u.bantuan_bsi_manual_disetujui_at || !!u.dokumen_formulir_bsi_fisik_diterima_at);
       const metodeTtdSelesai = u.metode_ttd_sahabat === 'kantor' || (u.metode_ttd_sahabat === 'kirim' && dokumenKetigaSelesai);
       if (metodeTtdSelesai) {
         return Response.json({ error: 'Pendaftaran sudah sampai tahap akhir (Metode TTD selesai), bukti transfer tidak bisa diganti lagi. Hubungi admin kalau ada yang perlu dikoreksi.' }, { status: 400 });

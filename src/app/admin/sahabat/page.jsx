@@ -271,10 +271,26 @@ export default function AdminSahabatPage() {
                   dokumen_cif_fisik_diterima_at yang udah ada. Cuma relevan
                   buat metode 'kirim' — 'kantor' gak butuh ini sama sekali,
                   dokumennya diserahkan & ditandatangani langsung di tempat. */}
+              {/* Jamaah konfirmasi sendiri "sudah kirim" (resi+tanggal) --
+                  info doang, BUKAN syarat, admin tetep yang nentuin
+                  "diterima" lewat checklist di bawah (dikonfirmasi user
+                  2026-10-08). */}
+              {detail.metode_ttd_sahabat === 'kirim' && detail.dokumen_fisik_dikirim_at && (
+                <div className="bg-blue-50 border border-blue-100 rounded-lg p-2.5 text-[10px] text-[#1A4FA0]">
+                  📦 Jamaah konfirmasi sudah kirim pada {new Date(detail.dokumen_fisik_dikirim_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  {detail.dokumen_fisik_resi && <> · Resi: <b>{detail.dokumen_fisik_resi}</b></>}
+                </div>
+              )}
               {detail.metode_ttd_sahabat === 'kirim' && [
                 { label: 'Dokumen Fisik Surat Perjanjian Jamaah Sahabat Baitullah Diterima di Kantor', field: 'dokumen_spk_ak_fisik_diterima_at', action: 'toggle_spk_ak_fisik' },
                 { label: 'Dokumen Fisik SK-CIF Diterima di Kantor', field: 'dokumen_cif_fisik_diterima_at', action: 'toggle_cif_fisik' },
                 { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik' },
+                // Dokumen ke-4 cuma relevan buat jamaah yang juga setuju
+                // bantuan BSI manual -- bundelnya 4 dokumen, bukan 3
+                // (dikonfirmasi user 2026-10-08).
+                ...(detail.bantuan_bsi_manual_disetujui_at ? [
+                  { label: 'Dokumen Fisik Formulir Pendaftaran Rekening BSI Diterima di Kantor', field: 'dokumen_formulir_bsi_fisik_diterima_at', action: 'toggle_formulir_bsi_fisik' },
+                ] : []),
               ].map(({ label, field, action }) => (
                 <div key={field} className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                   <span>{label}</span>
