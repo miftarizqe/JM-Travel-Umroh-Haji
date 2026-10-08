@@ -190,7 +190,11 @@ function CheckoutPageInner() {
         setNamaMandiri(d.user?.name || '');
         setWaMandiri(d.user?.wa || '');
         setJkMandiri(d.user?.jenis_kelamin || '');
-        setAlamatMandiri(d.user?.alamat_kirim || '');
+        // alamat_kirim kosong buat Sahabat Baitullah -- daftar-sahabat gak
+        // pernah nyimpen ke kolom itu (cuma dipakai form-jamaah/perwakilan),
+        // alamat sahabat kesimpen di alamat_domisili/alamat (dikonfirmasi
+        // user 2026-10-08, autofill sebelumnya selalu kosong akibat ini).
+        setAlamatMandiri(d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '');
         setNoRekeningUmrohMandiri(d.user?.no_rekening_tabungan_umroh || '');
       })
       .catch(() => {});
