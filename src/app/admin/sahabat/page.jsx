@@ -275,13 +275,21 @@ export default function AdminSahabatPage() {
                   </div>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diunggah</span>}
               </div>
+              {/* Dulu nampilin spk_ak_selesai (TTD FISIK) di sini — bikin
+                  bingung (dikonfirmasi user 2026-10-09): jamaah yang udah
+                  SETUJU (syarat ACC beneran, lihat syaratBelum() di atas &
+                  validasi action=advance di /api/status-pendaftaran-sahabat)
+                  keliatan "⏳ Belum" karena TTD fisiknya emang sengaja boleh
+                  nyusul (SPK_AK_SEMENTARA_FISIK). Sekarang disamain posisi &
+                  isinya sama kayak "Baca & Setuju SK-CIF/Surat Kuasa Blokir"
+                  di bawah -- status TTD fisiknya sendiri tetap ada, di
+                  checklist "Dokumen Fisik ... Diterima di Kantor" bareng
+                  SK-CIF & Surat Pemblokiran. */}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>{detail.agama === 'non_islam' ? 'Surat Perjanjian Referral Non-Muslim' : 'Surat Perjanjian Jamaah Sahabat Baitullah'} selesai ditandatangani</span>
-                {detail.spk_ak_selesai ? (
-                  detail.spk_ak_doc_path ? (
-                    <a href={detail.spk_ak_doc_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
-                  ) : <span className="text-green-600 font-bold">✅ Ya</span>
-                ) : <span className="text-gray-400 font-bold text-right">⏳ Belum <span className="font-normal">(boleh nyusul setelah aktif)</span></span>}
+                <span>Baca & Setuju {detail.agama === 'non_islam' ? 'Surat Perjanjian Referral Non-Muslim' : 'Surat Perjanjian Jamaah Sahabat Baitullah'}</span>
+                {detail.setuju_pks ? (
+                  <span className="text-green-600 font-bold">✅ Ya</span>
+                ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
               </div>
               {/* Rekening BSI Biasa dihapus (dikonfirmasi user 2026-09-03) —
                   Sahabat Baitullah cuma punya 1 rekening: Tabungan Umroh. */}
