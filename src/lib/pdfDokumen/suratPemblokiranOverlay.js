@@ -8,7 +8,7 @@
 // bukan data yang kita punya.
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import path from 'path';
-import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter } from './pdfOverlay';
+import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter, drawAlamatWrap } from './pdfOverlay';
 
 export const SURAT_PEMBLOKIRAN_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/surat-pemblokiran-template.pdf');
 
@@ -52,8 +52,9 @@ export async function tambahHalamanSuratPemblokiran(outDoc, { nama, nik, alamatB
   const page = tempelHalamanTemplate(outDoc, embed);
   drawFitKiri(page, font, nama, P1.nama, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, nik, P1.nik, FONT_SIZE_ISIAN);
-  drawFitKiri(page, font, alamatBaris1, P1.alamatBaris1, FONT_SIZE_ISIAN);
-  drawFitKiri(page, font, alamatBaris2, P1.alamatBaris2, FONT_SIZE_ISIAN);
+  // Direflow ke MAKS 3 baris berdasar lebar asli (dikonfirmasi user
+  // 2026-10-09) -- ~55pt kosong sebelum field noRekening di bawahnya, aman.
+  drawAlamatWrap(page, font, [alamatBaris1, alamatBaris2].filter(Boolean).join(' '), P1.alamatBaris1, FONT_SIZE_ISIAN, 3, 14);
   drawFitKiri(page, font, noRekening, P1.noRekening, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, namaRekening ?? nama, P1.namaRekening, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, nominalBlokir, P1.nominalBlokir1, FONT_SIZE_ISIAN);

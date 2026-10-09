@@ -7,7 +7,7 @@
 // kalau template diganti.
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import path from 'path';
-import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter } from './pdfOverlay';
+import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter, drawAlamatWrap } from './pdfOverlay';
 
 export const FORMULIR_BSI_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/formulir-bsi-template.pdf');
 
@@ -46,10 +46,14 @@ export async function tambahHalamanFormulirBsi(outDoc, data) {
   drawFitKiri(page, font, data.tempatTanggalLahir, P1.tempatTanggalLahir, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, data.jenisKelamin, P1.jenisKelamin, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, data.namaIbuKandung, P1.namaIbuKandung, FONT_SIZE_ISIAN);
-  drawFitKiri(page, font, data.alamatKtpBaris1, P1.alamatKtpBaris1, FONT_SIZE_ISIAN);
-  drawFitKiri(page, font, data.alamatKtpBaris2, P1.alamatKtpBaris2, FONT_SIZE_ISIAN);
-  drawFitKiri(page, font, data.alamatDomisiliBaris1, P1.alamatDomisiliBaris1, FONT_SIZE_ISIAN);
-  drawFitKiri(page, font, data.alamatDomisiliBaris2, P1.alamatDomisiliBaris2, FONT_SIZE_ISIAN);
+  // Direflow ke MAKS 3 baris berdasar lebar asli (dikonfirmasi user
+  // 2026-10-09) -- ~55pt kosong di bawah tiap blok alamat sebelum field
+  // berikutnya, aman buat 3 baris @14pt. Alamat Domisili SEBELUMNYA gak ada
+  // komponen terpisah (1 string utuh, lihat buatPdfFormulirBsiUntukUser) jadi
+  // sering ke-shrink drastis drawFitKiri buat muat di 1 baris -- sekarang
+  // ikut direflow sama seperti Alamat KTP.
+  drawAlamatWrap(page, font, [data.alamatKtpBaris1, data.alamatKtpBaris2].filter(Boolean).join(' '), P1.alamatKtpBaris1, FONT_SIZE_ISIAN, 3, 14);
+  drawAlamatWrap(page, font, [data.alamatDomisiliBaris1, data.alamatDomisiliBaris2].filter(Boolean).join(' '), P1.alamatDomisiliBaris1, FONT_SIZE_ISIAN, 3, 14);
   drawFitKiri(page, font, data.noWhatsapp, P1.noWhatsapp, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, data.email, P1.email, FONT_SIZE_ISIAN);
   drawFitKiri(page, font, data.pekerjaan, P1.pekerjaan, FONT_SIZE_ISIAN);

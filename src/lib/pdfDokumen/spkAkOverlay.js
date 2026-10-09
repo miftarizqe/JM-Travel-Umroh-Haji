@@ -34,7 +34,7 @@
 // (nunggu dari user) — tetap pakai skema 1-rangkap lama di bawah.
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import path from 'path';
-import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter } from './pdfOverlay';
+import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter, drawAlamatWrap } from './pdfOverlay';
 
 const SPK_AK_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spk-ak-template.pdf');
 const SPK_AK_NONIS_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spk-ak-nonis-template.pdf');
@@ -171,8 +171,15 @@ export async function generateSpkAkRangkapPdf(rangkap, { nomor, nama, alamatBari
       drawFitKiri(page, font, hari, k.p1.hari, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, tanggal, k.p1.tanggal, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, nama, k.p1.nama, FONT_SIZE_RANGKAP);
-      drawFitKiri(page, font, alamatBaris1, k.p1.alamatBaris1, FONT_SIZE_RANGKAP);
-      drawFitKiri(page, font, alamatBaris2, k.p1.alamatBaris2, FONT_SIZE_RANGKAP);
+      // MAKS 2 baris di sini (bukan 3 kayak SK-CIF/Pemblokiran/Formulir BSI,
+      // dikonfirmasi user 2026-10-09) -- template ini TIDAK punya baris
+      // kosong ekstra sebelum "No. Telepon" (cuma 14pt pas 1 baris, beda
+      // dari dokumen lain yang punya paragraf kosong di bawah Alamat), jadi
+      // nambah baris ke-3 bakal nabrak/numpuk sama label "No. Telepon" yang
+      // posisinya FIKS di template (bukan sesuatu yg bisa digeser dari sini).
+      // Tetap direflow berdasar lebar asli (bukan split tetap) biar gak ada
+      // lagi spasi nganggur di baris 1 / font baris 2 ke-shrink drastis.
+      drawAlamatWrap(page, font, [alamatBaris1, alamatBaris2].filter(Boolean).join(' '), k.p1.alamatBaris1, FONT_SIZE_RANGKAP, 2, 14);
       drawFitKiri(page, font, noTelepon, k.p1.noTelepon, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, noPaspor, k.p1.noPaspor, FONT_SIZE_RANGKAP);
     }
