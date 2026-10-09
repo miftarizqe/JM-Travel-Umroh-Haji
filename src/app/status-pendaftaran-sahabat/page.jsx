@@ -60,6 +60,14 @@ export default function StatusPendaftaranSahabatPage() {
   const [setujuGabungan, setSetujuGabungan] = useState(false);
   const [submittingSetuju, setSubmittingSetuju] = useState(false);
   const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
+  const [generatingPdfFormulirBsi, setGeneratingPdfFormulirBsi] = useState(false);
+
+  // Preview Surat Perjanjian Jamaah Sahabat Baitullah (SPK-AK) BISA DIBUKA
+  // LAGI read-only setelah disetujui (dikonfirmasi user 2026-10-09, samain
+  // pola SK-CIF & Surat Pemblokiran di bawah — sebelumnya cuma teks polos
+  // "Sudah disetujui.", gak ada cara baca ulang isinya tanpa buka /pks lagi).
+  const [pasalSpkAk, setPasalSpkAk] = useState(null);
+  const [loadingPreviewSpkAk, setLoadingPreviewSpkAk] = useState(false);
 
   // Metode TTD fisik SEMENTARA (SPK-AK/SK-CIF/Surat Pemblokiran, vendor
   // esign belum siap — dikonfirmasi user 2026-09-30). 'kantor' butuh tanggal
@@ -228,6 +236,17 @@ export default function StatusPendaftaranSahabatPage() {
     setSavingKirimFisik(false);
   }
 
+  async function bukaPreviewSpkAk() {
+    setLoadingPreviewSpkAk(true);
+    try {
+      const res = await fetch('/api/sahabat/pasal-spk-ak');
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setLoadingPreviewSpkAk(false); return; }
+      setPasalSpkAk(d.pasal || []);
+    } catch { alert('Terjadi kesalahan'); }
+    setLoadingPreviewSpkAk(false);
+  }
+
   // Buka preview pasal SK-CIF + Surat Pemblokiran SEKALIGUS (satu step baca
   // gabungan, dikonfirmasi user 2026-09-19) — masing-masing endpoint juga
   // yang mendaftarkan sesi dokumen_signature fisiknya & membekukan nomor
@@ -296,6 +315,28 @@ export default function StatusPendaftaranSahabatPage() {
     setGeneratingPdfSkCif(false);
   }
 
+  // Preview Formulir Pendaftaran Rekening BSI (dokumen ke-4, cuma relevan
+  // buat yang setuju bantuan BSI manual) BERDIRI SENDIRI (dikonfirmasi user
+  // 2026-10-09) -- sebelumnya cuma bisa diliat lewat "Unduh Dokumen Lengkap"
+  // (gabungan 4 file) SETELAH pilih Metode TTD, padahal keputusan metode itu
+  // sendiri wajar butuh tau dulu dokumennya kayak apa, sama seperti preview
+  // Surat Perjanjian & SK-CIF di atas.
+  async function unduhPdfFormulirBsi() {
+    setGeneratingPdfFormulirBsi(true);
+    try {
+      const res = await fetch('/api/sahabat/dokumen-legal/formulir-bsi', { method: 'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Gagal membuat PDF');
+        setGeneratingPdfFormulirBsi(false);
+        return;
+      }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch { alert('Terjadi kesalahan'); }
+    setGeneratingPdfFormulirBsi(false);
+  }
+
   async function submitSetujuGabungan() {
     if (!setujuGabungan) { alert('Centang persetujuan terlebih dahulu!'); return; }
     setSubmittingSetuju(true);
@@ -340,6 +381,21 @@ export default function StatusPendaftaranSahabatPage() {
     && (!u.bantuan_bsi_manual_disetujui_at || prasyarat.formulir_bsi_fisik_selesai);
   const metodeTtdSelesai = u.metode_ttd_sahabat === 'kantor' || (u.metode_ttd_sahabat === 'kirim' && dokumenKetigaSelesai);
   const pengirimanSudahDiterima = prasyarat.spk_ak_selesai || prasyarat.sk_cif_selesai || prasyarat.surat_pemblokiran_selesai || prasyarat.formulir_bsi_fisik_selesai;
+
+  // Isi Surat Perjanjian Jamaah Sahabat Baitullah (SPK-AK) — bisa dibuka
+  // lagi (read-only) setelah disetujui (dikonfirmasi user 2026-10-09, samain
+  // pola isiSuratGabungan di bawah). Gak ada nomor surat buat ditampilin di
+  // sini (pasal-spk-ak cuma balikin pasal, beda dari skCif/suratPemblokiran
+  // yang punya field nomor).
+  const isiSuratSpkAk = pasalSpkAk ? (
+    <div className="max-h-[350px] overflow-y-auto border border-gray-200 rounded-lg p-3 text-gray-600 space-y-4"
+      style={{ fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal }}>
+      {pasalSpkAk.map(p => (<div key={`spkak-${p.nomor}`}>{renderPasalBlock(p)}</div>))}
+      {!pasalSpkAk.length && (
+        <div className="text-center text-red-500 py-4">Isi surat belum tersedia. Silakan hubungi admin JM Travel.</div>
+      )}
+    </div>
+  ) : null;
 
   // Isi SK-CIF + Surat Pemblokiran — dipakai di step baca & setuju, dan
   // bisa dibuka lagi (read-only) setelah disetujui (dikonfirmasi user 2026-10-08).
@@ -396,8 +452,22 @@ export default function StatusPendaftaranSahabatPage() {
             </button>
           )}
           {prasyarat.spk_ak_disetujui && (
-            <div className="text-xs text-gray-500">
-              Sudah disetujui.{!prasyarat.spk_ak_selesai && ' Tanda tangan fisiknya digabung dengan SK-CIF & Surat Pemblokiran di langkah selanjutnya.'}
+            <div className="space-y-2">
+              <div className="text-xs text-gray-500">
+                Sudah disetujui.{!prasyarat.spk_ak_selesai && ' Tanda tangan fisiknya digabung dengan SK-CIF & Surat Pemblokiran di langkah selanjutnya.'}
+              </div>
+              {isiSuratSpkAk ? (
+                <>
+                  {isiSuratSpkAk}
+                  <button onClick={() => setPasalSpkAk(null)}
+                    className="text-[10px] text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">Tutup</button>
+                </>
+              ) : (
+                <button onClick={bukaPreviewSpkAk} disabled={loadingPreviewSpkAk}
+                  className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full disabled:opacity-50 enabled:hover:bg-[#D3E2F7] transition-colors cursor-pointer disabled:cursor-not-allowed">
+                  {loadingPreviewSpkAk ? 'Memuat...' : '📖 Baca Lagi Surat Perjanjian Jamaah Sahabat Baitullah'}
+                </button>
+              )}
             </div>
           )}
         </Item>
@@ -698,13 +768,14 @@ export default function StatusPendaftaranSahabatPage() {
             Ketiga jenis dokumen tetap jadi SATU tempat baca/unduh via
             /api/sahabat/dokumen-legal/unduh-lengkap, SELAIN unduhan
             terpisah yang sudah ada. */}
-        <Item done={metodeTtdSelesai} label="Metode TTD & Kirim Dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran)">
+        <Item done={metodeTtdSelesai} label={`Metode TTD & Kirim Dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran${u.bantuan_bsi_manual_disetujui_at ? ', Formulir Pendaftaran Rekening BSI' : ''})`}>
           {!prasyarat.setuju_sk_cif_pemblokiran && <div className="text-xs text-gray-400">Baca & setujui SK-CIF & Surat Kuasa Blokir Rekening dulu di atas.</div>}
 
           {prasyarat.setuju_sk_cif_pemblokiran && (
             <div className="space-y-3">
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
                 📌 Siapkan <b>3 lembar Materai Rp10.000</b> — masing-masing 1 untuk Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF, dan Surat Pemblokiran.
+                {u.bantuan_bsi_manual_disetujui_at && ' Formulir Pendaftaran Rekening BSI ikut disiapkan juga, gak perlu materai.'}
               </div>
 
               {/* Metode TTD WAJIB dipilih DULU (dikonfirmasi user 2026-10-03)
@@ -725,13 +796,18 @@ export default function StatusPendaftaranSahabatPage() {
                       <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50 enabled:hover:text-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
                         {generatingPdfSkCif ? 'Membuat...' : 'SK-CIF & Surat Pemblokiran'}
                       </button>
+                      {u.bantuan_bsi_manual_disetujui_at && (
+                        <button onClick={unduhPdfFormulirBsi} disabled={generatingPdfFormulirBsi} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50 enabled:hover:text-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
+                          {generatingPdfFormulirBsi ? 'Membuat...' : 'Formulir Pendaftaran Rekening BSI'}
+                        </button>
+                      )}
                     </div>
                   )}
-                  <div className="text-xs text-gray-600">Pilih <b>salah satu dari 2 cara</b> berikut untuk menandatangani ketiga dokumen di atas materai asli:</div>
+                  <div className="text-xs text-gray-600">Pilih <b>salah satu dari 2 cara</b> berikut untuk menandatangani ketiga dokumen di atas materai asli{u.bantuan_bsi_manual_disetujui_at && ' (Formulir Pendaftaran Rekening BSI ikut ditandatangani sekalian, tanpa materai)'}:</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {[
                       { key: 'kirim', icon: '📄', judul: 'Cetak & Kirim Sendiri', ket: 'Print dokumen, TTD di atas materai asli, lalu kirim fisik ke kantor via pos/kurir.' },
-                      { key: 'kantor', icon: '🏢', judul: 'Datang ke Head Office', ket: 'TTD ketiga dokumen langsung di kantor JM Travel, bawa 3 materai. Pilih tanggal kunjungan (maks. 2 minggu dari sekarang).' },
+                      { key: 'kantor', icon: '🏢', judul: 'Datang ke Head Office', ket: `TTD ${u.bantuan_bsi_manual_disetujui_at ? 'keempat dokumen' : 'ketiga dokumen'} langsung di kantor JM Travel, bawa 3 materai${u.bantuan_bsi_manual_disetujui_at ? ' (Formulir BSI gak perlu materai)' : ''}. Pilih tanggal kunjungan (maks. 2 minggu dari sekarang).` },
                     ].map(o => {
                       const aktif = pilihanMetode === o.key;
                       return (
@@ -781,7 +857,7 @@ export default function StatusPendaftaranSahabatPage() {
 
               {u.metode_ttd_sahabat === 'kantor' && !gantiMetode && (
                 <div className="text-xs text-gray-500 space-y-1">
-                  <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD ketiga dokumen langsung.</div>
+                  <div>🏢 Anda akan datang ke kantor pada <b>{new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</b> untuk TTD {u.bantuan_bsi_manual_disetujui_at ? 'keempat dokumen' : 'ketiga dokumen'} langsung.</div>
                   <div>Jangan lupa bawa 3 materai (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF &amp; Surat Pemblokiran) — dokumennya sudah disiapkan kantor, Anda tidak perlu mengunduh/mencetak apa pun.{u.bantuan_bsi_manual_disetujui_at && <> Formulir Pendaftaran Rekening BSI ikut disiapkan juga, gak perlu materai.</>}</div>
                   {/* Dikunci server (lihat kunciMetodeTtdSahabat.js): paket udah
                       dikonfirmasi dikirim / udah H-2 kunjungan / dokumen udah
@@ -815,6 +891,11 @@ export default function StatusPendaftaranSahabatPage() {
                       <button onClick={unduhPdfSkCif} disabled={generatingPdfSkCif} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50 enabled:hover:text-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
                         {generatingPdfSkCif ? 'Membuat...' : 'SK-CIF & Surat Pemblokiran'}
                       </button>
+                      {u.bantuan_bsi_manual_disetujui_at && (
+                        <button onClick={unduhPdfFormulirBsi} disabled={generatingPdfFormulirBsi} className="text-[10px] font-bold text-[#1A4FA0] underline disabled:opacity-50 enabled:hover:text-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
+                          {generatingPdfFormulirBsi ? 'Membuat...' : 'Formulir Pendaftaran Rekening BSI'}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -824,9 +905,9 @@ export default function StatusPendaftaranSahabatPage() {
                       Jamaah), bukan lagi self-report scan jamaah. */}
                   <div className="text-xs text-gray-500 space-y-1">
                     <div className="font-bold text-[#0E2F6E]">📄 Langkah selanjutnya:</div>
-                    <div>1. Print ketiga dokumen di atas.</div>
-                    <div>2. TTD di atas materai asli, pada kolom TTD Anda masing-masing dokumen.</div>
-                    <div>3. Kirim fisik ketiganya ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.</div>
+                    <div>1. Print {u.bantuan_bsi_manual_disetujui_at ? 'keempat' : 'ketiga'} dokumen di atas.</div>
+                    <div>2. TTD di atas materai asli, pada kolom TTD Anda masing-masing dokumen{u.bantuan_bsi_manual_disetujui_at && ' (Formulir Pendaftaran Rekening BSI gak perlu materai, TTD biasa saja)'}.</div>
+                    <div>3. Kirim fisik {u.bantuan_bsi_manual_disetujui_at ? 'keempatnya' : 'ketiganya'} ke kantor JM Travel melalui pos/kurir{pengaturan?.alamat_kantor ? ` (${pengaturan.alamat_kantor})` : ''}.</div>
                   </div>
                   <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
                     <div className="text-[10px] font-bold text-[#0E2F6E]">📦 Konfirmasi Pengiriman</div>
@@ -913,8 +994,8 @@ export default function StatusPendaftaranSahabatPage() {
                 <div className="font-bold text-[#0E2F6E]">Seluruh Persyaratan Telah Lengkap</div>
                 <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
                   {u.metode_ttd_sahabat === 'kantor'
-                    ? `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan setelah Anda TTD ketiga dokumen langsung di kantor pada tanggal yang dipilih.`
-                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran) yang Anda kirim sudah diterima & dikonfirmasi oleh kantor JM Travel.`}
+                    ? `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan setelah Anda TTD ${u.bantuan_bsi_manual_disetujui_at ? 'keempat dokumen' : 'ketiga dokumen'} langsung di kantor pada tanggal yang dipilih.`
+                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran${u.bantuan_bsi_manual_disetujui_at ? ', Formulir Pendaftaran Rekening BSI' : ''}) yang Anda kirim sudah diterima & dikonfirmasi oleh kantor JM Travel.`}
                 </div>
               </>
             ) : (
