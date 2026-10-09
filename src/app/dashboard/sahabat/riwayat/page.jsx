@@ -37,21 +37,27 @@ const KATEGORI_LABEL = {
 
 // Halaman "Riwayat Tabungan Umroh" — dituju dari klik "Total Ujroh
 // Terkonfirmasi"/"Ujroh Pending"/"Forecast" di /dashboard/sahabat.
-// Restrukturisasi 2026-09-22/23 (dikonfirmasi user, awalnya kebalik):
+// Restrukturisasi 2026-09-22/23, lalu diluruskan lagi 2026-10-09
+// (dikonfirmasi user — definisi final: Total Saldo Tabungan = Ujroh Cair +
+// Tabungan Mandiri, SEMUA confirmed; Ujroh Pending = udah KEJADIAN/tercatat
+// di ledger tapi belum di-ACC admin; Forecast = BELUM kejadian sama sekali):
 //  - "Riwayat Pencairan" = per BATCH pencairan yang beneran kejadian (data
 //    payslip/pengajuan_ujroh) — kalau sebulan cuma cair 2x, ya cuma ada 2
 //    baris di sini, expand buat lihat rincian item per batch. TIDAK PERNAH
 //    ada yang "pending" di sini by design (payslip cuma lahir dari batch
 //    yang udah disetujui/dicairkan).
-//  - "Cashflow Tabungan" = SEMUA mutasi individual, duit masuk & keluar,
-//    confirmed maupun pending, satu list kronologis (rekening koran).
-//  - "Forecast" = proyeksi duit yang BELUM kejadian sama sekali (beda dari
-//    2 tab di atas yang isinya kejadian nyata) — 2 sumber: ujroh 5-generasi
-//    dari downline yang masih di funnel, DAN ujroh closing_langsung/referral
-//    reguler dari booking jamaah yang masih berjalan (belum 'selesai').
-//    Sengaja pindah kesini dari Riwayat Closing Jaringan (dikonfirmasi user
-//    2026-09-23) — itu nyangkut nominal, gak cocok di halaman yang sengaja
-//    qty-only.
+//  - "Cashflow Tabungan" = mutasi yang SUDAH dikonfirmasi admin aja (duit
+//    masuk & keluar), satu list kronologis (rekening koran) — confirmed-only.
+//  - "Ujroh Pending" = baris ledger yang UDAH BENERAN tercatat (ujroh/setoran
+//    mandiri/dll sudah kejadian) tapi belum dikonfirmasi admin. Sempat
+//    ditumpuk jadi sub-bagian tab Forecast (2026-10-08) — DIPISAH LAGI jadi
+//    tab sendiri (2026-10-09, dikonfirmasi user) karena ini BUKAN proyeksi,
+//    bedanya penting: begitu admin confirm, baris ini otomatis pindah masuk
+//    Cashflow (sama sumber data, beda filter dikonfirmasi_at aja).
+//  - "Forecast" = proyeksi duit yang BELUM kejadian sama sekali — 2 sumber:
+//    ujroh 5-generasi dari downline yang masih di funnel, DAN ujroh
+//    closing_langsung/referral reguler dari booking jamaah yang masih
+//    berjalan (belum 'selesai').
 export default function RiwayatSaldoPage() {
   return (
     <Suspense fallback={<div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>}>
@@ -69,7 +75,7 @@ function RiwayatSaldoContent() {
   const [targetInfo, setTargetInfo] = useState(null);
   const [tab, setTab] = useState(() => {
     if (searchParams.get('tab') === 'forecast') return 'forecast';
-    if (searchParams.get('section') === 'pending') return 'cashflow';
+    if (searchParams.get('section') === 'pending') return 'pending';
     return 'pencairan';
   });
   const [payslip, setPayslip] = useState(null);
@@ -199,6 +205,10 @@ function RiwayatSaldoContent() {
         <button onClick={() => setTab('cashflow')}
           className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'cashflow' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
           🧾 Cashflow Tabungan
+        </button>
+        <button onClick={() => setTab('pending')}
+          className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'pending' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
+          ⏳ Ujroh Pending
         </button>
         <button onClick={() => setTab('forecast')}
           className={`text-xs font-bold px-4 py-2 rounded-full ${tab === 'forecast' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>
@@ -457,38 +467,46 @@ function RiwayatSaldoContent() {
               )}
             </div>
 
-            {/* "Menunggu Konfirmasi Admin" — baris ledger yang UDAH BENERAN
-                tercatat (beda dari 2 section di atas yang masih proyeksi/
-                belum kejadian), cuma belum di-acc admin. Dipindah dari
-                Cashflow Tabungan ke sini (dikonfirmasi user 2026-10-08). */}
-            <div>
-              <div className="font-bold text-[#0E2F6E] text-sm mb-2">⏳ Menunggu Konfirmasi Admin</div>
-              <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-xl p-4 mb-2">
-                <div className="text-[10px] opacity-75 uppercase tracking-wider">Total Menunggu</div>
-                <div className="text-2xl font-black text-[#C9952A]">{fmtRp(forecast.menunggu_konfirmasi_total)}</div>
-              </div>
-              {(forecast.menunggu_konfirmasi || []).length === 0 ? (
-                <div className="bg-[#E8F0FB] rounded-xl p-4 text-center text-sm text-[#1A4FA0]">Tidak ada yang menunggu konfirmasi admin saat ini.</div>
-              ) : (
-                <div className="space-y-2">
-                  {forecast.menunggu_konfirmasi.map(k => {
-                    const kat = KATEGORI_LABEL[k.jenis] || { label: k.jenis, warna: 'bg-gray-100 text-gray-600' };
-                    return (
-                      <div key={k.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="min-w-0">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${kat.warna}`}>{kat.label}</span>
-                            {k.keterangan && <div className="text-sm text-gray-700 mt-1 truncate">{k.keterangan}</div>}
-                            <div className="text-[10px] text-gray-400">{fmtTanggalJam(k.created_at)}</div>
-                          </div>
-                          <div className="font-bold text-[#C9952A] shrink-0">{fmtRp(k.nominal)}</div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+          </div>
+        )
+      )}
+
+      {/* "Ujroh Pending" — baris ledger yang UDAH BENERAN tercatat (beda
+          dari tab Forecast yang isinya proyeksi/belum kejadian), cuma belum
+          di-acc admin. Sempat ditumpuk sebagai sub-bagian tab Forecast
+          (2026-10-08), dipisah jadi tab sendiri lagi (dikonfirmasi user
+          2026-10-09) — bukan proyeksi, ini duit yang beneran udah "kejadian"
+          cuma nunggu konfirmasi, jadi gak cocok digabung sama Forecast. */}
+      {tab === 'pending' && (
+        !forecast ? (
+          <div className="text-center text-gray-400 py-10">Memuat...</div>
+        ) : (
+          <div>
+            <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white rounded-xl p-4 mb-2">
+              <div className="text-[10px] opacity-75 uppercase tracking-wider">Total Menunggu Konfirmasi Admin</div>
+              <div className="text-2xl font-black">{fmtRp(forecast.menunggu_konfirmasi_total)}</div>
             </div>
+            {(forecast.menunggu_konfirmasi || []).length === 0 ? (
+              <div className="bg-[#E8F0FB] rounded-xl p-4 text-center text-sm text-[#1A4FA0]">Tidak ada yang menunggu konfirmasi admin saat ini.</div>
+            ) : (
+              <div className="space-y-2">
+                {forecast.menunggu_konfirmasi.map(k => {
+                  const kat = KATEGORI_LABEL[k.jenis] || { label: k.jenis, warna: 'bg-gray-100 text-gray-600' };
+                  return (
+                    <div key={k.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${kat.warna}`}>{kat.label}</span>
+                          {k.keterangan && <div className="text-sm text-gray-700 mt-1 truncate">{k.keterangan}</div>}
+                          <div className="text-[10px] text-gray-400">{fmtTanggalJam(k.created_at)}</div>
+                        </div>
+                        <div className="font-bold text-amber-600 shrink-0">{fmtRp(k.nominal)}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )
       )}
