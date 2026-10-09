@@ -51,6 +51,54 @@ export function drawFitKiri(page, font, text, { x, y, maxWidth, indent = 0 }, si
   page.drawText(text, { x: x + indent, y, size: fontSize, font, color: rgb(0.05, 0.05, 0.05) });
 }
 
+// Bungkus teks jadi beberapa baris berdasarkan LEBAR ASLI (greedy word-wrap)
+// — font size TETAP di tiap baris (gak ikut-ikutan di-shrink drawFitKiri
+// kalau baris itu sendiri muat), beda dari pola lama "split 2 baris tetap
+// per kelompok komponen alamat" yang baris-nya sering gak seimbang: baris
+// pendek nyisain spasi nganggur, baris panjang malah numpuk & ujung-ujungnya
+// di-shrink drawFitKiri walau baris satunya lega (dikonfirmasi user
+// 2026-10-09, dari field Alamat di SK-CIF/Surat Pemblokiran/SPK-AK/Formulir
+// BSI). Baris TERAKHIR aja yang boleh kepanjangan (sisa kata dipaksa masuk
+// apa adanya) kalau kehabisan slot `maxLines` -- drawFitKiri yang nanti
+// nge-shrink KHUSUS baris itu sebagai fallback ekstrem, harusnya jarang
+// kejadian selama alamatnya wajar.
+export function wrapTextLines(text, font, fontSize, maxWidth, maxLines) {
+  if (!text) return [];
+  const kata = text.split(' ').filter(Boolean);
+  const baris = [];
+  let current = '';
+  let i = 0;
+  while (i < kata.length) {
+    const w = kata[i];
+    const cand = current ? `${current} ${w}` : w;
+    const muat = font.widthOfTextAtSize(cand, fontSize) <= maxWidth;
+    if (muat || !current) {
+      current = cand;
+      i++;
+    } else if (baris.length < maxLines - 1) {
+      baris.push(current);
+      current = '';
+    } else {
+      current = kata.slice(i).join(' ');
+      break;
+    }
+  }
+  if (current) baris.push(current);
+  return baris;
+}
+
+// Gambar teks panjang (alamat dkk) direflow ke N baris (wrapTextLines) lalu
+// digambar turun `lineHeight` per baris dari slot baris PERTAMA -- slot
+// baris ke-2/3/dst DIHITUNG otomatis (bukan dikasih koordinat manual
+// terpisah), karena jaraknya emang konsisten tiap baris di template yang
+// sama (diukur pdftotext -bbox).
+export function drawAlamatWrap(page, font, text, { x, y, maxWidth, indent = 0 }, size, maxLines, lineHeight) {
+  const baris = wrapTextLines(text, font, size, maxWidth - indent, maxLines);
+  baris.forEach((line, i) => {
+    drawFitKiri(page, font, line, { x, y: y - i * lineHeight, maxWidth, indent }, size);
+  });
+}
+
 // Rata tengah dalam sebuah box — dipakai buat nama tercetak di kolom TTD
 // "( nama )" biar simetris di antara kurung buka & tutup.
 export function drawFitCenter(page, font, text, { center, y, maxWidth }, size) {

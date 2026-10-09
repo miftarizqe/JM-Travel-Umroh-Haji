@@ -3,7 +3,7 @@
 // & cara ukur ulang koordinat kalau template diganti.
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import path from 'path';
-import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter } from './pdfOverlay';
+import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter, drawAlamatWrap } from './pdfOverlay';
 
 export const SK_CIF_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/sk-cif-template.pdf');
 
@@ -50,8 +50,11 @@ export async function tambahHalamanSkCif(outDoc, { nama, nik, alamatBaris1, alam
   const page1 = tempelHalamanTemplate(outDoc, p1Embed);
   drawFitKiri(page1, font, nama, P1.nama, FONT_SIZE_ISIAN);
   drawFitKiri(page1, font, nik, P1.nik, FONT_SIZE_ISIAN);
-  drawFitKiri(page1, font, alamatBaris1, P1.alamatBaris1, FONT_SIZE_ISIAN);
-  drawFitKiri(page1, font, alamatBaris2, P1.alamatBaris2, FONT_SIZE_ISIAN);
+  // Direflow ke MAKS 3 baris berdasar lebar asli (dikonfirmasi user
+  // 2026-10-09), bukan lagi split tetap per kelompok komponen -- baris ke-3
+  // (y - 28) aman, diukur pdftotext -bbox ada ~41pt kosong sebelum paragraf
+  // "untuk selanjutnya disebut Pemberi Kuasa" di bawahnya (pas 3 baris @14pt).
+  drawAlamatWrap(page1, font, [alamatBaris1, alamatBaris2].filter(Boolean).join(' '), P1.alamatBaris1, FONT_SIZE_ISIAN, 3, 14);
   drawFitKiri(page1, font, noRekening, P1.noRekening, FONT_SIZE_ISIAN);
   drawFitKiri(page1, font, namaRekening ?? nama, P1.namaRekening, FONT_SIZE_ISIAN);
 
