@@ -82,11 +82,16 @@ export default function StatusPendaftaranSahabatPage() {
   const [editKirimFisik, setEditKirimFisik] = useState(false);
 
   // Sudah/belum punya rekening BSI (dikonfirmasi user 2026-09-30) — cuma
-  // pilihan tampilan lokal, gak perlu disimpan ke server. Yang UDAH PUNYA
-  // rekening BSI biasa cuma perlu panduan buka Tabungan Umroh (BSI Byond)
-  // aja. Yang BELUM PUNYA cuma perlu panduan buka Rekening BSI (biasa) —
-  // file itu SUDAH TERMASUK cara buka Tabungan Umroh-nya juga, jadi panduan
-  // Tabungan Umroh terpisah gak perlu ditampilkan lagi buat kasus ini.
+  // pilihan tampilan lokal, gak perlu disimpan ke server. Pertanyaannya
+  // SOAL REKENING TABUNGAN UMROH-nya langsung (bukan "rekening BSI biasa"
+  // lagi, dikonfirmasi user 2026-10-09 -- pertanyaan lama bikin jalur buntu:
+  // yang jawab "Belum" cuma ketemu tombol "tidak bisa", gak ada jalan balik
+  // buat masukin nomor begitu beneran berhasil buka sendiri). SUDAH -> kolom
+  // isian langsung, gak perlu panduan lagi (anggapannya rekeningnya udah di
+  // tangan). BELUM -> panduan (buat yang mau coba buka sendiri dulu) + kolom
+  // isian TETAP ditampilkan bareng (biar begitu selesai ikut panduan bisa
+  // langsung isi di tempat yang sama) + opsi "tidak bisa" sebagai jalan
+  // keluar TAMBAHAN, bukan satu-satunya.
   const [sudahPunyaRekeningBsi, setSudahPunyaRekeningBsi] = useState(null);
 
   // Bantuan BSI manual (dikonfirmasi user 2026-10-03) -- gak semua KTP bisa
@@ -465,7 +470,7 @@ export default function StatusPendaftaranSahabatPage() {
               )
             ) : sudahPunyaRekeningBsi === null ? (
               <div className="space-y-2">
-                <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening BSI (biasa)?</div>
+                <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening Tabungan Umroh BSI?</div>
                 <div className="flex gap-2">
                   <button onClick={() => setSudahPunyaRekeningBsi(true)}
                     className="flex-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-2 rounded-lg hover:bg-[#D3E2F7] transition-colors cursor-pointer">
@@ -479,16 +484,25 @@ export default function StatusPendaftaranSahabatPage() {
               </div>
             ) : (
               <div className="space-y-2">
-                {/* Sudah punya rekening BSI -> cuma perlu buka Tabungan Umroh
-                    (BSI Byond). Belum punya -> panduan Buka Rekening BSI aja,
-                    filenya udah termasuk cara buka Tabungan Umroh juga. */}
-                {sudahPunyaRekeningBsi && pengaturan?.panduan_buka_tabungan_umroh_path && (
-                  <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Panduan Buka Tabungan Umroh (BSI Byond)</a>
-                )}
-                {!sudahPunyaRekeningBsi && pengaturan?.panduan_buka_rekening_bsi_path && (
-                  <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
-                    className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
+                {/* Belum punya -> panduan dulu buat yang mau coba buka
+                    sendiri (2 link, tergantung udah punya rekening BSI biasa
+                    apa belum — filenya beda cakupan, lihat komentar
+                    panduan_buka_rekening_bsi_path/panduan_buka_tabungan_umroh_path
+                    di bawah) — TAPI kolom isian TETAP ditampilkan bareng
+                    (lihat !bantuanBsiManualView di bawah), bukan lagi
+                    disembunyikan sampai jawab "Sudah". Sudah punya -> gak
+                    perlu panduan sama sekali, langsung ke kolom isian. */}
+                {!sudahPunyaRekeningBsi && (
+                  <div className="space-y-1">
+                    {pengaturan?.panduan_buka_rekening_bsi_path && (
+                      <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Belum punya rekening BSI sama sekali? Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
+                    )}
+                    {pengaturan?.panduan_buka_tabungan_umroh_path && (
+                      <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Sudah punya rekening BSI biasa? Panduan Buka Tabungan Umroh (BSI Byond)</a>
+                    )}
+                  </div>
                 )}
 
                 {bantuanBsiManualView ? (
@@ -510,10 +524,12 @@ export default function StatusPendaftaranSahabatPage() {
                   </div>
                 ) : (
                   <>
-                    {/* Kolom isian rekening cuma buat yang SUDAH punya rekening BSI
-                        (dikonfirmasi user 2026-10-08) -- yang belum punya diarahkan
-                        ke panduan / bantuan manual JM di bawah. */}
-                    {sudahPunyaRekeningBsi && (<>
+                    {/* Kolom isian SEKARANG SELALU ditampilkan begitu udah
+                        jawab salah satu (dikonfirmasi user 2026-10-09) --
+                        dulu cuma muncul buat yang jawab "Sudah", jadi yang
+                        jawab "Belum" lalu beneran berhasil buka sendiri
+                        gak ada jalan balik buat masukin nomornya, cuma
+                        ketemu tombol "tidak bisa" doang. */}
                     <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
                       onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
                       placeholder="Nomor rekening tabungan umroh"
@@ -528,15 +544,15 @@ export default function StatusPendaftaranSahabatPage() {
                         {savingRekUmroh ? '...' : 'Simpan'}
                       </button>
                     </div>
-                    </>)}
                     {/* Gak semua KTP bisa daftar via BYOND self-service (dikonfirmasi
-                        user 2026-10-03) -- cuma relevan buat yang BELUM punya rekening
-                        BSI sama sekali (yang sudah punya tinggal buka Tabungan Umroh,
-                        gak ada hambatan serupa). */}
+                        user 2026-10-03) -- cuma relevan buat yang BELUM punya Tabungan
+                        Umroh (yang udah punya tinggal masukin nomornya di atas, gak
+                        ada hambatan serupa). Jalan keluar TAMBAHAN, bukan satu-satunya
+                        (dikonfirmasi user 2026-10-09). */}
                     {!sudahPunyaRekeningBsi && (
                       <button onClick={() => setBantuanBsiManualView(true)}
                         className="text-sm font-semibold text-amber-900 bg-amber-100 border-2 border-amber-400 px-3 py-2.5 rounded-lg block w-full text-left leading-snug hover:bg-amber-200 transition-colors cursor-pointer">
-                        ⚠️ Tidak bisa membuat rekening via BYOND? <span className="font-extrabold text-blue-600 underline">KLIK DI SINI</span> untuk JM bantu pembuatan rekening manual ke cabang pilihan JM Travel
+                        ⚠️ Tidak bisa membuat rekening sendiri? <span className="font-extrabold text-blue-600 underline">KLIK DI SINI</span> untuk JM bantu pembuatan rekening manual ke cabang pilihan JM Travel
                       </button>
                     )}
                     <button onClick={() => setSudahPunyaRekeningBsi(null)} className="text-[10px] text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">← Ganti jawaban</button>
