@@ -837,6 +837,24 @@ export default function DatabaseJamaahPage() {
                             ⏳ Nunggu Rekening Manual BSI — jamaah setuju {fmtTanggal(j.bantuan_bsi_manual_disetujui_at)}, isi No. Rekening &amp; Nama Pemilik begitu BSI selesai proses.
                           </div>
                         )}
+                        {/* Link lihat/unduh scan KTP & Paspor (dikonfirmasi
+                            user 2026-10-09) — datanya udah ada dari kp.*
+                            (kolom foto_ktp_path/foto_paspor_path di
+                            sahabat_pendaftaran, diisi jamaah pas wizard Data
+                            Diri), cuma belum ditampilin di Database Jamaah
+                            sama sekali sebelum ini (padahal admin/sahabat/page.jsx
+                            yang beda udah nampilin). Samain gate privasi
+                            dengan NIK/rekening — cuma admin/super_admin. */}
+                        {!isHop && (j.foto_ktp_path || j.foto_paspor_path) && (
+                          <div className="col-span-2 flex gap-3">
+                            {j.foto_ktp_path && (
+                              <a href={j.foto_ktp_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold hover:underline">📄 Lihat KTP</a>
+                            )}
+                            {j.foto_paspor_path && (
+                              <a href={j.foto_paspor_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold hover:underline">📘 Lihat Paspor</a>
+                            )}
+                          </div>
+                        )}
                         <div>Perekrut: <b className="text-gray-700">{labelPerekrutAdmin(j)}</b></div>
                         {!isHop && (
                           <div className="col-span-2">
@@ -953,6 +971,15 @@ export default function DatabaseJamaahPage() {
                             className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2 py-1 rounded-full hover:bg-blue-100 shrink-0">
                             🖨️ Cetak Dokumen
                           </button>
+                        )}
+                        {/* Scan KTP ikut ditaruh di sebelah tombol cetak
+                            (dikonfirmasi user 2026-10-09) — sering kepake
+                            bareng pas nyiapin paket dokumen fisik buat BSI. */}
+                        {j.foto_ktp_path && (
+                          <a href={j.foto_ktp_path} target="_blank" rel="noopener noreferrer"
+                            className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2 py-1 rounded-full hover:bg-blue-100 shrink-0">
+                            📄 Lihat KTP
+                          </a>
                         )}
                       </div>
                     </div>
