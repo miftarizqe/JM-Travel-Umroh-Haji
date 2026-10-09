@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { dashboardPathForRole } from '@/lib/dashboardPath';
 
 export default function UploadFotoPage() {
   return (
@@ -97,8 +98,17 @@ function UploadFotoPageInner() {
       } catch { /* fallback ke status di bawah kalau gagal cek */ }
     }
     if (redirect) { router.push(redirect); return; }
-    const tujuan = { admin: '/admin', perwakilan: '/dashboard/perwakilan', jamaah: '/dashboard/jamaah', sahabat: '/status-pendaftaran-sahabat' };
-    router.push(tujuan[user?.role] || '/dashboard/jamaah');
+    // BUG (ditemukan & diperbaiki 2026-10-09): map lokal di sini pakai key
+    // 'sahabat' yang gak pernah cocok sama role beneran 'sahabat_baitullah'
+    // (dan 'hop' gak ada sama sekali) — begitu cek data_diri_terkirim di
+    // atas gak sempat nge-redirect (API gagal/sudah pernah kirim data
+    // diri), sahabat malah kejatuh ke fallback '/dashboard/jamaah' (keliatan
+    // kayak "lompat ke beranda" alih-alih diarahkan ke step berikutnya).
+    // Pakai helper canonical dashboardPathForRole() biar konsisten dgn
+    // tempat lain yang udah bener (mis. Layout.jsx) — /dashboard/sahabat
+    // sendiri sudah ada guard balik ke /status-pendaftaran-sahabat kalau
+    // status belum 'active'.
+    router.push(dashboardPathForRole(user?.role));
   }
 
   if (!user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
