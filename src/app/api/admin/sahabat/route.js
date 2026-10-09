@@ -19,7 +19,7 @@ export async function GET(request) {
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
               u.dokumen_pemblokiran_fisik_diterima_at, u.dokumen_spk_ak_fisik_diterima_at, u.metode_ttd_sahabat,
               u.dokumen_surat_pemblokiran_fisik_path,
-              u.dokumen_formulir_bsi_fisik_diterima_at, u.dokumen_fisik_dikirim_at, u.dokumen_fisik_resi, u.dokumen_fisik_resi_foto_path,
+              u.dokumen_formulir_bsi_fisik_diterima_at, u.dokumen_formulir_bsi_fisik_path, u.dokumen_fisik_dikirim_at, u.dokumen_fisik_resi, u.dokumen_fisik_resi_foto_path,
               u.foto_ktp_path, u.foto_paspor_path,
               perekrut.name AS perekrut_nama,
               v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,

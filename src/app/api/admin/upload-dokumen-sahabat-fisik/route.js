@@ -10,6 +10,10 @@ const JENIS_KOLOM = {
   spk_ak: { path: 'dokumen_spk_ak_fisik_path', uploadedAt: 'dokumen_spk_ak_fisik_uploaded_at', prefix: 'spkak' },
   sk_cif: { path: 'dokumen_sk_cif_fisik_path', uploadedAt: 'dokumen_sk_cif_fisik_uploaded_at', prefix: 'skcif' },
   surat_pemblokiran: { path: 'dokumen_surat_pemblokiran_fisik_path', uploadedAt: 'dokumen_surat_pemblokiran_fisik_uploaded_at', prefix: 'suratpemblokiran' },
+  // Dokumen ke-4, cuma relevan buat jamaah yang juga setuju bantuan BSI
+  // manual (dikonfirmasi user 2026-10-09 — sebelumnya cuma 3 jenis di sini,
+  // link "Unggah scan" buat Formulir BSI kosong di checklist admin).
+  formulir_bsi: { path: 'dokumen_formulir_bsi_fisik_path', uploadedAt: 'dokumen_formulir_bsi_fisik_uploaded_at', prefix: 'formulirbsi' },
 };
 
 // POST /api/admin/upload-dokumen-sahabat-fisik  (multipart: file, user_id, jenis)
