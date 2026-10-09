@@ -733,12 +733,17 @@ export default function DatabaseJamaahPage() {
                       ) : (
                       <>
                         {/* Box "Total" (saldo_tabungan_umroh + saldo_pending)
-                            DIHAPUS (dikonfirmasi user 2026-10-08) -- bagian
-                            pending itu belum diajukan/di-TF/di-acc admin sama
-                            sekali, dijumlahin ke "total" nyesatin kesannya
-                            udah duit nyata. Sisa 2 angka yang beneran jelas
-                            & terpisah: yang udah cair vs yang masih pending. */}
-                        <div className="grid grid-cols-2 gap-2">
+                            sempat DIHAPUS total (2026-10-08) -- khawatir
+                            bagian pending (belum diajukan/di-TF/di-acc admin)
+                            kesannya udah duit nyata. Dimunculin LAGI khusus
+                            buat admin/super_admin (dikonfirmasi user
+                            2026-10-09) -- admin/super_admin & jamaah pemilik
+                            akun sendiri emang boleh liat gabungan tabungan
+                            pribadi + ujroh-nya, label dibikin eksplisit
+                            "(Cair + Pending)" biar gak keulang salah paham
+                            dulu. HoP TETAP gak liat ini sama sekali (cabang
+                            isHop di atas, 3 kartu ujroh-only terpisah). */}
+                        <div className="grid grid-cols-3 gap-2">
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
                             <div className="font-bold text-green-600">{fmtRp(j.saldo_tabungan_umroh)}</div>
                             <div className="text-gray-400">Sudah Cair</div>
@@ -746,6 +751,10 @@ export default function DatabaseJamaahPage() {
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
                             <div className="font-bold text-yellow-600">{fmtRp(j.saldo_pending)}</div>
                             <div className="text-gray-400">Pending</div>
+                          </div>
+                          <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
+                            <div className="font-bold text-[#0E2F6E]">{fmtRp(Number(j.saldo_tabungan_umroh || 0) + Number(j.saldo_pending || 0))}</div>
+                            <div className="text-gray-400">Total (Cair + Pending)</div>
                           </div>
                         </div>
                         <button onClick={() => bukaRekap(j)} className="w-full text-[#1A4FA0] font-bold hover:underline text-center">
