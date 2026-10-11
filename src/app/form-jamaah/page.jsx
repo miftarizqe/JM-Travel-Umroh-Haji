@@ -105,7 +105,14 @@ function FormJamaahPageInner() {
             const list = Array.from({ length: found.jumlah_jamaah }, () => emptyJamaah());
             // Kalau yang isi = jamaah pemilik booking, prefill dari akunnya.
             // Kalau perwakilan/admin yang mendaftarkan, mulai kosong.
-            const isPemilik = found.user_id === user.id && user.role === 'jamaah';
+            // Sahabat Baitullah checkout mandiri IKUT (dikonfirmasi user
+            // 2026-10-11) — Muslim SELALU checkout buat diri sendiri
+            // (dikunci server, lihat checkout-mandiri/route.js), jadi nama/
+            // nik/wa/email yang keisi di akunnya emang data jamaah ini
+            // juga. Non-Muslim DIKECUALIKAN -- mereka checkout buat ORANG
+            // LAIN (gak bisa umroh sendiri), data akun BUKAN data jamaah.
+            const isSahabatMandiri = user.role === 'sahabat_baitullah' && user.agama !== 'non_islam';
+            const isPemilik = found.user_id === user.id && (user.role === 'jamaah' || isSahabatMandiri);
             if (isPemilik) {
               list[0] = {
                 ...list[0],
@@ -151,6 +158,43 @@ function FormJamaahPageInner() {
         });
     }
   }, [user, bookingId]);
+
+  // Prefill TAMBAHAN khusus Sahabat Baitullah checkout mandiri (dikonfirmasi
+  // user 2026-10-11) — tempat/tanggal lahir, nama ayah, pendidikan,
+  // pekerjaan, & detail paspor udah pernah diisi SEKALI pas /daftar-sahabat
+  // (ke-sync ke users), gak perlu diketik ulang di sini. /api/profil gak
+  // kebawa di effect loading utama di atas (butuh fetch terpisah), jadi
+  // nyusul di effect sendiri setelah booking kemuat. Cuma isi field yang
+  // MASIH KOSONG — data lama (jamaah_data/draft) yang udah ada tetap
+  // menang, gak ketimpa.
+  useEffect(() => {
+    if (!user || user.role !== 'sahabat_baitullah' || user.agama === 'non_islam') return;
+    if (!booking || booking.user_id !== user.id) return;
+    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => {
+      const p = d.user;
+      if (!p) return;
+      const kosong = (v) => !v || !String(v).trim();
+      setJamaahList(prev => {
+        if (prev.length === 0) return prev;
+        const j0 = prev[0];
+        const next0 = {
+          ...j0,
+          tl: kosong(j0.tl) ? (p.tempat_lahir || '') : j0.tl,
+          ttl: kosong(j0.ttl) ? (p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : '') : j0.ttl,
+          jk: p.jenis_kelamin || j0.jk,
+          ayah: kosong(j0.ayah) ? (p.nama_ayah || '') : j0.ayah,
+          pendidikan: kosong(j0.pendidikan) ? (p.pendidikan_terakhir || '') : j0.pendidikan,
+          pkj: kosong(j0.pkj) ? (p.pekerjaan || '') : j0.pkj,
+          paspor: kosong(j0.paspor) ? (p.no_paspor || '') : j0.paspor,
+          tkp: kosong(j0.tkp) ? (p.tempat_keluar_paspor || '') : j0.tkp,
+          exp_mulai: kosong(j0.exp_mulai) ? (p.masa_berlaku_paspor_dari ? String(p.masa_berlaku_paspor_dari).slice(0, 10) : '') : j0.exp_mulai,
+          exp_paspor: kosong(j0.exp_paspor) ? (p.masa_berlaku_paspor_sampai ? String(p.masa_berlaku_paspor_sampai).slice(0, 10) : '') : j0.exp_paspor,
+          alamat: kosong(j0.alamat) ? (p.alamat_domisili || p.alamat || '') : j0.alamat,
+        };
+        return [next0, ...prev.slice(1)];
+      });
+    }).catch(() => {});
+  }, [user, booking]);
 
   // Simpan draft ke localStorage tiap ada perubahan — antisipasi keluar
   // sebelum submit akhir (yang baru itu momen data beneran tersimpan).
