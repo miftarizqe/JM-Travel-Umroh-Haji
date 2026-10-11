@@ -6,7 +6,7 @@ import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import SearchableSelect from '@/app/components/SearchableSelect';
 import TombolWA from '@/app/components/TombolWA';
-import AgendaJanjiTemu from '@/app/components/AgendaJanjiTemu';
+import KartuJanjiTemu from '@/app/components/KartuJanjiTemu';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -72,7 +72,6 @@ function labelItemCluster(key, it) {
     : key==='refund_belum_ditransfer' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.refund_nominal)})`
     : key==='kalkulator_perwakilan_pending' ? `${it.perwakilan_nama||'Perwakilan'} — ${it.nama_quote||it.template_nama} (${rp(it.harga_jual_perwakilan)})`
     : key==='setoran_mandiri' ? `${it.nama||'User'} (${it.kode_unik||'-'}) — ${rp(it.nominal)} · ${tgl(it.created_at)}`
-    : key==='janji_temu_kantor' ? `${it.nama||'User'} (${it.kode_unik||'-'}) — ${it.sumber} — ${tgl(it.tanggal)}`
     : `${it.name} — ${it.email||it.wa||''}`
   );
 }
@@ -912,20 +911,14 @@ function AdminPageInner() {
     // isinya macem-macem role: gabungan cluster khusus Sahabat Baitullah
     // yang sebelumnya cuma ada di section "🤝 Sahabat Baitullah" (gak kebuka
     // di cabang HoP ini) + janji_temu_kantor difilter sumber Sahabat doang.
-    // Item Pending Tamu: nama + kode + tanggal rencana kunjungan.
-    const hopLabelItem = (it) => `${it.nama} (${it.kode_unik})${it.tanggal ? ` · ${new Date(it.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}`;
     // "Akun Baru Menunggu Verifikasi" & "Voucher Menunggu ACC" sengaja gak
     // ditampilkan ke HoP (dikonfirmasi user 2026-10-06) — dua-duanya antrian
     // aksi admin, bukan wewenang HoP.
-    // Dibatasi lagi jadi CUMA Pending Tamu (dikonfirmasi user 2026-10-09) —
-    // Siap Berangkat / Di Bawah Progress / Jadwal Target Terlewat dicabut
-    // dari sini. Datanya sama dengan janji temu kantor sumber Sahabat, tapi
-    // tampil sebagai daftar ringkas (bukan agenda kalender).
-    const hopClusters = [
-      {key:'pending_tamu', label:'Pending Tamu', icon:'🏢', color:'border-cyan-200 bg-cyan-50', items: janjiTemuKantor.filter(j=>j.sumber==='Sahabat Baitullah')},
-    ];
-    const totalPending = hopClusters.reduce((n, c) => n + c.items.length, 0);
-    const urut = [...hopClusters].sort((a, b) => (b.items.length > 0) - (a.items.length > 0));
+    // Dibatasi lagi jadi CUMA Janji Temu Datang ke Kantor sumber Sahabat
+    // (dikonfirmasi user 2026-10-09) — Siap Berangkat / Di Bawah Progress /
+    // Jadwal Target Terlewat dicabut dari sini.
+    const janjiTemuSahabat = janjiTemuKantor.filter(j => j.sumber === 'Sahabat Baitullah');
+    const totalPending = janjiTemuSahabat.length;
     return (
       <Layout>
         <div className="space-y-5">
@@ -953,32 +946,8 @@ function AdminPageInner() {
               <h3 className="font-bold text-red-600">🔴 Perlu Perhatian</h3>
               <span className={`text-xs font-black px-2.5 py-1 rounded-full ${totalPending > 0 ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-500'}`}>{totalPending} item</span>
             </div>
-            <div className="grid md:grid-cols-2 gap-2">
-              {urut.map(c => {
-                const isOpen = expandCluster === c.key;
-                const tampil = isOpen ? c.items : c.items.slice(0, 3);
-                return (
-                  <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3 md:col-span-2`}>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
-                      <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
-                    </div>
-                    {c.items.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        {tampil.map((it, idx) => (
-                          <div key={idx} className="text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate">{hopLabelItem(it)}</div>
-                        ))}
-                        {c.items.length > 3 && (
-                          <button onClick={() => setExpandCluster(isOpen ? null : c.key)} className="text-[11px] text-gray-500 underline pl-1">
-                            {isOpen ? 'Tutup ▲' : `+${c.items.length - 3} lainnya`}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <KartuJanjiTemu items={janjiTemuSahabat} terbuka={expandCluster === 'janji_temu_sahabat'}
+              onToggle={() => setExpandCluster(expandCluster === 'janji_temu_sahabat' ? null : 'janji_temu_sahabat')} />
           </div>
         </div>
       </Layout>
@@ -1045,24 +1014,23 @@ function AdminPageInner() {
                     {groupClusters.map(c => {
                       const isOpen = expandCluster === c.key;
                       const tampil = isOpen ? c.items : c.items.slice(0,3);
-                      const bisaKlikItem = ['setoran_mandiri','perlengkapan','kalkulator_lead','ttu_belum_dikirim','perjanjian_belum_selesai','penyesuaian_harga_pending','refund_belum_ditransfer','kalkulator_perwakilan_pending','janji_temu_kantor'].includes(c.key);
-                      // Janji temu tampil sebagai agenda (blok kalender + sisa
-                      // hari, sama kayak versi HoP) — lebar penuh biar gak
-                      // sempit (dikonfirmasi user 2026-10-08, sebelumnya cuma
-                      // daftar teks polos di sini padahal versi HoP udah bagus).
-                      const agenda = c.key === 'janji_temu_kantor' && c.items.length > 0;
+                      const bisaKlikItem = ['setoran_mandiri','perlengkapan','kalkulator_lead','ttu_belum_dikirim','perjanjian_belum_selesai','penyesuaian_harga_pending','refund_belum_ditransfer','kalkulator_perwakilan_pending'].includes(c.key);
+                      // Janji temu pakai kartu bersama versi HoP (dikonfirmasi
+                      // user 2026-10-09) — sumber ditampilkan karena di admin
+                      // gabungan Sahabat + Perwakilan.
+                      if (c.key === 'janji_temu_kantor') return (
+                        <KartuJanjiTemu key={c.key} items={c.items} judul={c.label} tampilSumber
+                          terbuka={isOpen} onToggle={() => setExpandCluster(isOpen ? null : c.key)}
+                          onItemClick={() => router.push('/admin/janji-temu-kantor')}
+                          onTindakLanjut={() => router.push('/admin/janji-temu-kantor')} />
+                      );
                       return (
-                      <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3 ${agenda ? 'md:col-span-2' : ''}`}>
+                      <div key={c.key} className={`border ${c.items.length ? c.color : 'border-gray-100 bg-gray-50'} rounded-xl p-3`}>
                         <div className="flex items-center justify-between gap-2">
                           <div className={`font-semibold text-sm ${c.items.length ? 'text-gray-700' : 'text-gray-400'}`}>{c.icon} {c.label}</div>
                           <span className={`shrink-0 text-xs font-black px-2 py-0.5 rounded-full ${c.items.length ? 'bg-red-500 text-white' : 'bg-gray-200 text-gray-400'}`}>{c.items.length}</span>
                         </div>
-                        {agenda ? (
-                          <>
-                            <AgendaJanjiTemu items={c.items} terbuka={isOpen} onToggle={() => setExpandCluster(isOpen ? null : c.key)} />
-                            <button onClick={() => router.push('/admin/janji-temu-kantor')} className="block text-[11px] font-bold text-[#1A4FA0] underline mt-2">Tindak lanjut →</button>
-                          </>
-                        ) : c.items.length > 0 && (
+                        {c.items.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {tampil.map((it,idx) => (
                               c.key==='sahabat_baru_daftar' ? (
@@ -1076,7 +1044,7 @@ function AdminPageInner() {
                                 </div>
                               ) : (
                               <div key={idx}
-                                onClick={c.key==='setoran_mandiri' ? () => router.push('/admin/sahabat/setoran-mandiri-pengajuan') : c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { pindahTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : c.key==='janji_temu_kantor' ? () => router.push('/admin/janji-temu-kantor') : undefined}
+                                onClick={c.key==='setoran_mandiri' ? () => router.push('/admin/sahabat/setoran-mandiri-pengajuan') : c.key==='perlengkapan' ? () => router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(it.prog_name)}`) : c.key==='kalkulator_lead' ? () => router.push('/admin/kalkulator-leads') : c.key==='ttu_belum_dikirim' ? () => router.push(`/admin/cetak-invoice/${it.id}`) : c.key==='perjanjian_belum_selesai' ? () => router.push(`/admin/cetak-perjanjian/${it.id}`) : c.key==='penyesuaian_harga_pending' ? () => openBookingDetail(it.booking_id) : c.key==='refund_belum_ditransfer' ? () => { pindahTab('pembatalan'); setOpenPembatalan(it.id); } : c.key==='kalkulator_perwakilan_pending' ? () => router.push(`/admin/kalkulator-perwakilan/${it.id}`) : undefined}
                                 className={`text-xs text-gray-600 bg-white/70 rounded px-2 py-1 truncate ${bisaKlikItem ? 'cursor-pointer hover:bg-white hover:text-[#1A4FA0]' : ''}`}>
                                 {labelItemCluster(c.key, it)}
                               </div>
@@ -1102,7 +1070,6 @@ function AdminPageInner() {
                               else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
                               else if (c.key==='refund_belum_ditransfer' && c.items[0]) { pindahTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
                               else if (c.key==='kalkulator_perwakilan_pending') router.push('/admin/kalkulator-perwakilan');
-                              else if (c.key==='janji_temu_kantor') router.push('/admin/janji-temu-kantor');
                             }} className="block text-[11px] font-bold text-[#1A4FA0] underline mt-1">Tindak lanjut →</button>
                           </div>
                         )}
