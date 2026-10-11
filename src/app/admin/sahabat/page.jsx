@@ -352,9 +352,12 @@ export default function AdminSahabatPage() {
                 { label: 'Dokumen Fisik Surat Pemblokiran Diterima di Kantor', field: 'dokumen_pemblokiran_fisik_diterima_at', action: 'toggle_pemblokiran_fisik', jenis: 'surat_pemblokiran', scanPath: detail.dokumen_surat_pemblokiran_fisik_path },
                 // Dokumen ke-4 cuma relevan buat jamaah yang juga setuju
                 // bantuan BSI manual -- bundelnya 4 dokumen, bukan 3
-                // (dikonfirmasi user 2026-10-08).
+                // (dikonfirmasi user 2026-10-08). jenis/scanPath sempat
+                // null (dikonfirmasi user 2026-10-09, link "Unggah scan"
+                // kosong) -- dibenerin sejajar 3 dokumen lain, lihat
+                // migration 217 + JENIS_KOLOM.formulir_bsi.
                 ...(detail.bantuan_bsi_manual_disetujui_at ? [
-                  { label: 'Dokumen Fisik Formulir Pendaftaran Rekening BSI Diterima di Kantor', field: 'dokumen_formulir_bsi_fisik_diterima_at', action: 'toggle_formulir_bsi_fisik', jenis: null, scanPath: null },
+                  { label: 'Dokumen Fisik Formulir Pendaftaran Rekening BSI Diterima di Kantor', field: 'dokumen_formulir_bsi_fisik_diterima_at', action: 'toggle_formulir_bsi_fisik', jenis: 'formulir_bsi', scanPath: detail.dokumen_formulir_bsi_fisik_path },
                 ] : []),
               ].map(({ label, field, action, jenis, scanPath }) => (
                 <div key={field} className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">

@@ -599,7 +599,12 @@ export default function StatusPendaftaranSahabatPage() {
                         dulu cuma muncul buat yang jawab "Sudah", jadi yang
                         jawab "Belum" lalu beneran berhasil buka sendiri
                         gak ada jalan balik buat masukin nomornya, cuma
-                        ketemu tombol "tidak bisa" doang. */}
+                        ketemu tombol "tidak bisa" doang. Buat yang jawab
+                        "Belum", dikasih keterangan biar gak dikira wajib
+                        diisi sekarang (dikonfirmasi user 2026-10-11). */}
+                    {!sudahPunyaRekeningBsi && (
+                      <div className="text-xs text-gray-500">Isi setelah rekening Tabungan Umroh Anda berhasil dibuka sesuai panduan di atas.</div>
+                    )}
                     <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
                       onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
                       placeholder="Nomor rekening tabungan umroh"
