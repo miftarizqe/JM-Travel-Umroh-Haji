@@ -23,6 +23,12 @@ export async function GET(request) {
     // belum". Baris pending sekarang cuma muncul di tab Forecast
     // ("Menunggu Konfirmasi Admin", lihat /api/sahabat/dashboard) --
     // Cashflow jadi murni rekening koran yang BENERAN udah kejadian.
+    // 'pemakaian_saldo_sahabat' DIKECUALIKAN dari aturan "nunggu confirm" ini
+    // (dikonfirmasi user 2026-10-11) -- hold checkout-mandiri itu BENERAN
+    // udah kejadian (saldo kepotong) dari detik checkout submit, bukan
+    // "nunggu diproses" kayak jenis lain, jadi tetap tampil di sini walau
+    // dikonfirmasi_at masih NULL (badge "Menunggu" di FE otomatis jalan buat
+    // baris ini, nunjukin "udah kepotong, nunggu ACC admin resmikan lunas").
     const [rows] = await pool.query(
       `SELECT kl.id, kl.jenis, kl.ref_id, kl.nominal, kl.keterangan, kl.dikonfirmasi_at, kl.bukti_tf_admin_path, kl.created_at,
               kl.level, pendaftar.name AS nama_pendaftar, pendaftar.kode_unik AS kode_unik_pendaftar
@@ -30,7 +36,7 @@ export async function GET(request) {
        LEFT JOIN users pendaftar
          ON pendaftar.id = kl.ref_id AND kl.jenis IN ('komisi_sahabat','head_of_program_registrasi')
        WHERE kl.penerima_id = ? AND kl.jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')
-             AND kl.dikonfirmasi_at IS NOT NULL
+             AND (kl.dikonfirmasi_at IS NOT NULL OR kl.jenis = 'pemakaian_saldo_sahabat')
        ORDER BY kl.created_at ASC, kl.id ASC`,
       [sahabatId]
     );
