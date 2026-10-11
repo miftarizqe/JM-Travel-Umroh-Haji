@@ -74,6 +74,18 @@ export async function POST(request) {
     try {
       await conn.beginTransaction();
 
+      // Kunci baris user ini SEBELUM baca saldo (dikonfirmasi user
+      // 2026-10-11) — tanpa ini, 2 checkout bersamaan (double-klik, 2 tab,
+      // atau race sama admin yang lagi unconfirm baris komisi di saat yang
+      // sama) bisa dua-duanya baca saldo SEBELUM salah satu sempat insert
+      // hold-nya, dua-duanya lolos cek "cukup", saldo jadi oversubscribe.
+      // FOR UPDATE nahan transaksi LAIN yang juga coba ngunci baris user
+      // yang sama (lihat lock sejenis di
+      // /api/admin/sahabat/komisi/[id]/route.js) sampai transaksi ini
+      // commit/rollback — gak berpengaruh ke user LAIN, cuma serialize
+      // operasi-operasi yang sama-sama nyentuh saldo akun ini.
+      await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [auth.user.id]);
+
       // Saldo tersedia — pakai fungsi pusat saldoSahabat() (dipakai sama di
       // /api/sahabat/dashboard, dll) biar gak ada lagi query duplikat yang
       // gampang ketinggalan sinkron (bug 2026-09-29: 'setoran_mandiri_sahabat'
