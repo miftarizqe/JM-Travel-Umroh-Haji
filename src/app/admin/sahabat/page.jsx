@@ -109,6 +109,20 @@ export default function AdminSahabatPage() {
     setBusy(false);
   }
 
+  // Tolak tapi jamaah tetap bisa login & isi ulang data diri (dikonfirmasi
+  // user 2026-10-11); "Tolak Permanen" ngeblok login (akun spam/palsu).
+  function mintaPerbaikan(j) {
+    const catatan = prompt(`Minta ${j.nama} memperbaiki data pendaftarannya? Jamaah tetap bisa login & progresnya tidak hilang.\n\nData apa yang salah / perlu diperbaiki? (wajib):`);
+    if (catatan === null) return;
+    if (!catatan.trim()) { alert('Alasan wajib diisi supaya jamaah tahu apa yang harus diperbaiki.'); return; }
+    aksi({ action: 'minta_perbaikan', user_id: j.user_id, catatan_admin: catatan.trim() });
+  }
+  function tolakPermanen(j) {
+    const catatan = prompt(`TOLAK PERMANEN pendaftaran ${j.nama}? Akun tidak akan bisa login lagi (untuk akun spam/palsu).\n\nAlasan (opsional):`);
+    if (catatan === null) return;
+    aksi({ action: 'reject', user_id: j.user_id, catatan_admin: catatan.trim() || undefined });
+  }
+
   // Admin unggah scan dokumen fisik yang udah diterima di kantor -- endpoint
   // upload-dokumen-sahabat-fisik dari awal udah ngebolehin admin, cuma
   // tombolnya belum ada di sini (ketemu user 2026-10-09).
@@ -387,18 +401,29 @@ export default function AdminSahabatPage() {
               ))}
             </div>
 
+            {detail.perbaikan_diminta_at && (
+              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                ↺ Menunggu jamaah memperbaiki data{detail.catatan_admin ? ` — ${detail.catatan_admin}` : ''}
+              </div>
+            )}
             {!isHop && (
-              <div className="flex gap-2 pt-4">
-                {detail.status === 'menunggu_sk_cif' && (
+              <div className="flex flex-wrap gap-2 pt-4">
+                {detail.status === 'menunggu_sk_cif' && !detail.perbaikan_diminta_at && (
                   <button disabled={busy} onClick={() => aksi({ action: 'advance', user_id: detail.user_id, status_baru: 'active' })}
                     className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
                     ACC & Aktifkan Jamaah Sahabat Baitullah →
                   </button>
                 )}
+                {detail.status !== 'active' && detail.status !== 'ditolak' && !detail.perbaikan_diminta_at && (
+                  <button disabled={busy} onClick={() => mintaPerbaikan(detail)}
+                    className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
+                    ↺ Minta Perbaiki
+                  </button>
+                )}
                 {detail.status !== 'active' && detail.status !== 'ditolak' && (
-                  <button disabled={busy} onClick={() => { if (confirm('Tolak pendaftaran ini?')) aksi({ action: 'reject', user_id: detail.user_id }); }}
+                  <button disabled={busy} onClick={() => tolakPermanen(detail)}
                     className="bg-gray-100 text-gray-500 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    Tolak
+                    ⛔ Tolak Permanen
                   </button>
                 )}
               </div>

@@ -15,9 +15,15 @@ export function formLengkap(b) {
 // SEKALI pas pendaftaran jadi Sahabat Baitullah, bukan diulang tiap booking
 // (dikonfirmasi user 2026-10-08, sebelumnya booking jenis ini kekunci
 // selamanya di "Baca & Setujui Perjanjian" yang gak akan pernah kepenuhi).
+//
+// Selesai = scan fisik (materai + TTD) sudah diunggah admin ATAU TTD digital
+// selesai — SAMA dengan gerbang server di /api/payments (type 'lunas').
+// setuju_pks (centang online) SENGAJA bukan syarat (2026-10-11): jamaah yang
+// TTD fisik di kantor sering gak pernah centang online, jadi dulu nyangkut
+// selamanya di tahap Perjanjian walau scan-nya udah diunggah & diverifikasi.
 export function perjanjianSelesai(b) {
   if (b.prog_publish_type === 'sahabat_baitullah') return true;
-  return !!b.setuju_pks && (!!b.perjanjian_scan_path || b.perjanjian_sig?.fase === 'selesai');
+  return !!b.perjanjian_scan_path || b.perjanjian_sig?.fase === 'selesai';
 }
 
 export function getStage(b) {

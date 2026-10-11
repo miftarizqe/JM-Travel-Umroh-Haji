@@ -8,6 +8,7 @@ import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { kirimSpkAkTunggalUntukTtd } from '@/app/api/admin/dokumen-signature/route';
 import { SPK_AK_SEMENTARA_FISIK } from '@/lib/spkAkFlag';
 import { releaseNomorSuratJikaBulanSama } from '@/lib/nomorSurat';
+import { kirimNotifikasi } from '@/lib/notifikasi';
 
 // Urutan step pendaftaran sahabat — LINEAR, beda bentuk dari perwakilan
 // (yang punya 2 cabang kantor/paket) makanya sengaja tabel & endpoint
@@ -153,7 +154,7 @@ export async function GET(request) {
 }
 
 // PATCH /api/status-pendaftaran-sahabat — aksi admin, body: { action, user_id, ... }
-// action: 'verify_tf' | 'advance' | 'reject' | 'izinkan_daftar_ulang'
+// action: 'verify_tf' | 'advance' | 'minta_perbaikan' | 'reject' | 'izinkan_daftar_ulang'
 export async function PATCH(request) {
   const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
@@ -165,12 +166,41 @@ export async function PATCH(request) {
       return Response.json({ error: 'action dan user_id wajib diisi' }, { status: 400 });
     }
 
-    const [kpRows] = await pool.query('SELECT * FROM sahabat_pendaftaran WHERE user_id = ?', [user_id]);
+    // Baris TERBARU — user yang pernah "Izinkan Daftar Ulang" punya >1 baris
+    // (yang lama 'ditolak' disimpan sebagai riwayat). Dulu tanpa ORDER BY,
+    // jadi kebaca baris lama & update-nya (WHERE user_id) ikut nimpa riwayat.
+    const [kpRows] = await pool.query('SELECT * FROM sahabat_pendaftaran WHERE user_id = ? ORDER BY id DESC LIMIT 1', [user_id]);
     if (kpRows.length === 0) return Response.json({ error: 'Pendaftaran sahabat tidak ditemukan' }, { status: 404 });
     const p = kpRows[0];
 
+    // Tolak tapi jamaah TETAP bisa login & diminta perbaiki form data diri
+    // (dikonfirmasi user 2026-10-11). Status funnel SENGAJA gak diubah —
+    // progres (bukti TF, rekening, dokumen) tetap, cuma ACC ke 'active'
+    // ditahan (lihat guard di 'advance') sampai jamaah kirim perbaikan
+    // lewat PUT /api/daftar-sahabat. 'reject' di bawah = tolak permanen.
+    if (action === 'minta_perbaikan') {
+      const catatan = String(body.catatan_admin || '').trim();
+      if (!catatan) return Response.json({ error: 'Alasan / data yang perlu diperbaiki wajib diisi' }, { status: 400 });
+      if (p.status === 'active' || p.status === 'ditolak') {
+        return Response.json({ error: 'Pendaftaran ini sudah aktif/ditolak.' }, { status: 400 });
+      }
+      await pool.query('UPDATE sahabat_pendaftaran SET perbaikan_diminta_at = NOW(), catatan_admin = ? WHERE id = ?', [catatan, p.id]);
+      await pool.query(
+        "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, 'perlu_perbaikan', ?)",
+        [user_id, catatan]
+      );
+      await kirimNotifikasi(pool, {
+        user_id,
+        tipe: 'sahabat_perlu_perbaikan',
+        judul: 'Data Pendaftaran Perlu Diperbaiki',
+        pesan: `Pendaftaran Sahabat Baitullah Anda ditolak admin. Alasan: ${catatan}. Silakan perbaiki data diri Anda.`,
+        link: '/daftar-sahabat',
+      });
+      return Response.json({ message: 'Jamaah diminta memperbaiki data pendaftarannya.' });
+    }
+
     if (action === 'reject') {
-      await pool.query("UPDATE sahabat_pendaftaran SET status = 'ditolak', catatan_admin = ? WHERE user_id = ?", [body.catatan_admin || null, user_id]);
+      await pool.query("UPDATE sahabat_pendaftaran SET status = 'ditolak', perbaikan_diminta_at = NULL, catatan_admin = ? WHERE id = ?", [body.catatan_admin || null, p.id]);
       await pool.query("UPDATE users SET status = 'rejected' WHERE id = ?", [user_id]);
       await pool.query(
         "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, 'ditolak', ?)",
@@ -183,6 +213,15 @@ export async function PATCH(request) {
       await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_spk_ak_nonis', 'JSB-NM');
       await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_sk_cif', 'SK-CIF');
       await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_surat_pemblokiran', 'SURAT-PEMBLOKIRAN');
+      // Sebelumnya gak ada notifikasi sama sekali (2026-10-11). Login-nya
+      // keblokir, tapi notifikasinya kebaca kalau admin "Izinkan Daftar Ulang".
+      await kirimNotifikasi(pool, {
+        user_id,
+        tipe: 'akun_ditolak',
+        judul: 'Pendaftaran Ditolak',
+        pesan: `Pendaftaran Sahabat Baitullah Anda ditolak.${body.catatan_admin ? ' Alasan: ' + body.catatan_admin : ''}`,
+        link: '/status-pendaftaran-sahabat',
+      });
       return Response.json({ message: 'Pendaftaran sahabat ditolak.' });
     }
 
@@ -212,8 +251,8 @@ export async function PATCH(request) {
       if (!p.bukti_tf_path) return Response.json({ error: 'Bukti transfer belum diunggah' }, { status: 400 });
       if (p.status !== 'pending') return Response.json({ error: 'Bukti transfer sudah diverifikasi.' }, { status: 400 });
       await pool.query(
-        "UPDATE sahabat_pendaftaran SET bukti_tf_verified_at = NOW(), status = 'menunggu_sk_cif' WHERE user_id = ?",
-        [user_id]
+        "UPDATE sahabat_pendaftaran SET bukti_tf_verified_at = NOW(), status = 'menunggu_sk_cif' WHERE id = ?",
+        [p.id]
       );
       await pool.query(
         "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru) VALUES ('sahabat_baitullah', ?, 'menunggu_sk_cif')",
@@ -301,6 +340,9 @@ export async function PATCH(request) {
       if (p.status === 'active' || p.status === 'ditolak') {
         return Response.json({ error: `Pendaftaran ini sudah "${STEP_PENDAFTARAN_SAHABAT.find(s => s.key === p.status)?.label || p.status}", tidak bisa dimajukan lagi.` }, { status: 400 });
       }
+      if (p.perbaikan_diminta_at) {
+        return Response.json({ error: 'Masih menunggu jamaah memperbaiki data pendaftarannya.' }, { status: 400 });
+      }
       if (tujuanIdx !== skrgIdx + 1) {
         return Response.json({ error: `Tidak boleh melompat step. Selesaikan "${STEP_PENDAFTARAN_SAHABAT[skrgIdx + 1]?.label}" dulu.` }, { status: 400 });
       }
@@ -376,7 +418,7 @@ export async function PATCH(request) {
         }
       }
 
-      await pool.query('UPDATE sahabat_pendaftaran SET status = ?, catatan_admin = ? WHERE user_id = ?', [status_baru, body.catatan_admin || null, user_id]);
+      await pool.query('UPDATE sahabat_pendaftaran SET status = ?, catatan_admin = ? WHERE id = ?', [status_baru, body.catatan_admin || null, p.id]);
       await pool.query(
         "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, ?, ?)",
         [user_id, status_baru, body.catatan_admin || null]
