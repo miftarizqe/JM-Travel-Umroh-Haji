@@ -12,6 +12,61 @@ import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 // bentuk dari agen_pendaftaran/status-pendaftaran perwakilan yang 2-cabang
 // kantor/paket). Perekrut cuma boleh anggota sahabat lain, konsisten
 // dengan register/page.jsx & POST /api/auth/register.
+
+// Validasi field data diri — dipakai bareng POST (isi pertama) & PUT
+// (perbaikan setelah admin "Minta Perbaikan", 2026-10-11). Balikin pesan
+// error, atau null kalau lolos. nik/wa dari users (dikunci, bukan body).
+function cekDataDiri(body, nik, wa) {
+  const {
+    nama, tl, ayah, pendidikan,
+    jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara,
+    sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
+    no_paspor,
+  } = body;
+  if (!nama || !nik || !wa) {
+    return 'Data wajib belum lengkap';
+  }
+  if (!/^\d{16}$/.test(String(nik).trim())) {
+    return 'NIK harus 16 digit angka';
+  }
+  // Minimal 17 tahun, Nama Ayah Kandung & Pendidikan Terakhir wajib
+  // (dikonfirmasi user 2026-10-08, buat syarat Siskopatuh) — dicek
+  // server-side juga, bukan cuma client, biar gak bisa dilewatin via
+  // request langsung ke endpoint ini.
+  if (tl) {
+    const lahir = new Date(tl);
+    if (!isNaN(lahir)) {
+      const now = new Date();
+      let umur = now.getFullYear() - lahir.getFullYear();
+      const m = now.getMonth() - lahir.getMonth();
+      if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
+      if (umur < 17) {
+        return 'Pendaftar Sahabat Baitullah wajib minimal berusia 17 tahun';
+      }
+    }
+  }
+  if (!ayah || !String(ayah).trim()) {
+    return 'Nama ayah kandung wajib diisi';
+  }
+  if (!pendidikan || !String(pendidikan).trim()) {
+    return 'Pendidikan terakhir wajib diisi';
+  }
+  const alamatOk = (j, nr, r, rw_, kl, kc, kt, p, n) =>
+    !!(j?.trim() && nr?.trim() && r?.trim() && rw_?.trim() && kl?.trim() && kc?.trim() && kt?.trim() && p?.trim() && n?.trim());
+  if (!alamatOk(jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara)) {
+    return 'Alamat KTP wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)';
+  }
+  if (!sama_ktp && !alamatOk(jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom)) {
+    return 'Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)';
+  }
+  // Nomor paspor opsional, tapi kalau diisi maks 9 karakter huruf/angka
+  // (standar ICAO; paspor RI 8 karakter, mis. A1234567).
+  if (no_paspor?.trim() && !/^[A-Za-z0-9]{1,9}$/.test(no_paspor.trim())) {
+    return 'Nomor paspor maksimal 9 karakter huruf/angka';
+  }
+  return null;
+}
+
 export async function POST(req) {
   const auth = wajibLogin(req);
   if (auth.error) return auth.error;
@@ -46,34 +101,8 @@ export async function POST(req) {
     const wa = userSaatIni0?.wa;
     const email = userSaatIni0?.email;
 
-    if (!nama || !nik || !wa) {
-      return NextResponse.json({ error: 'Data wajib belum lengkap' }, { status: 400 });
-    }
-    if (!/^\d{16}$/.test(String(nik).trim())) {
-      return NextResponse.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
-    }
-    // Minimal 17 tahun, Nama Ayah Kandung & Pendidikan Terakhir wajib
-    // (dikonfirmasi user 2026-10-08, buat syarat Siskopatuh) — dicek
-    // server-side juga, bukan cuma client, biar gak bisa dilewatin via
-    // request langsung ke endpoint ini.
-    if (tl) {
-      const lahir = new Date(tl);
-      if (!isNaN(lahir)) {
-        const now = new Date();
-        let umur = now.getFullYear() - lahir.getFullYear();
-        const m = now.getMonth() - lahir.getMonth();
-        if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
-        if (umur < 17) {
-          return NextResponse.json({ error: 'Pendaftar Sahabat Baitullah wajib minimal berusia 17 tahun' }, { status: 400 });
-        }
-      }
-    }
-    if (!ayah || !String(ayah).trim()) {
-      return NextResponse.json({ error: 'Nama ayah kandung wajib diisi' }, { status: 400 });
-    }
-    if (!pendidikan || !String(pendidikan).trim()) {
-      return NextResponse.json({ error: 'Pendidikan terakhir wajib diisi' }, { status: 400 });
-    }
+    const errDataDiri = cekDataDiri(body, nik, wa);
+    if (errDataDiri) return NextResponse.json({ error: errDataDiri }, { status: 400 });
     // Target wajib diisi (dikonfirmasi user 2026-09-19), dan sejak
     // 2026-09-20 wajib pilih Program Eksklusif Sahabat Baitullah yang
     // beneran ada (publish_type='sahabat_baitullah'), bukan teks bebas lagi
@@ -98,20 +127,6 @@ export async function POST(req) {
     const targetHargaServer = hargaTermurahProgram(programTarget);
     if (!(targetHargaServer > 0)) {
       return NextResponse.json({ error: 'Harga program target belum tersedia — pilih program lain atau hubungi admin' }, { status: 400 });
-    }
-
-    const alamatOk = (j, nr, r, rw_, kl, kc, kt, p, n) =>
-      !!(j?.trim() && nr?.trim() && r?.trim() && rw_?.trim() && kl?.trim() && kc?.trim() && kt?.trim() && p?.trim() && n?.trim());
-    if (!alamatOk(jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara)) {
-      return NextResponse.json({ error: 'Alamat KTP wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)' }, { status: 400 });
-    }
-    if (!sama_ktp && !alamatOk(jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom)) {
-      return NextResponse.json({ error: 'Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)' }, { status: 400 });
-    }
-    // Nomor paspor opsional, tapi kalau diisi maks 9 karakter huruf/angka
-    // (standar ICAO; paspor RI 8 karakter, mis. A1234567).
-    if (no_paspor?.trim() && !/^[A-Za-z0-9]{1,9}$/.test(no_paspor.trim())) {
-      return NextResponse.json({ error: 'Nomor paspor maksimal 9 karakter huruf/angka' }, { status: 400 });
     }
 
     // Baris lama berstatus 'ditolak' DIABAIKAN (dikonfirmasi user 2026-10-03,
@@ -234,6 +249,155 @@ export async function POST(req) {
     return NextResponse.json({ success: true, message: 'Data diri tersimpan.', id: result.insertId });
   } catch (err) {
     console.error('Error daftar-sahabat:', err);
+    return NextResponse.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
+}
+
+// Baris pendaftaran terbaru yang lagi diminta perbaikan admin (action
+// 'minta_perbaikan' di /api/status-pendaftaran-sahabat), atau undefined.
+async function barisPerluPerbaikan(user_id) {
+  const [[row]] = await db.query(
+    `SELECT id, status, perbaikan_diminta_at FROM sahabat_pendaftaran
+     WHERE user_id = ? ORDER BY id DESC LIMIT 1`, [user_id]
+  );
+  return row?.perbaikan_diminta_at && row.status !== 'ditolak' && row.status !== 'active' ? row : undefined;
+}
+
+// GET — isian lama buat form perbaikan (dikonfirmasi user 2026-10-11).
+// { perlu_perbaikan: false } kalau gak lagi diminta perbaikan.
+export async function GET(req) {
+  const auth = wajibLogin(req);
+  if (auth.error) return auth.error;
+  try {
+    const baris = await barisPerluPerbaikan(auth.user.id);
+    if (!baris) return NextResponse.json({ perlu_perbaikan: false });
+    const [[sp]] = await db.query(
+      `SELECT sp.nama, sp.tempat_lahir, DATE_FORMAT(sp.tanggal_lahir, '%Y-%m-%d') AS tl, sp.jenis_kelamin, sp.nama_ibu, sp.nama_ayah,
+              sp.kode_pos, sp.pekerjaan, sp.pendidikan_terakhir, sp.foto_ktp_path,
+              sp.no_paspor, sp.tempat_keluar_paspor,
+              DATE_FORMAT(sp.masa_berlaku_paspor_dari, '%Y-%m-%d') AS masa_berlaku_paspor_dari,
+              DATE_FORMAT(sp.masa_berlaku_paspor_sampai, '%Y-%m-%d') AS masa_berlaku_paspor_sampai,
+              sp.foto_paspor_path, sp.alamat_ktp, sp.alamat_domisili, sp.target_minat, sp.catatan_admin,
+              u.alamat_ktp_jalan, u.alamat_ktp_no_rumah, u.alamat_ktp_rt, u.alamat_ktp_rw, u.alamat_ktp_kelurahan,
+              u.alamat_ktp_kecamatan, u.alamat_ktp_kota, u.alamat_ktp_provinsi, u.alamat_ktp_negara
+       FROM sahabat_pendaftaran sp JOIN users u ON u.id = sp.user_id
+       WHERE sp.id = ?`, [baris.id]
+    );
+    // Alamat domisili cuma kesimpen 1 baris teks (gak terstruktur), jadi
+    // kalau beda dari KTP kolomnya dikosongin & teks lamanya ditampilin
+    // sebagai petunjuk di form.
+    const samaKtp = !sp.alamat_domisili || sp.alamat_domisili === sp.alamat_ktp;
+    return NextResponse.json({
+      perlu_perbaikan: true,
+      catatan: sp.catatan_admin,
+      alamat_domisili_lama: samaKtp ? null : sp.alamat_domisili,
+      target_minat: sp.target_minat,
+      data: {
+        nama: sp.nama || '', tempat_lahir: sp.tempat_lahir || '', tl: sp.tl || '', jk: sp.jenis_kelamin || 'Laki-Laki',
+        ibu: sp.nama_ibu || '', ayah: sp.nama_ayah || '', foto_ktp_path: sp.foto_ktp_path || '',
+        jalan: sp.alamat_ktp_jalan || '', norumah: sp.alamat_ktp_no_rumah || '', rt: sp.alamat_ktp_rt || '', rw: sp.alamat_ktp_rw || '',
+        kp: sp.kode_pos || '', kel: sp.alamat_ktp_kelurahan || '', kec: sp.alamat_ktp_kecamatan || '', kota: sp.alamat_ktp_kota || '',
+        provinsi: sp.alamat_ktp_provinsi || '', negara: sp.alamat_ktp_negara || 'Indonesia',
+        sama_ktp: samaKtp,
+        pkj: sp.pekerjaan || '', pendidikan: sp.pendidikan_terakhir || '',
+        no_paspor: sp.no_paspor || '', tempat_keluar_paspor: sp.tempat_keluar_paspor || '',
+        masa_berlaku_paspor_dari: sp.masa_berlaku_paspor_dari || '', masa_berlaku_paspor_sampai: sp.masa_berlaku_paspor_sampai || '',
+        foto_paspor_path: sp.foto_paspor_path || '',
+      },
+    });
+  } catch (err) {
+    console.error('Error GET daftar-sahabat:', err);
+    return NextResponse.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
+}
+
+// PUT — kirim perbaikan data diri (dikonfirmasi user 2026-10-11). Update
+// baris pendaftaran yang SAMA (progres bukti TF/rekening/dokumen tetap),
+// kosongkan flag perbaikan biar admin bisa ACC lagi. Target impian SENGAJA
+// gak ikut diubah di sini — ganti target punya alur sendiri (harga dikunci,
+// lihat /api/sahabat/ganti-target).
+export async function PUT(req) {
+  const auth = wajibLogin(req);
+  if (auth.error) return auth.error;
+  const user_id = auth.user.id;
+  try {
+    const baris = await barisPerluPerbaikan(user_id);
+    if (!baris) {
+      return NextResponse.json({ error: 'Pendaftaran Anda tidak sedang diminta perbaikan data.' }, { status: 400 });
+    }
+    const body = await req.json();
+    const {
+      nama, tempat_lahir, tl, jk, ibu, ayah, foto_ktp_path,
+      jalan, norumah, rt, rw, kp, kel, kec, kota, provinsi, negara,
+      sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
+      pkj, pendidikan,
+      no_paspor, tempat_keluar_paspor, masa_berlaku_paspor_dari, masa_berlaku_paspor_sampai, foto_paspor_path,
+    } = body;
+
+    const [[u]] = await db.query('SELECT nik, wa FROM users WHERE id = ?', [user_id]);
+    const errDataDiri = cekDataDiri(body, u?.nik, u?.wa);
+    if (errDataDiri) return NextResponse.json({ error: errDataDiri }, { status: 400 });
+    if (!foto_ktp_path) return NextResponse.json({ error: 'Foto KTP wajib diunggah' }, { status: 400 });
+
+    const alamatKtp = formatAlamatSatuBaris({ jalan, norumah, rt, rw, kel, kec, kota, provinsi, kp, negara });
+    const alamatDomisili = sama_ktp
+      ? alamatKtp
+      : formatAlamatSatuBaris({
+          jalan: jalan_dom, norumah: norumah_dom, rt: rt_dom, rw: rw_dom,
+          kel: kel_dom, kec: kec_dom, kota: kota_dom, provinsi: provinsi_dom, negara: negara_dom,
+        });
+    const paspor = [
+      no_paspor?.trim() || null, tempat_keluar_paspor || null, masa_berlaku_paspor_dari || null,
+      masa_berlaku_paspor_sampai || null, foto_paspor_path || null,
+    ];
+
+    await db.query(
+      `UPDATE sahabat_pendaftaran SET nama = ?, tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?, nama_ayah = ?,
+              alamat = ?, alamat_ktp = ?, alamat_domisili = ?, kode_pos = ?, pekerjaan = ?, pendidikan_terakhir = ?,
+              no_paspor = ?, tempat_keluar_paspor = ?, masa_berlaku_paspor_dari = ?, masa_berlaku_paspor_sampai = ?, foto_paspor_path = ?,
+              foto_ktp_path = ?, perbaikan_diminta_at = NULL
+       WHERE id = ?`,
+      [
+        nama, tempat_lahir || null, tl || null, jk || null, ibu || null, ayah || null,
+        alamatKtp, alamatKtp, alamatDomisili, kp || null, pkj || null, pendidikan || null,
+        ...paspor, foto_ktp_path, baris.id,
+      ]
+    );
+    // Sync ke users, sama kayak POST (halaman lain baca dari users).
+    await db.query(
+      `UPDATE users SET tempat_lahir = ?, tanggal_lahir = ?,
+              jenis_kelamin = ?, nama_ibu = ?, nama_ayah = ?, alamat_ktp = ?, alamat_domisili = ?, alamat = ?, kode_pos = ?,
+              alamat_ktp_jalan = ?, alamat_ktp_no_rumah = ?, alamat_ktp_rt = ?, alamat_ktp_rw = ?,
+              alamat_ktp_kelurahan = ?, alamat_ktp_kecamatan = ?, alamat_ktp_kota = ?,
+              alamat_ktp_provinsi = ?, alamat_ktp_negara = ?,
+              pekerjaan = ?, pendidikan_terakhir = ?,
+              no_paspor = ?, tempat_keluar_paspor = ?, masa_berlaku_paspor_dari = ?, masa_berlaku_paspor_sampai = ?, foto_paspor_path = ?
+       WHERE id = ?`,
+      [
+        tempat_lahir || null, tl || null,
+        jk || null, ibu || null, ayah || null, alamatKtp, alamatDomisili, alamatDomisili || alamatKtp || null, kp || null,
+        jalan || null, norumah || null, rt || null, rw || null,
+        kel || null, kec || null, kota || null,
+        provinsi || null, negara || null,
+        pkj || null, pendidikan || null,
+        ...paspor, user_id,
+      ]
+    );
+
+    await db.query(
+      "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru) VALUES ('sahabat_baitullah', ?, 'perbaikan_dikirim')",
+      [user_id]
+    );
+    await kirimNotifikasiAdmin(db, {
+      tipe: 'sahabat_perbaikan_dikirim',
+      judul: 'Perbaikan Data Sahabat Baitullah',
+      pesan: `${nama} sudah memperbaiki data diri pendaftaran Sahabat Baitullah.`,
+      link: '/admin/sahabat',
+    }).catch(() => {});
+
+    return NextResponse.json({ success: true, message: 'Perbaikan data terkirim. Pendaftaran Anda akan ditinjau ulang admin.' });
+  } catch (err) {
+    console.error('Error PUT daftar-sahabat:', err);
     return NextResponse.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
   }
 }

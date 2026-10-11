@@ -29,6 +29,7 @@ export async function GET(request) {
          AND (
            b.form_filled < b.form_total
            OR (b.form_filled >= b.form_total AND b.dp_status = 'confirmed' AND NOT b.setuju_pks
+               AND b.perjanjian_scan_path IS NULL
                AND (p.publish_type IS NULL OR p.publish_type <> 'sahabat_baitullah'))
          )`,
       [auth.user.id, auth.user.id]

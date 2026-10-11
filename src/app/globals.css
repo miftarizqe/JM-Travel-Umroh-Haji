@@ -23,3 +23,17 @@ body {
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: #f1f1f1; }
 ::-webkit-scrollbar-thumb { background: #1A4FA0; border-radius: 2px; }
+
+/* Panah dropdown bawaan browser nempel mepet ke tepi kanan (dikeluhkan user
+   2026-10-11, form data diri). Diganti chevron sendiri yang agak masuk ke
+   dalam. SENGAJA di luar @layer: di Tailwind v4 CSS tanpa layer menang dari
+   utility, jadi padding-right ini gak ketimpa px-3/px-4 di className. */
+select:not([multiple]):not([size]) {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+  padding-right: 2.5rem;
+}

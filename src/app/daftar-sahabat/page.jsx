@@ -56,6 +56,11 @@ export default function DaftarSahabatPage() {
   const [uploadingPaspor, setUploadingPaspor] = useState(false);
   const [profil, setProfil] = useState(null);
   const [savingKirim, setSavingKirim] = useState(false);
+  // Mode perbaikan (dikonfirmasi user 2026-10-11): admin "Minta Perbaikan",
+  // form dibuka lagi dgn isian lama, cuma step Data Diri & Alamat (target
+  // punya alur ganti-target sendiri), dikirim lewat PUT /api/daftar-sahabat.
+  const [perbaikan, setPerbaikan] = useState(null);
+  const stepTerakhir = perbaikan ? 2 : 3;
 
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim();
   useUnsavedGuard(isDirty);
@@ -84,11 +89,19 @@ export default function DaftarSahabatPage() {
     // bukti TF -> rekening tabungan umroh -> CIF & blokir, lihat
     // /status-pendaftaran-sahabat) — lompat ke halaman status buat
     // lanjutin step berikutnya.
-    fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
-      if (d.prasyarat?.data_diri_terkirim) {
-        setSudahKirim(true);
-        router.push('/status-pendaftaran-sahabat');
+    // Kecuali lagi diminta perbaikan admin — form dibuka lagi dgn isian lama.
+    fetch('/api/daftar-sahabat').then(r => r.json()).then(p => {
+      if (p.perlu_perbaikan) {
+        setPerbaikan(p);
+        setForm(f => ({ ...f, ...p.data }));
+        return;
       }
+      return fetch('/api/status-pendaftaran-sahabat').then(r => r.json()).then(d => {
+        if (d.prasyarat?.data_diri_terkirim) {
+          setSudahKirim(true);
+          router.push('/status-pendaftaran-sahabat');
+        }
+      });
     }).catch(()=>{});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -165,7 +178,16 @@ export default function DaftarSahabatPage() {
     if (!validStep()) return;
     setSavingKirim(true);
     try {
-      if (!sudahKirim) {
+      if (perbaikan) {
+        const res = await fetch('/api/daftar-sahabat', {
+          method:'PUT', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify(form)
+        });
+        const d = await res.json();
+        if (!res.ok) { alert(d.error); setSavingKirim(false); return; }
+        setSudahKirim(true);
+        alert(d.message);
+      } else if (!sudahKirim) {
         const res = await fetch('/api/daftar-sahabat', {
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ ...form, perekrut_id: perekrutIdTerkirim })
@@ -189,8 +211,16 @@ export default function DaftarSahabatPage() {
       confirmMessage="Yakin ingin keluar? Data formulir yang sudah diisi akan hilang.">
       <div className="max-w-2xl mx-auto">
 
+        {perbaikan && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 mb-5">
+            <div className="font-bold text-red-700 text-sm">⚠️ Pendaftaran Anda ditolak admin dan perlu diperbaiki</div>
+            {perbaikan.catatan && <div className="text-sm text-red-700 mt-1">Alasan: {perbaikan.catatan}</div>}
+            <div className="text-xs text-gray-600 mt-2">Perbaiki data diri & alamat di bawah lalu kirim ulang. Bukti transfer, rekening, dan dokumen yang sudah ada tetap tersimpan.</div>
+          </div>
+        )}
+
         <div className="flex items-center mb-6">
-          {['Data Diri','Alamat','Target Impian'].map((l,i) => (
+          {(perbaikan ? ['Data Diri','Alamat'] : ['Data Diri','Alamat','Target Impian']).map((l,i,arr) => (
             <div key={l} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -199,7 +229,7 @@ export default function DaftarSahabatPage() {
                 </div>
                 <div className={`text-[9px] mt-1 ${i+1===step?'text-[#1A4FA0] font-bold':'text-gray-400'}`}>{l}</div>
               </div>
-              {i < 2 && <div className={`flex-1 h-0.5 mx-1 mb-4 ${i+1<step?'bg-[#C9952A]':'bg-gray-200'}`}></div>}
+              {i < arr.length - 1 && <div className={`flex-1 h-0.5 mx-1 mb-4 ${i+1<step?'bg-[#C9952A]':'bg-gray-200'}`}></div>}
             </div>
           ))}
         </div>
@@ -316,6 +346,9 @@ export default function DaftarSahabatPage() {
               </label>
               {!form.sama_ktp && (<>
                 <div className="font-bold text-[#0E2F6E] mt-2">🏠 Alamat Domisili</div>
+                {perbaikan?.alamat_domisili_lama && (
+                  <div className="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-3 py-2">Alamat domisili sebelumnya: {perbaikan.alamat_domisili_lama}</div>
+                )}
                 <AddressFields form={form} setF={setF} suffix="_dom" inp={inp} lbl={lbl}/>
               </>)}
             </div>
@@ -367,7 +400,7 @@ export default function DaftarSahabatPage() {
                 ← Kembali
               </button>
             )}
-            {step < 3 ? (
+            {step < stepTerakhir ? (
               <button onClick={()=>{ if(validStep()) setStep(step+1); }}
                 className="flex-[2] bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2.5 rounded-full text-sm">
                 Lanjut →
@@ -375,7 +408,7 @@ export default function DaftarSahabatPage() {
             ) : (
               <button onClick={lanjutKeStatus} disabled={savingKirim}
                 className="flex-[2] bg-[#C9952A] hover:bg-yellow-600 text-white font-bold py-2.5 rounded-full text-sm disabled:opacity-50">
-                {savingKirim ? 'Menyimpan...' : 'Simpan & Lanjutkan →'}
+                {savingKirim ? 'Menyimpan...' : perbaikan ? 'Kirim Perbaikan →' : 'Simpan & Lanjutkan →'}
               </button>
             )}
           </div>

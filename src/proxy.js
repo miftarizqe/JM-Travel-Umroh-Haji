@@ -19,6 +19,7 @@ const protectedRoutes = [
   '/voucher',
   '/ajukan-custom-harga',
   '/ganti-password-wajib',
+  '/perbaiki-data-akun',
 ];
 
 /**

@@ -52,7 +52,9 @@ function LoginPageInner() {
       const role = data.user.role;
       // Kalau datang dari tombol Booking (ada ?redirect=), balik ke sana
       const redirect = searchParams.get('redirect');
-      if (redirect) {
+      if (data.user.perlu_perbaikan_akun) {
+        router.push('/perbaiki-data-akun');
+      } else if (redirect) {
         router.push(redirect);
       } else router.push(dashboardPathForRole(role));
     } catch (e) {
