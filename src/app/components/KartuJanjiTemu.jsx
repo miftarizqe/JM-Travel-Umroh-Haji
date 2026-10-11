@@ -74,7 +74,12 @@ export default function KartuJanjiTemu({
                       <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${u.chip}`}>{u.label}</span>
                     </div>
                     <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500">
-                      <span className="font-mono bg-gray-100 rounded px-1.5 py-px">{it.kode_unik || '-'}</span>
+                      {/* Kode unik baru dijatah pas akun pertama kali aktif
+                          (lihat src/lib/kodeUnik.js) — yang janji temu
+                          umumnya masih proses daftar, jadi wajar kosong. */}
+                      {it.kode_unik
+                        ? <span className="font-mono bg-gray-100 rounded px-1.5 py-px">{it.kode_unik}</span>
+                        : <span className="bg-gray-100 text-gray-400 italic rounded px-1.5 py-px">Belum aktif</span>}
                       {tampilSumber && it.sumber && <span className="truncate">· {it.sumber}</span>}
                     </div>
                   </div>
