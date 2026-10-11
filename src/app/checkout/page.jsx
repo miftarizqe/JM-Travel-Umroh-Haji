@@ -6,7 +6,7 @@ import UploadBukti from '@/app/components/UploadBukti';
 import CartPaketKamar, { kamarKeyOf } from '@/app/components/CartPaketKamar';
 import SearchableSelect from '@/app/components/SearchableSelect';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
-import { useCurrentUser } from '@/lib/useCurrentUser';
+import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { trackLead } from '@/lib/analytics';
@@ -26,6 +26,13 @@ function CheckoutPageInner() {
   const progId = searchParams.get('prog_id');
 
   const [user] = useCurrentUser();
+  // Status/verifikasi akun TERKINI dari server buat gerbang di bawah — cache
+  // login di localStorage bisa basi kalau admin verifikasi sesudah login.
+  const [statusTerkini, setStatusTerkini] = useState(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    segarkanStatusUser(user).then(setStatusTerkini);
+  }, [user]);
   const [pengaturan] = usePengaturan();
   const [metodePembayaran] = useMetodePembayaran();
   const [prog, setProg] = useState(null);
@@ -307,7 +314,10 @@ function CheckoutPageInner() {
   // di server nolak hal yang sama, ini cuma UX lebih awal / jaring
   // pengaman kalau halaman ini diakses langsung lewat URL, bukan lewat
   // tombol "Daftar Program Ini Sekarang" yang udah ngeblok duluan).
-  if (!user?.terverifikasi) {
+  if (!statusTerkini) return (
+    <Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat program...</div></Layout>
+  );
+  if (!statusTerkini.terverifikasi) {
     return (
       <Layout title="🛒 Checkout" backHref="/programs">
         <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
@@ -318,7 +328,7 @@ function CheckoutPageInner() {
       </Layout>
     );
   }
-  if (['perwakilan', 'sahabat_baitullah'].includes(user?.role) && user?.status !== 'active') {
+  if (['perwakilan', 'sahabat_baitullah'].includes(user?.role) && statusTerkini.status !== 'active') {
     return (
       <Layout title="🛒 Checkout" backHref="/programs">
         <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
