@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -132,6 +132,11 @@ function flattenLeaves(children) {
 // grup yang sengaja dibuka/ditutup manual admin tetap awet dibawa lintas
 // halaman, gak "loncat-loncat".
 let sidebarOpenGroupsStore = new Set();
+// Posisi scroll <nav> sidebar — alasan sama persis kayak openGroups di atas:
+// SidebarNav ke-remount tiap pindah halaman, jadi scrollTop-nya balik ke 0
+// dan sidebar "loncat ke atas" tiap klik menu di bagian bawah. Disimpan di
+// modul biar bisa dipulihin pas mount berikutnya.
+let sidebarScrollTopStore = 0;
 
 // Badge angka merah "ada yang harus dikerjakan" (dikonfirmasi user
 // 2026-10-08) — angkanya dari /api/admin/sidebar-badges, key = item.path.
@@ -206,6 +211,13 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
     });
   }
 
+  // Pulihin scroll sebelum browser paint (useLayoutEffect, bukan useEffect)
+  // biar gak keliatan kedip ke atas dulu baru turun lagi.
+  const navRef = useRef(null);
+  useLayoutEffect(() => {
+    if (navRef.current) navRef.current.scrollTop = sidebarScrollTopStore;
+  }, []);
+
   function pergi(path) {
     guardedNavigate(() => router.push(path));
     onNavigate?.();
@@ -216,7 +228,7 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
   }`;
 
   return (
-    <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+    <nav ref={navRef} onScroll={e => { sidebarScrollTopStore = e.currentTarget.scrollTop; }} className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
       <button onClick={() => pergi(dashboardItem.path)} className={linkCls(matchTab(dashboardItem, pathname, currentTab))}>
         <span>{dashboardItem.icon}</span><span className="flex-1">{dashboardItem.label}</span>
       </button>
