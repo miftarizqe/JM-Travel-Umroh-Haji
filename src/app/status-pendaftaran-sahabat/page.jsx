@@ -49,6 +49,14 @@ export default function StatusPendaftaranSahabatPage() {
   const [rekUmrohInput, setRekUmrohInput] = useState('');
   const [namaPemilikUmrohInput, setNamaPemilikUmrohInput] = useState('');
   const [savingRekUmroh, setSavingRekUmroh] = useState(false);
+  // Rekening masih bisa diubah jamaah sendiri sebelum "Kirim Pendaftaran"
+  // (dikonfirmasi user 2026-10-11) — sebelumnya langsung kekunci sekali Simpan.
+  const [editRekUmroh, setEditRekUmroh] = useState(false);
+  // Tombol "Kirim Pendaftaran" final di bawah (migrations/219) — sebelumnya
+  // tiap langkah langsung dianggap terkirim, gak ada kesempatan cek ulang.
+  const [setujuKirim, setSetujuKirim] = useState(false);
+  const [submittingKirim, setSubmittingKirim] = useState(false);
+  const kirimRef = useRef(null);
   const [rekeningSahabat, setRekeningSahabat] = useState([]);
 
   // Preview gabungan SK-CIF + Surat Pemblokiran buat step "baca & setuju".
@@ -176,9 +184,30 @@ export default function StatusPendaftaranSahabatPage() {
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setSaving(false); return; }
+      setEditRekUmroh(false);
       muat();
     } catch { alert('Terjadi kesalahan'); }
     setSaving(false);
+  }
+
+  function bukaEditRekUmroh() {
+    setRekUmrohInput(u.no_rekening_tabungan_umroh || '');
+    setNamaPemilikUmrohInput(u.nama_pemilik_rekening_umroh || '');
+    setEditRekUmroh(true);
+  }
+
+  async function kirimPendaftaran() {
+    if (!setujuKirim) { alert('Centang konfirmasi dulu'); return; }
+    setSubmittingKirim(true);
+    try {
+      const res = await fetch('/api/sahabat/kirim-pendaftaran', { method: 'PATCH' });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setSubmittingKirim(false); return; }
+      setSetujuKirim(false); setEditRekUmroh(false); setGantiBuktiTf(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setSubmittingKirim(false);
   }
 
   async function simpanDataBlokir() {
@@ -382,6 +411,21 @@ export default function StatusPendaftaranSahabatPage() {
   const metodeTtdSelesai = u.metode_ttd_sahabat === 'kantor' || (u.metode_ttd_sahabat === 'kirim' && dokumenKetigaSelesai);
   const pengirimanSudahDiterima = prasyarat.spk_ak_selesai || prasyarat.sk_cif_selesai || prasyarat.surat_pemblokiran_selesai || prasyarat.formulir_bsi_fisik_selesai;
 
+  // "Kirim Pendaftaran" final (migrations/219) — sebelum terkirim isian di
+  // halaman ini masih draft. Sinkron sama /api/sahabat/kirim-pendaftaran.
+  const sudahDiajukan = !!pendaftaran.diajukan_at;
+  const statusAkhir = pendaftaran.status === 'active' || pendaftaran.status === 'ditolak';
+  const syaratKirimKurang = [
+    !prasyarat.spk_ak_disetujui && 'Surat Perjanjian Jamaah Sahabat Baitullah',
+    !prasyarat.bukti_tf_verified && 'Bukti transfer',
+    !prasyarat.rekening_umroh_terisi && 'Rekening Tabungan Umroh',
+    !prasyarat.setuju_sk_cif_pemblokiran && 'Baca & Setuju SK-CIF & Surat Kuasa Blokir Rekening',
+    !u.metode_ttd_sahabat && 'Metode TTD',
+    pendaftaran.perbaikan_diminta_at && 'Perbaikan data diri sesuai catatan admin',
+  ].filter(Boolean);
+  // Sama kayak guard bolehTimpa di /api/sahabat/rekening-bsi.
+  const bisaUbahRekening = !sudahDiajukan && !statusAkhir && !u.dokumen_fisik_dikirim_at && !pengirimanSudahDiterima;
+
   // Isi Surat Perjanjian Jamaah Sahabat Baitullah (SPK-AK) — bisa dibuka
   // lagi (read-only) setelah disetujui (dikonfirmasi user 2026-10-09, samain
   // pola isiSuratGabungan di bawah). Gak ada nomor surat buat ditampilin di
@@ -442,6 +486,61 @@ export default function StatusPendaftaranSahabatPage() {
               className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-full transition-colors cursor-pointer">
               Perbaiki Data Diri →
             </button>
+          </div>
+        )}
+
+        {/* Kartu status DIPINDAH ke paling atas (dikonfirmasi user
+            2026-10-11) — jamaah yang lagi nunggu ACC gak perlu scroll
+            ke bawah cuma buat ngecek udah di-approve apa belum.
+            Style beda sengaja dari Item abu-abu "belum selesai" di bawah
+            (dikonfirmasi tim desain 2026-09-29) — status INI justru bagus,
+            jadi tampilannya reassuring/hangat. Judul & isi dibedakan
+            berdasar konfirmasi admin dokumen fisik sudah diterima di kantor
+            (dikonfirmasi user 2026-10-03). */}
+        {pendaftaran.status === 'active' && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+            <div className="text-2xl mb-1">🎉</div>
+            <div className="font-bold text-green-700">Anda sudah jadi Jamaah Sahabat Baitullah aktif!</div>
+            <div className="text-xs text-green-600 mt-1">Voucher Rp1.000.000, Program Eksklusif, dan Materi Presentasi sudah kebuka.</div>
+            <button onClick={() => router.push('/dashboard/sahabat')} className="mt-2 bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full hover:bg-[#0E2F6E] transition-colors cursor-pointer">
+              Buka Dashboard →
+            </button>
+          </div>
+        )}
+
+        {sudahDiajukan && !statusAkhir && !pendaftaran.perbaikan_diminta_at && (
+          <div className="bg-[#E8F0FB] border border-[#c9d9f0] rounded-xl p-4 text-center">
+            <div className="text-3xl mb-1">🙌</div>
+            {metodeTtdSelesai ? (
+              <>
+                <div className="font-bold text-[#0E2F6E]">Seluruh Persyaratan Telah Lengkap</div>
+                <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
+                  {u.metode_ttd_sahabat === 'kantor'
+                    ? `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan setelah Anda TTD ${u.bantuan_bsi_manual_disetujui_at ? 'keempat dokumen' : 'ketiga dokumen'} langsung di kantor pada tanggal yang dipilih.`
+                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran${u.bantuan_bsi_manual_disetujui_at ? ', Formulir Pendaftaran Rekening BSI' : ''}) yang Anda kirim sudah diterima & dikonfirmasi oleh kantor JM Travel.`}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="font-bold text-[#0E2F6E]">Persyaratan Utama Telah Lengkap</div>
+                <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
+                  Pendaftaran Anda sudah terkirim dan sedang ditinjau admin. Agar proses aktivasi akun dapat diselesaikan, pastikan Anda sudah mengirim dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran) yang sudah ditandatangani di atas materai asli ke kantor JM Travel — akun akan diaktifkan setelah kantor mengonfirmasi dokumen tersebut diterima.
+                </div>
+              </>
+            )}
+            <div className="text-[10px] text-[#1A4FA0]/70 mt-2">
+              Dikirim {new Date(pendaftaran.diajukan_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </div>
+          </div>
+        )}
+
+        {/* Semua langkah udah keisi tapi belum dikirim — kasih tau di atas
+            biar gak dikira udah otomatis masuk ke admin. */}
+        {!sudahDiajukan && !statusAkhir && !syaratKirimKurang.length && (
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-xl p-3 flex items-center justify-between gap-3">
+            <div className="text-xs text-amber-800"><b>Belum dikirim.</b> Periksa kembali data Anda, lalu klik &quot;Kirim Pendaftaran&quot; di bagian bawah.</div>
+            <button onClick={() => kirimRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+              className="shrink-0 text-xs font-bold text-white bg-amber-600 px-3 py-1.5 rounded-full hover:bg-amber-700 transition-colors cursor-pointer">Ke Bawah ↓</button>
           </div>
         )}
 
@@ -513,7 +612,7 @@ export default function StatusPendaftaranSahabatPage() {
             <div className="space-y-2">
               <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer"
                 className="text-xs font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">📎 Lihat Bukti Transfer</a>
-              {metodeTtdSelesai ? (
+              {metodeTtdSelesai || sudahDiajukan ? (
                 <div className="text-[10px] text-gray-400">
                   Salah unggah? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengganti bukti transfer pendaftaran Sahabat Baitullah saya.')}
                     target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk menggantinya.
@@ -536,20 +635,54 @@ export default function StatusPendaftaranSahabatPage() {
         <Item done={prasyarat.rekening_umroh_terisi} label="Rekening Tabungan Umroh">
           {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Bayar pendaftaran (bukti transfer) dulu di atas.</div>}
           {prasyarat.bukti_tf_verified && (
-            prasyarat.rekening_umroh_terisi ? (
+            prasyarat.rekening_umroh_terisi && editRekUmroh && bisaUbahRekening ? (
+              <div className="space-y-2">
+                <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
+                  onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Nomor rekening tabungan umroh"
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+                <input value={namaPemilikUmrohInput} maxLength={255}
+                  onChange={e => setNamaPemilikUmrohInput(e.target.value)}
+                  placeholder="Nama pemilik rekening (sesuai buku tabungan)"
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+                {u.bantuan_bsi_manual_disetujui_at && (
+                  <div className="text-[10px] text-gray-400">Dengan mengisi nomor rekening sendiri, permintaan bantuan pembuatan rekening manual dibatalkan.</div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={() => setEditRekUmroh(false)}
+                    className="text-xs font-bold text-gray-500 bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer">Batal</button>
+                  <button onClick={() => simpanRekening('no_rekening_tabungan_umroh', rekUmrohInput, setSavingRekUmroh, namaPemilikUmrohInput)} disabled={savingRekUmroh}
+                    className="flex-1 bg-[#1A4FA0] text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
+                    {savingRekUmroh ? 'Menyimpan...' : 'Simpan Perubahan'}
+                  </button>
+                </div>
+              </div>
+            ) : prasyarat.rekening_umroh_terisi ? (
               u.no_rekening_tabungan_umroh ? (
                 <div className="space-y-1">
                   <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
-                  {/* Koreksi rekening cuma lewat admin (FIELD_ADMIN_ONLY di
-                      /api/profil) — nomornya ikut tercetak di SK-CIF & Surat
-                      Pemblokiran, jadi perubahannya perlu dicek admin. */}
-                  <div className="text-[10px] text-gray-400">
-                    Salah nomor/nama? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening Tabungan Umroh saya.')}
-                      target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk mengoreksi.
-                  </div>
+                  {/* Sebelum "Kirim Pendaftaran" jamaah boleh ubah sendiri
+                      (dikonfirmasi user 2026-10-11). Setelahnya koreksi cuma
+                      lewat admin (FIELD_ADMIN_ONLY di /api/profil) — nomornya
+                      ikut tercetak di SK-CIF & Surat Pemblokiran. */}
+                  {bisaUbahRekening ? (
+                    <button onClick={bukaEditRekUmroh}
+                      className="text-[10px] font-bold text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">✏️ Ubah nomor/nama rekening</button>
+                  ) : (
+                    <div className="text-[10px] text-gray-400">
+                      Salah nomor/nama? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening Tabungan Umroh saya.')}
+                        target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk mengoreksi.
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="text-xs text-amber-600">⏳ Menunggu pembuatan rekening manual oleh BSI — admin JM Travel akan infokan begitu selesai.</div>
+                <div className="space-y-1">
+                  <div className="text-xs text-amber-600">⏳ Menunggu pembuatan rekening manual oleh BSI — admin JM Travel akan infokan begitu selesai.</div>
+                  {bisaUbahRekening && (
+                    <button onClick={bukaEditRekUmroh}
+                      className="text-[10px] font-bold text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">Ternyata berhasil buka rekening sendiri? Isi nomornya di sini</button>
+                  )}
+                </div>
               )
             ) : sudahPunyaRekeningBsi === null ? (
               <div className="space-y-2">
@@ -995,49 +1128,66 @@ export default function StatusPendaftaranSahabatPage() {
         </Item>
         </div>
 
-        <div className="no-print space-y-3">
-        {/* Style beda sengaja dari Item abu-abu "belum selesai" di atas
-            (dikonfirmasi tim desain 2026-09-29) — status INI justru bagus
-            (semua langkah udah kelar dari sisi jamaah), jadi tampilannya
-            dibikin reassuring/hangat, bukan kesan "kaku nunggu doang".
-            Judul & isi DIBEDAKAN tergantung status (dulu berdasar unggah
-            scan jamaah, SEKARANG berdasar konfirmasi admin dokumen fisik
-            sudah diterima di kantor — dikonfirmasi user 2026-10-03, scan
-            sudah dicabut dari sisi jamaah). */}
-        {prasyarat.setuju_sk_cif_pemblokiran && u.metode_ttd_sahabat && pendaftaran.status !== 'active' && (
-          <div className="bg-[#E8F0FB] border border-[#c9d9f0] rounded-xl p-4 text-center">
-            <div className="text-3xl mb-1">🙌</div>
-            {metodeTtdSelesai ? (
-              <>
-                <div className="font-bold text-[#0E2F6E]">Seluruh Persyaratan Telah Lengkap</div>
-                <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
-                  {u.metode_ttd_sahabat === 'kantor'
-                    ? `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan setelah Anda TTD ${u.bantuan_bsi_manual_disetujui_at ? 'keempat dokumen' : 'ketiga dokumen'} langsung di kantor pada tanggal yang dipilih.`
-                    : `Data Anda sedang ditinjau oleh admin dan akun akan segera diaktifkan. Dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran${u.bantuan_bsi_manual_disetujui_at ? ', Formulir Pendaftaran Rekening BSI' : ''}) yang Anda kirim sudah diterima & dikonfirmasi oleh kantor JM Travel.`}
-                </div>
-              </>
+        {/* Tombol submit SELURUH form (dikonfirmasi user 2026-10-11) —
+            isian di atas masih draft (rekening bisa diubah, bukti TF bisa
+            diganti) sampai jamaah cek ringkasan ini & klik kirim. Baru
+            setelahnya masuk antrian ACC admin (lihat migrations/219). */}
+        {!sudahDiajukan && !statusAkhir && (
+          <div ref={kirimRef} className="no-print bg-white border-2 border-[#1A4FA0]/30 rounded-xl p-4 space-y-3">
+            <div>
+              <div className="font-bold text-[#0E2F6E] text-sm">📨 Periksa & Kirim Pendaftaran</div>
+              <div className="text-xs text-gray-500 mt-0.5">Data di atas belum dikirim ke admin. Pastikan semuanya sudah benar sebelum mengirim — setelah dikirim, perubahan hanya bisa lewat admin.</div>
+            </div>
+
+            {syaratKirimKurang.length > 0 ? (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-600">
+                <div className="font-bold mb-1">Lengkapi dulu:</div>
+                <ul className="list-disc pl-4 space-y-0.5">
+                  {syaratKirimKurang.map(k => <li key={k}>{k}</li>)}
+                </ul>
+              </div>
             ) : (
               <>
-                <div className="font-bold text-[#0E2F6E]">Persyaratan Utama Telah Lengkap</div>
-                <div className="text-xs text-[#1A4FA0] mt-1.5 leading-relaxed">
-                  Data Anda sudah dapat ditinjau oleh admin. Agar proses aktivasi akun dapat diselesaikan, pastikan Anda sudah mengirim dokumen fisik asli (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran) yang sudah ditandatangani di atas materai asli ke kantor JM Travel — akun akan diaktifkan setelah kantor mengonfirmasi dokumen tersebut diterima.
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-xs text-gray-600 space-y-1.5">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-400">Bukti transfer</span>
+                    <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">Lihat file</a>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-400 shrink-0">Rekening Tabungan Umroh</span>
+                    <span className="font-bold text-right">
+                      {u.no_rekening_tabungan_umroh
+                        ? <>{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <span className="font-normal"> a.n. {u.nama_pemilik_rekening_umroh}</span>}</>
+                        : 'Dibantu buka manual oleh JM Travel'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-400">Nominal blokir</span>
+                    <span className="font-bold">Rp {Number(u.nominal_blokir_tabungan || 0).toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-gray-400 shrink-0">Metode TTD</span>
+                    <span className="font-bold text-right">
+                      {u.metode_ttd_sahabat === 'kantor'
+                        ? `Datang ke Head Office (${new Date(u.rencana_kunjungan_kantor_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })})`
+                        : 'Cetak & Kirim Sendiri'}
+                    </span>
+                  </div>
                 </div>
+                <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={setujuKirim} onChange={e => setSetujuKirim(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#1A4FA0] shrink-0" />
+                  Saya sudah memeriksa dan memastikan seluruh data di atas sudah benar.
+                </label>
               </>
             )}
-          </div>
-        )}
 
-        {pendaftaran.status === 'active' && (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-            <div className="text-2xl mb-1">🎉</div>
-            <div className="font-bold text-green-700">Anda sudah jadi Jamaah Sahabat Baitullah aktif!</div>
-            <div className="text-xs text-green-600 mt-1">Voucher Rp1.000.000, Program Eksklusif, dan Materi Presentasi sudah kebuka.</div>
-            <button onClick={() => router.push('/dashboard/sahabat')} className="mt-2 bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full hover:bg-[#0E2F6E] transition-colors cursor-pointer">
-              Buka Dashboard →
+            <button onClick={kirimPendaftaran} disabled={submittingKirim || syaratKirimKurang.length > 0 || !setujuKirim}
+              className="w-full bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full text-sm disabled:opacity-40 enabled:hover:bg-[#0E2F6E] transition-colors cursor-pointer disabled:cursor-not-allowed">
+              {submittingKirim ? 'Mengirim...' : '📨 Kirim Pendaftaran'}
             </button>
           </div>
         )}
-        </div>
       </div>
 
       {/* Halaman ini gabungan checklist + surat cetak SK-CIF/Surat Pemblokiran

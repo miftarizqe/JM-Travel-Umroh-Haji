@@ -1,8 +1,10 @@
 import { randomUUID } from 'crypto';
+import bcrypt from 'bcryptjs';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
+import { saldoSahabat } from '@/lib/saldoSahabat';
 
 // POST /api/bookings/batch
 // Keranjang multi-item dari checkout/order-jamaah: tiap item (kombinasi
@@ -20,6 +22,14 @@ import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/vouche
 // Kuota di-consume SEKALI di akhir sebesar total jamaah itu — apapun jumlah
 // item di keranjang — supaya orang nggak bisa ngakalin kuota terbatas dengan
 // mecah pesanan jadi banyak item kecil-kecil.
+//
+// `bayar_dp_dari_saldo` (khusus akun Sahabat Baitullah, program reguler) —
+// total DP keranjang dibayar dari saldo tabungan umroh, LANGSUNG kepotong
+// begitu submit (hold `pemakaian_saldo_sahabat` per booking, pola sama
+// checkout-mandiri), gak nunggu admin ACC — biar Sahabat langsung tau sisa
+// saldonya (dikonfirmasi user 2026-10-11). Gak ada kode unik / bukti TF.
+// ACC admin (DP di tab Payments ATAU baris saldo di tab komisi) cuma
+// nandain resmi, saling sinkron — lihat konfirmasiDpDariSaldoSahabat.
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -29,13 +39,41 @@ export async function POST(request) {
     const me = await cekPemesanBolehOrder(conn, auth.user.id);
 
     const body = await request.json();
-    const { items, kode_unik_dp, voucher_kode, ...bersama } = body;
+    const { items, voucher_kode, bayar_dp_dari_saldo, password, ...bersama } = body;
+    let { kode_unik_dp } = body;
+    const bayarDariSaldo = !!bayar_dp_dari_saldo;
+    if (bayarDariSaldo && auth.user.role !== 'sahabat_baitullah') {
+      return Response.json({ error: 'Bayar DP dari saldo khusus akun Sahabat Baitullah' }, { status: 403 });
+    }
+    if (bayarDariSaldo) {
+      // Wajib konfirmasi password akun sebelum saldo dipotong (dikonfirmasi
+      // user 2026-10-11) — jaga-jaga sesi yang ketinggalan login di device
+      // orang lain. Trim sama kayak /api/auth/login.
+      if (!password) {
+        return Response.json({ error: 'Masukkan password akun Anda untuk konfirmasi pembayaran dari saldo.' }, { status: 400 });
+      }
+      const [[u]] = await conn.query('SELECT password FROM users WHERE id = ?', [auth.user.id]);
+      if (!u || !(await bcrypt.compare(String(password).trim(), u.password))) {
+        return Response.json({ error: 'Password salah.' }, { status: 401 });
+      }
+      kode_unik_dp = 0;
+      bersama.bukti_path = null;
+      bersama.bukti_nama = null;
+    }
 
     if (!Array.isArray(items) || items.length === 0) {
       return Response.json({ error: 'Keranjang kosong' }, { status: 400 });
     }
 
     await conn.beginTransaction();
+
+    // Kunci baris user SEBELUM baca saldo — pasangan lock yang sama di
+    // checkout-mandiri & admin komisi confirm/unconfirm (anti race 2 tab).
+    let saldoTersedia = 0;
+    if (bayarDariSaldo) {
+      await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [auth.user.id]);
+      saldoTersedia = await saldoSahabat(conn, auth.user.id);
+    }
 
     const totalJamaah = items.reduce((s, it) => s + Number(it.jumlah_jamaah || 0), 0);
 
@@ -79,6 +117,24 @@ export async function POST(request) {
       });
     }
 
+    let saldoDipakai = 0;
+    if (bayarDariSaldo) {
+      saldoDipakai = bookings.reduce((s, b) => s + b.dp_amount, 0);
+      if (saldoTersedia < saldoDipakai) {
+        throw Object.assign(new Error(
+          `Saldo tabungan umroh Anda belum cukup untuk DP (tersedia Rp${saldoTersedia.toLocaleString('id-ID')} dari Rp${saldoDipakai.toLocaleString('id-ID')}). Bayar DP via transfer.`
+        ), { status: 400 });
+      }
+      for (const b of bookings) {
+        if (b.dp_amount <= 0) continue;
+        await conn.query(
+          `INSERT INTO komisi_ledger (booking_id, penerima_id, penerima_nama, jenis, nominal, keterangan)
+           VALUES (?, ?, ?, 'pemakaian_saldo_sahabat', ?, ?)`,
+          [b.booking_id, auth.user.id, auth.user.name, -b.dp_amount, `Pemakaian saldo tabungan untuk DP booking ${prog.name}`]
+        );
+      }
+    }
+
     if (voucher) {
       await pakaiVoucher(conn, voucher.kode, totalJamaah);
     }
@@ -90,6 +146,7 @@ export async function POST(request) {
       bookings,
       total_dp: bookings.reduce((s, b) => s + b.dp_amount, 0),
       voucher_diskon_total: bookings.reduce((s, b) => s + b.voucher_nominal, 0),
+      ...(bayarDariSaldo ? { saldo_dipakai: saldoDipakai, saldo_sisa: saldoTersedia - saldoDipakai } : {}),
     }, { status: 201 });
 
   } catch (error) {

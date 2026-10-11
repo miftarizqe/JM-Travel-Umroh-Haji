@@ -184,7 +184,9 @@ export async function PATCH(request) {
       if (p.status === 'active' || p.status === 'ditolak') {
         return Response.json({ error: 'Pendaftaran ini sudah aktif/ditolak.' }, { status: 400 });
       }
-      await pool.query('UPDATE sahabat_pendaftaran SET perbaikan_diminta_at = NOW(), catatan_admin = ? WHERE id = ?', [catatan, p.id]);
+      // diajukan_at ikut dikosongkan — isian di /status-pendaftaran-sahabat
+      // kebuka lagi buat diubah jamaah & perlu "Kirim Pendaftaran" ulang.
+      await pool.query('UPDATE sahabat_pendaftaran SET perbaikan_diminta_at = NOW(), diajukan_at = NULL, catatan_admin = ? WHERE id = ?', [catatan, p.id]);
       await pool.query(
         "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, 'perlu_perbaikan', ?)",
         [user_id, catatan]
@@ -342,6 +344,11 @@ export async function PATCH(request) {
       }
       if (p.perbaikan_diminta_at) {
         return Response.json({ error: 'Masih menunggu jamaah memperbaiki data pendaftarannya.' }, { status: 400 });
+      }
+      // Tombol "Kirim Pendaftaran" final (lihat /api/sahabat/kirim-pendaftaran)
+      // — sebelum itu isian jamaah masih draft.
+      if (status_baru === 'active' && !p.diajukan_at) {
+        return Response.json({ error: 'Jamaah belum mengirim pendaftarannya (masih draft).' }, { status: 400 });
       }
       if (tujuanIdx !== skrgIdx + 1) {
         return Response.json({ error: `Tidak boleh melompat step. Selesaikan "${STEP_PENDAFTARAN_SAHABAT[skrgIdx + 1]?.label}" dulu.` }, { status: 400 });
