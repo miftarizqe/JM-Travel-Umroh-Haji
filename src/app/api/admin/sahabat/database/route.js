@@ -106,10 +106,18 @@ export async function GET(request) {
        LEFT JOIN users perekrut ON perekrut.id = kp.perekrut_id
        LEFT JOIN programs tp ON tp.id = kp.program_id
        LEFT JOIN (
+         -- 'pemakaian_saldo_sahabat' (hold checkout-mandiri) DIANGGAP SELALU
+         -- "confirmed" di sini, APAPUN dikonfirmasi_at-nya (dikonfirmasi user
+         -- 2026-10-11, samain persis logic saldoSahabat() di
+         -- lib/saldoSahabat.js) -- sebelumnya query ini filter
+         -- dikonfirmasi_at doang, jadi hold checkout yang belum di-ACC admin
+         -- gak kesubtract dari saldo_tabungan_umroh yang ditampilkan ke
+         -- admin, keliatan kayak "saldo gak kepotong" padahal backend-nya
+         -- sendiri udah bener motong buat nyegah dipakai checkout lain.
          SELECT penerima_id,
-                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NOT NULL THEN nominal ELSE 0 END), 0) AS saldo_tabungan_umroh,
+                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NOT NULL OR jenis = 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_tabungan_umroh,
                 MAX(CASE WHEN dikonfirmasi_at IS NOT NULL THEN dikonfirmasi_at END) AS saldo_updated_at,
-                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NULL THEN nominal ELSE 0 END), 0) AS saldo_pending
+                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NULL AND jenis != 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_pending
          FROM komisi_ledger WHERE jenis IN (${JENIS_SALDO})
          GROUP BY penerima_id
        ) sl ON sl.penerima_id = kp.user_id

@@ -89,6 +89,15 @@ function CheckoutPageInner() {
   const [loading, setLoading] = useState(false);
   const [bookingIds, setBookingIds] = useState([]);
   const [timer, setTimer] = useState(3599);
+  // Konsen eksplisit pemotongan saldo (dikonfirmasi user 2026-10-11) —
+  // checkout-mandiri motong saldo tabungan LANGSUNG begitu submit (lihat
+  // lib/saldoSahabat.js), bukan sekadar "niat" — jadi butuh centang
+  // persetujuan dulu, sama pola kayak checkbox "Saya setuju identitas saya
+  // diserahkan ke Bank BSI" di status-pendaftaran-sahabat. Dasar hukumnya
+  // SK-CIF & Surat Pemblokiran yang sudah ditandatangani pas jadi anggota
+  // (otorisasi UMUM), checkbox ini otorisasi SPESIFIK buat nominal & booking
+  // ini doang.
+  const [setujuPotongSaldo, setSetujuPotongSaldo] = useState(false);
 
   // Checkout mandiri Program Sahabat Baitullah (Jamaah Sahabat Baitullah
   // checkout buat DIRI SENDIRI) — alur beda total dari checkout biasa: gak
@@ -242,6 +251,7 @@ function CheckoutPageInner() {
   const kuranganMandiri = Math.max(0, totalMandiri - saldoTersediaMandiri);
 
   async function submitMandiri() {
+    if (!setujuPotongSaldo) { alert('Centang dulu persetujuan pemotongan saldo di atas.'); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/sahabat/checkout-mandiri', {
@@ -531,6 +541,15 @@ function CheckoutPageInner() {
                     ))}
                     <div className="text-xs text-gray-400 pt-1">Untuk pelunasan Program Umroh ini — Anda tidak perlu transfer apa pun, admin yang memprosesnya begitu pemakaian saldo dikonfirmasi.</div>
                   </div>
+                  <label className="flex items-start gap-2 bg-gray-50 rounded-xl p-3 cursor-pointer">
+                    <input type="checkbox" checked={setujuPotongSaldo} onChange={e => setSetujuPotongSaldo(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
+                    <span className="text-xs text-gray-600">
+                      Saya setuju saldo tabungan umroh saya sebesar <b>Rp {saldoDipakaiMandiri.toLocaleString('id-ID')}</b> dipotong
+                      &amp; ditransfer ke rekening JM Travel untuk pembayaran program ini, sesuai Surat Kuasa Kerjasama Multi CIF
+                      &amp; Surat Pernyataan Kuasa Blokir Rekening yang telah saya setujui.
+                    </span>
+                  </label>
                 </>
               ) : (
                 <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-2">
@@ -547,13 +566,13 @@ function CheckoutPageInner() {
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => setStep(1)}
+                <button onClick={() => { setStep(1); setSetujuPotongSaldo(false); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                   ← Kembali
                 </button>
-                <button onClick={submitMandiri} disabled={loading || !saldoCukupMandiri}
+                <button onClick={submitMandiri} disabled={loading || !saldoCukupMandiri || !setujuPotongSaldo}
                   className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? 'Memproses...' : saldoCukupMandiri ? 'Selesaikan Pendaftaran' : 'Saldo Belum Cukup'}
+                  {loading ? 'Memproses...' : !saldoCukupMandiri ? 'Saldo Belum Cukup' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : 'Selesaikan Pendaftaran'}
                 </button>
               </div>
             </div>
