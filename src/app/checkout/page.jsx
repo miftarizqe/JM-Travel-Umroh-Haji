@@ -284,6 +284,7 @@ function CheckoutPageInner() {
 
   async function submitMandiri() {
     if (!setujuPotongSaldo) { alert('Centang dulu persetujuan pemotongan saldo di atas.'); return; }
+    if (!passwordDpSaldo) { alert('Masukkan password akun Anda untuk konfirmasi.'); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/sahabat/checkout-mandiri', {
@@ -294,11 +295,13 @@ function CheckoutPageInner() {
           paket: paketMandiri, kamar: kamarMandiri,
           nama: namaMandiri, wa: waMandiri, jk: jkMandiri, alamat: alamatMandiri,
           voucher_kode: voucherMandiri?.kode || null,
+          password: passwordDpSaldo,
         })
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error); setLoading(false); return; }
       setHasilMandiri(data);
+      setPasswordDpSaldo('');
       setBookingIds([data.booking_id]);
       setStep(3);
     } catch (e) {
@@ -589,6 +592,13 @@ function CheckoutPageInner() {
                       &amp; Surat Pernyataan Kuasa Blokir Rekening yang telah saya setujui.
                     </span>
                   </label>
+                  <div className="bg-white border-2 border-gray-200 rounded-xl p-3 space-y-1">
+                    <label className="block text-xs font-semibold text-[#0E2F6E]">🔒 Konfirmasi Password Akun *</label>
+                    <input type="password" value={passwordDpSaldo} onChange={e => setPasswordDpSaldo(e.target.value)}
+                      autoComplete="current-password" placeholder="Masukkan password akun Anda"
+                      className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
+                    <div className="text-[10px] text-gray-400">Demi keamanan, pemotongan saldo wajib dikonfirmasi dengan password akun.</div>
+                  </div>
                 </>
               ) : (
                 <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-2">
@@ -605,13 +615,13 @@ function CheckoutPageInner() {
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => { setStep(1); setSetujuPotongSaldo(false); }}
+                <button onClick={() => { setStep(1); setSetujuPotongSaldo(false); setPasswordDpSaldo(''); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                   ← Kembali
                 </button>
-                <button onClick={submitMandiri} disabled={loading || !saldoCukupMandiri || !setujuPotongSaldo}
+                <button onClick={submitMandiri} disabled={loading || !saldoCukupMandiri || !setujuPotongSaldo || !passwordDpSaldo}
                   className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? 'Memproses...' : !saldoCukupMandiri ? 'Saldo Belum Cukup' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : 'Selesaikan Pendaftaran'}
+                  {loading ? 'Memproses...' : !saldoCukupMandiri ? 'Saldo Belum Cukup' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : !passwordDpSaldo ? 'Masukkan password dulu' : 'Selesaikan Pendaftaran'}
                 </button>
               </div>
             </div>
