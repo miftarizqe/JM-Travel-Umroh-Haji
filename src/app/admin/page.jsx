@@ -1019,7 +1019,7 @@ function AdminPageInner() {
                       // user 2026-10-09) — sumber ditampilkan karena di admin
                       // gabungan Sahabat + Perwakilan.
                       if (c.key === 'janji_temu_kantor') return (
-                        <KartuJanjiTemu key={c.key} items={c.items} judul={c.label} tampilSumber
+                        <KartuJanjiTemu key={c.key} items={c.items} judul={c.label} tampilSumber className={c.items.length ? 'md:col-span-2' : ''}
                           terbuka={isOpen} onToggle={() => setExpandCluster(isOpen ? null : c.key)}
                           onItemClick={() => router.push('/admin/janji-temu-kantor')}
                           onTindakLanjut={() => router.push('/admin/janji-temu-kantor')} />
