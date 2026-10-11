@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
@@ -29,7 +30,17 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, opsi_tambahan_ids } = body;
+    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, opsi_tambahan_ids, password } = body;
+
+    // Wajib konfirmasi password akun sebelum saldo dipotong (dikonfirmasi
+    // user 2026-10-11) — sama kayak bayar DP dari saldo di /api/bookings/batch.
+    if (!password) {
+      return Response.json({ error: 'Masukkan password akun Anda untuk konfirmasi pembayaran dari saldo.' }, { status: 400 });
+    }
+    const [[pw]] = await pool.query('SELECT password FROM users WHERE id = ?', [auth.user.id]);
+    if (!pw || !(await bcrypt.compare(String(password).trim(), pw.password))) {
+      return Response.json({ error: 'Password salah.' }, { status: 401 });
+    }
 
     const [progs] = await pool.query('SELECT * FROM programs WHERE id = ?', [prog_id]);
     const prog = progs[0];
@@ -73,6 +84,18 @@ export async function POST(request) {
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
+
+      // Kunci baris user ini SEBELUM baca saldo (dikonfirmasi user
+      // 2026-10-11) — tanpa ini, 2 checkout bersamaan (double-klik, 2 tab,
+      // atau race sama admin yang lagi unconfirm baris komisi di saat yang
+      // sama) bisa dua-duanya baca saldo SEBELUM salah satu sempat insert
+      // hold-nya, dua-duanya lolos cek "cukup", saldo jadi oversubscribe.
+      // FOR UPDATE nahan transaksi LAIN yang juga coba ngunci baris user
+      // yang sama (lihat lock sejenis di
+      // /api/admin/sahabat/komisi/[id]/route.js) sampai transaksi ini
+      // commit/rollback — gak berpengaruh ke user LAIN, cuma serialize
+      // operasi-operasi yang sama-sama nyentuh saldo akun ini.
+      await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [auth.user.id]);
 
       // Saldo tersedia — pakai fungsi pusat saldoSahabat() (dipakai sama di
       // /api/sahabat/dashboard, dll) biar gak ada lagi query duplikat yang

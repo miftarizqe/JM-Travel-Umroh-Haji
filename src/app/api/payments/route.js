@@ -4,6 +4,7 @@ import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib/invoiceKwitansi';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
+import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
 import { catatRekening } from '@/lib/rekeningLedger';
 
 // GET — payments (admin/booking), termasuk bukti transfer
@@ -195,8 +196,12 @@ export async function PATCH(request) {
       // sekali — perilaku di bawah SAMA PERSIS kayak sebelumnya, zero regresi.
       let punyaDebitSaldo = false;
       if (payment.type === 'lunas') {
+        // Cuma program eksklusif — hold saldo di program REGULER itu bayar DP
+        // (bayar_dp_dari_saldo di /api/bookings/batch), pelunasannya tetap
+        // alur transfer biasa.
         const [[debit]] = await pool.query(
-          "SELECT id FROM komisi_ledger WHERE booking_id = ? AND jenis = 'pemakaian_saldo_sahabat'",
+          `SELECT kl.id FROM komisi_ledger kl JOIN bookings b ON b.id = kl.booking_id JOIN programs p ON p.id = b.prog_id
+           WHERE kl.booking_id = ? AND kl.jenis = 'pemakaian_saldo_sahabat' AND p.publish_type = 'sahabat_baitullah'`,
           [payment.booking_id]
         );
         punyaDebitSaldo = !!debit;
@@ -204,6 +209,16 @@ export async function PATCH(request) {
 
       if (payment.type === 'dp') {
         await pool.query("UPDATE bookings SET dp_status = 'confirmed' WHERE id = ?", [payment.booking_id]);
+        // DP reguler yang dibayar dari saldo Sahabat — hold saldonya ikut
+        // ditandai confirmed (saldo SUDAH kepotong dari detik checkout, ini
+        // cuma status resmi) biar gak perlu ACC dua kali di tab komisi.
+        await pool.query(
+          `UPDATE komisi_ledger kl JOIN bookings b ON b.id = kl.booking_id JOIN programs p ON p.id = b.prog_id
+           SET kl.dikonfirmasi_at = NOW()
+           WHERE kl.booking_id = ? AND kl.jenis = 'pemakaian_saldo_sahabat' AND kl.dikonfirmasi_at IS NULL
+             AND p.publish_type != 'sahabat_baitullah'`,
+          [payment.booking_id]
+        );
       } else if (payment.type === 'lunas' && !punyaDebitSaldo) {
         await pool.query("UPDATE bookings SET pelunasan_status = 'paid' WHERE id = ?", [payment.booking_id]);
       }
@@ -285,6 +300,12 @@ export async function PATCH(request) {
       );
       if (payment.type === 'lunas') {
         await pool.query("UPDATE bookings SET pelunasan_status = 'unpaid' WHERE id = ?", [payment.booking_id]);
+      }
+      // DP dari saldo Sahabat ditolak — balikin saldonya (hapus hold yang
+      // belum di-ACC), sama kayak booking dibatalkan.
+      if (payment.type === 'dp' && booking) {
+        const [[pr]] = await pool.query('SELECT publish_type FROM programs WHERE id = ?', [booking.prog_id]);
+        if (pr?.publish_type !== 'sahabat_baitullah') await lepasHoldSaldoSahabat(pool, payment.booking_id);
       }
 
       for (const uid of penerimaNotif) {

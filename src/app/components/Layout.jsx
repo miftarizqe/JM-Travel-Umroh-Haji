@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import { useCurrentUser } from '@/lib/useCurrentUser';
@@ -132,6 +132,11 @@ function flattenLeaves(children) {
 // grup yang sengaja dibuka/ditutup manual admin tetap awet dibawa lintas
 // halaman, gak "loncat-loncat".
 let sidebarOpenGroupsStore = new Set();
+// Posisi scroll <nav> sidebar — alasan sama persis kayak openGroups di atas:
+// SidebarNav ke-remount tiap pindah halaman, jadi scrollTop-nya balik ke 0
+// dan sidebar "loncat ke atas" tiap klik menu di bagian bawah. Disimpan di
+// modul biar bisa dipulihin pas mount berikutnya.
+let sidebarScrollTopStore = 0;
 
 // Badge angka merah "ada yang harus dikerjakan" (dikonfirmasi user
 // 2026-10-08) — angkanya dari /api/admin/sidebar-badges, key = item.path.
@@ -206,6 +211,13 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
     });
   }
 
+  // Pulihin scroll sebelum browser paint (useLayoutEffect, bukan useEffect)
+  // biar gak keliatan kedip ke atas dulu baru turun lagi.
+  const navRef = useRef(null);
+  useLayoutEffect(() => {
+    if (navRef.current) navRef.current.scrollTop = sidebarScrollTopStore;
+  }, []);
+
   function pergi(path) {
     guardedNavigate(() => router.push(path));
     onNavigate?.();
@@ -216,7 +228,7 @@ function SidebarNav({ dashboardItem, groups, pathname, guardedNavigate, onNaviga
   }`;
 
   return (
-    <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+    <nav ref={navRef} onScroll={e => { sidebarScrollTopStore = e.currentTarget.scrollTop; }} className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
       <button onClick={() => pergi(dashboardItem.path)} className={linkCls(matchTab(dashboardItem, pathname, currentTab))}>
         <span>{dashboardItem.icon}</span><span className="flex-1">{dashboardItem.label}</span>
       </button>
@@ -797,6 +809,13 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
 
       {/* MAIN CONTENT */}
       <main className="max-w-7xl mx-auto px-4 py-4 md:px-8 pb-24 md:pb-8">
+        {/* Admin "Minta Perbaikan" di Verifikasi Akun (2026-10-11) — flag
+            dari login, dikosongkan /perbaiki-data-akun begitu terkirim. */}
+        {user?.perlu_perbaikan_akun && pathname !== '/perbaiki-data-akun' && (
+          <a href="/perbaiki-data-akun" className="block mb-4 bg-red-50 border-2 border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 hover:bg-red-100 transition-colors">
+            ⚠️ Verifikasi akun Anda ditolak admin. <span className="font-bold underline">Perbaiki data akun →</span>
+          </a>
+        )}
         {children}
       </main>
 

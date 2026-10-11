@@ -95,6 +95,7 @@ export async function GET(request) {
       `SELECT COUNT(*) AS n FROM sahabat_pendaftaran kp
        JOIN users u ON u.id = kp.user_id
        WHERE kp.status = 'menunggu_sk_cif' AND u.setuju_pks
+         AND kp.diajukan_at IS NOT NULL AND kp.perbaikan_diminta_at IS NULL
          AND kp.bukti_tf_verified_at IS NOT NULL
          AND (NULLIF(u.no_rekening_tabungan_umroh, '') IS NOT NULL OR u.bantuan_bsi_manual_disetujui_at IS NOT NULL)
          AND u.setuju_sk_cif_pemblokiran_at IS NOT NULL`)),

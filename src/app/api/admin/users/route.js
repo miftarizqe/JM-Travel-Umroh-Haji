@@ -20,6 +20,7 @@ export async function GET(req) {
       SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status,
              u.wilayah, u.points, u.tabungan_bsi, u.perekrut_id, p.name AS perekrut_nama,
              u.reg_status, u.reg_metode, u.reg_jadwal, u.terverifikasi, u.created_at,
+             u.perbaikan_akun_diminta_at, u.perbaikan_akun_catatan,
              ap.id AS pendaftaran_id, ap.status AS pendaftaran_status,
              ap.metode AS pendaftaran_metode
       FROM users u
@@ -144,7 +145,7 @@ export async function PATCH(req) {
         if (target.terverifikasi) {
           return NextResponse.json({ error: 'Akun sudah terverifikasi' }, { status: 400 });
         }
-        await db.query('UPDATE users SET terverifikasi = 1 WHERE id = ?', [user_id]);
+        await db.query('UPDATE users SET terverifikasi = 1, perbaikan_akun_diminta_at = NULL, perbaikan_akun_catatan = NULL WHERE id = ?', [user_id]);
 
         await kirimNotifikasi(db, {
           user_id: target.id,
@@ -163,6 +164,42 @@ export async function PATCH(req) {
         });
 
         return NextResponse.json({ message: 'Akun berhasil diverifikasi.' });
+      }
+
+      // Tolak tapi user TETAP bisa login & diminta isi ulang form
+      // registrasinya (dikonfirmasi user 2026-10-11) — beda dari
+      // 'tolak_verifikasi' di bawah yang ngeblok login permanen (buat akun
+      // spam/palsu). User kirim perbaikan lewat /perbaiki-data-akun, flag
+      // dikosongkan & akun balik ke antrian "Menunggu Verifikasi Akun".
+      case 'minta_perbaikan_akun': {
+        if (target.terverifikasi) {
+          return NextResponse.json({ error: 'Akun sudah terverifikasi' }, { status: 400 });
+        }
+        if (!reject_reason?.trim()) {
+          return NextResponse.json({ error: 'Alasan / data yang perlu diperbaiki wajib diisi' }, { status: 400 });
+        }
+        await db.query(
+          'UPDATE users SET perbaikan_akun_diminta_at = NOW(), perbaikan_akun_catatan = ? WHERE id = ?',
+          [reject_reason.trim(), user_id]
+        );
+
+        await kirimNotifikasi(db, {
+          user_id: target.id,
+          tipe: 'akun_perlu_perbaikan',
+          judul: 'Data Akun Perlu Diperbaiki',
+          pesan: `Verifikasi akun Anda ditolak. Alasan: ${reject_reason.trim()}. Silakan perbaiki data akun Anda.`,
+          link: '/perbaiki-data-akun',
+        });
+
+        await catatAudit(db, {
+          actor: auth.user,
+          aksi: 'minta_perbaikan_akun',
+          target_type: 'user',
+          target_id: target.id,
+          keterangan: `${target.name} (${roleLabel}): ${reject_reason.trim()}`,
+        });
+
+        return NextResponse.json({ message: 'User diminta memperbaiki data akunnya.' });
       }
 
       case 'tolak_verifikasi': {

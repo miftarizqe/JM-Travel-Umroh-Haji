@@ -128,7 +128,16 @@ function semuaHargaSamaCek(prog) {
 // notifikasi in-app begitu admin approve pembatalan & seat-nya beneran
 // kebuka (lihat api/pembatalan PATCH).
 
-export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, onChangeCurrent, extra, onSummaryChange, referralPerwId }) {
+// `dataDiriSendiri` ({ nama, wa, jk, alamat }) opsional — kalau dikirim
+// (akun Sahabat Baitullah), Data Jamaah nampilin 2 opsi: "Diri Sendiri"
+// (jamaah #1 auto-isi dari profil akun) atau "Orang Lain" (isi manual).
+//
+// `perjanjian` ({ dibaca, render(checkbox) }) opsional — kalau dikirim (akun
+// Sahabat Baitullah), tombol "+ Tambahkan ke Pesanan" diganti checkbox
+// persetujuan Surat Perjanjian: centang = item masuk pesanan & ringkasan
+// muncul, uncentang = item keluar lagi & ringkasan disembunyikan. Mode ini
+// cuma 1 item, form dikunci selama tercentang biar sama dengan isi pesanan.
+export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, onChangeCurrent, extra, onSummaryChange, referralPerwId, dataDiriSendiri, perjanjian }) {
   const [opsiTambahanList] = useOpsiTambahan(prog?.id);
   const kamarKey = kamarKeyOf(current.kamar);
   // current.paket/kamar tetap kepakai apa adanya (default dari halaman
@@ -242,6 +251,8 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     setVoucherChecking(false);
   }
 
+  const terkunciPerjanjian = !!perjanjian && cart.length > 0;
+
   function tambahkan() {
     if (current.jumlah < 1) return;
     if (current.paket === 'custom') {
@@ -255,6 +266,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
       alert('Harga paket ini belum tersedia. Pilih akomodasi lain atau hubungi admin.');
       return;
     }
+    if (dataDiriSendiri && !current.untukDiri) { alert('Pilih dulu: checkout untuk Diri Sendiri atau Orang Lain!'); return; }
     const namas = resizeNamas(current.namas, current.jumlah).map(n => n.trim());
     if (namas.some(n => !n)) { alert('Isi nama lengkap semua jamaah dulu!'); return; }
     const jks = resizeNamas(current.jks, current.jumlah);
@@ -263,6 +275,8 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     const alamats = resizeNamas(current.alamats, current.jumlah).map(a => a.trim());
     if (alamats.some(a => !a)) { alert('Isi alamat kirim perlengkapan semua jamaah dulu!'); return; }
     onAdd({ ...current, namas, was, jks, alamats });
+    // Mode perjanjian: form tetap nampilin isi item (dikunci), gak di-reset.
+    if (perjanjian) return;
     onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', customHotel: current.paket === 'custom' ? {} : null, namas: [''], was: [''], jks: [''], alamats: [''], opsiTambahan: [] });
   }
 
@@ -283,8 +297,9 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
 
   return (
     <div className="space-y-5">
-      {sisaSeat <= 0 ? <WaitlistCTA progId={prog?.id} /> : (
+      {sisaSeat <= 0 && !terkunciPerjanjian ? <WaitlistCTA progId={prog?.id} /> : (
       <>
+      <div className={terkunciPerjanjian ? 'space-y-5 pointer-events-none opacity-60 select-none' : 'space-y-5'}>
       {/* Harga seragam (mis. paket Hotel Mix/custom) — gak ada bedanya
           apapun akomodasi/tipe kamar yang dipilih, jadi selector-nya
           disembunyiin (cuma bikin bingung, keliatan ada pilihan padahal
@@ -428,6 +443,47 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         </div>
       </div>
 
+      {/* Opsi Diri Sendiri / Orang Lain — cuma buat akun Sahabat Baitullah.
+          Diri Sendiri: jamaah #1 auto-isi dari profil (sisanya, kalau
+          jumlah > 1, tetap manual). Orang Lain: semua isi manual. */}
+      {dataDiriSendiri && (
+        <div>
+          <div className="font-bold text-[#0E2F6E] mb-3">Checkout Untuk</div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { key: 'sendiri', label: '🙋 Diri Sendiri', desc: 'Data otomatis dari profil Anda' },
+              { key: 'lain', label: '👥 Orang Lain', desc: 'Isi data jamaah manual' },
+            ].map(o => (
+              <div key={o.key}
+                onClick={() => {
+                  if (current.untukDiri === o.key) return;
+                  const namas = resizeNamas(current.namas, current.jumlah);
+                  const was = resizeNamas(current.was, current.jumlah);
+                  const jks = resizeNamas(current.jks, current.jumlah);
+                  const alamats = resizeNamas(current.alamats, current.jumlah);
+                  if (o.key === 'sendiri') {
+                    namas[0] = dataDiriSendiri.nama || '';
+                    was[0] = dataDiriSendiri.wa || '';
+                    jks[0] = dataDiriSendiri.jk || '';
+                    alamats[0] = dataDiriSendiri.alamat || '';
+                  } else if (current.untukDiri === 'sendiri') {
+                    // Pindah dari Diri Sendiri — kosongkan jamaah #1 yang tadi
+                    // ke-isi otomatis biar gak kebawa jadi data orang lain.
+                    namas[0] = ''; was[0] = ''; jks[0] = ''; alamats[0] = '';
+                  }
+                  onChangeCurrent({ ...current, untukDiri: o.key, namas, was, jks, alamats });
+                }}
+                className={`rounded-xl p-3 border-2 cursor-pointer ${
+                  current.untukDiri === o.key ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
+                }`}>
+                <div className="text-sm font-semibold text-[#0E2F6E]">{o.label}</div>
+                <div className="text-[10px] text-gray-400 mt-0.5">{o.desc}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Nama jamaah — wajib per orang, langsung sesuai jumlah di atas.
           Nama ini nanti otomatis ngisi field "Nama" di formulir jamaah
           (tinggal lengkapi sisa field lainnya), bukan cuma label kartu.
@@ -436,9 +492,15 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
           status (DP dikonfirmasi, dst) ke jamaah tsb sama sekali. */}
       <div>
         <div className="font-bold text-[#0E2F6E] mb-3">Data Jamaah</div>
+        {dataDiriSendiri && !current.untukDiri ? (
+          <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">Pilih dulu checkout untuk Diri Sendiri atau Orang Lain di atas.</div>
+        ) : (<>
         <div className="space-y-3">
           {Array.from({ length: current.jumlah }).map((_, i) => (
             <div key={i} className="space-y-2 pb-3 border-b border-gray-100 last:border-0 last:pb-0">
+              {i === 0 && current.untukDiri === 'sendiri' && (
+                <div className="text-[10px] font-semibold text-[#C9952A]">🙋 Jamaah #1 — Anda (otomatis dari profil, bisa disesuaikan)</div>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input
                   value={current.namas?.[i] || ''}
@@ -488,6 +550,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         <div className="text-[10px] text-gray-400 mt-1">
           Wajib nama lengkap, jenis kelamin & alamat kirim perlengkapan — dipakai buat rencanakan kamar (non-mahram gak sekamar), kirim perlengkapan (koper/ihrom/mukena), & otomatis mengisi formulir jamaah nanti (alamat ini bisa diubah lagi di formulir kalau perlu). No. WA opsional, tapi isi kalau jamaah tidak bikin akun sendiri — dipakai admin buat kirim info status via WhatsApp.
         </div>
+        </>)}
       </div>
 
       {/* Opsi Tambahan — opsional, harga per jamaah (dikali jumlah di atas),
@@ -519,17 +582,31 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
       )}
 
       {extra}
+      </div>
 
+      {perjanjian ? perjanjian.render(
+        <label className={`flex items-start gap-2 text-xs ${perjanjian.dibaca ? 'text-gray-700 cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}>
+          <input type="checkbox" checked={terkunciPerjanjian} disabled={!perjanjian.dibaca}
+            onChange={e => { if (e.target.checked) tambahkan(); else cart.forEach(() => onRemove(0)); }}
+            className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
+          <span>
+            Saya sudah membaca dan menyetujui Surat Perjanjian Jamaah Umroh di atas, dan data pesanan di atas sudah benar.
+            {!perjanjian.dibaca && <span className="block text-[10px] text-amber-600 mt-0.5">Scroll isi perjanjian sampai bawah dulu.</span>}
+            {terkunciPerjanjian && <span className="block text-[10px] text-gray-400 mt-0.5">Hapus centang untuk mengubah paket / data jamaah.</span>}
+          </span>
+        </label>
+      ) : (
       <button onClick={tambahkan} disabled={sisaSeat < 1}
         className="w-full border-2 border-dashed border-[#1A4FA0] text-[#1A4FA0] font-bold py-3 rounded-full hover:bg-[#E8F0FB] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
         + Tambahkan ke Pesanan
       </button>
+      )}
       </>
       )}
 
       {/* Daftar item di keranjang — TETAP kelihatan walau seat abis, siapa
           tau udah ada item ke-add dari sebelum kehabisan. */}
-      {cart.length > 0 && (
+      {cart.length > 0 && !perjanjian && (
         <div>
           <div className="font-bold text-[#0E2F6E] mb-2">🛒 Pesanan Anda ({cart.length})</div>
           <div className="space-y-2">

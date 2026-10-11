@@ -34,6 +34,11 @@ const FIELD_UMUM = ['alamat_domisili', 'bank', 'no_rekening', 'nama_pemilik_reke
 const FIELD_SAHABAT = ['no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 
 // GET /api/profil?user_id=xxx — ambil data user TERKINI dari DB
+// tempat_lahir/tanggal_lahir/nama_ayah/pekerjaan/pendidikan_terakhir/paspor
+// detail ditambah (dikonfirmasi user 2026-10-11) — field-field ini udah
+// diisi Sahabat Baitullah sekali pas /daftar-sahabat (ke-sync ke users),
+// dipakai form-jamaah buat prefill biar gak ketik ulang pas isi formulir
+// booking-nya sendiri (lihat src/app/form-jamaah/page.jsx).
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -54,7 +59,9 @@ export async function GET(request) {
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
               u.kode_invite_perwakilan, u.tabungan_haji_status, u.agama,
-              u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_surat_pemblokiran_fisik_path, u.terverifikasi
+              u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_surat_pemblokiran_fisik_path, u.terverifikasi,
+              u.tempat_lahir, u.tanggal_lahir, u.nama_ayah, u.pekerjaan, u.pendidikan_terakhir,
+              u.tempat_keluar_paspor, u.masa_berlaku_paspor_dari, u.masa_berlaku_paspor_sampai
        FROM users u
        LEFT JOIN users p ON p.id = u.perekrut_id
        LEFT JOIN users rp ON rp.id = u.perekrut_perwakilan_jamaah_id

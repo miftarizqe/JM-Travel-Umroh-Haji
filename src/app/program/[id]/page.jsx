@@ -4,7 +4,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
 import { tangkapRefPerwakilan } from '@/lib/referralCapture';
-import { useCurrentUser } from '@/lib/useCurrentUser';
+import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { renderPasalBlock } from '@/lib/pasalMarkup';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
@@ -123,7 +123,7 @@ export default function ProgramDetailPage() {
     setSubmittingGanti(false);
   }
 
-  function handleBooking() {
+  async function handleBooking() {
     // Wajib login dulu. Kalau belum login -> ke login, lalu balik ke checkout program ini.
     let user = null;
     try { user = JSON.parse(localStorage.getItem('user') || 'null'); } catch { user = null; }
@@ -138,6 +138,9 @@ export default function ProgramDetailPage() {
     // sebelum checkout dimulai, bukan lebih awal (nge-block browsing) atau
     // lebih telat (biarin isi form dulu baru gagal pas submit akhir —
     // server di cekPemesanBolehOrder nolak hal sama, ini cuma UX lebih awal).
+    // Status diambil TERKINI dari server, bukan cache login — akun yang
+    // baru diverifikasi admin sesudah login sebelumnya tetap keblokir.
+    user = await segarkanStatusUser(user);
     if (!user.terverifikasi) {
       alert('Akun Anda masih menunggu verifikasi admin. Anda belum bisa melakukan pendaftaran program.');
       return;

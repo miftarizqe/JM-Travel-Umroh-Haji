@@ -17,6 +17,11 @@ const FIELD_KE_STATUS = {
 // `nama_pemilik` cuma wajib buat no_rekening_tabungan_umroh (dikonfirmasi
 // user 2026-10-03) — rekening umrohnya kadang bukan atas nama sahabat
 // sendiri, jadi butuh field terpisah; disimpan ke nama_pemilik_rekening_umroh.
+//
+// PENGECUALIAN no_rekening_tabungan_umroh (dikonfirmasi user 2026-10-11):
+// selama jamaah BELUM klik "Kirim Pendaftaran" (sahabat_pendaftaran.diajukan_at,
+// lihat migrations/219) & dokumen fisik belum dikirim/diterima, boleh ditimpa
+// sendiri — sebelumnya langsung kekunci begitu "Simpan" sekali.
 export async function PATCH(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -35,17 +40,36 @@ export async function PATCH(request) {
       return Response.json({ error: 'Nama pemilik rekening wajib diisi' }, { status: 400 });
     }
 
-    const [[user]] = await pool.query(`SELECT role, ${field} AS nilai_sekarang FROM users WHERE id = ?`, [auth.user.id]);
+    const [[user]] = await pool.query(
+      `SELECT role, ${field} AS nilai_sekarang, bantuan_bsi_manual_disetujui_at, formulir_bsi_disubmit_at,
+              dokumen_fisik_dikirim_at, dokumen_spk_ak_fisik_diterima_at, dokumen_cif_fisik_diterima_at,
+              dokumen_pemblokiran_fisik_diterima_at, dokumen_formulir_bsi_fisik_diterima_at
+       FROM users WHERE id = ?`, [auth.user.id]
+    );
     if (!user) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
     if (user.role !== 'sahabat_baitullah') return Response.json({ error: 'Hanya berlaku untuk akun sahabat' }, { status: 400 });
-    if (user.nilai_sekarang) {
-      return Response.json({ error: 'Nomor rekening ini sudah diisi sebelumnya. Ubah lewat halaman Profil kalau perlu koreksi.' }, { status: 400 });
+
+    let bolehTimpa = false;
+    if (butuhNamaPemilik) {
+      const [[p]] = await pool.query(
+        'SELECT status, diajukan_at FROM sahabat_pendaftaran WHERE user_id = ? ORDER BY id DESC LIMIT 1', [auth.user.id]
+      );
+      const dokumenFisikJalan = user.dokumen_fisik_dikirim_at || user.dokumen_spk_ak_fisik_diterima_at || user.dokumen_cif_fisik_diterima_at
+        || user.dokumen_pemblokiran_fisik_diterima_at || user.dokumen_formulir_bsi_fisik_diterima_at;
+      bolehTimpa = !!p && !p.diajukan_at && p.status !== 'active' && p.status !== 'ditolak' && !dokumenFisikJalan;
+    }
+    if (user.nilai_sekarang && !bolehTimpa) {
+      return Response.json({ error: 'Nomor rekening ini sudah dikunci. Hubungi admin JM Travel kalau perlu koreksi.' }, { status: 400 });
     }
 
     if (butuhNamaPemilik) {
+      // Udah punya rekening sendiri -> bantuan BSI manual gak perlu lagi,
+      // selama formulirnya belum disubmit admin ke bank.
+      const batalkanBantuan = bolehTimpa && user.bantuan_bsi_manual_disetujui_at && !user.formulir_bsi_disubmit_at;
       await pool.query(
         `UPDATE users SET ${field} = ?, nama_pemilik_rekening_umroh = ?, ${meta.statusKolom} = 1, ${meta.waktuKolom} = NOW()
-         WHERE id = ? AND ${field} IS NULL`,
+                ${batalkanBantuan ? ', bantuan_bsi_manual_disetujui_at = NULL' : ''}
+         WHERE id = ? ${bolehTimpa ? '' : `AND ${field} IS NULL`}`,
         [nilai, namaPemilikNilai, auth.user.id]
       );
     } else {

@@ -70,3 +70,28 @@ export function useMounted() {
   useEffect(() => { setMounted(true); }, []);
   return mounted;
 }
+
+// Ambil status & verifikasi akun TERKINI dari server, lalu segarkan cache
+// localStorage. Cache `user` cuma diisi pas login, jadi akun yang baru
+// di-verifikasi/ACC admin sesudah login tetap kebaca "belum diverifikasi"
+// sampai logout-login ulang (bug ditemukan 2026-10-11) — dipakai di gerbang
+// "Daftar Program" & checkout biar gak nyangkut di nilai lama.
+// /api/profil gak ngirim kolom mentah terverifikasi, cuma status_akun.
+// Gagal fetch -> balikin user dari cache apa adanya.
+export async function segarkanStatusUser(user) {
+  if (!user?.id) return user;
+  try {
+    const res = await fetch(`/api/profil?user_id=${user.id}`);
+    const d = await res.json();
+    if (!res.ok || !d.user) return user;
+    const updated = {
+      ...user,
+      status: d.user.status,
+      terverifikasi: d.user.status_akun !== 'belum_diverifikasi',
+    };
+    try { localStorage.setItem('user', JSON.stringify(updated)); } catch {}
+    return updated;
+  } catch {
+    return user;
+  }
+}

@@ -88,6 +88,13 @@ export async function POST(request) {
       points: user.points,
       tabungan_bsi: user.tabungan_bsi,
       wajib_ganti_password: !!user.wajib_ganti_password,
+      // Dipakai gerbang "Daftar Program" & checkout di client — sebelumnya
+      // gak ikut dikirim, jadi user.terverifikasi selalu undefined dan
+      // akun yang udah diverifikasi admin tetap keblokir (bug 2026-10-11).
+      terverifikasi: !!user.terverifikasi,
+      // Admin "Minta Perbaikan" di Verifikasi Akun — login diarahkan ke
+      // /perbaiki-data-akun & Layout nampilin banner (2026-10-11).
+      perlu_perbaikan_akun: !!user.perbaikan_akun_diminta_at && !user.terverifikasi,
     };
 
     // Cookie di-set oleh SERVER dengan httpOnly:

@@ -138,7 +138,16 @@ export async function GET(request) {
        WHERE kl.penerima_id = ? AND kl.jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat')`,
       [sahabatId]
     );
-    const confirmedRows = komisi.filter(k => k.dikonfirmasi_at);
+    // 'pemakaian_saldo_sahabat' (hold checkout-mandiri) DIANGGAP SELALU
+    // "confirmed" di sini, APAPUN dikonfirmasi_at-nya (dikonfirmasi user
+    // 2026-10-11, samain persis logic saldoSahabat() di lib/saldoSahabat.js
+    // -- sebelumnya kolom ini nge-filter dikonfirmasi_at doang, jadi hold
+    // checkout yang BELUM di-ACC admin gak kesubtract dari angka yang
+    // ditampilkan ke jamaah/admin, keliatan kayak "saldo gak kepotong"
+    // padahal backend-nya sendiri udah bener motong buat nyegah dipakai
+    // checkout lain. ACC admin nanti CUMA nandain "resmi lunas", BUKAN yang
+    // motong saldonya -- potongannya udah kejadian dari detik checkout submit.
+    const confirmedRows = komisi.filter(k => k.dikonfirmasi_at || k.jenis === 'pemakaian_saldo_sahabat');
     const saldoTabunganUmroh = confirmedRows.reduce((s, k) => s + Number(k.nominal || 0), 0);
     const saldoUpdatedAt = confirmedRows.length > 0
       ? confirmedRows.reduce((max, k) => (!max || k.dikonfirmasi_at > max) ? k.dikonfirmasi_at : max, null)
@@ -149,8 +158,11 @@ export async function GET(request) {
     // ditransfer manual ke BSI & di-acc). BUKAN proyeksi rekrutan yang masih
     // dalam funnel — begitu admin confirm, baris ini otomatis pindah masuk
     // hitungan saldoTabunganUmroh di atas (sama sumber data, beda filter
-    // dikonfirmasi_at aja).
-    const pendingRows = komisi.filter(k => !k.dikonfirmasi_at);
+    // dikonfirmasi_at aja). 'pemakaian_saldo_sahabat' DIKECUALIKAN dari sini
+    // (bukan cuma dari pendingDetail di bawah) -- itu udah masuk
+    // confirmedRows di atas, jangan sampai kehitung dobel/ngaco jadi
+    // "pending" padahal udah kepotong.
+    const pendingRows = komisi.filter(k => !k.dikonfirmasi_at && k.jenis !== 'pemakaian_saldo_sahabat');
     const saldoPending = pendingRows.reduce((s, k) => s + Number(k.nominal || 0), 0);
 
     // Detail per-baris saldo pending (dikonfirmasi user 2026-10-08) --
@@ -160,9 +172,7 @@ export async function GET(request) {
     // Forecast sebagai kategori terpisah "Menunggu Konfirmasi Admin" --
     // ini BEDA dari calon_ujroh/closing_jamaah (yang proyeksi, belum
     // beneran kejadian): baris ini udah BENERAN tercatat di ledger, cuma
-    // belum di-acc admin. 'pemakaian_saldo_sahabat' DIBUANG dari list ini
-    // -- itu pengeluaran/hold (nominal negatif), bukan pemasukan yang
-    // "ditunggu", udah kepotong duluan dari saldo lewat saldoSahabat().
+    // belum di-acc admin.
     // Jangan percaya mentah-mentah teks parentetis "(...)" yang udah
     // kesimpen di keterangan -- itu snapshot lama, bisa aja format-nya
     // ketinggalan jaman (mis. nunjukin "No. Akun" kosong padahal
@@ -174,7 +184,6 @@ export async function GET(request) {
       return k.kode_unik_pendaftar ? `${prefix} (Kode: ${k.kode_unik_pendaftar})` : prefix;
     }
     const pendingDetail = pendingRows
-      .filter(k => k.jenis !== 'pemakaian_saldo_sahabat')
       .map(k => ({ id: k.id, jenis: k.jenis, keterangan: keteranganBersih(k), nominal: Number(k.nominal || 0), created_at: k.created_at }))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     const pendingDetailTotal = pendingDetail.reduce((s, k) => s + k.nominal, 0);

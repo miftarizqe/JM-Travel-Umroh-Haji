@@ -67,7 +67,7 @@ function labelItemCluster(key, it) {
     : key==='perlengkapan' ? `${it.nama} — ${it.prog_name} (${it.status.replace('_',' ')})`
     : key==='kalkulator_lead' ? (it.tipe === 'custom' ? `${it.user_nama||'User'} — 🎨 Custom: ${(it.catatan_custom||'').slice(0,60)}` : `${it.user_nama||'User'} — ${it.template_nama} (${rp(it.harga_jual)})`)
     : key==='ttu_belum_dikirim' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id||'-'} (${rp(it.nominal)})`
-    : key==='perjanjian_belum_selesai' ? `${it.nama||'User'} — ${it.prog_name||it.id} (${!it.setuju_pks ? 'belum setuju' : it.sig_metode==='fisik' ? 'menunggu scan fisik' : 'TTD digital belum selesai'})`
+    : key==='perjanjian_belum_selesai' ? `${it.nama||'User'} — ${it.prog_name||it.id} (${it.sig_metode==='digital' ? 'TTD digital belum selesai' : 'menunggu unggah scan fisik'})`
     : key==='penyesuaian_harga_pending' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.harga_lama)} → ${rp(it.harga_baru)})`
     : key==='refund_belum_ditransfer' ? `${it.nama||'User'} — ${it.prog_name||it.booking_id} (${rp(it.refund_nominal)})`
     : key==='kalkulator_perwakilan_pending' ? `${it.perwakilan_nama||'Perwakilan'} — ${it.nama_quote||it.template_nama} (${rp(it.harga_jual_perwakilan)})`
@@ -589,8 +589,17 @@ function AdminPageInner() {
     await patchUser(u.id, 'verifikasi_akun');
   }
 
+  // Tolak tapi user tetap bisa login & isi ulang form registrasinya
+  // (dikonfirmasi user 2026-10-11) — alasannya dikirim ke notifikasi user.
+  async function mintaPerbaikanAkun(u) {
+    const alasan = prompt(`Minta ${u.name} memperbaiki data akunnya? User tetap bisa login & isi ulang form.\n\nData apa yang salah / perlu diperbaiki? (wajib):`);
+    if (alasan === null) return;
+    if (!alasan.trim()) { alert('Alasan wajib diisi supaya user tahu apa yang harus diperbaiki.'); return; }
+    await patchUser(u.id, 'minta_perbaikan_akun', { reject_reason: alasan.trim() });
+  }
+
   async function tolakVerifikasi(u) {
-    const alasan = prompt(`Tolak verifikasi akun ${u.name}? Akun tidak akan bisa login lagi.\n\nAlasan (opsional):`);
+    const alasan = prompt(`TOLAK PERMANEN akun ${u.name}? Akun tidak akan bisa login lagi (untuk akun spam/palsu).\n\nAlasan (opsional):`);
     if (alasan === null) return;
     await patchUser(u.id, 'tolak_verifikasi', { reject_reason: alasan.trim() || undefined });
   }
@@ -1019,7 +1028,7 @@ function AdminPageInner() {
                       // user 2026-10-09) — sumber ditampilkan karena di admin
                       // gabungan Sahabat + Perwakilan.
                       if (c.key === 'janji_temu_kantor') return (
-                        <KartuJanjiTemu key={c.key} items={c.items} judul={c.label} tampilSumber
+                        <KartuJanjiTemu key={c.key} items={c.items} judul={c.label} tampilSumber className={c.items.length ? 'md:col-span-2' : ''}
                           terbuka={isOpen} onToggle={() => setExpandCluster(isOpen ? null : c.key)}
                           onItemClick={() => router.push('/admin/janji-temu-kantor')}
                           onTindakLanjut={() => router.push('/admin/janji-temu-kantor')} />
@@ -1654,7 +1663,12 @@ function AdminPageInner() {
                       {belumVerifikasi.map((u,i) => (
                         <tr key={u.id} onClick={() => openUserDetail(u)}
                           className={`cursor-pointer hover:bg-amber-50 ${i%2===0?'bg-white':'bg-gray-50'}`}>
-                          <td className="px-4 py-3 font-semibold text-[#0E2F6E]">{u.name}</td>
+                          <td className="px-4 py-3 font-semibold text-[#0E2F6E]">
+                            {u.name}
+                            {u.perbaikan_akun_diminta_at && (
+                              <div className="text-[10px] font-normal text-amber-700 mt-0.5">↺ Menunggu perbaikan user{u.perbaikan_akun_catatan ? ` — ${u.perbaikan_akun_catatan}` : ''}</div>
+                            )}
+                          </td>
                           <td className="px-4 py-3 text-gray-500">{roleLabelV[u.role] || u.role}</td>
                           <td className="px-4 py-3 text-gray-500">{u.email||'-'}<div className="text-[10px]">{u.wa||''}</div></td>
                           <td className="px-4 py-3 text-gray-500">{u.nik||'-'}</td>
@@ -1662,7 +1676,10 @@ function AdminPageInner() {
                           <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             <div className="flex gap-2">
                               <button onClick={() => verifikasiAkun(u)} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">✅ Verifikasi</button>
-                              <button onClick={() => tolakVerifikasi(u)} className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">❌ Tolak</button>
+                              {!u.perbaikan_akun_diminta_at && (
+                                <button onClick={() => mintaPerbaikanAkun(u)} className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">↺ Minta Perbaiki</button>
+                              )}
+                              <button onClick={() => tolakVerifikasi(u)} className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">⛔ Tolak Permanen</button>
                             </div>
                           </td>
                         </tr>

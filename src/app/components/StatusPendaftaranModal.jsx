@@ -18,7 +18,7 @@ const LABEL = {
   },
   sahabat: {
     pending: 'Upload Bukti Transfer', menunggu_bsi: 'Menunggu Akun BSI & Tabungan Haji',
-    menunggu_sk_cif: 'Menunggu SK-CIF', active: 'Jamaah Sahabat Baitullah Aktif', ditolak: 'Pendaftaran Ditolak',
+    menunggu_sk_cif: 'Menunggu SK-CIF', diajukan: 'Pendaftaran Dikirim ke Admin', perlu_perbaikan: 'Diminta Perbaikan Data', active: 'Jamaah Sahabat Baitullah Aktif', ditolak: 'Pendaftaran Ditolak',
   },
 };
 const ENDPOINT = { perwakilan: '/api/status-pendaftaran', sahabat: '/api/status-pendaftaran-sahabat' };

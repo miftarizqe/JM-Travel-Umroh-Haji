@@ -110,7 +110,7 @@ function PelunasanPageInner() {
   // "Lanjut Pelunasan" sampai Perjanjian Jamaah beneran selesai (materai +
   // TTD, digital atau fisik), bukan cuma centang setuju. Gate ini jaga-jaga
   // kalau halaman ini diakses langsung lewat URL.
-  const perjanjianBelumSelesai = !booking.setuju_pks || !(booking.perjanjian_scan_path || booking.perjanjian_sig?.fase === 'selesai');
+  const perjanjianBelumSelesai = !(booking.perjanjian_scan_path || booking.perjanjian_sig?.fase === 'selesai');
   const adaPenyesuaianPending = !!booking.penyesuaian_pending;
 
   return (

@@ -402,6 +402,20 @@ export default function DatabaseJamaahPage() {
     setBusy(false);
   }
 
+  // Tolak tapi jamaah tetap bisa login & isi ulang data diri (dikonfirmasi
+  // user 2026-10-11); "Tolak Permanen" ngeblok login (akun spam/palsu).
+  function mintaPerbaikan(j) {
+    const catatan = prompt(`Minta ${j.nama} memperbaiki data pendaftarannya? Jamaah tetap bisa login & progresnya tidak hilang.\n\nData apa yang salah / perlu diperbaiki? (wajib):`);
+    if (catatan === null) return;
+    if (!catatan.trim()) { alert('Alasan wajib diisi supaya jamaah tahu apa yang harus diperbaiki.'); return; }
+    aksi({ action: 'minta_perbaikan', user_id: j.user_id, catatan_admin: catatan.trim() });
+  }
+  function tolakPermanen(j) {
+    const catatan = prompt(`TOLAK PERMANEN pendaftaran ${j.nama}? Akun tidak akan bisa login lagi (untuk akun spam/palsu).\n\nAlasan (opsional):`);
+    if (catatan === null) return;
+    aksi({ action: 'reject', user_id: j.user_id, catatan_admin: catatan.trim() || undefined });
+  }
+
   async function approveVoucher(voucherId) {
     setBusy(true);
     try {
@@ -1191,24 +1205,35 @@ export default function DatabaseJamaahPage() {
                     </div>
                     )}
 
+                    {j.perbaikan_diminta_at && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                        ↺ Menunggu jamaah memperbaiki data{j.catatan_admin ? ` — ${j.catatan_admin}` : ''}
+                      </div>
+                    )}
                     {!isHop && (
-                      <div className="flex gap-2 pt-1">
+                      <div className="flex flex-wrap gap-2 pt-1">
                         {j.status === 'menunggu_bsi' && (
                           <button disabled={busy} onClick={() => aksi({ action: 'advance', user_id: j.user_id, status_baru: 'menunggu_sk_cif' })}
                             className="flex-1 bg-[#1A4FA0] text-white font-bold py-2 rounded-full disabled:opacity-50">
                             Lanjut ke Menunggu SK-CIF →
                           </button>
                         )}
-                        {j.status === 'menunggu_sk_cif' && (
+                        {j.status === 'menunggu_sk_cif' && !j.perbaikan_diminta_at && (
                           <button disabled={busy} onClick={() => aksi({ action: 'advance', user_id: j.user_id, status_baru: 'active' })}
                             className="flex-1 bg-[#1A4FA0] text-white font-bold py-2 rounded-full disabled:opacity-50">
                             Aktifkan Jamaah Sahabat Baitullah →
                           </button>
                         )}
+                        {j.status !== 'active' && j.status !== 'ditolak' && !j.perbaikan_diminta_at && (
+                          <button disabled={busy} onClick={() => mintaPerbaikan(j)}
+                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-full disabled:opacity-50">
+                            ↺ Minta Perbaiki
+                          </button>
+                        )}
                         {j.status !== 'active' && j.status !== 'ditolak' && (
-                          <button disabled={busy} onClick={() => { if (confirm('Tolak pendaftaran ini?')) aksi({ action: 'reject', user_id: j.user_id }); }}
+                          <button disabled={busy} onClick={() => tolakPermanen(j)}
                             className="bg-gray-100 text-gray-500 font-bold px-4 py-2 rounded-full disabled:opacity-50">
-                            Tolak
+                            ⛔ Tolak Permanen
                           </button>
                         )}
                         {j.status === 'ditolak' && (

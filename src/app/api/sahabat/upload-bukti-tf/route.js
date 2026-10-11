@@ -32,7 +32,7 @@ export async function POST(request) {
 
   try {
     const [[pendaftaran]] = await pool.query(
-      'SELECT id, bukti_tf_verified_at FROM sahabat_pendaftaran WHERE user_id = ?',
+      'SELECT id, bukti_tf_verified_at, diajukan_at FROM sahabat_pendaftaran WHERE user_id = ?',
       [auth.user.id]
     );
     if (!pendaftaran) {
@@ -42,6 +42,11 @@ export async function POST(request) {
     // — sebelumnya dikunci total begitu terverifikasi (auto-verify, lihat
     // komentar di bawah). "Tahap akhir" = metodeTtdSelesai, SAMA PERSIS
     // definisinya kayak di status-pendaftaran-sahabat/page.jsx.
+    // Setelah "Kirim Pendaftaran" (migrations/219) juga dikunci — admin
+    // lagi meninjau data yang dikirim.
+    if (pendaftaran.bukti_tf_verified_at && pendaftaran.diajukan_at) {
+      return Response.json({ error: 'Pendaftaran sudah dikirim ke admin, bukti transfer tidak bisa diganti lagi. Hubungi admin kalau ada yang perlu dikoreksi.' }, { status: 400 });
+    }
     if (pendaftaran.bukti_tf_verified_at) {
       const [[u]] = await pool.query(
         `SELECT agama, metode_ttd_sahabat, dokumen_spk_ak_fisik_diterima_at,

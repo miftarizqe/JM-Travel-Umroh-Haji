@@ -85,17 +85,41 @@ export async function PATCH(request, { params }) {
     }
 
     const berpengaruhKeSaldo = JENIS_SALDO_SAHABAT.includes(rows[0].jenis) && !!rows[0].penerima_id;
-    const saldoSebelum = berpengaruhKeSaldo ? await saldoSahabat(pool, rows[0].penerima_id) : null;
 
-    if (confirmed) {
-      await pool.query(
-        buktiPath
-          ? 'UPDATE komisi_ledger SET dikonfirmasi_at = NOW(), bukti_tf_admin_path = ?, bukti_tf_admin_uploaded_at = NOW() WHERE id = ?'
-          : 'UPDATE komisi_ledger SET dikonfirmasi_at = NOW() WHERE id = ?',
-        buktiPath ? [buktiPath, id] : [id]
-      );
-    } else {
-      await pool.query('UPDATE komisi_ledger SET dikonfirmasi_at = NULL WHERE id = ?', [id]);
+    // Baca saldo + tulis status confirm dalam 1 transaksi yang NGUNCI baris
+    // user ini (dikonfirmasi user 2026-10-11, pasangan lock yang sama di
+    // /api/sahabat/checkout-mandiri/route.js) — khusus buat baris yang
+    // BERPENGARUH ke saldo. Tanpa ini, admin "Batalkan" (unconfirm) baris
+    // komisi yang MENGURANGI saldo bisa race sama jamaah yang lagi checkout
+    // bersamaan: checkout udah sempat baca saldo versi LAMA (masih
+    // nganggep baris ini confirmed) sebelum unconfirm ini commit, pas
+    // checkout-nya lolos padahal saldo sebenarnya udah gak cukup.
+    const conn = berpengaruhKeSaldo ? await pool.getConnection() : null;
+    let saldoSebelum = null;
+    try {
+      if (conn) {
+        await conn.beginTransaction();
+        await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [rows[0].penerima_id]);
+        saldoSebelum = await saldoSahabat(conn, rows[0].penerima_id);
+      }
+
+      if (confirmed) {
+        await (conn || pool).query(
+          buktiPath
+            ? 'UPDATE komisi_ledger SET dikonfirmasi_at = NOW(), bukti_tf_admin_path = ?, bukti_tf_admin_uploaded_at = NOW() WHERE id = ?'
+            : 'UPDATE komisi_ledger SET dikonfirmasi_at = NOW() WHERE id = ?',
+          buktiPath ? [buktiPath, id] : [id]
+        );
+      } else {
+        await (conn || pool).query('UPDATE komisi_ledger SET dikonfirmasi_at = NULL WHERE id = ?', [id]);
+      }
+
+      if (conn) await conn.commit();
+    } catch (e) {
+      if (conn) await conn.rollback();
+      throw e;
+    } finally {
+      if (conn) conn.release();
     }
 
     // Rekening Sahabat Baitullah — uang keluar, cuma buat baris yang beneran

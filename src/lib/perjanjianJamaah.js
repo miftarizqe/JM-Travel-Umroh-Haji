@@ -2,6 +2,10 @@
 // belum selesai (materai + TTD, digital atau fisik) — dipakai cluster
 // "Perlu Perhatian" di admin dashboard biar jamaah gak nyangkut di tahap ini
 // tanpa admin sadar (mis. pilih fisik tapi scan-nya lupa diupload).
+// Kriteria selesai sama dengan perjanjianSelesai() di src/lib/bookingStage.js
+// (scan fisik ATAU TTD digital selesai, centang online bukan syarat), dan
+// checkout mandiri Program Sahabat Baitullah gak punya tahap ini sama sekali
+// — dulu ikut kehitung, jadi notifnya nyala terus (2026-10-11).
 export async function daftarPerjanjianBelumSelesai(pool) {
   const [rows] = await pool.query(
     `SELECT b.id, b.prog_name, b.setuju_pks, b.perjanjian_scan_path,
@@ -9,10 +13,12 @@ export async function daftarPerjanjianBelumSelesai(pool) {
             ds.fase AS sig_fase, ds.metode AS sig_metode
      FROM bookings b
      LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
+     LEFT JOIN programs p ON p.id = b.prog_id
      LEFT JOIN dokumen_signature ds ON ds.dokumen = 'jamaah' AND ds.ref_id = b.id
      WHERE b.status = 'active' AND b.dp_status = 'confirmed'
        AND b.form_filled >= b.form_total
-       AND NOT (b.setuju_pks = 1 AND (b.perjanjian_scan_path IS NOT NULL OR ds.fase = 'selesai'))
+       AND (p.publish_type IS NULL OR p.publish_type <> 'sahabat_baitullah')
+       AND b.perjanjian_scan_path IS NULL AND NOT (ds.fase <=> 'selesai')
      ORDER BY b.created_at ASC`
   );
   return rows;
