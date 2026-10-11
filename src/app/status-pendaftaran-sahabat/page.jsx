@@ -432,6 +432,19 @@ export default function StatusPendaftaranSahabatPage() {
           Program Sahabat Baitullah — ikuti langkah di bawah sampai selesai untuk jadi Jamaah Sahabat Baitullah aktif.
         </div>
 
+        {/* Admin "Minta Perbaikan" (dikonfirmasi user 2026-10-11) — progres
+            di bawah tetap jalan, cuma ACC admin ditahan sampai terkirim. */}
+        {pendaftaran.perbaikan_diminta_at && (
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-2">
+            <div className="font-bold text-red-700 text-sm">⚠️ Pendaftaran Anda ditolak admin dan perlu diperbaiki</div>
+            {pendaftaran.catatan_admin && <div className="text-sm text-red-700">Alasan: {pendaftaran.catatan_admin}</div>}
+            <button onClick={() => router.push('/daftar-sahabat')}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-full transition-colors cursor-pointer">
+              Perbaiki Data Diri →
+            </button>
+          </div>
+        )}
+
         {/* Urutan FINAL (dikonfirmasi user 2026-10-02): SPK-AK -> Bukti TF ->
             Rekening Tabungan Umroh -> SK-CIF & Blokir -> Metode TTD & Kirim
             Dokumen — SPK-AK sekarang dibaca & disetujui DULUAN sebelum bayar

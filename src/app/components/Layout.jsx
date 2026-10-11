@@ -797,6 +797,13 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
 
       {/* MAIN CONTENT */}
       <main className="max-w-7xl mx-auto px-4 py-4 md:px-8 pb-24 md:pb-8">
+        {/* Admin "Minta Perbaikan" di Verifikasi Akun (2026-10-11) — flag
+            dari login, dikosongkan /perbaiki-data-akun begitu terkirim. */}
+        {user?.perlu_perbaikan_akun && pathname !== '/perbaiki-data-akun' && (
+          <a href="/perbaiki-data-akun" className="block mb-4 bg-red-50 border-2 border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 hover:bg-red-100 transition-colors">
+            ⚠️ Verifikasi akun Anda ditolak admin. <span className="font-bold underline">Perbaiki data akun →</span>
+          </a>
+        )}
         {children}
       </main>
 

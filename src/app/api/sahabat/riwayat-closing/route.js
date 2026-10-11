@@ -103,9 +103,11 @@ export async function GET(request) {
     const [closingLangsungRows] = await pool.query(
       `SELECT b.id, b.prog_name, b.paket, b.jumlah_jamaah, b.status, b.dp_status, b.pelunasan_status, b.created_at,
               b.form_filled, b.form_total, b.setuju_pks, b.perjanjian_scan_path, b.total_harga, b.referral_sahabat_id,
-              k.name AS sahabat_nama, k.kode_unik AS sahabat_kode_unik
+              k.name AS sahabat_nama, k.kode_unik AS sahabat_kode_unik,
+              p.publish_type AS prog_publish_type
        FROM bookings b
        JOIN users k ON k.id = b.referral_sahabat_id
+       LEFT JOIN programs p ON p.id = b.prog_id
        WHERE b.referral_sahabat_id IN (${ph}) ${filtroTanggal}
        ORDER BY b.created_at DESC`,
       dari && sampai ? [...jaringanIds, dari, sampai] : jaringanIds

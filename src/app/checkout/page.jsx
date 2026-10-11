@@ -11,6 +11,7 @@ import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { trackLead } from '@/lib/analytics';
 import { ambilRefPerwakilan } from '@/lib/referralCapture';
+import { renderPasalMarkup } from '@/lib/pasalMarkup';
 
 export default function CheckoutPage() {
   return (
@@ -71,6 +72,19 @@ function CheckoutPageInner() {
   const [sahabatTerverifikasi, setSahabatTerverifikasi] = useState(null);
   const [cekSahabatStatus, setCekSahabatStatus] = useState('');
   const [buktiPath, setBuktiPath] = useState(null);
+  // Sahabat Baitullah yang checkout program REGULER wajib baca & setujui
+  // Surat Perjanjian Jamaah SEBELUM bayar DP (dikonfirmasi user 2026-10-11)
+  // — dulu baru diminta di tahap ke-4 progres booking, setelah DP &
+  // formulir. Role lain tetap alur lama.
+  const wajibPerjanjianDulu = user?.role === 'sahabat_baitullah';
+  const [pasalPerjanjian, setPasalPerjanjian] = useState(null);
+  const [perjanjianDibaca, setPerjanjianDibaca] = useState(false);
+  const [setujuPerjanjian, setSetujuPerjanjian] = useState(false);
+  useEffect(() => {
+    if (!wajibPerjanjianDulu) return;
+    fetch('/api/pasal?dokumen=jamaah').then(r => r.json())
+      .then(d => setPasalPerjanjian(d.pasal || [])).catch(() => setPasalPerjanjian([]));
+  }, [wajibPerjanjianDulu]);
   const [buktiNama, setBuktiNama] = useState(null);
   const [loading, setLoading] = useState(false);
   const [bookingIds, setBookingIds] = useState([]);
@@ -841,12 +855,49 @@ function CheckoutPageInner() {
               }
             />
 
+            {wajibPerjanjianDulu && (
+            <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
+              <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white px-4 py-3">
+                <div className="text-sm font-bold">📜 Surat Perjanjian Jamaah Umroh</div>
+                <div className="text-[11px] opacity-85">Baca sampai selesai lalu centang persetujuan sebelum lanjut ke pembayaran DP.</div>
+              </div>
+              <div onScroll={e => {
+                  const el = e.currentTarget;
+                  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setPerjanjianDibaca(true);
+                }}
+                ref={el => {
+                  // Isi pendek yang gak sampai bisa di-scroll langsung dianggap terbaca.
+                  if (el && pasalPerjanjian?.length && !perjanjianDibaca && el.scrollHeight <= el.clientHeight + 20) setPerjanjianDibaca(true);
+                }}
+                className="p-4 max-h-72 overflow-y-auto text-xs text-gray-600 space-y-3">
+                {!pasalPerjanjian ? (
+                  <div className="text-center text-gray-400 py-6">Memuat isi perjanjian...</div>
+                ) : pasalPerjanjian.length === 0 ? (
+                  <div className="text-center text-red-500 py-6">Isi perjanjian belum tersedia. Silakan hubungi admin JM Travel.</div>
+                ) : pasalPerjanjian.map(p => (
+                  <div key={p.nomor}>
+                    <div className="font-bold text-[#0E2F6E] mb-0.5">Pasal {p.nomor} — {p.judul}</div>
+                    <div className="leading-relaxed">{renderPasalMarkup(p.isi, null)}</div>
+                  </div>
+                ))}
+              </div>
+              <label className={`flex items-start gap-2 px-4 py-3 border-t border-gray-100 text-xs ${perjanjianDibaca ? 'text-gray-700 cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}>
+                <input type="checkbox" checked={setujuPerjanjian} disabled={!perjanjianDibaca}
+                  onChange={e => setSetujuPerjanjian(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
+                <span>
+                  Saya sudah membaca dan menyetujui Surat Perjanjian Jamaah Umroh di atas.
+                  {!perjanjianDibaca && pasalPerjanjian?.length > 0 && <span className="block text-[10px] text-amber-600 mt-0.5">Scroll isi perjanjian sampai bawah dulu.</span>}
+                </span>
+              </label>
+            </div>
+            )}
+
             <div className="flex gap-3">
               <button onClick={() => setStep(1)}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                 ← Kembali
               </button>
-              <button onClick={() => setStep(3)} disabled={cart.length === 0}
+              <button onClick={() => setStep(3)} disabled={cart.length === 0 || (wajibPerjanjianDulu && !setujuPerjanjian)}
                 className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Lanjut ke Pembayaran →
               </button>

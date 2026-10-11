@@ -136,6 +136,16 @@ export default function CetakPerjanjian() {
           scan-nya lewat UploadScanDokumen di bawah. */}
       <DokumenSignatureAksi dokumen="jamaah" refId={booking.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />
 
+      {/* Unggah scan fisik = approve perjanjian (2026-10-11) — tahap
+          Perjanjian di progres booking & notif admin langsung selesai,
+          gak nunggu centang persetujuan online jamaah lagi. */}
+      <div className="no-print" style={{ width: 720, margin: '0 auto 12px', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+        background: booking.perjanjian_scan_path ? '#dcfce7' : '#fef9c3', color: booking.perjanjian_scan_path ? '#15803d' : '#854d0e' }}>
+        {booking.perjanjian_scan_path
+          ? '✅ Perjanjian Jamaah selesai — scan fisik sudah diunggah.'
+          : '⏳ Perjanjian belum selesai — cetak, minta jamaah TTD di atas materai, lalu unggah scan-nya di bawah untuk menyelesaikan tahap ini.'}
+      </div>
+
       <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/bookings/${booking.id}/scan-perjanjian`}
         userId={booking.id} path={booking.perjanjian_scan_path} uploadedAt={booking.perjanjian_scan_uploaded_at}
         onUploaded={(path) => setBooking(bk => ({ ...bk, perjanjian_scan_path: path, perjanjian_scan_uploaded_at: new Date().toISOString() }))} />
