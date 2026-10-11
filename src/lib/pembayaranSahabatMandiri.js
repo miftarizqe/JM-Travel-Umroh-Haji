@@ -11,6 +11,17 @@ import { catatAudit } from '@/lib/audit';
 import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib/invoiceKwitansi';
 
 export async function cekDanFinalisasiLunasSahabat(pool, bookingId, actor) {
+  // Hold saldo di booking program REGULER itu bayar DP (lihat
+  // /api/bookings/batch bayar_dp_dari_saldo), bukan lunas penuh — jangan
+  // sampai ACC-nya bikin booking reguler ke-set 'paid'.
+  const [[progInfo]] = await pool.query(
+    'SELECT p.publish_type FROM bookings b JOIN programs p ON p.id = b.prog_id WHERE b.id = ?',
+    [bookingId]
+  );
+  if (progInfo && progInfo.publish_type !== 'sahabat_baitullah') {
+    return konfirmasiDpDariSaldoSahabat(pool, bookingId, actor);
+  }
+
   const [[debit]] = await pool.query(
     "SELECT dikonfirmasi_at FROM komisi_ledger WHERE booking_id = ? AND jenis = 'pemakaian_saldo_sahabat'",
     [bookingId]
@@ -96,5 +107,50 @@ export async function cekDanFinalisasiLunasSahabat(pool, bookingId, actor) {
     keterangan: `Booking ${bookingId} (${booking.prog_name || '-'}) lunas via saldo tabungan${bayar ? ' + transfer pribadi' : ' penuh'}.`,
   });
 
+  return true;
+}
+
+// DP booking program reguler yang dibayar dari saldo Sahabat Baitullah —
+// begitu baris hold `pemakaian_saldo_sahabat`-nya di-ACC admin (tab komisi),
+// DP-nya ikut dikonfirmasi otomatis (kebalikannya: approve DP di tab
+// Payments nandain hold-nya confirmed, lihat PATCH /api/payments). Idempotent.
+export async function konfirmasiDpDariSaldoSahabat(pool, bookingId, actor) {
+  const [[debit]] = await pool.query(
+    "SELECT dikonfirmasi_at FROM komisi_ledger WHERE booking_id = ? AND jenis = 'pemakaian_saldo_sahabat'",
+    [bookingId]
+  );
+  if (!debit?.dikonfirmasi_at) return false;
+
+  const [[dp]] = await pool.query(
+    "SELECT id FROM payments WHERE booking_id = ? AND type = 'dp' AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+    [bookingId]
+  );
+  if (!dp) return false;
+
+  await pool.query("UPDATE payments SET status = 'confirmed' WHERE id = ?", [dp.id]);
+  await pool.query("UPDATE bookings SET dp_status = 'confirmed' WHERE id = ?", [bookingId]);
+  try {
+    await generateTandaTerimaUntukPayment(pool, dp.id, actor.id);
+  } catch (e) {
+    console.error('Gagal auto-generate tanda terima (DP dari saldo sahabat):', e);
+  }
+
+  const [[booking]] = await pool.query('SELECT user_id, ordered_by, prog_name FROM bookings WHERE id = ?', [bookingId]);
+  for (const uid of [booking?.user_id, booking?.ordered_by].filter((id, i, arr) => id && arr.indexOf(id) === i)) {
+    await kirimNotifikasi(pool, {
+      user_id: uid,
+      tipe: 'dp_confirmed',
+      judul: 'DP Dikonfirmasi',
+      pesan: `DP booking ${booking?.prog_name || bookingId} (dari saldo tabungan umroh) sudah dikonfirmasi admin.`,
+      link: '/dashboard/jamaah',
+    });
+  }
+  await catatAudit(pool, {
+    actor,
+    aksi: 'approve_dp_saldo_sahabat',
+    target_type: 'booking',
+    target_id: bookingId,
+    keterangan: `DP booking ${bookingId} (${booking?.prog_name || '-'}) dikonfirmasi via saldo tabungan Sahabat.`,
+  });
   return true;
 }

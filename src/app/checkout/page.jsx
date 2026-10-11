@@ -79,7 +79,6 @@ function CheckoutPageInner() {
   const wajibPerjanjianDulu = user?.role === 'sahabat_baitullah';
   const [pasalPerjanjian, setPasalPerjanjian] = useState(null);
   const [perjanjianDibaca, setPerjanjianDibaca] = useState(false);
-  const [setujuPerjanjian, setSetujuPerjanjian] = useState(false);
   useEffect(() => {
     if (!wajibPerjanjianDulu) return;
     fetch('/api/pasal?dokumen=jamaah').then(r => r.json())
@@ -204,6 +203,25 @@ function CheckoutPageInner() {
       .catch(() => {});
   }, [user]);
 
+  // Profil akun Sahabat Baitullah buat opsi "Diri Sendiri" di Data Jamaah
+  // step Pilih Paket (checkout program reguler) — auto-isi jamaah #1,
+  // "Orang Lain" tetap isi manual.
+  const [dataDiriSahabat, setDataDiriSahabat] = useState(null);
+  useEffect(() => {
+    if (user?.role !== 'sahabat_baitullah') return;
+    fetch(`/api/profil?user_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => setDataDiriSahabat({
+        nama: d.user?.name || '',
+        wa: d.user?.wa || '',
+        jk: d.user?.jenis_kelamin || '',
+        // Sama kayak checkout mandiri di bawah — alamat sahabat kesimpen di
+        // alamat_domisili/alamat, bukan alamat_kirim.
+        alamat: d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '',
+      }))
+      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '' }));
+  }, [user]);
+
   useEffect(() => {
     if (step !== 3) return;
     const interval = setInterval(() => {
@@ -237,6 +255,20 @@ function CheckoutPageInner() {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMandiriSahabat]);
+
+  // Saldo tabungan buat Sahabat yang checkout program REGULER — DP keranjang
+  // dibayar dari saldo (langsung kepotong pas submit) kalau cukup, kalau
+  // kurang tetap transfer biasa (dikonfirmasi user 2026-10-11).
+  useEffect(() => {
+    if (user?.role !== 'sahabat_baitullah' || !prog || isMandiriSahabat) return;
+    fetch(`/api/sahabat/dashboard?sahabat_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => setSaldoInfo(d.ringkasan || null))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, prog?.id, isMandiriSahabat]);
+  const [hasilDpSaldo, setHasilDpSaldo] = useState(null);
+  const [passwordDpSaldo, setPasswordDpSaldo] = useState('');
 
   const hargaMandiri = prog ? Number(prog[`harga_${paketMandiri}_${kamarKeyOf(kamarMandiri)}`] || 0) : 0;
   const voucherDiskonMandiri = voucherMandiri ? Math.min(Number(voucherMandiri.potongan || 0), hargaMandiri) : 0;
@@ -275,6 +307,8 @@ function CheckoutPageInner() {
   }
 
   async function submitBooking() {
+    if (dpDariSaldo && !setujuPotongSaldo) { alert('Centang dulu persetujuan pemotongan saldo.'); return; }
+    if (dpDariSaldo && !passwordDpSaldo) { alert('Masukkan password akun Anda untuk konfirmasi.'); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/bookings/batch', {
@@ -289,9 +323,11 @@ function CheckoutPageInner() {
             customHotel: c.customHotel || null,
             opsi_tambahan_ids: (c.opsiTambahan || []).map(o => o.id),
           })),
-          kode_unik_dp: kodeUnik,
-          bukti_path: buktiPath,
-          bukti_nama: buktiNama,
+          kode_unik_dp: dpDariSaldo ? 0 : kodeUnik,
+          bukti_path: dpDariSaldo ? null : buktiPath,
+          bukti_nama: dpDariSaldo ? null : buktiNama,
+          bayar_dp_dari_saldo: dpDariSaldo,
+          password: dpDariSaldo ? passwordDpSaldo : undefined,
           voucher_kode: summary.voucherKode,
           // Referral: menentukan siapa penerima komisi. Untuk jamaah dengan
           // referral permanen, nilai ini murni ADVISORY — server
@@ -315,6 +351,7 @@ function CheckoutPageInner() {
       const data = await res.json();
       if (!res.ok) { alert(data.error); setLoading(false); return; }
       setBookingIds(data.bookings.map(b => b.booking_id));
+      if (dpDariSaldo) { setHasilDpSaldo({ dipakai: data.saldo_dipakai, sisa: data.saldo_sisa }); setPasswordDpSaldo(''); }
       trackLead({ value: summary.totalDp, currency: 'IDR', sumber_info: sumber });
       setStep(4);
     } catch (e) {
@@ -325,6 +362,8 @@ function CheckoutPageInner() {
   const timerFmt = `${String(Math.floor(timer / 60)).padStart(2, '0')}:${String(timer % 60).padStart(2, '0')}`;
 
   const totalDP = cart.reduce((s, c) => s + (prog?.dp || 0) * c.jumlah, 0);
+  const dpDariSaldo = user?.role === 'sahabat_baitullah' && !isMandiriSahabat && !!saldoInfo
+    && totalDP > 0 && saldoTersediaMandiri >= totalDP;
 
   const steps = ['Detail', 'Pilih Paket', 'Bayar DP', 'Selesai'];
 
@@ -792,6 +831,39 @@ function CheckoutPageInner() {
               onRemove={i => setCart(prev => prev.filter((_, idx) => idx !== i))}
               onChangeCurrent={setCurrent}
               onSummaryChange={setSummary}
+              perjanjian={wajibPerjanjianDulu ? {
+                dibaca: perjanjianDibaca && pasalPerjanjian?.length > 0,
+                render: checkbox => (
+                  <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
+                    <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white px-4 py-3">
+                      <div className="text-sm font-bold">📜 Surat Perjanjian Jamaah Umroh</div>
+                      <div className="text-[11px] opacity-85">Baca sampai selesai lalu centang persetujuan sebelum lanjut ke pembayaran DP.</div>
+                    </div>
+                    <div onScroll={e => {
+                        const el = e.currentTarget;
+                        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setPerjanjianDibaca(true);
+                      }}
+                      ref={el => {
+                        // Isi pendek yang gak sampai bisa di-scroll langsung dianggap terbaca.
+                        if (el && pasalPerjanjian?.length && !perjanjianDibaca && el.scrollHeight <= el.clientHeight + 20) setPerjanjianDibaca(true);
+                      }}
+                      className="p-4 max-h-72 overflow-y-auto text-xs text-gray-600 space-y-3">
+                      {!pasalPerjanjian ? (
+                        <div className="text-center text-gray-400 py-6">Memuat isi perjanjian...</div>
+                      ) : pasalPerjanjian.length === 0 ? (
+                        <div className="text-center text-red-500 py-6">Isi perjanjian belum tersedia. Silakan hubungi admin JM Travel.</div>
+                      ) : pasalPerjanjian.map(p => (
+                        <div key={p.nomor}>
+                          <div className="font-bold text-[#0E2F6E] mb-0.5">Pasal {p.nomor} — {p.judul}</div>
+                          <div className="leading-relaxed">{renderPasalMarkup(p.isi, null)}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="px-4 py-3 border-t border-gray-100">{checkbox}</div>
+                  </div>
+                ),
+              } : undefined}
+              dataDiriSendiri={user.role === 'sahabat_baitullah' ? (dataDiriSahabat || { nama: user.name || '', wa: '', jk: '', alamat: '' }) : undefined}
               referralPerwId={user.role === 'perwakilan' ? user.id
                 : permanentReferrer ? permanentReferrer.id
                 : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null}
@@ -855,49 +927,12 @@ function CheckoutPageInner() {
               }
             />
 
-            {wajibPerjanjianDulu && (
-            <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-              <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white px-4 py-3">
-                <div className="text-sm font-bold">📜 Surat Perjanjian Jamaah Umroh</div>
-                <div className="text-[11px] opacity-85">Baca sampai selesai lalu centang persetujuan sebelum lanjut ke pembayaran DP.</div>
-              </div>
-              <div onScroll={e => {
-                  const el = e.currentTarget;
-                  if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setPerjanjianDibaca(true);
-                }}
-                ref={el => {
-                  // Isi pendek yang gak sampai bisa di-scroll langsung dianggap terbaca.
-                  if (el && pasalPerjanjian?.length && !perjanjianDibaca && el.scrollHeight <= el.clientHeight + 20) setPerjanjianDibaca(true);
-                }}
-                className="p-4 max-h-72 overflow-y-auto text-xs text-gray-600 space-y-3">
-                {!pasalPerjanjian ? (
-                  <div className="text-center text-gray-400 py-6">Memuat isi perjanjian...</div>
-                ) : pasalPerjanjian.length === 0 ? (
-                  <div className="text-center text-red-500 py-6">Isi perjanjian belum tersedia. Silakan hubungi admin JM Travel.</div>
-                ) : pasalPerjanjian.map(p => (
-                  <div key={p.nomor}>
-                    <div className="font-bold text-[#0E2F6E] mb-0.5">Pasal {p.nomor} — {p.judul}</div>
-                    <div className="leading-relaxed">{renderPasalMarkup(p.isi, null)}</div>
-                  </div>
-                ))}
-              </div>
-              <label className={`flex items-start gap-2 px-4 py-3 border-t border-gray-100 text-xs ${perjanjianDibaca ? 'text-gray-700 cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}>
-                <input type="checkbox" checked={setujuPerjanjian} disabled={!perjanjianDibaca}
-                  onChange={e => setSetujuPerjanjian(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
-                <span>
-                  Saya sudah membaca dan menyetujui Surat Perjanjian Jamaah Umroh di atas.
-                  {!perjanjianDibaca && pasalPerjanjian?.length > 0 && <span className="block text-[10px] text-amber-600 mt-0.5">Scroll isi perjanjian sampai bawah dulu.</span>}
-                </span>
-              </label>
-            </div>
-            )}
-
             <div className="flex gap-3">
               <button onClick={() => setStep(1)}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                 ← Kembali
               </button>
-              <button onClick={() => setStep(3)} disabled={cart.length === 0 || (wajibPerjanjianDulu && !setujuPerjanjian)}
+              <button onClick={() => setStep(3)} disabled={cart.length === 0}
                 className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Lanjut ke Pembayaran →
               </button>
@@ -908,10 +943,12 @@ function CheckoutPageInner() {
         {/* STEP 3 */}
         {step === 3 && (
           <div className="space-y-4">
+            {!dpDariSaldo && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
               <div className="text-xs text-red-500 mb-1">⏰ Batas Waktu Pembayaran DP</div>
               <div className="text-4xl font-black text-red-600 font-mono tracking-widest">{timerFmt}</div>
             </div>
+            )}
             <div className="bg-[#E8F0FB] rounded-xl p-4 space-y-2">
               <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0] mb-3">📋 Invoice DP</div>
               <div className="flex justify-between text-sm text-gray-500">
@@ -926,13 +963,30 @@ function CheckoutPageInner() {
               <div className="flex justify-between text-sm text-gray-500 pt-1 border-t border-blue-200">
                 <span>Total DP</span><span className="font-semibold text-[#0E2F6E]">Rp {totalDP.toLocaleString('id-ID')}</span>
               </div>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Kode Unik</span><span className="font-bold text-red-600">+Rp {kodeUnik}</span>
-              </div>
-              <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
-                <span className="text-sm">Transfer Tepat</span>
-                <span className="text-red-600">Rp {(totalDP + kodeUnik).toLocaleString('id-ID')}</span>
-              </div>
+              {dpDariSaldo ? (
+                <>
+                  <div className="flex justify-between text-sm text-purple-600">
+                    <span>Saldo Tabungan Tersedia</span><span className="font-semibold">Rp {saldoTersediaMandiri.toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
+                    <span className="text-sm">Dipotong dari Saldo</span>
+                    <span className="text-purple-700">−Rp {totalDP.toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>Sisa Saldo Setelah DP</span><span className="font-bold text-[#0E2F6E]">Rp {(saldoTersediaMandiri - totalDP).toLocaleString('id-ID')}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>Kode Unik</span><span className="font-bold text-red-600">+Rp {kodeUnik}</span>
+                  </div>
+                  <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
+                    <span className="text-sm">Transfer Tepat</span>
+                    <span className="text-red-600">Rp {(totalDP + kodeUnik).toLocaleString('id-ID')}</span>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className="bg-[#FEF3DC] border border-[#C9952A] rounded-xl p-4 text-sm text-[#8a6516]">
@@ -942,6 +996,44 @@ function CheckoutPageInner() {
               )}
             </div>
 
+            {dpDariSaldo ? (
+              <>
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600 text-center">
+                  ⚠️ DP tidak dapat dikembalikan, namun dapat dialihkan ke program lain.
+                </div>
+                <label className="flex items-start gap-2 bg-gray-50 rounded-xl p-3 cursor-pointer">
+                  <input type="checkbox" checked={setujuPotongSaldo} onChange={e => setSetujuPotongSaldo(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
+                  <span className="text-xs text-gray-600">
+                    Saya setuju saldo tabungan umroh saya sebesar <b>Rp {totalDP.toLocaleString('id-ID')}</b> langsung dipotong
+                    untuk pembayaran DP program ini, sesuai Surat Kuasa Kerjasama Multi CIF
+                    &amp; Surat Pernyataan Kuasa Blokir Rekening yang telah saya setujui.
+                  </span>
+                </label>
+                <div className="bg-white border-2 border-gray-200 rounded-xl p-3 space-y-1">
+                  <label className="block text-xs font-semibold text-[#0E2F6E]">🔒 Konfirmasi Password Akun *</label>
+                  <input type="password" value={passwordDpSaldo} onChange={e => setPasswordDpSaldo(e.target.value)}
+                    autoComplete="current-password" placeholder="Masukkan password akun Anda"
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
+                  <div className="text-[10px] text-gray-400">Demi keamanan, pemotongan saldo wajib dikonfirmasi dengan password akun.</div>
+                </div>
+                <div className="flex gap-3">
+                  <button onClick={() => { setStep(2); setSetujuPotongSaldo(false); setPasswordDpSaldo(''); }}
+                    className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
+                    ← Kembali
+                  </button>
+                  <button onClick={submitBooking} disabled={!setujuPotongSaldo || !passwordDpSaldo || loading}
+                    className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                    {loading ? 'Memproses...' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : !passwordDpSaldo ? 'Masukkan password dulu' : 'Bayar DP dari Saldo'}
+                  </button>
+                </div>
+              </>
+            ) : (<>
+            {user.role === 'sahabat_baitullah' && saldoInfo && (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-700">
+                Saldo tabungan umroh Anda (Rp {saldoTersediaMandiri.toLocaleString('id-ID')}) belum cukup untuk DP ini — silakan bayar DP via transfer.
+              </div>
+            )}
             <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
               <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan</div>
               {metodePembayaran.map(m => (
@@ -973,6 +1065,7 @@ function CheckoutPageInner() {
                 {loading ? 'Memproses...' : 'Kirim Bukti Transfer'}
               </button>
             </div>
+            </>)}
           </div>
         )}
 
@@ -980,8 +1073,14 @@ function CheckoutPageInner() {
         {step === 4 && (
           <div className="text-center space-y-4 py-8">
             <div className="text-6xl mb-4">🎉</div>
-            <h2 className="text-2xl font-bold text-[#0E2F6E]">Bukti Transfer Terkirim!</h2>
+            <h2 className="text-2xl font-bold text-[#0E2F6E]">{hasilDpSaldo ? 'DP Dibayar dari Saldo!' : 'Bukti Transfer Terkirim!'}</h2>
             <p className="text-gray-400 text-sm">Admin akan verifikasi dalam 1×24 jam kerja.</p>
+            {hasilDpSaldo && (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-left text-sm space-y-1">
+                <div className="flex justify-between text-purple-700"><span>Dipotong dari saldo</span><span className="font-semibold">−Rp {Number(hasilDpSaldo.dipakai || 0).toLocaleString('id-ID')}</span></div>
+                <div className="flex justify-between font-bold text-[#0E2F6E]"><span>Sisa saldo tabungan umroh</span><span>Rp {Number(hasilDpSaldo.sisa || 0).toLocaleString('id-ID')}</span></div>
+              </div>
+            )}
             <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-left space-y-1">
               <div className="text-sm text-green-600">Program: {prog.name}</div>
               {bookingIds.map(id => (
@@ -990,7 +1089,7 @@ function CheckoutPageInner() {
               <span className="inline-block bg-[#FEF3DC] text-[#7a5500] text-xs font-bold px-3 py-1 rounded-full mt-1">⏳ Menunggu Konfirmasi Admin</span>
             </div>
             <div className="bg-[#E8F0FB] rounded-xl p-4 text-left text-sm text-[#0E2F6E] space-y-1">
-              <div>① Admin verifikasi bukti (maks 1×24 jam)</div>
+              <div>① Admin verifikasi {hasilDpSaldo ? 'pembayaran DP' : 'bukti'} (maks 1×24 jam)</div>
               <div>② Notif WA saat DP dikonfirmasi</div>
               <div>③ Formulir jamaah terbuka untuk diisi</div>
               <div>④ Lanjutkan pelunasan setelah formulir selesai</div>
