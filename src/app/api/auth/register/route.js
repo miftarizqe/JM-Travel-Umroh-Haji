@@ -177,13 +177,16 @@ export async function POST(request) {
     // race) dibalas 400, bukan 500.
     const prefix = role === 'perwakilan' ? 'PJM' : role === 'sahabat_baitullah' ? 'SBJM' : 'JUJM';
     // Sahabat Baitullah auto-terverifikasi pas daftar (dikonfirmasi user
-    // 2026-09-27) — gerbang "verifikasi akun" terpisah gak ada gunanya buat
-    // role ini: mau di-ACC apa enggak, akunnya tetep gak bisa ngapa-ngapain
-    // sampai funnel /daftar-sahabat (data diri, SPK-AK, TF, CIF) selesai, dan
-    // admin TETAP wajib review manual di titik "Aktifkan" di ujung funnel
-    // (lihat /api/status-pendaftaran-sahabat). Jamaah/perwakilan TIDAK ikut
-    // berubah, tetap 0 nunggu verifikasi admin manual.
-    const terverifikasi = role === 'sahabat_baitullah' ? 1 : 0;
+    // 2026-09-27), Perwakilan ikut disamain (dikonfirmasi user 2026-10-12)
+    // — gerbang "verifikasi akun" terpisah gak ada gunanya buat role
+    // kemitraan: mau di-ACC apa enggak, akunnya tetep gak bisa ngapa-ngapain
+    // sampai funnel pendaftarannya (formulir, PKS, metode kantor/paket)
+    // selesai, dan admin TETAP wajib review manual di titik "Aktifkan" di
+    // ujung funnel (lihat /api/status-pendaftaran-sahabat &
+    // /api/status-pendaftaran) — cekPemesanBolehOrder juga tetap nahan
+    // order sebelum status beneran 'active'. Jamaah TIDAK ikut berubah,
+    // tetap 0 nunggu verifikasi admin manual.
+    const terverifikasi = ['sahabat_baitullah', 'perwakilan'].includes(role) ? 1 : 0;
     let kodeUnik = null;
     for (let percobaan = 1; ; percobaan++) {
       kodeUnik = status === 'active' ? await nomorKodeUnikBerikutnya(pool, prefix) : null;
@@ -212,12 +215,12 @@ export async function POST(request) {
 
     // Gagal kirim notif jangan bikin registrasi yang udah tersimpan jadi 500.
     const roleLabel = { perwakilan: 'Perwakilan', sahabat_baitullah: 'Jamaah Sahabat Baitullah' }[role] || 'Jamaah';
-    // Sahabat Baitullah auto-terverifikasi (lihat komentar `terverifikasi` di
-    // atas) — notif "menunggu verifikasi" jadi gak akurat buat role ini
-    // (gak ada apa-apa buat admin verifikasi di /admin?tab=users, malah
-    // bikin bingung). Admin tetap dapet titik review manual pas "Aktifkan"
-    // di ujung funnel (lihat /api/status-pendaftaran-sahabat).
-    if (role !== 'sahabat_baitullah') {
+    // Sahabat Baitullah & Perwakilan auto-terverifikasi (lihat komentar
+    // `terverifikasi` di atas) — notif "menunggu verifikasi" jadi gak
+    // akurat buat role kemitraan (gak ada apa-apa buat admin verifikasi di
+    // /admin?tab=users, malah bikin bingung). Admin tetap dapet titik
+    // review manual pas "Aktifkan" di ujung funnel masing-masing.
+    if (!['sahabat_baitullah', 'perwakilan'].includes(role)) {
       await kirimNotifikasiAdmin(pool, {
         tipe: 'akun_perlu_verifikasi',
         judul: 'Akun Baru Menunggu Verifikasi',
@@ -228,6 +231,8 @@ export async function POST(request) {
 
     const pesanSukses = role === 'sahabat_baitullah'
       ? 'Registrasi berhasil! Lanjutkan isi data diri untuk melanjutkan pendaftaran Sahabat Baitullah.'
+      : role === 'perwakilan'
+      ? 'Registrasi berhasil! Lanjutkan isi formulir untuk melanjutkan pendaftaran Perwakilan.'
       : 'Registrasi berhasil! Akun Anda menunggu verifikasi admin.';
     return Response.json({ message: pesanSukses, kodeUnik }, { status: 201 });
 

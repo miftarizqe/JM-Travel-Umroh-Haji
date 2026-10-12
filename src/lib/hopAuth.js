@@ -43,6 +43,32 @@ export async function wajibPemilikAtauAdminHopSahabat(request, pemilikId) {
   return { user };
 }
 
+// Cuma ada 1 akun HoP system-wide (pengaturan.head_of_program_user_id) —
+// "team HoP" = SELURUH downline Sahabat Baitullah-nya, rantai perekrut_id
+// berjenjang (Gen1 s.d. seterusnya, bukan cuma rekrutan langsung),
+// dikonfirmasi user 2026-10-12. Anggota di jaringan ini SENGAJA TIDAK BOLEH
+// direkrut jadi Perwakilan (lihat 'rekrut_jadi_perwakilan' di
+// /api/admin/users) — alasan bisnisnya di luar scope kode ini, aturan aja.
+// Jalan NAIK dari userId (bukan BFS turun dari HoP) -- lebih murah buat
+// ngecek 1 orang tertentu, gak perlu muat seluruh downline HoP yang bisa
+// gede. Guard `visited` jaga-jaga siklus data kotor, walau perekrut_id
+// seharusnya emang gak pernah muter balik.
+export async function apakahBagianTeamHop(pool, userId) {
+  const [[peng]] = await pool.query('SELECT head_of_program_user_id FROM pengaturan WHERE id = 1');
+  const hopId = peng?.head_of_program_user_id;
+  if (!hopId || String(userId) === String(hopId)) return false;
+  let current = userId;
+  const visited = new Set();
+  while (current && !visited.has(current)) {
+    visited.add(current);
+    const [[row]] = await pool.query('SELECT perekrut_id FROM users WHERE id = ?', [current]);
+    if (!row?.perekrut_id) return false;
+    if (String(row.perekrut_id) === String(hopId)) return true;
+    current = row.perekrut_id;
+  }
+  return false;
+}
+
 // KHUSUS aksi milik HoP sendiri (dikonfirmasi user 2026-10-01): menandai
 // "data bermasalah" + catatan ke admin. Ini satu-satunya "tulis" yang boleh
 // dilakukan HoP, dan cuma ke tabel laporannya sendiri (sahabat_laporan_data)

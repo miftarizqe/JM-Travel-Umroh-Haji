@@ -21,9 +21,7 @@ export async function GET(request) {
               u.terverifikasi, u.foto_path, u.setuju_pks,
               perekrut.name AS perekrut_nama,
               ap.id AS pendaftaran_id, ap.status AS pendaftaran_status,
-              ap.metode AS pendaftaran_metode, ap.untuk_role_kedua,
-              (SELECT fase FROM dokumen_signature WHERE dokumen = 'formulir' AND ref_id = u.id
-                 ORDER BY id DESC LIMIT 1) AS formulir_fase
+              ap.metode AS pendaftaran_metode, ap.untuk_role_kedua
        FROM users u
        LEFT JOIN users perekrut ON perekrut.id = u.perekrut_id
        LEFT JOIN agen_pendaftaran ap ON ap.id = (
@@ -42,7 +40,6 @@ export async function GET(request) {
       status: r.pendaftaran_id
         ? r.pendaftaran_status
         : (r.user_status === 'rejected' ? 'ditolak' : (r.user_status === 'active' ? 'active' : 'pending')),
-      formulir_ttd_selesai: r.formulir_fase === 'selesai',
       pks_disetujui: !!r.setuju_pks,
     }));
 

@@ -39,7 +39,6 @@ function pathUntukMetode(metode) {
 function syaratBelum(p) {
   if (p.status === 'pending') {
     return [
-      !p.formulir_ttd_selesai && 'TTD Digital Formulir',
       !p.pks_disetujui && 'Persetujuan PKS',
       !p.pendaftaran_metode && 'Pemilihan Metode',
     ].filter(Boolean);
@@ -59,6 +58,12 @@ export default function AdminPerwakilanPage() {
   const [busy, setBusy] = useState(false);
   const [openCluster, setOpenCluster] = useState(null);
   const [detailUserId, setDetailUserId] = useState(null);
+  // Rekrut dari akun existing (Jamaah/Sahabat Baitullah) — dipusatkan di
+  // sini (dikonfirmasi user 2026-10-12), gantiin tombol "Tambahkan Role
+  // Perwakilan" yang sebelumnya numpang di Database Jamaah Sahabat.
+  const [cariQ, setCariQ] = useState('');
+  const [cariHasil, setCariHasil] = useState(null);
+  const [cariLoading, setCariLoading] = useState(false);
   // Link referral admin/super_admin sendiri — mirror /admin/sahabat/page.jsx
   // (dikonfirmasi user 2026-09-19), buat ngerekrut Perwakilan baru langsung
   // dari panel tanpa lewat link anggota aktif.
@@ -111,6 +116,38 @@ export default function AdminPerwakilanPage() {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: userId, action }),
       });
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusy(false);
+  }
+
+  // Cari akun Jamaah/Sahabat Baitullah buat direkrut jadi Perwakilan
+  // (dikonfirmasi user 2026-10-12). Exact-ish via LIKE nama/NIK/WA/kode
+  // unik, dibatasi 20 hasil server-side.
+  async function cariAkun() {
+    const q = cariQ.trim();
+    if (!q) { setCariHasil(null); return; }
+    setCariLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users?roles=jamaah,sahabat_baitullah&q=${encodeURIComponent(q)}`);
+      const d = await res.json();
+      setCariHasil(d.users || []);
+    } catch { setCariHasil([]); }
+    setCariLoading(false);
+  }
+
+  async function rekrutJadiPerwakilan(u) {
+    if (!confirm(`Rekrut ${u.name} jadi Perwakilan? Tetap wajib lewat proses pendaftaran lengkap (isi formulir, setuju PKS, pilih metode kantor/paket sendiri, dst) — cuma jalur masuknya langsung dari admin, bukan link referral.`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: u.id, action: 'rekrut_jadi_perwakilan' }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusy(false); return; }
+      alert(d.message);
+      setCariQ(''); setCariHasil(null);
       muat();
     } catch { alert('Terjadi kesalahan'); }
     setBusy(false);
@@ -195,6 +232,45 @@ export default function AdminPerwakilanPage() {
         </div>
       </div>
 
+      {/* Rekrut dari akun existing (dikonfirmasi user 2026-10-12) --
+          dipusatkan di sini, gantiin tombol "Tambahkan Role Perwakilan"
+          yang sebelumnya cuma ada di Database Jamaah Sahabat. Jamaah biasa
+          JUGA bisa, gak cuma Sahabat Baitullah (lihat action
+          rekrut_jadi_perwakilan di /api/admin/users). */}
+      <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">
+        <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🔍 Rekrut dari Akun Existing (Jamaah/Sahabat Baitullah)</div>
+        <div className="text-xs text-gray-400 mb-2">Cari akun Jamaah atau Sahabat Baitullah yang mau direkrut langsung jadi Perwakilan oleh manajemen — gak perlu daftar ulang dari nol, data yang udah ada dipakai lagi. Tetap wajib lewat proses pendaftaran lengkap (setuju PKS, lalu pilih sendiri metode kantor/paket — sama seperti pendaftar baru). <span className="text-gray-400">Sahabat Baitullah yang masuk team Head of Program gak akan muncul di hasil pencarian — gak boleh direkrut jadi Perwakilan.</span></div>
+        <div className="flex gap-2 mb-2">
+          <input value={cariQ} onChange={e => setCariQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && cariAkun()}
+            placeholder="Cari nama / NIK / WA / kode unik..."
+            className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+          <button onClick={cariAkun} disabled={cariLoading || !cariQ.trim()}
+            className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+            {cariLoading ? '...' : 'Cari'}
+          </button>
+        </div>
+        {cariHasil != null && (
+          cariHasil.length === 0 ? (
+            <div className="text-xs text-gray-400 py-2">Gak ketemu akun Jamaah/Sahabat Baitullah yang cocok.</div>
+          ) : (
+            <div className="space-y-1.5">
+              {cariHasil.map(u => (
+                <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <div className="text-xs">
+                    <span className="font-semibold text-gray-700">{u.name}</span>
+                    <span className="text-gray-400"> · {u.role === 'sahabat_baitullah' ? 'Sahabat Baitullah' : 'Jamaah'} · {u.kode_unik || '-'} · {u.wa}</span>
+                  </div>
+                  <button onClick={() => rekrutJadiPerwakilan(u)} disabled={busy}
+                    className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                    🤝 Rekrut Jadi Perwakilan
+                  </button>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+      </div>
+
       {loading ? (
         <div className="text-center text-gray-400 py-10">Memuat...</div>
       ) : totalButuhTindakan === 0 ? (
@@ -219,10 +295,6 @@ export default function AdminPerwakilanPage() {
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>TTD Digital Formulir</span>
-                {detail.formulir_ttd_selesai ? <span className="text-green-600 font-bold">✅ Selesai</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}
-              </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Persetujuan PKS</span>
                 {detail.pks_disetujui ? <span className="text-green-600 font-bold">✅ Ya</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}

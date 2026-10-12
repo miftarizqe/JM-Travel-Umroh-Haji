@@ -72,7 +72,48 @@ export default function DaftarPerwakilanPage() {
     // tanya ulang di sini, tinggal tampilkan. User yang upgrade dari jamaah
     // (lewat /upgrade-perwakilan) belum pernah ditanya sama sekali, tetap
     // pakai dropdown biasa di bawah.
-    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => { if (d.user) setProfil(d.user); }).catch(()=>{});
+    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => {
+      if (!d.user) return;
+      setProfil(d.user);
+      // Prefill formulir dari data profil yang udah ada (jamaah/sahabat
+      // existing yang upgrade ke perwakilan) -- gak perlu ngetik ulang data
+      // yang udah pernah diisi sebelumnya (dikonfirmasi user 2026-10-12,
+      // mirror pola prefill checkout mandiri sahabat di form-jamaah/page.jsx).
+      // Cuma isi field yang MASIH KOSONG/default, apa pun yang user udah
+      // ketik/ubah sendiri tetap menang. Alamat domisili TIDAK diprefill
+      // (users cuma simpan 1 kolom teks bebas, gak terstruktur kayak KTP) --
+      // sama_ktp default true sudah menutupi kasus umumnya.
+      const p = d.user;
+      const kosong = (v) => !v || !String(v).trim();
+      setForm(prev => ({
+        ...prev,
+        nama: kosong(prev.nama) ? (p.name || '') : prev.nama,
+        nik: kosong(prev.nik) ? (p.nik || '') : prev.nik,
+        tempat_lahir: kosong(prev.tempat_lahir) ? (p.tempat_lahir || '') : prev.tempat_lahir,
+        tl: prev.tl === maksTanggalLahir17Tahun && p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : prev.tl,
+        jk: p.jenis_kelamin || prev.jk,
+        ibu: kosong(prev.ibu) ? (p.nama_ibu || '') : prev.ibu,
+        ayah: kosong(prev.ayah) ? (p.nama_ayah || '') : prev.ayah,
+        foto_ktp_path: kosong(prev.foto_ktp_path) ? (p.foto_ktp_path || '') : prev.foto_ktp_path,
+        wa: kosong(prev.wa) ? (p.wa || '') : prev.wa,
+        email: kosong(prev.email) ? (p.email || '') : prev.email,
+        pkj: kosong(prev.pkj) ? (p.pekerjaan || '') : prev.pkj,
+        pendidikan: kosong(prev.pendidikan) ? (p.pendidikan_terakhir || '') : prev.pendidikan,
+        bank: kosong(prev.bank) ? (p.bank || '') : prev.bank,
+        norek: kosong(prev.norek) ? (p.no_rekening || '') : prev.norek,
+        pemilik: kosong(prev.pemilik) ? (p.nama_pemilik_rekening || '') : prev.pemilik,
+        jalan: kosong(prev.jalan) ? (p.alamat_ktp_jalan || '') : prev.jalan,
+        norumah: kosong(prev.norumah) ? (p.alamat_ktp_no_rumah || '') : prev.norumah,
+        rt: kosong(prev.rt) ? (p.alamat_ktp_rt || '') : prev.rt,
+        rw: kosong(prev.rw) ? (p.alamat_ktp_rw || '') : prev.rw,
+        kp: kosong(prev.kp) ? (p.kode_pos || '') : prev.kp,
+        kel: kosong(prev.kel) ? (p.alamat_ktp_kelurahan || '') : prev.kel,
+        kec: kosong(prev.kec) ? (p.alamat_ktp_kecamatan || '') : prev.kec,
+        kota: kosong(prev.kota) ? (p.alamat_ktp_kota || '') : prev.kota,
+        provinsi: kosong(prev.provinsi) ? (p.alamat_ktp_provinsi || '') : prev.provinsi,
+      }));
+    }).catch(()=>{});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Perekrut dari registrasi sudah final (role sudah 'perwakilan') — dipakai
@@ -129,10 +170,12 @@ export default function DaftarPerwakilanPage() {
     return true;
   }
 
-  // Submit formulir -> langsung chain ke TTD digital (self-service, pola sama
-  // kayak simpanLaluTtdDigital jamaah di pks/page.jsx) -> /tanda-tangan/[id].
-  // Metode Pendaftaran & PKS dipindah ke langkah SETELAH ini (lihat
-  // /daftar-perwakilan/metode & /pks?jenis=perwakilan), gak lagi di sini.
+  // Submit formulir -> langsung ke Persetujuan Kerjasama (PKS). TTD digital
+  // formulir (step mock /tanda-tangan/[id]) DICABUT (dikonfirmasi user
+  // 2026-10-12) — proses sekarang semuanya fisik, dokumen SPK-PWK
+  // ditandatangani fisik belakangan pas kantor/paket. Metode Pendaftaran &
+  // PKS dipindah ke langkah SETELAH ini (lihat /daftar-perwakilan/metode &
+  // /pks?jenis=perwakilan), gak lagi di sini.
   async function submit() {
     if (!validStep()) return;
     setLoading(true);
@@ -143,18 +186,7 @@ export default function DaftarPerwakilanPage() {
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setLoading(false); return; }
-
-      const resSig = await fetch('/api/admin/dokumen-signature', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dokumen: 'formulir', ref_id: user.id, metode: 'digital' }),
-      });
-      const dSig = await resSig.json();
-      if (!resSig.ok) {
-        alert((dSig.error || 'Formulir tersimpan, tapi gagal menyiapkan TTD digital.') + ' Silakan lanjutkan dari halaman status.');
-        router.push('/status-pendaftaran');
-        return;
-      }
-      router.push(`/tanda-tangan/${dSig.id}`);
+      router.push('/pks?jenis=perwakilan');
     } catch { alert('Terjadi kesalahan'); }
     setLoading(false);
   }
@@ -170,15 +202,12 @@ export default function DaftarPerwakilanPage() {
       </div></div></Layout>;
   }
 
-  // Blokir kalau prasyarat belum lengkap — mencegah step diloncati
-  if (cek && !cek.prasyarat?.akun_terverifikasi) {
-    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
-        <div className="text-3xl mb-2">⏳</div>
-        <h4 className="font-bold text-yellow-800 mb-1">Menunggu Verifikasi Admin</h4>
-        <p className="text-sm text-yellow-700">Akun Anda belum diverifikasi admin. Silakan tunggu, atau hubungi admin JM Travel.</p>
-      </div></div></Layout>;
-  }
+  // Gerbang "verifikasi akun" terpisah DICABUT (dikonfirmasi user
+  // 2026-10-12, mirror Sahabat Baitullah 2026-09-27) — akun Perwakilan
+  // sekarang auto-terverifikasi pas daftar (lihat /api/auth/register).
+  // Admin tetap review manual di titik "Aktifkan" ujung funnel
+  // (/api/status-pendaftaran), dan cekPemesanBolehOrder tetap nahan akun
+  // sebelum status beneran 'active' — jadi gak ada yang kelewat.
   if (cek && !cek.prasyarat?.foto_profil) {
     return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
@@ -191,8 +220,8 @@ export default function DaftarPerwakilanPage() {
   }
   if (cek?.pendaftaran) {
     // Formulir udah pernah dikirim — arahkan ke langkah LANJUTAN yang belum
-    // selesai (TTD formulir/PKS/pilih metode), bukan selalu ke status
-    // tracker mentah, biar applicant yang keluar di tengah jalan gak nyangkut.
+    // selesai (PKS/pilih metode), bukan selalu ke status tracker mentah,
+    // biar applicant yang keluar di tengah jalan gak nyangkut.
     const langkah = langkahBerikutnyaPerwakilan(cek) || '/status-pendaftaran';
     const sudahLengkap = langkah === '/status-pendaftaran';
     return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">

@@ -5,9 +5,10 @@ import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 // PATCH /api/daftar-perwakilan/metode — langkah TERAKHIR pendaftaran
-// kemitraan, baru muncul SETELAH calon perwakilan TTD digital formulir
-// (dokumen_signature dokumen='formulir') & setuju PKS (users.setuju_pks) —
-// dipindah ke sini dari step 3 formulir lama (dikonfirmasi user 2026-08-19).
+// kemitraan, baru muncul SETELAH calon perwakilan setuju PKS
+// (users.setuju_pks) — dipindah ke sini dari step 3 formulir lama
+// (dikonfirmasi user 2026-08-19). Gate TTD digital formulir DICABUT
+// (dikonfirmasi user 2026-10-12, proses sekarang semuanya fisik).
 // Divalidasi ULANG di server (bukan cuma diblok di client) karena ini
 // endpoint terpisah yang bisa dipanggil langsung.
 export async function PATCH(req) {
@@ -40,13 +41,6 @@ export async function PATCH(req) {
     const [[u]] = await db.query('SELECT name, setuju_pks, alamat_domisili FROM users WHERE id = ?', [user_id]);
     if (!u?.setuju_pks) {
       return NextResponse.json({ error: 'Setujui Perjanjian Kerjasama (PKS) dulu sebelum memilih metode pendaftaran' }, { status: 400 });
-    }
-    const [[sig]] = await db.query(
-      `SELECT fase FROM dokumen_signature WHERE dokumen = 'formulir' AND ref_id = ?`,
-      [user_id]
-    );
-    if (!sig || sig.fase !== 'selesai') {
-      return NextResponse.json({ error: 'Selesaikan TTD digital formulir dulu sebelum memilih metode pendaftaran' }, { status: 400 });
     }
 
     let alamatKirim = null;

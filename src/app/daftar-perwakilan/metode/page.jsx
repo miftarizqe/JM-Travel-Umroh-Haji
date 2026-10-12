@@ -14,9 +14,9 @@ const emptyForm = () => ({
   jalan_kirim:'', norumah_kirim:'', rt_kirim:'', rw_kirim:'', kp_kirim:'', kel_kirim:'', kec_kirim:'', kota_kirim:'', provinsi_kirim:'', negara_kirim:'Indonesia',
 });
 
-// Langkah TERAKHIR pendaftaran kemitraan — baru bisa diakses SETELAH TTD
-// digital formulir & persetujuan PKS selesai (dipindah ke sini dari step 3
-// formulir lama, dikonfirmasi user 2026-08-19). Alamat pengiriman cuma
+// Langkah TERAKHIR pendaftaran kemitraan — baru bisa diakses SETELAH
+// persetujuan PKS selesai (dipindah ke sini dari step 3 formulir lama,
+// dikonfirmasi user 2026-08-19). Alamat pengiriman cuma
 // relevan buat metode 'paket' — JM Travel ngirim Perjanjian Kerjasama fisik
 // ke alamat ini, lalu nunggu 1 rangkap dikirim balik (lihat /status-pendaftaran).
 export default function DaftarPerwakilanMetodePage() {
@@ -37,7 +37,7 @@ export default function DaftarPerwakilanMetodePage() {
     fetch('/api/status-pendaftaran').then(r => r.json()).then(d => setCek(d)).catch(() => {});
   }, [user]);
 
-  // Belum boleh sampai sini — arahkan ke langkah yang benar (formulir/TTD/PKS
+  // Belum boleh sampai sini — arahkan ke langkah yang benar (formulir/PKS
   // belum selesai, atau metode sudah pernah dipilih sebelumnya).
   const langkah = cek ? langkahBerikutnyaPerwakilan(cek) : null;
   useEffect(() => {
