@@ -430,24 +430,9 @@ export default function DatabaseJamaahPage() {
     setBusy(false);
   }
 
-  // Dual-role: tambah role Perwakilan ke akun sahabat yang sudah aktif —
-  // KHUSUS direkrut langsung manajemen, dikonfirmasi user 2026-09-06. Mirror
-  // tambahRoleKedua di /admin/database/[tipe] (arah sebaliknya).
-  async function tambahRolePerwakilan(j) {
-    if (!confirm(`Tambahkan role Perwakilan ke akun ${j.nama}? Orang ini tetap wajib lewat proses pendaftaran perwakilan lengkap — cuma jalur masuknya via admin, bukan link referral.`)) return;
-    setBusy(true);
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: j.user_id, action: 'tambah_role_kedua', role_kedua: 'perwakilan' }),
-      });
-      const d = await res.json();
-      if (!res.ok) { alert(d.error || 'Gagal menambahkan role kedua'); setBusy(false); return; }
-      alert('Role Perwakilan berhasil ditambahkan. Orangnya bisa lanjut proses pendaftaran lewat halaman Profil.');
-      muat();
-    } catch { alert('Terjadi kesalahan'); }
-    setBusy(false);
-  }
+  // tambahRolePerwakilan() DIPINDAH ke /admin/perwakilan (dikonfirmasi user
+  // 2026-10-12) -- lihat rekrutJadiPerwakilan() di sana, dipusatkan jadi 1
+  // tempat & diperluas bisa narik dari jamaah biasa juga.
 
   function bukaDetail(j) {
     const membuka = expand !== j.user_id;
@@ -700,11 +685,13 @@ export default function DatabaseJamaahPage() {
 
                 {expand === j.user_id && (
                   <div className="border-t border-gray-100 p-4 space-y-3 text-xs bg-gray-50/50">
-                    {j.user_status === 'active' && !j.role_kedua && !isHop && (
-                      <button onClick={() => tambahRolePerwakilan(j)} disabled={busy} className="w-full bg-[#0E2F6E] hover:bg-[#1A4FA0] text-white text-xs font-bold px-3 py-2 rounded-full disabled:opacity-50">
-                        🤝 Tambahkan Role Perwakilan (direkrut manajemen)
-                      </button>
-                    )}
+                    {/* Tombol "Tambahkan Role Perwakilan" DIPINDAH ke
+                        /admin/perwakilan (dikonfirmasi user 2026-10-12) --
+                        dipusatkan di sana lewat search "Rekrut dari Akun
+                        Existing", biar "rumah"-nya jelas 1 tempat & bisa
+                        narik dari jamaah biasa juga, gak cuma Sahabat
+                        Baitullah. Info "udah terdaftar sebagai..." di bawah
+                        TETAP ada, itu murni informasional. */}
                     {j.role_kedua && (
                       <div className="w-full bg-[#E8F0FB] text-[#0E2F6E] text-xs font-semibold px-3 py-2 rounded-full text-center">
                         ✓ Akun ini juga terdaftar sebagai {j.role_kedua === 'perwakilan' ? 'Perwakilan' : 'Sahabat Baitullah'}
