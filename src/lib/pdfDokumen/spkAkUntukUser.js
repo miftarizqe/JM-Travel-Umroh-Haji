@@ -2,9 +2,10 @@
 // untuk 1 anggota Sahabat Baitullah — SATU fungsi yang dipakai semua jalur
 // "lihat/cetak" (dikonfirmasi user 2026-10-01): /api/sahabat/unduh-spk-ak
 // (anggota sendiri) dan /api/admin/cetak-spk-ak/[user_id] (admin/super_admin/
-// HoP). Varian dipilih dari agama akun, nomor surat dibekukan sekali
-// (ambilAtauBuatNomorSurat, idempotent). Jalur TTD digital punya generator
-// sendiri di /api/admin/dokumen-signature tapi template-nya sama persis.
+// HoP). Varian dipilih dari agama akun, nomor surat & tanggal TTD dibekukan
+// sekali (ambilAtauBuatNomorSurat/ambilAtauBuatTanggalBeku, idempotent).
+// Jalur TTD digital punya generator sendiri di /api/admin/dokumen-signature
+// tapi template-nya sama persis.
 //
 // SPK-AK (Muslim) SEKARANG punya 2 rangkap (dikonfirmasi user 2026-10-03),
 // TAPI yang digabung jadi 2 PDF cuma buat metode_ttd_sahabat='kantor' (admin
@@ -15,7 +16,7 @@
 // BELUM dapat template 2-rangkap baru, tetap 1 dokumen seperti sebelumnya.
 import { generateSpkAkPdf, generateSpkAkRangkapPdf } from './spkAkOverlay';
 import { mergePdfBuffers } from './dokumenSahabatGabungan';
-import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
+import { ambilAtauBuatNomorSurat, ambilAtauBuatTanggalBeku } from '@/lib/nomorSurat';
 import { formatAlamatDuaBaris } from './alamatDuaBaris';
 
 const HARI_ID = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -38,9 +39,12 @@ export async function buatPdfSpkAkUntukUser(pool, userId) {
   const dokumen = user.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
   const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
   const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
+  const tanggalKolom = dokumen === 'spk_ak' ? 'tgl_spk_ak' : 'tgl_spk_ak_nonis';
   const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
-
-  const sekarang = new Date();
+  // Tanggal TTD dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
+  // siapa pun yang DULUAN baca dokumen ini (jamaah di /pks, atau admin
+  // kirim TTD digital di kirimSpkAkTunggalUntukTtd) yang mbekuin tanggalnya.
+  const sekarang = await ambilAtauBuatTanggalBeku(pool, user.id, tanggalKolom);
   const dataUmum = {
     nomor,
     nama: user.name, alamat: user.alamat_ktp || user.alamat || '-', noTelepon: user.wa || '-', noPaspor: user.no_paspor || '-',

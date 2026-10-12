@@ -79,3 +79,22 @@ export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis)
   );
   await pool.query(`UPDATE users SET ${kolom} = NULL WHERE id = ?`, [userId]);
 }
+
+// Tanggal TTD dibekukan PERMANEN bareng nomor (dikonfirmasi user 2026-10-12)
+// -- sebelumnya dihitung ulang `new Date()` setiap dokumen SPK-AK dibuka/
+// dicetak ulang (/pks buat centang setuju, atau cetak manual admin), bikin
+// tanggal di surat ikut maju walau nomornya udah beku dari kapan. Kolom
+// tanggal dikasih TERPISAH & eksplisit dari pemanggil (bukan ditebak dari
+// nama kolom nomor) biar jelas gak ada collision. Dipanggil BARENGAN
+// ambilAtauBuatNomorSurat di tempat yang sama -- siapa pun yang DULUAN
+// nyentuh dokumennya (baca di /pks ATAU admin kirim TTD digital) yang
+// mbekuin tanggalnya, bukan cuma nomornya doang.
+export async function ambilAtauBuatTanggalBeku(pool, userId, kolomTanggal) {
+  const [rows] = await pool.query(`SELECT ${kolomTanggal} AS tanggal FROM users WHERE id = ?`, [userId]);
+  if (rows.length === 0) return null;
+  if (rows[0].tanggal) return new Date(rows[0].tanggal);
+
+  const sekarang = new Date();
+  await pool.query(`UPDATE users SET ${kolomTanggal} = ? WHERE id = ?`, [sekarang, userId]);
+  return sekarang;
+}
