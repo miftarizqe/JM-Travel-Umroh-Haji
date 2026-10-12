@@ -5,15 +5,18 @@
 // kebeku di kolom users (format lama) TIDAK diubah retroaktif, cuma nomor
 // BARU yang pakai format ini.
 //
-// Nomor di-generate SEKALI per user lalu dibekukan permanen di kolom
+// Nomor di-generate SEKALI per baris lalu dibekukan permanen di kolom
 // `kolom` (default users.no_perjanjian_kerjasama, dipakai SPKA-Ins) —
 // supaya cetak ulang surat yang sama gak dapat nomor baru (nomor surat
 // resmi gak boleh berubah-ubah). Dokumen lain yang butuh nomor sendiri
-// (SPK-AK, SK-CIF) HARUS pakai kolom terpisah (no_spk_ak/no_sk_cif) —
-// kalau reuse kolom default, pemanggilan ke-2 buat user yang sama akan
-// diam-diam balikin nomor dokumen pertama.
-export async function ambilAtauBuatNomorSurat(pool, userId, jenis, kolom = 'no_perjanjian_kerjasama') {
-  const [rows] = await pool.query(`SELECT ${kolom} AS nomor FROM users WHERE id = ?`, [userId]);
+// (SPK-AK, SK-CIF, Perjanjian Jamaah) HARUS pakai kolom terpisah
+// (no_spk_ak/no_sk_cif/no_perjanjian_jamaah) — kalau reuse kolom default,
+// pemanggilan ke-2 buat baris yang sama akan diam-diam balikin nomor
+// dokumen pertama. `tabel` default 'users' (perwakilan/sahabat, per-akun)
+// — Perjanjian Jamaah per-BOOKING (1 jamaah bisa booking berkali-kali,
+// masing-masing butuh nomor sendiri), jadi pakai tabel='bookings'.
+export async function ambilAtauBuatNomorSurat(pool, rowId, jenis, kolom = 'no_perjanjian_kerjasama', tabel = 'users') {
+  const [rows] = await pool.query(`SELECT ${kolom} AS nomor FROM ${tabel} WHERE id = ?`, [rowId]);
   if (rows.length === 0) return null;
   if (rows[0].nomor) return rows[0].nomor;
 
@@ -45,7 +48,7 @@ export async function ambilAtauBuatNomorSurat(pool, userId, jenis, kolom = 'no_p
     nomor = `${String(urutan).padStart(6, '0')}.${bulan}/JMT-${jenis}/${tahun}`;
   }
 
-  await pool.query(`UPDATE users SET ${kolom} = ? WHERE id = ?`, [nomor, userId]);
+  await pool.query(`UPDATE ${tabel} SET ${kolom} = ? WHERE id = ?`, [nomor, rowId]);
   return nomor;
 }
 
@@ -89,12 +92,12 @@ export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis)
 // ambilAtauBuatNomorSurat di tempat yang sama -- siapa pun yang DULUAN
 // nyentuh dokumennya (baca di /pks ATAU admin kirim TTD digital) yang
 // mbekuin tanggalnya, bukan cuma nomornya doang.
-export async function ambilAtauBuatTanggalBeku(pool, userId, kolomTanggal) {
-  const [rows] = await pool.query(`SELECT ${kolomTanggal} AS tanggal FROM users WHERE id = ?`, [userId]);
+export async function ambilAtauBuatTanggalBeku(pool, rowId, kolomTanggal, tabel = 'users') {
+  const [rows] = await pool.query(`SELECT ${kolomTanggal} AS tanggal FROM ${tabel} WHERE id = ?`, [rowId]);
   if (rows.length === 0) return null;
   if (rows[0].tanggal) return new Date(rows[0].tanggal);
 
   const sekarang = new Date();
-  await pool.query(`UPDATE users SET ${kolomTanggal} = ? WHERE id = ?`, [sekarang, userId]);
+  await pool.query(`UPDATE ${tabel} SET ${kolomTanggal} = ? WHERE id = ?`, [sekarang, rowId]);
   return sekarang;
 }

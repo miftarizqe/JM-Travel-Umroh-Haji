@@ -83,7 +83,7 @@ export async function GET(request) {
         namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
       });
     } else if (dokumen === 'spka_ins') {
-      buffer = await renderSpkaInsPdf({ user: CONTOH_USER, perekrut: CONTOH_PEREKRUT, nomor: '09.0001/JMT.SPKA-Ins.IX/2026 (contoh)', pasal, signer: signerUntuk('spka_ins'), pengaturan, logoPath });
+      buffer = await renderSpkaInsPdf({ user: CONTOH_USER, perekrut: CONTOH_PEREKRUT, nomor: '09.0001/JMT.SPKA-Ins.IX/2026 (contoh)', tanggal: CONTOH_USER.created_at, pasal, signer: signerUntuk('spka_ins'), pengaturan, logoPath });
     } else if (dokumen === 'jamaah') {
       const booking = {
         id: 'BK-CONTOH', prog_name: 'Program Contoh',

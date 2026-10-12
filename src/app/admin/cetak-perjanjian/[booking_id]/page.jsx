@@ -39,6 +39,7 @@ export default function CetakPerjanjian() {
   const [ditolak, setDitolak] = useState(false);
   const [pasal, setPasal] = useState(null);
   const [signer, setSigner] = useState(null);
+  const [nomor, setNomor] = useState(null);
   const [pengaturan] = usePengaturan();
   const [busyDoc, setBusyDoc] = useState(null);
 
@@ -69,6 +70,11 @@ export default function CetakPerjanjian() {
       .catch(() => setLoading(false));
     fetch(`/api/admin/pasal?dokumen=jamaah&ref_id=${bookingId}`).then(r => r.json())
       .then(d => { setPasal(d.pasal || []); setSigner(d.signer || null); }).catch(() => setPasal([]));
+    // Nomor surat resmi -- dibekukan server-side begitu halaman cetak ini
+    // dibuka (dikonfirmasi user 2026-10-12), gantiin booking.id mentah yang
+    // dipakai sebelumnya.
+    fetch(`/api/admin/cetak-perjanjian/${bookingId}`).then(r => r.json())
+      .then(d => setNomor(d.nomor || null)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId]);
 
@@ -191,7 +197,7 @@ export default function CetakPerjanjian() {
         <KopPasalDokumen pengaturan={pengaturan} />
 
         <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.judul, fontWeight: 800 }}>SURAT PERJANJIAN JAMAAH UMROH</div>
-        <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.nomor, color: '#666', marginBottom: 18 }}>Nomor: {booking.id}</div>
+        <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.nomor, color: '#666', marginBottom: 18 }}>Nomor: {nomor || '...'}</div>
 
         <p>
           Pada hari {HARI[tglBooking.getDay()]}, tanggal {tglIndo(tglBooking)}, bertempat di Jakarta, yang bertanda tangan di bawah ini :

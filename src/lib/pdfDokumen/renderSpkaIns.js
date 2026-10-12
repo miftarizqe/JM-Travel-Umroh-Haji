@@ -15,9 +15,14 @@ const tglIndo = (d) => `${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}
 
 /**
  * @param {object} opts
- * @param {object} opts.user - baris users (name, nik, alamat, wa, created_at, ...)
+ * @param {object} opts.user - baris users (name, nik, alamat, wa, ...)
  * @param {object|null} opts.perekrut
  * @param {string} opts.nomor - nomor surat (ambilAtauBuatNomorSurat)
+ * @param {Date} opts.tanggal - tanggal TTD dibekukan (ambilAtauBuatTanggalBeku,
+ *   kolom tgl_perjanjian_kerjasama) — dibekukan BARENG nomor, BUKAN
+ *   users.created_at lagi (dikonfirmasi user 2026-10-12, biar gak mismatch
+ *   bulan sama nomor kalau dokumennya baru pertama dicetak jauh setelah
+ *   akun dibuat).
  * @param {Array<{nomor:number, judul:string, isi:string}>} opts.pasal
  * @param {{nama:string, jabatan:string}} opts.signer
  * @param {object} opts.pengaturan
@@ -29,13 +34,13 @@ const tglIndo = (d) => `${d.getDate()} ${BULAN[d.getMonth()]} ${d.getFullYear()}
  *   dokumen yang pakai skema 2 rangkap/2 materai, jadi label ini wajib
  *   ditera di tiap salinan biar gak ketuker pas dicetak/diarsip.
  */
-export async function renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital, rangkapLabel }) {
+export async function renderSpkaInsPdf({ user, perekrut, nomor, tanggal, pasal, signer, pengaturan, logoPath, untukTtdDigital, rangkapLabel }) {
   const namaPenandatangan = signer?.nama || 'Ahmad Zaky Arief Bestary';
   const jabatanPenandatangan = signer?.jabatan || 'Direktur Pengembangan Bisnis & Sumber Daya Manusia';
   const perekrutEfektif = perekrut || {
     name: namaPenandatangan, nik: '-', alamat: '(mewakili PT. Alkhalid Jaya Megah)', wa: '-',
   };
-  const tglGabung = new Date(user.created_at);
+  const tglGabung = tanggal;
   const mergeData = { bank_agen: user.bank, rekening_agen: user.no_rekening, nama_rekening_agen: user.nama_pemilik_rekening };
 
   const TtdBox = ({ pihak, sub, nama, solo }) => (

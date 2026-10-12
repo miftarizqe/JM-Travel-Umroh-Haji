@@ -137,11 +137,16 @@ async function siapkanData(dokumen, refId) {
 
     if (dokumen === 'spka_ins') {
       const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SPKA-Ins');
+      // Tanggal dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
+      // kalau admin udah sempat cetak dokumen ini duluan (lihat
+      // /api/admin/cetak-pks/[user_id]), tanggalnya SAMA, gak digenerate
+      // ulang di sini.
+      const tanggal = await ambilAtauBuatTanggalBeku(pool, user.id, 'tgl_perjanjian_kerjasama');
       if (nomor) await pastikanSnapshot(pool, user.id, 'spka_ins');
       const { pasal, signer } = await ambilPasalUntukCetak('spka_ins', user.id);
       return {
         user, perekrut, jmSigner: signer,
-        generatePdf: (rangkapLabel) => renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel }),
+        generatePdf: (rangkapLabel) => renderSpkaInsPdf({ user, perekrut, nomor, tanggal, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel }),
       };
     }
     return {
