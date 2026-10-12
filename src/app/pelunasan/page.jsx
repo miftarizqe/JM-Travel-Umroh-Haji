@@ -29,7 +29,6 @@ function PelunasanPageInner() {
   const [buktiPath, setBuktiPath] = useState(null);
   const [buktiNama, setBuktiNama] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [kodeUnik] = useState(() => Math.floor(Math.random() * 900) + 100);
 
   // Udah cek voucher atau upload bukti — sayang kalau ilang
   const isDirty = !!voucher || !!buktiPath;
@@ -73,10 +72,10 @@ function PelunasanPageInner() {
           booking_id: bookingId,
           user_id: user.id,
           type: 'lunas',
-          amount: sisaBayar + kodeUnik,
+          amount: sisaBayar,
           bukti_path: buktiPath,
           bukti_nama: buktiNama,
-          kode_unik: kodeUnik
+          kode_unik: 0
         })
       });
       if (res.ok) {
@@ -212,17 +211,9 @@ function PelunasanPageInner() {
               <span className={r.green ? 'text-green-600 font-semibold' : r.red ? 'text-red-600 font-bold' : 'font-semibold text-[#0E2F6E]'}>{r.val}</span>
             </div>
           ))}
-          <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
+          <div className="border-t border-blue-200 pt-2 flex justify-between font-bold text-base">
             <span className="text-sm">Sisa Pelunasan</span>
             <span className="text-red-600">Rp {sisaBayar.toLocaleString('id-ID')}</span>
-          </div>
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>Kode Unik</span>
-            <span className="font-bold text-red-600">+Rp {kodeUnik}</span>
-          </div>
-          <div className="border-t border-blue-200 pt-2 flex justify-between font-bold text-base">
-            <span>Transfer Tepat</span>
-            <span className="text-red-600">Rp {(sisaBayar + kodeUnik).toLocaleString('id-ID')}</span>
           </div>
         </div>
 

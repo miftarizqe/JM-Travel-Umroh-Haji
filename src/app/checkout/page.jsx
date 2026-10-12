@@ -44,7 +44,6 @@ function CheckoutPageInner() {
   // Dari CartPaketKamar — dipakai isi voucher_kode pas submit & nampilin
   // info sisa pelunasan di step 3 (komponennya sendiri sudah unmount di situ).
   const [summary, setSummary] = useState({ totalHarga: 0, totalDp: 0, voucherKode: null, voucherDiskon: 0, totalHargaSetelahDiskon: 0, sisaPelunasan: 0 });
-  const [kodeUnik] = useState(() => Math.floor(Math.random() * 900) + 100);
   // Sumber informasi (siapa yang mengajak) — WAJIB di checkout,
   // karena inilah yang menentukan siapa penerima komisi. Perwakilan/Sahabat
   // Baitullah yang checkout untuk diri sendiri (mis. Closing Langsung)
@@ -397,7 +396,7 @@ function CheckoutPageInner() {
             customHotel: c.customHotel || null,
             opsi_tambahan_ids: (c.opsiTambahan || []).map(o => o.id),
           })),
-          kode_unik_dp: dpDariSaldo ? 0 : kodeUnik,
+          kode_unik_dp: 0,
           bukti_path: dpDariSaldo ? null : buktiPath,
           bukti_nama: dpDariSaldo ? null : buktiNama,
           bayar_dp_dari_saldo: dpDariSaldo,
@@ -1089,15 +1088,10 @@ function CheckoutPageInner() {
                   </div>
                 </>
               ) : (
-                <>
-                  <div className="flex justify-between text-sm text-gray-500">
-                    <span>Kode Unik</span><span className="font-bold text-red-600">+Rp {kodeUnik}</span>
-                  </div>
-                  <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
-                    <span className="text-sm">Transfer Tepat</span>
-                    <span className="text-red-600">Rp {(totalDP + kodeUnik).toLocaleString('id-ID')}</span>
-                  </div>
-                </>
+                <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
+                  <span className="text-sm">Transfer Tepat</span>
+                  <span className="text-red-600">Rp {totalDP.toLocaleString('id-ID')}</span>
+                </div>
               )}
             </div>
 
