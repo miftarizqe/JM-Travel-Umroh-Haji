@@ -250,22 +250,38 @@ export default function AdminSahabatPage() {
                   Formulir BSI kalau relevan) punya ORANG INI, admin boleh
                   buka punya siapa aja lewat ?user_id= (lihat
                   /api/sahabat/dokumen-legal/unduh-lengkap). */}
+              {/* HoP gak punya akses ke dokumen pribadi/legal sama sekali
+                  (ditegakkan server di /api/dokumen/[...slug] & endpoint
+                  unduh-lengkap -- klik link ini bakal 403 buat HoP), jadi
+                  tombol cetak & link "Lihat" DIHILANGKAN TOTAL buat HoP
+                  (dikonfirmasi user 2026-10-12), ganti checklist status
+                  doang kayak item lain di bawah. */}
+              {!isHop && (
               <button onClick={() => window.open(`/api/sahabat/dokumen-legal/unduh-lengkap?user_id=${detail.user_id}`, '_blank')}
                 className="w-full text-xs font-bold text-white bg-[#1A4FA0] py-2.5 rounded-lg">
                 🖨️ Lihat &amp; Cetak Dokumen Lengkap (SPK-AK, SK-CIF, Surat Pemblokiran{detail.bantuan_bsi_manual_disetujui_at ? ', Formulir BSI' : ''})
               </button>
+              )}
               {/* KTP wajib diunggah pas daftar-sahabat, Paspor opsional --
                   sebelumnya gak ada link buka keduanya sama sekali di admin
                   (ditemukan user 2026-10-08). */}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>KTP</span>
-                {detail.foto_ktp_path ? (
+                {isHop ? (
+                  <span className={detail.foto_ktp_path ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
+                    {detail.foto_ktp_path ? '✅ Sudah' : '⏳ Belum diunggah'}
+                  </span>
+                ) : detail.foto_ktp_path ? (
                   <a href={detail.foto_ktp_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diunggah</span>}
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Paspor</span>
-                {detail.foto_paspor_path ? (
+                {isHop ? (
+                  <span className={detail.foto_paspor_path ? 'text-green-600 font-bold' : 'text-gray-400'}>
+                    {detail.foto_paspor_path ? '✅ Sudah' : '- (opsional)'}
+                  </span>
+                ) : detail.foto_paspor_path ? (
                   <a href={detail.foto_paspor_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
                 ) : <span className="text-gray-400">- (opsional)</span>}
               </div>
@@ -278,10 +294,14 @@ export default function AdminSahabatPage() {
                   yang somehow masih nyangkut (lihat action 'verify_tf'). */}
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Bukti Transfer Rp1jt</span>
-                {detail.bukti_tf_path ? (
+                {isHop ? (
+                  <span className={detail.bukti_tf_path ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
+                    {detail.bukti_tf_path ? '✅ Sudah' : '⏳ Belum diunggah'}
+                  </span>
+                ) : detail.bukti_tf_path ? (
                   <div className="flex items-center gap-2">
                     <a href={detail.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
-                    {!detail.bukti_tf_verified_at && detail.status === 'pending' && !isHop && (
+                    {!detail.bukti_tf_verified_at && detail.status === 'pending' && (
                       <button disabled={busy} onClick={() => aksi({ action: 'verify_tf', user_id: detail.user_id })}
                         className="text-[10px] font-bold text-white bg-green-600 px-3 py-1.5 rounded-full disabled:opacity-50">
                         Verifikasi
@@ -311,7 +331,9 @@ export default function AdminSahabatPage() {
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Rekening Tabungan Umroh</span>
                 {detail.no_rekening_tabungan_umroh ? (
-                  <span className="text-green-600 font-bold">✅ {detail.no_rekening_tabungan_umroh}</span>
+                  <span className="text-green-600 font-bold">
+                    ✅ {isHop ? 'Sudah diisi' : detail.no_rekening_tabungan_umroh}
+                  </span>
                 ) : detail.bantuan_bsi_manual_disetujui_at ? (
                   <span className="text-amber-600 font-bold">🏦 Dibantu BSI manual</span>
                 ) : <span className="text-red-500 font-bold">⏳ Belum diisi jamaah</span>}
