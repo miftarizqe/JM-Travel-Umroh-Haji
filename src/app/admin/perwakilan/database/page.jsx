@@ -258,8 +258,14 @@ export default function DatabasePerwakilanPage() {
   }
 
   // Dual-role: tambah role Sahabat Baitullah ke akun perwakilan yang sudah
-  // aktif — KHUSUS direkrut langsung manajemen. Mirror tambahRolePerwakilan
-  // di /admin/sahabat/database (arah sebaliknya).
+  // aktif — KHUSUS direkrut langsung manajemen. Arah sebaliknya (Sahabat ->
+  // Perwakilan) DIPINDAH ke /admin/perwakilan (dikonfirmasi user
+  // 2026-10-12, lihat rekrutJadiPerwakilan() di sana) -- bukan lagi mirror
+  // 1-ke-1 kayak sebelumnya.
+  // BUG (ditemukan & diperbaiki 2026-10-12): endpoint tambah_role_kedua di
+  // server sempat salah map pasangan role (key 'sahabat' bukan
+  // 'sahabat_baitullah') jadi tombol ini SELALU gagal -- fix-nya di
+  // /api/admin/users/route.js, bukan di sini.
   async function tambahRoleSahabat(row) {
     if (!confirm(`Tambahkan role Sahabat Baitullah ke akun ${row.nama}? Orang ini tetap wajib lewat proses lengkap (setoran, BSI, SK-CIF) — cuma jalur masuknya via admin, bukan link referral.`)) return;
     setBusy(true);

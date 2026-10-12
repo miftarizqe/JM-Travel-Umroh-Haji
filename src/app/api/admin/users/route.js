@@ -15,6 +15,15 @@ export async function GET(req) {
     const { searchParams } = new URL(req.url);
     const role = searchParams.get('role');
     const status = searchParams.get('status');
+    // `roles` (CSV, dikonfirmasi user 2026-10-12) -- dipakai picker "Rekrut
+    // dari Akun Existing" di /admin/perwakilan (butuh jamaah+sahabat_baitullah
+    // sekaligus dalam 1 query). TERPISAH dari `role` tunggal yang udah ada
+    // biar caller lama gak kepengaruh.
+    const rolesCsv = searchParams.get('roles');
+    // `q` -- cari nama/NIK/WA/kode_unik, exact-match-ish via LIKE (dipakai
+    // picker yang sama). Cuma relevan kalau dikombinasikan `roles`, tapi
+    // gak dipaksa biar fleksibel dipakai sendiri juga ke depannya.
+    const q = (searchParams.get('q') || '').trim();
 
     let query = `
       SELECT u.id, u.name, u.email, u.wa, u.nik, u.role, u.kode_unik, u.status,
@@ -39,8 +48,31 @@ export async function GET(req) {
       query += " AND u.role NOT IN ('admin','super_admin','hop')";
     }
     if (role) { query += ' AND u.role = ?'; params.push(role); }
+    if (rolesCsv) {
+      const rolesArr = rolesCsv.split(',').map(r => r.trim()).filter(Boolean);
+      if (rolesArr.length > 0) {
+        query += ` AND u.role IN (${rolesArr.map(() => '?').join(',')})`;
+        params.push(...rolesArr);
+        // Yang udah punya role_kedua='perwakilan' gak perlu nongol lagi di
+        // picker (bukan validasi final -- endpoint rekrut_jadi_perwakilan
+        // tetap nolak eksplisit kalau somehow kepilih, ini cuma nyaring
+        // hasil pencarian biar gak keliatan "bisa direkrut" padahal udah).
+        // IS NULL wajib disertain -- `!=` doang bakal ikut mbuang baris yang
+        // role_kedua-nya NULL (mayoritas user), bukan cuma yang literal
+        // 'perwakilan' (bug klasik NULL comparison di SQL).
+        query += " AND (u.role_kedua IS NULL OR u.role_kedua != 'perwakilan')";
+      }
+    }
     if (status) { query += ' AND u.status = ?'; params.push(status); }
+    if (q) {
+      query += ' AND (u.name LIKE ? OR u.nik LIKE ? OR u.wa LIKE ? OR u.kode_unik LIKE ?)';
+      const like = `%${q}%`;
+      params.push(like, like, like, like);
+    }
     query += ' ORDER BY u.created_at DESC';
+    // Picker butuh hasil terbatas & ringan -- q wajib diisi biar gak jadi
+    // "tampilin semua jamaah" tanpa sengaja (bisa ribuan baris).
+    if (rolesCsv && q) query += ' LIMIT 20';
 
     const [users] = await db.query(query, params);
     for (const u of users) u.status_akun = statusAkun(u);
@@ -324,7 +356,13 @@ export async function PATCH(req) {
         if (target.status !== 'active') {
           return NextResponse.json({ error: 'Akun harus aktif dulu sebelum diberi role kedua' }, { status: 400 });
         }
-        const pasangan = { perwakilan: 'sahabat_baitullah', sahabat: 'perwakilan' };
+        // BUG (ditemukan & diperbaiki 2026-10-12): key kedua dulu 'sahabat',
+        // padahal roleKedua yang dipakai di seluruh codebase (termasuk
+        // validasi di atas) selalu 'sahabat_baitullah' -- jadi arah
+        // "Tambahkan Role Sahabat Baitullah" (dipicu dari Database
+        // Perwakilan) SELALU gagal, pasangan['sahabat_baitullah'] gak
+        // pernah match apa pun (selalu undefined).
+        const pasangan = { perwakilan: 'sahabat_baitullah', sahabat_baitullah: 'perwakilan' };
         if (target.role !== pasangan[roleKedua]) {
           return NextResponse.json({ error: `Role kedua "${roleKedua}" cuma bisa ditambahkan ke akun dengan role utama "${pasangan[roleKedua]}".` }, { status: 400 });
         }
@@ -387,6 +425,90 @@ export async function PATCH(req) {
         });
 
         return NextResponse.json({ message: 'Role kedua berhasil ditambahkan.', role_kedua: roleKedua });
+      }
+
+      // Rekrut langsung jadi Perwakilan dari akun existing (Jamaah atau
+      // Sahabat Baitullah) — dipicu dari /admin/perwakilan (dikonfirmasi
+      // user 2026-10-12, gantiin tombol "Tambahkan Role Perwakilan" yang
+      // sebelumnya numpang di Database Jamaah Sahabat, dipusatkan ke
+      // halaman Perwakilan biar "rumah"-nya jelas 1 tempat).
+      //
+      // BEDA dari tambah_role_kedua di atas:
+      // - Sumber Sahabat Baitullah -> SAMA PERSIS tambah_role_kedua
+      //   (role_kedua='perwakilan', identitas sahabat tetap dipertahankan
+      //   sebagai role utama, dual-membership).
+      // - Sumber Jamaah biasa -> BUKAN dual-role (jamaah bukan status
+      //   kemitraan yang perlu dipertahankan) -- untuk_role_kedua=0, jadi
+      //   begitu diaktifkan nanti, jalur NORMAL di /api/status-pendaftaran
+      //   (bukan cabang untuk_role_kedua) yang jalan: `role` user ini
+      //   LANGSUNG ditimpa jadi 'perwakilan'. Booking/riwayat lama tetap
+      //   aman (tetap nempel di user_id yang sama, dashboard/jamaah sudah
+      //   lama support nampilin "Booking Saya" buat role non-jamaah).
+      case 'rekrut_jadi_perwakilan': {
+        const metode = body.metode === 'paket' ? 'paket' : 'kantor';
+        if (target.status !== 'active') {
+          return NextResponse.json({ error: 'Akun harus aktif dulu sebelum direkrut jadi Perwakilan' }, { status: 400 });
+        }
+        if (!['jamaah', 'sahabat_baitullah'].includes(target.role)) {
+          return NextResponse.json({ error: 'Cuma akun Jamaah atau Sahabat Baitullah yang bisa direkrut jadi Perwakilan lewat sini' }, { status: 400 });
+        }
+        if (target.role_kedua === 'perwakilan') {
+          return NextResponse.json({ error: 'Akun ini sudah punya role Perwakilan' }, { status: 400 });
+        }
+        const [[existing]] = await db.query(
+          "SELECT id FROM agen_pendaftaran WHERE user_id = ? AND role_diajukan = 'perwakilan' AND status NOT IN ('ditolak') LIMIT 1",
+          [user_id]
+        );
+        if (existing) {
+          return NextResponse.json({ error: 'Akun ini sudah punya pendaftaran Perwakilan yang sedang berjalan' }, { status: 400 });
+        }
+
+        const isDariSahabat = target.role === 'sahabat_baitullah';
+        const [[u]] = await db.query(
+          `SELECT name, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu, alamat,
+                  alamat_ktp, alamat_domisili, alamat_kirim, kode_pos, wa, email, pekerjaan,
+                  bank, no_rekening, nama_pemilik_rekening, foto_ktp_path
+           FROM users WHERE id = ?`, [user_id]
+        );
+
+        await db.query(
+          `INSERT INTO agen_pendaftaran
+            (user_id, role_diajukan, nama, nik, tanggal_lahir, jenis_kelamin, nama_ibu,
+             alamat, kode_pos, wa, email, pekerjaan, bank, no_rekening, nama_pemilik_rekening,
+             perekrut_id, metode, status, alamat_ktp, alamat_domisili, alamat_kirim,
+             foto_ktp_path, tempat_lahir, untuk_role_kedua)
+           VALUES (?, 'perwakilan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
+          [user_id, u.name, u.nik, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
+           u.alamat_ktp || u.alamat, u.kode_pos, u.wa, u.email, u.pekerjaan, u.bank, u.no_rekening, u.nama_pemilik_rekening,
+           metode, u.alamat_ktp, u.alamat_domisili, u.alamat_kirim, u.foto_ktp_path, u.tempat_lahir, isDariSahabat ? 1 : 0]
+        );
+
+        if (isDariSahabat) {
+          await db.query(
+            'UPDATE users SET role_kedua = ?, role_kedua_ditambahkan_at = NOW() WHERE id = ?',
+            ['perwakilan', user_id]
+          );
+        }
+
+        await kirimNotifikasi(db, {
+          user_id: target.id,
+          tipe: 'akun_aktif',
+          judul: isDariSahabat ? 'Role Kedua Ditambahkan' : 'Direkrut Jadi Perwakilan',
+          pesan: isDariSahabat
+            ? 'Akun Anda sekarang juga terdaftar sebagai Perwakilan. Lengkapi proses pendaftarannya di halaman Profil.'
+            : 'Anda direkrut langsung oleh manajemen JM Travel sebagai Perwakilan. Lengkapi proses pendaftarannya di halaman Profil.',
+          link: '/profil',
+        });
+
+        await catatAudit(db, {
+          actor: auth.user,
+          aksi: 'rekrut_jadi_perwakilan',
+          target_type: 'user',
+          target_id: target.id,
+          keterangan: `${target.name}: direkrut jadi Perwakilan dari akun ${isDariSahabat ? 'Sahabat Baitullah (dual-role)' : 'Jamaah'}`,
+        });
+
+        return NextResponse.json({ message: 'Berhasil direkrut jadi Perwakilan.' });
       }
 
       default:
