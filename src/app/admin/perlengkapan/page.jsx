@@ -136,11 +136,112 @@ function ModalTambahStok({ item, onClose, onSaved }) {
   );
 }
 
+// Edit nama/deskripsi/ambang minimum (dikonfirmasi user 2026-10-12) —
+// sebelumnya nama/deskripsi gak bisa diubah sama sekali setelah dibuat,
+// ambang minimum cuma lewat prompt() browser yang kasar. gender_spesifik
+// & kategori_program TETAP diedit lewat dropdown inline di tabel (udah
+// jalan baik, gak perlu dipindah ke modal).
+function ModalEditItem({ item, onClose, onSaved }) {
+  const [nama, setNama] = useState(item.nama);
+  const [deskripsi, setDeskripsi] = useState(item.deskripsi || '');
+  const [stokMinimum, setStokMinimum] = useState(String(item.stok_minimum));
+  const [loading, setLoading] = useState(false);
+
+  async function simpan() {
+    if (!nama.trim()) { alert('Nama item wajib diisi'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/perlengkapan', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id, nama, deskripsi, stok_minimum: Number(stokMinimum) || 0 }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setLoading(false); return; }
+      onSaved();
+    } catch { alert('Terjadi kesalahan'); }
+    setLoading(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl p-5 w-full max-w-sm">
+        <div className="font-bold text-[#0E2F6E] mb-3">✏️ Edit Item — {item.nama}</div>
+        <label className="text-xs font-semibold text-gray-500">Nama Item</label>
+        <input value={nama} onChange={e => setNama(e.target.value)} autoFocus
+          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" />
+        <label className="text-xs font-semibold text-gray-500">Deskripsi (opsional)</label>
+        <input value={deskripsi} onChange={e => setDeskripsi(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" />
+        <label className="text-xs font-semibold text-gray-500">Ambang Minimum (buat alert perlu dipesan ulang)</label>
+        <input type="number" min="0" value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 bg-gray-100 text-gray-600 font-bold py-2 rounded-full text-sm">Batal</button>
+          <button onClick={simpan} disabled={loading} className="flex-1 bg-[#1A4FA0] text-white font-bold py-2 rounded-full text-sm disabled:opacity-50">
+            {loading ? 'Menyimpan...' : 'Simpan'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Stok Keluar manual (dikonfirmasi user 2026-10-12) — jalur BARU, sebelum
+// ini satu-satunya cara stok berkurang cuma lewat pengiriman kit otomatis
+// (tandaiPengirimanJamaah). Buat kasus stok diambil/berkurang di luar itu
+// (rusak, hilang, dipakai sampel, koreksi fisik, dll) — keterangan WAJIB
+// diisi (beda dari Stok Masuk yang opsional) biar ada jejak kenapa.
+function ModalStokKeluar({ item, onClose, onSaved }) {
+  const [qty, setQty] = useState('');
+  const [keterangan, setKeterangan] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function simpan() {
+    if (!qty || Number(qty) <= 0) { alert('Qty harus lebih dari 0'); return; }
+    if (Number(qty) > item.stok_saat_ini) { alert(`Qty keluar melebihi stok saat ini (${item.stok_saat_ini})`); return; }
+    if (!keterangan.trim()) { alert('Keterangan wajib diisi untuk stok keluar manual'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/admin/perlengkapan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ item_id: item.id, qty: Number(qty), keterangan, tipe: 'keluar' }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setLoading(false); return; }
+      onSaved();
+    } catch { alert('Terjadi kesalahan'); }
+    setLoading(false);
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl p-5 w-full max-w-sm">
+        <div className="font-bold text-[#0E2F6E] mb-3">➖ Stok Keluar (Manual) — {item.nama}</div>
+        <div className="text-[10px] text-gray-400 mb-3">Buat stok yang berkurang DI LUAR pengiriman kit otomatis — mis. rusak, hilang, dipakai sampel, atau koreksi hitung fisik. Stok saat ini: <b>{item.stok_saat_ini}</b>.</div>
+        <label className="text-xs font-semibold text-gray-500">Jumlah keluar</label>
+        <input type="number" min="1" max={item.stok_saat_ini} value={qty} onChange={e => setQty(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" autoFocus />
+        <label className="text-xs font-semibold text-gray-500">Keterangan (wajib)</label>
+        <input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="mis. Rusak kena hujan, diambil manual oleh Tim X"
+          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" />
+        <div className="flex gap-2">
+          <button onClick={onClose} className="flex-1 bg-gray-100 text-gray-600 font-bold py-2 rounded-full text-sm">Batal</button>
+          <button onClick={simpan} disabled={loading} className="flex-1 bg-red-600 text-white font-bold py-2 rounded-full text-sm disabled:opacity-50">
+            {loading ? 'Menyimpan...' : 'Catat Stok Keluar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PerlengkapanPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
   const [items, setItems] = useState(null);
   const [modalItem, setModalItem] = useState(null);
+  const [editItem, setEditItem] = useState(null);
+  const [stokKeluarItem, setStokKeluarItem] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [showTambahItem, setShowTambahItem] = useState(false);
 
@@ -158,12 +259,24 @@ export default function PerlengkapanPage() {
     fetch('/api/admin/perlengkapan/ledger').then(r => r.json()).then(d => setLedger(d.ledger || [])).catch(() => setLedger([]));
   }
 
-  async function editMinimum(item) {
-    const nilai = prompt(`Ambang minimum untuk "${item.nama}" (sekarang: ${item.stok_minimum})`, item.stok_minimum);
-    if (nilai == null) return;
+  // Nonaktifkan/Aktifkan (dikonfirmasi user 2026-10-12) -- sebelumnya gak
+  // ada jalur sama sekali, item cuma bisa dihapus beneran (dan itu pun
+  // CUMA kalau stok udah 0). Item nonaktif TETAP kelihatan di tabel ini
+  // (super_admin masih bisa pantau/aktifkan lagi kapan aja), tapi:
+  // 1. GAK muncul lagi di checklist "contreng item" pas kirim kit ke
+  //    jamaah baru (lihat daftarItemUntukJamaah di lib/perlengkapan.js),
+  // 2. GAK dihitung ke alert "perlu dipesan ulang" (cekItemPerluDipesan).
+  // Aman dipakai buat item discontinued yang stoknya masih nyisa — gak
+  // maksa harus dihabisin dulu baru bisa "berhenti dipakai".
+  async function toggleAktif(item) {
+    const aktifBaru = !item.aktif;
+    if (!confirm(aktifBaru
+      ? `Aktifkan lagi "${item.nama}"? Bakal muncul lagi di checklist kirim kit jamaah baru.`
+      : `Nonaktifkan "${item.nama}"? Gak akan muncul lagi di checklist kirim kit jamaah baru (stok yang masih ada TETAP tersimpan, bisa dihabiskan lewat Stok Keluar manual).`
+    )) return;
     const res = await fetch('/api/admin/perlengkapan', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: item.id, stok_minimum: Number(nilai) }),
+      body: JSON.stringify({ id: item.id, aktif: aktifBaru }),
     });
     if (res.ok) muat(); else alert((await res.json()).error);
   }
@@ -221,9 +334,10 @@ export default function PerlengkapanPage() {
             </thead>
             <tbody>
               {(items || []).map(it => (
-                <tr key={it.id} className={`border-t border-gray-100 ${it.perlu_dipesan ? 'bg-red-50' : ''}`}>
+                <tr key={it.id} className={`border-t border-gray-100 ${!it.aktif ? 'bg-gray-50 opacity-60' : it.perlu_dipesan ? 'bg-red-50' : ''}`}>
                   <td className="px-3 py-2 font-semibold text-[#0E2F6E]">
-                    {it.nama} {it.perlu_dipesan && <span className="text-red-500">⚠️</span>}
+                    {it.nama} {it.perlu_dipesan && it.aktif && <span className="text-red-500">⚠️</span>}
+                    {!it.aktif && <span className="ml-1.5 text-[9px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded-full align-middle">NONAKTIF</span>}
                   </td>
                   <td className="px-3 py-2 text-gray-500">{GENDER_LABEL[it.gender_spesifik]}</td>
                   <td className="px-3 py-2">
@@ -233,20 +347,35 @@ export default function PerlengkapanPage() {
                     </select>
                   </td>
                   <td className="px-3 py-2 text-right font-bold">{it.stok_saat_ini}</td>
-                  <td className="px-3 py-2 text-right">
-                    <button onClick={() => editMinimum(it)} className="text-[#1A4FA0] underline">{it.stok_minimum}</button>
-                  </td>
+                  <td className="px-3 py-2 text-right text-gray-500">{it.stok_minimum}</td>
                   <td className="px-3 py-2 text-right text-gray-500">{it.kebutuhan_mendatang}</td>
                   <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
+                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                      <button onClick={() => setEditItem(it)} title="Edit nama/deskripsi/ambang minimum"
+                        className="bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap">
+                        ✏️ Edit
+                      </button>
                       <button onClick={() => setModalItem(it)}
                         className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
                         ➕ Stok Masuk
                       </button>
+                      {/* Disabled kalau stok udah 0 -- gak ada apa pun buat
+                          dikeluarin (dikonfirmasi user 2026-10-12). */}
+                      <button onClick={() => setStokKeluarItem(it)} disabled={it.stok_saat_ini === 0}
+                        className="bg-amber-100 text-amber-700 hover:bg-amber-200 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">
+                        ➖ Stok Keluar
+                      </button>
+                      <button onClick={() => toggleAktif(it)} title={it.aktif ? 'Nonaktifkan item ini' : 'Aktifkan lagi item ini'}
+                        className="bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap">
+                        {it.aktif ? '🚫 Nonaktifkan' : '✅ Aktifkan'}
+                      </button>
                       {/* Cuma aktif (gak disabled) kalau stok udah 0 -- kalau
                           masih ada stok, klik tetap jalan tapi server nolak &
-                          kasih tau alasannya (dikonfirmasi user 2026-10-08). */}
-                      <button onClick={() => hapusItem(it)} title={it.stok_saat_ini !== 0 ? 'Stok belum 0, kosongkan dulu atau nonaktifkan' : 'Hapus item'}
+                          kasih tau alasannya (dikonfirmasi user 2026-10-08).
+                          Buat stok yang masih ada, pakai "Nonaktifkan" dulu
+                          atau habiskan lewat "Stok Keluar" (dikonfirmasi
+                          user 2026-10-12). */}
+                      <button onClick={() => hapusItem(it)} title={it.stok_saat_ini !== 0 ? 'Stok belum 0, kosongkan dulu (Stok Keluar) atau nonaktifkan' : 'Hapus item'}
                         className="text-red-500 hover:bg-red-50 text-xs font-bold px-2 py-1.5 rounded-full">
                         🗑️
                       </button>
@@ -291,6 +420,14 @@ export default function PerlengkapanPage() {
       {modalItem && (
         <ModalTambahStok item={modalItem} onClose={() => setModalItem(null)}
           onSaved={() => { setModalItem(null); muat(); }} />
+      )}
+      {editItem && (
+        <ModalEditItem item={editItem} onClose={() => setEditItem(null)}
+          onSaved={() => { setEditItem(null); muat(); }} />
+      )}
+      {stokKeluarItem && (
+        <ModalStokKeluar item={stokKeluarItem} onClose={() => setStokKeluarItem(null)}
+          onSaved={() => { setStokKeluarItem(null); muat(); }} />
       )}
       {showTambahItem && (
         <ModalTambahItem onClose={() => setShowTambahItem(false)}
