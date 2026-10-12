@@ -6,6 +6,7 @@ import { catatAudit } from '@/lib/audit';
 import { pastikanKodeInvitePerwakilan } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { statusAkun } from '@/lib/statusAkun';
+import { apakahBagianTeamHop } from '@/lib/hopAuth';
 
 // GET — list users, filter opsional by role & status
 export async function GET(req) {
@@ -76,6 +77,24 @@ export async function GET(req) {
 
     const [users] = await db.query(query, params);
     for (const u of users) u.status_akun = statusAkun(u);
+
+    // Picker "Rekrut dari Akun Existing" doang (rolesCsv+q) -- Sahabat
+    // Baitullah yang masuk team HoP (downline-nya, rantai perekrut_id)
+    // GAK BOLEH direkrut jadi Perwakilan (dikonfirmasi user 2026-10-12).
+    // Disaring di sini (bukan cuma di aksi rekrut) biar gak nongol dulu di
+    // hasil pencarian terus ternyata ditolak pas diklik -- hemat 1 langkah
+    // percuma buat admin. Cuma ngecek baris role='sahabat_baitullah' (hasil
+    // udah dibatasi 20 di atas, jadi ringan), jamaah biasa gak kena sama
+    // sekali (aturan ini SENGAJA cuma soal Sahabat Baitullah).
+    if (rolesCsv && q) {
+      const hasil = [];
+      for (const u of users) {
+        if (u.role === 'sahabat_baitullah' && await apakahBagianTeamHop(db, u.id)) continue;
+        hasil.push(u);
+      }
+      return NextResponse.json({ users: hasil });
+    }
+
     return NextResponse.json({ users });
   } catch (err) {
     console.error('Error fetch users:', err);
@@ -454,6 +473,15 @@ export async function PATCH(req) {
         }
         if (target.role_kedua === 'perwakilan') {
           return NextResponse.json({ error: 'Akun ini sudah punya role Perwakilan' }, { status: 400 });
+        }
+        // Sahabat Baitullah yang masuk team HoP (downline-nya) GAK BOLEH
+        // direkrut jadi Perwakilan (dikonfirmasi user 2026-10-12). Dicek di
+        // SINI juga (bukan cuma disaring di picker GET) -- defense-in-depth,
+        // jangan percaya cuma dari hasil pencarian yang udah disaring,
+        // endpoint ini harus tetap nolak sendiri kalau somehow dipanggil
+        // langsung. Jamaah biasa gak kena cek ini sama sekali.
+        if (target.role === 'sahabat_baitullah' && await apakahBagianTeamHop(db, user_id)) {
+          return NextResponse.json({ error: 'Anggota team Head of Program tidak boleh direkrut jadi Perwakilan.' }, { status: 400 });
         }
         const [[existing]] = await db.query(
           "SELECT id FROM agen_pendaftaran WHERE user_id = ? AND role_diajukan = 'perwakilan' AND status NOT IN ('ditolak') LIMIT 1",
