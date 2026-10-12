@@ -1,18 +1,22 @@
-const ROMAWI_BULAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-
-// Nomor surat perjanjian kerjasama — format: NN.XXXX/JMT.<jenis>.<romawi>/YYYY
-// NN = bulan berjalan (2 digit), XXXX = urutan keseluruhan (counter terpisah
-// per jenis, mulai dari 1), romawi = bulan berjalan dalam angka romawi.
+// Nomor surat perjanjian kerjasama — format: XXXXXX.NN/JMT-<jenis>/YYYY
+// XXXXXX = urutan keseluruhan (6 digit, counter terpisah per jenis, mulai
+// dari 1), NN = bulan berjalan (2 digit). Format lama (NN.XXXX/JMT.<jenis>.
+// <romawi>/YYYY) DIUBAH (dikonfirmasi user 2026-10-12) — nomor yang udah
+// kebeku di kolom users (format lama) TIDAK diubah retroaktif, cuma nomor
+// BARU yang pakai format ini.
 //
-// Nomor di-generate SEKALI per user lalu dibekukan permanen di kolom
+// Nomor di-generate SEKALI per baris lalu dibekukan permanen di kolom
 // `kolom` (default users.no_perjanjian_kerjasama, dipakai SPKA-Ins) —
 // supaya cetak ulang surat yang sama gak dapat nomor baru (nomor surat
 // resmi gak boleh berubah-ubah). Dokumen lain yang butuh nomor sendiri
-// (SPK-AK, SK-CIF) HARUS pakai kolom terpisah (no_spk_ak/no_sk_cif) —
-// kalau reuse kolom default, pemanggilan ke-2 buat user yang sama akan
-// diam-diam balikin nomor dokumen pertama.
-export async function ambilAtauBuatNomorSurat(pool, userId, jenis, kolom = 'no_perjanjian_kerjasama') {
-  const [rows] = await pool.query(`SELECT ${kolom} AS nomor FROM users WHERE id = ?`, [userId]);
+// (SPK-AK, SK-CIF, Perjanjian Jamaah) HARUS pakai kolom terpisah
+// (no_spk_ak/no_sk_cif/no_perjanjian_jamaah) — kalau reuse kolom default,
+// pemanggilan ke-2 buat baris yang sama akan diam-diam balikin nomor
+// dokumen pertama. `tabel` default 'users' (perwakilan/sahabat, per-akun)
+// — Perjanjian Jamaah per-BOOKING (1 jamaah bisa booking berkali-kali,
+// masing-masing butuh nomor sendiri), jadi pakai tabel='bookings'.
+export async function ambilAtauBuatNomorSurat(pool, rowId, jenis, kolom = 'no_perjanjian_kerjasama', tabel = 'users') {
+  const [rows] = await pool.query(`SELECT ${kolom} AS nomor FROM ${tabel} WHERE id = ?`, [rowId]);
   if (rows.length === 0) return null;
   if (rows[0].nomor) return rows[0].nomor;
 
@@ -41,28 +45,36 @@ export async function ambilAtauBuatNomorSurat(pool, userId, jenis, kolom = 'no_p
     const [c] = await pool.query('SELECT urutan FROM nomor_surat_counter WHERE jenis = ?', [jenis]);
     const urutan = c[0].urutan;
     const bulan = String(bulanAngka).padStart(2, '0');
-    const romawi = ROMAWI_BULAN[now.getMonth()];
-    nomor = `${bulan}.${String(urutan).padStart(4, '0')}/JMT.${jenis}.${romawi}/${tahun}`;
+    nomor = `${String(urutan).padStart(6, '0')}.${bulan}/JMT-${jenis}/${tahun}`;
   }
 
-  await pool.query(`UPDATE users SET ${kolom} = ? WHERE id = ?`, [nomor, userId]);
+  await pool.query(`UPDATE ${tabel} SET ${kolom} = ? WHERE id = ?`, [nomor, rowId]);
   return nomor;
 }
 
-// Dipanggil saat pendaftaran DITOLAK -- nomor yang udah kebakar (dibaca
-// jamaah sebelum admin tolak) dilepas biar jamaah LAIN yang daftar bulan
-// yang sama bisa kepake nomor itu (lihat ambilAtauBuatNomorSurat). Beda
-// bulan -> dibiarin, jadi gap permanen (lumrah, auditable lewat
-// pendaftaran_status_log) -- reuse lintas bulan bikin nomor kecil bertanggal
+// Dipanggil saat pendaftaran DITOLAK (atau booking DIBATALKAN) -- nomor
+// yang udah kebakar (dibaca/dicetak sebelum ditolak/dibatalkan) dilepas
+// biar orang/booking LAIN bulan yang sama bisa kepake nomor itu (lihat
+// ambilAtauBuatNomorSurat). Beda bulan -> dibiarin, jadi gap permanen
+// (lumrah, auditable) -- reuse lintas bulan bikin nomor kecil bertanggal
 // lebih baru dari nomor besar, berisiko keliatan aneh buat audit.
-export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis) {
-  const [[row]] = await pool.query(`SELECT ${kolom} AS nomor FROM users WHERE id = ?`, [userId]);
+// `tabel` default 'users', Perjanjian Jamaah pakai 'bookings'.
+// `kolomTanggal` opsional -- kalau dokumennya juga punya kolom tanggal
+// beku berpasangan (lihat ambilAtauBuatTanggalBeku, cth SPKA-Ins), ikut
+// dikosongkan juga biar generate ulang nanti dapat tanggal baru yang
+// match sama nomor barunya, bukan nyangkut ke tanggal lama.
+export async function releaseNomorSuratJikaBulanSama(pool, rowId, kolom, jenis, tabel = 'users', kolomTanggal = null) {
+  const [[row]] = await pool.query(`SELECT ${kolom} AS nomor FROM ${tabel} WHERE id = ?`, [rowId]);
   const nomor = row?.nomor;
   if (!nomor) return;
 
-  const cocok = nomor.match(/^(\d{2})\.(\d+)\/JMT\..+\/(\d{4})$/);
+  // Cuma cocok format BARU (XXXXXX.NN/JMT-<jenis>/YYYY) -- nomor format
+  // lama (dibekukan sebelum 2026-10-12) gak match, fungsi ini return lebih
+  // awal & nomornya gak dilepas (jadi gap permanen, sama kayak kasus beda
+  // bulan di bawah -- udah diterima sebagai perilaku wajar).
+  const cocok = nomor.match(/^(\d{6})\.(\d{2})\/JMT-.+\/(\d{4})$/);
   if (!cocok) return;
-  const [, bulanStr, urutanStr, tahunStr] = cocok;
+  const [, urutanStr, bulanStr, tahunStr] = cocok;
 
   const now = new Date();
   const bulanSekarang = String(now.getMonth() + 1).padStart(2, '0');
@@ -73,5 +85,25 @@ export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis)
     'INSERT INTO nomor_surat_released (jenis, bulan, tahun, urutan, nomor) VALUES (?, ?, ?, ?, ?)',
     [jenis, Number(bulanStr), Number(tahunStr), Number(urutanStr), nomor]
   );
-  await pool.query(`UPDATE users SET ${kolom} = NULL WHERE id = ?`, [userId]);
+  const setClause = kolomTanggal ? `${kolom} = NULL, ${kolomTanggal} = NULL` : `${kolom} = NULL`;
+  await pool.query(`UPDATE ${tabel} SET ${setClause} WHERE id = ?`, [rowId]);
+}
+
+// Tanggal TTD dibekukan PERMANEN bareng nomor (dikonfirmasi user 2026-10-12)
+// -- sebelumnya dihitung ulang `new Date()` setiap dokumen SPK-AK dibuka/
+// dicetak ulang (/pks buat centang setuju, atau cetak manual admin), bikin
+// tanggal di surat ikut maju walau nomornya udah beku dari kapan. Kolom
+// tanggal dikasih TERPISAH & eksplisit dari pemanggil (bukan ditebak dari
+// nama kolom nomor) biar jelas gak ada collision. Dipanggil BARENGAN
+// ambilAtauBuatNomorSurat di tempat yang sama -- siapa pun yang DULUAN
+// nyentuh dokumennya (baca di /pks ATAU admin kirim TTD digital) yang
+// mbekuin tanggalnya, bukan cuma nomornya doang.
+export async function ambilAtauBuatTanggalBeku(pool, rowId, kolomTanggal, tabel = 'users') {
+  const [rows] = await pool.query(`SELECT ${kolomTanggal} AS tanggal FROM ${tabel} WHERE id = ?`, [rowId]);
+  if (rows.length === 0) return null;
+  if (rows[0].tanggal) return new Date(rows[0].tanggal);
+
+  const sekarang = new Date();
+  await pool.query(`UPDATE ${tabel} SET ${kolomTanggal} = ? WHERE id = ?`, [sekarang, rowId]);
+  return sekarang;
 }

@@ -11,7 +11,7 @@ import { renderFormulirPdf } from '@/lib/pdfDokumen/renderFormulir';
 import { renderInvoicePdf } from '@/lib/pdfDokumen/renderInvoice';
 import { generateSpkAkPdf } from '@/lib/pdfDokumen/spkAkOverlay';
 import { simpanPdfDokumenSignature, logoAbsolutePath } from '@/lib/pdfDokumen/simpanPdf';
-import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
+import { ambilAtauBuatNomorSurat, ambilAtauBuatTanggalBeku } from '@/lib/nomorSurat';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
 
@@ -137,11 +137,16 @@ async function siapkanData(dokumen, refId) {
 
     if (dokumen === 'spka_ins') {
       const nomor = await ambilAtauBuatNomorSurat(pool, user.id, 'SPKA-Ins');
+      // Tanggal dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
+      // kalau admin udah sempat cetak dokumen ini duluan (lihat
+      // /api/admin/cetak-pks/[user_id]), tanggalnya SAMA, gak digenerate
+      // ulang di sini.
+      const tanggal = await ambilAtauBuatTanggalBeku(pool, user.id, 'tgl_perjanjian_kerjasama');
       if (nomor) await pastikanSnapshot(pool, user.id, 'spka_ins');
       const { pasal, signer } = await ambilPasalUntukCetak('spka_ins', user.id);
       return {
         user, perekrut, jmSigner: signer,
-        generatePdf: (rangkapLabel) => renderSpkaInsPdf({ user, perekrut, nomor, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel }),
+        generatePdf: (rangkapLabel) => renderSpkaInsPdf({ user, perekrut, nomor, tanggal, pasal, signer, pengaturan, logoPath, untukTtdDigital: true, rangkapLabel }),
       };
     }
     return {
@@ -284,9 +289,13 @@ export async function kirimSpkAkTunggalUntukTtd({ dokumen, refId, actorUser, bas
 
   const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
   const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
+  const tanggalKolom = dokumen === 'spk_ak' ? 'tgl_spk_ak' : 'tgl_spk_ak_nonis';
   const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
-
-  const sekarang = new Date();
+  // Tanggal TTD dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
+  // kalau jamaah udah sempat baca dokumennya di /pks duluan, tanggal yang
+  // dipakai di sini SAMA dengan tanggal pas dia baca, bukan tanggal admin
+  // ngirim TTD digital.
+  const sekarang = await ambilAtauBuatTanggalBeku(pool, user.id, tanggalKolom);
   const pdfBuffer = await generateSpkAkPdf({
     dokumen, nomor,
     nama: user.name, alamat: user.alamat || '-', noTelepon: user.wa || '-', noPaspor: user.no_paspor || '-',

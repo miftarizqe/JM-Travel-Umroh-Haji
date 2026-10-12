@@ -4,6 +4,7 @@ import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { lepasVoucher } from '@/lib/voucher';
 import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
+import { releaseNomorSuratJikaBulanSama } from '@/lib/nomorSurat';
 
 /**
  * Pembatalan Program
@@ -263,6 +264,10 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
     if (p.jamaah_idx == null) {
       // ---- Batalkan SELURUH booking (perilaku lama, tidak berubah) ----
       await conn.query("UPDATE bookings SET status = 'dibatalkan' WHERE id = ?", [p.booking_id]);
+      // Nomor Perjanjian Jamaah (SPJ) yang udah kebakar admin cetak
+      // sebelum dibatalkan -- dilepas biar gak jadi gap percuma (sama pola
+      // kayak SPKA-Ins/SPK-AK, dikonfirmasi user 2026-10-12).
+      await releaseNomorSuratJikaBulanSama(conn, p.booking_id, 'no_perjanjian_jamaah', 'SPJ', 'bookings');
       // Lepas hold saldo checkout mandiri Sahabat Baitullah yang belum
       // sempat dikonfirmasi admin (dikonfirmasi user 2026-10-08) -- kalau
       // enggak, saldo jamaah ketahan selamanya padahal bookingnya batal.
@@ -334,6 +339,9 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
         `UPDATE bookings SET jamaah_data = ?, jumlah_jamaah = ?, total_harga = ?, status = ? WHERE id = ?`,
         [JSON.stringify(entries), sisaAktif, totalHargaBaru, sisaAktif === 0 ? 'dibatalkan' : bk.status, p.booking_id]
       );
+      if (sisaAktif === 0) {
+        await releaseNomorSuratJikaBulanSama(conn, p.booking_id, 'no_perjanjian_jamaah', 'SPJ', 'bookings');
+      }
 
       await conn.query('UPDATE programs SET used_seat = GREATEST(0, used_seat - 1) WHERE id = ?', [bk.prog_id]);
       progIdSeatDibuka = bk.prog_id;
