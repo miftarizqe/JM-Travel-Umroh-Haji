@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { wajibSuperAdmin } from '@/lib/auth';
-import { cekItemPerluDipesan, hitungKebutuhanPerItem, tambahStokMasuk } from '@/lib/perlengkapan';
+import { cekItemPerluDipesan, hitungKebutuhanPerItem, tambahStokMasuk, kurangiStokManual } from '@/lib/perlengkapan';
 
 // GET /api/admin/perlengkapan — daftar item + stok + status perlu-pesan.
 // KHUSUS super_admin (detail stok & ambang reorder tidak boleh dilihat
@@ -34,6 +34,10 @@ export async function GET(request) {
 //   "Program Sahabat Baitullah" yang butuh item kategori baru.
 // - body: { item_id, qty, keterangan, harga_satuan?, akun_id?, program_id? }
 //   — catat stok masuk (restock/pembelian), pola lama gak berubah.
+// - body: { item_id, qty, keterangan, tipe: 'keluar' } — catat stok KELUAR
+//   manual (dikonfirmasi user 2026-10-12, lihat kurangiStokManual) --
+//   dibedain dari stok masuk lewat `tipe === 'keluar'` eksplisit, biar
+//   gak ketuker gara-gara dua-duanya sama-sama kirim item_id+qty.
 export async function POST(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
@@ -57,8 +61,14 @@ export async function POST(request) {
       return Response.json({ message: 'Item baru ditambahkan!', id: result.insertId }, { status: 201 });
     }
 
-    const { item_id, qty, keterangan, harga_satuan, akun_id, program_id } = body;
+    const { item_id, qty, keterangan, harga_satuan, akun_id, program_id, tipe } = body;
     if (!item_id || !qty) return Response.json({ error: 'item_id dan qty wajib diisi' }, { status: 400 });
+
+    if (tipe === 'keluar') {
+      await kurangiStokManual(pool, { itemId: item_id, qty: Number(qty), keterangan, actorId: auth.user.id });
+      return Response.json({ message: 'Stok keluar dicatat!' });
+    }
+
     await tambahStokMasuk(pool, {
       itemId: item_id, qty: Number(qty), keterangan,
       hargaSatuan: harga_satuan, akunId: akun_id, programId: program_id,

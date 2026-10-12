@@ -111,8 +111,10 @@ export async function hitungKebutuhanPerItem(pool, items) {
 
 // Item yang stoknya perlu dipesan ulang — di bawah ambang minimum ATAU
 // kurang dari kebutuhan mendatang (jamaah DP-confirmed yang belum dikirim).
+// Item NONAKTIF dikecualikan (dikonfirmasi user 2026-10-12) — udah gak
+// dipakai/dibeli lagi, gak masuk akal nagih admin buat pesan ulang.
 export async function cekItemPerluDipesan(pool) {
-  const [items] = await pool.query('SELECT * FROM perlengkapan_jamaah ORDER BY urutan');
+  const [items] = await pool.query('SELECT * FROM perlengkapan_jamaah WHERE aktif = 1 ORDER BY urutan');
   const kebutuhan = await hitungKebutuhanPerItem(pool, items);
 
   const hasil = [];
@@ -129,9 +131,13 @@ export async function cekItemPerluDipesan(pool) {
 const URUTAN_STATUS = ['belum_diproses', 'disiapkan', 'dikirim', 'diterima'];
 
 // Item yang berlaku buat 1 jamaah (dipakai UI admin buat nampilin checklist
-// sebelum kirim — "contreng satu-satu" atau "pilih semua").
+// sebelum kirim — "contreng satu-satu" atau "pilih semua"). Item NONAKTIF
+// dikecualikan (dikonfirmasi user 2026-10-12) — gak boleh lagi dicontreng
+// buat kiriman baru begitu dinonaktifkan, walau stok fisiknya masih ada
+// (mis. item discontinued, sisa stok dihabiskan via Stok Keluar manual,
+// bukan dikirim ke jamaah baru lewat jalur ini lagi).
 export async function daftarItemUntukJamaah(pool, jk, kategoriProgram) {
-  const [items] = await pool.query('SELECT * FROM perlengkapan_jamaah ORDER BY urutan');
+  const [items] = await pool.query('SELECT * FROM perlengkapan_jamaah WHERE aktif = 1 ORDER BY urutan');
   return itemUntukJamaah(items, jk, kategoriProgram);
 }
 
@@ -332,6 +338,48 @@ export async function tambahStokMasuk(pool, { itemId, qty, hargaSatuan, akunId, 
       [itemId, item.nama, qty, hargaValid ? Number(hargaSatuan) : null, keterangan || null, cashflowTransaksiId, actorId || null]
     );
     await conn.query('UPDATE perlengkapan_jamaah SET stok_saat_ini = stok_saat_ini + ? WHERE id = ?', [qty, itemId]);
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    conn.release();
+  }
+}
+
+// Kurangi stok secara MANUAL (dikonfirmasi user 2026-10-12) — buat stok
+// yang keluar TANPA lewat jalur otomatis tandaiPengirimanJamaah (mis.
+// diambil langsung dari gudang buat kebutuhan lain, rusak/hilang, dipakai
+// sampel, atau koreksi hitung ulang fisik). Keterangan WAJIB diisi (beda
+// dari tambahStokMasuk yang opsional) — baris manual gak punya booking_id
+// buat ngejelasin konteksnya sendiri kayak pengiriman kit, jadi satu-
+// satunya jejak "kenapa stok ini berkurang" ya keterangan yang diisi
+// admin sendiri. Gak boleh bikin stok minus (dikonfirmasi user) — ditolak
+// kalau qty lebih besar dari stok_saat_ini.
+export async function kurangiStokManual(pool, { itemId, qty, keterangan, actorId }) {
+  if (!Number.isInteger(qty) || qty <= 0) {
+    throw Object.assign(new Error('Qty harus angka bulat positif'), { status: 400 });
+  }
+  if (!keterangan || !String(keterangan).trim()) {
+    throw Object.assign(new Error('Keterangan wajib diisi untuk stok keluar manual'), { status: 400 });
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT id, nama, stok_saat_ini FROM perlengkapan_jamaah WHERE id = ? FOR UPDATE', [itemId]);
+    if (rows.length === 0) throw Object.assign(new Error('Item tidak ditemukan'), { status: 404 });
+    const item = rows[0];
+    if (qty > item.stok_saat_ini) {
+      throw Object.assign(new Error(`Qty keluar (${qty}) melebihi stok saat ini (${item.stok_saat_ini}) untuk "${item.nama}"`), { status: 400 });
+    }
+
+    await conn.query(
+      `INSERT INTO perlengkapan_stok_ledger (item_id, nama_item, tipe, qty, keterangan, input_oleh)
+       VALUES (?, ?, 'out', ?, ?, ?)`,
+      [itemId, item.nama, qty, String(keterangan).trim(), actorId || null]
+    );
+    await conn.query('UPDATE perlengkapan_jamaah SET stok_saat_ini = stok_saat_ini - ? WHERE id = ?', [qty, itemId]);
     await conn.commit();
   } catch (error) {
     await conn.rollback();
