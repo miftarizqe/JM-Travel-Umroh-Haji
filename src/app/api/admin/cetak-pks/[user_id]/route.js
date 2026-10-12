@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
-import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
+import { ambilAtauBuatNomorSurat, ambilAtauBuatTanggalBeku } from '@/lib/nomorSurat';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 
 // GET /api/admin/cetak-pks/[user_id] — data buat cetak Surat Perjanjian
@@ -55,9 +55,15 @@ export async function GET(request, { params }) {
     // BUKAN "SPKP" — beda dari dugaan awal sebelum draftnya dikasih.
     const jenis = 'SPKA-Ins';
     const nomor = await ambilAtauBuatNomorSurat(pool, u.id, jenis);
+    // Tanggal dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
+    // dulu "Pada hari X, tanggal Y" di surat ambil users.created_at (tanggal
+    // akun dibuat), bisa beda bulan dari nomor kalau dokumennya baru
+    // pertama dicetak jauh setelah akun dibuat. Sekarang disamain, beku di
+    // momen yang sama kayak nomor.
+    const tanggal = await ambilAtauBuatTanggalBeku(pool, u.id, 'tgl_perjanjian_kerjasama');
     if (nomor) await pastikanSnapshot(pool, u.id, 'spka_ins');
 
-    return Response.json({ user: u, perekrut, nomor });
+    return Response.json({ user: u, perekrut, nomor, tanggal });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

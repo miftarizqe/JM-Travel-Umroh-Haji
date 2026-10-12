@@ -118,7 +118,7 @@ export default function CetakPksMitra() {
     setData(d => ({ ...d, user: { ...d.user, dokumen_pks_fisik_path: path, dokumen_pks_fisik_uploaded_at: new Date().toISOString() } }));
   }
 
-  const { user, perekrut, nomor } = data;
+  const { user, perekrut, nomor, tanggal } = data;
   // Nama penandatangan PIHAK PERTAMA — dari snapshot (kalau dokumen ini
   // udah dibekukan) atau live Pengaturan Umum (fallback selagi belum
   // dibekukan / masih loading).
@@ -138,7 +138,9 @@ export default function CetakPksMitra() {
   // institusi/lembaga — transparansi dana, tata kelola, dst. Gak ada blok
   // "Mengetahui Head of Agency" di draft resminya (itu cuma ada di SPKA
   // agen lama, sudah dihapus dari sistem bareng role agen).
-  const tglGabungP = new Date(user.created_at);
+  // Tanggal dibekukan BARENG nomor (dikonfirmasi user 2026-10-12, lihat
+  // ambilAtauBuatTanggalBeku) -- BUKAN users.created_at lagi.
+  const tglGabungP = new Date(tanggal);
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <PrintBtn user={user} nomor={nomor} dibekukan={dibekukan} dibekukanAt={dibekukanAt} />
