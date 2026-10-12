@@ -195,3 +195,46 @@ export async function daftarTtuBelumDikirim(pool) {
   );
   return rows;
 }
+
+/**
+ * Booking LUNAS TOTAL (pelunasan_status='paid', bukan dibatalkan) yang
+ * BELUM punya baris Kwitansi di invoice_kwitansi sama sekali — harusnya
+ * HAMPIR SELALU auto-generate sendiri begitu lunas (lihat
+ * generateOrUpdateKwitansi, dipanggil dari hook approve pembayaran &
+ * checkout mandiri Sahabat Baitullah), jadi baris di sini nandain
+ * KEMUNGKINAN ada yang kelewat/gagal auto-generate (dikonfirmasi user
+ * 2026-10-13 — dipakai rekomendasi "perlu dibuatkan" di
+ * /admin/invoice-kwitansi biar admin gak perlu cek manual program per
+ * program).
+ */
+export async function daftarBookingPerluKwitansi(pool) {
+  const [rows] = await pool.query(
+    `SELECT b.id AS booking_id, b.prog_name, b.total_harga, u.name AS nama, u.wa
+     FROM bookings b
+     LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
+     WHERE b.pelunasan_status = 'paid' AND b.status != 'dibatalkan'
+       AND NOT EXISTS (SELECT 1 FROM invoice_kwitansi ik WHERE ik.booking_id = b.id AND ik.jenis = 'kwitansi')
+     ORDER BY b.created_at DESC`
+  );
+  return rows;
+}
+
+/**
+ * Payment CONFIRMED yang BELUM punya Tanda Terima Uang-nya sendiri — sama
+ * alasannya kayak daftarBookingPerluKwitansi di atas, TTU harusnya auto
+ * begitu payment di-approve (generateTandaTerimaUntukPayment), ini
+ * nangkep kemungkinan kelewat/gagal (dikonfirmasi user 2026-10-13).
+ */
+export async function daftarPaymentPerluTandaTerima(pool) {
+  const [rows] = await pool.query(
+    `SELECT py.id AS payment_id, py.booking_id, py.type, py.amount, py.created_at,
+            b.prog_name, u.name AS nama, u.wa
+     FROM payments py
+     LEFT JOIN bookings b ON b.id = py.booking_id
+     LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
+     WHERE py.status = 'confirmed'
+       AND NOT EXISTS (SELECT 1 FROM invoice_kwitansi ik WHERE ik.payment_id = py.id AND ik.jenis = 'tanda_terima')
+     ORDER BY py.created_at DESC`
+  );
+  return rows;
+}

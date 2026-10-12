@@ -2,7 +2,7 @@ import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
 import { generateNomorInvoice, generateNomorKwitansi, generateNomorTandaTerima } from '@/lib/nomorInvoiceKwitansi';
-import { syncKwitansiDariInvoice } from '@/lib/invoiceKwitansi';
+import { syncKwitansiDariInvoice, daftarBookingPerluKwitansi, daftarPaymentPerluTandaTerima } from '@/lib/invoiceKwitansi';
 
 const JENIS_VALID = ['invoice', 'kwitansi', 'tanda_terima'];
 const NOMOR_GENERATOR = {
@@ -32,7 +32,21 @@ export async function GET(request) {
        ${where} ORDER BY ik.created_at DESC`,
       params
     );
-    return Response.json({ dokumen: rows });
+
+    // Rekomendasi "perlu dibuatkan" -- booking lunas tanpa Kwitansi, payment
+    // confirmed tanpa Tanda Terima -- cuma dihitung di load awal (gak ada
+    // query `q`), biar gak kerja dobel tiap search (dikonfirmasi user
+    // 2026-10-13).
+    let rekomendasiKwitansi = [];
+    let rekomendasiTandaTerima = [];
+    if (!q) {
+      [rekomendasiKwitansi, rekomendasiTandaTerima] = await Promise.all([
+        daftarBookingPerluKwitansi(pool),
+        daftarPaymentPerluTandaTerima(pool),
+      ]);
+    }
+
+    return Response.json({ dokumen: rows, rekomendasi_kwitansi: rekomendasiKwitansi, rekomendasi_tanda_terima: rekomendasiTandaTerima });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

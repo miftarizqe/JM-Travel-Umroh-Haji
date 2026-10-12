@@ -46,6 +46,9 @@ function InvoiceKwitansiPageInner() {
   const searchParams = useSearchParams();
   const [dokumen, setDokumen] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rekomKwitansi, setRekomKwitansi] = useState([]);
+  const [rekomTandaTerima, setRekomTandaTerima] = useState([]);
+  const [rekomBusyId, setRekomBusyId] = useState(null);
   const [tab, setTab] = useState('invoice');
   const [q, setQ] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -73,8 +76,32 @@ function InvoiceKwitansiPageInner() {
     setLoading(true);
     fetch(`/api/admin/invoice-kwitansi${query ? `?q=${encodeURIComponent(query)}` : ''}`)
       .then(r => r.json())
-      .then(d => { setDokumen(d.dokumen || []); setLoading(false); })
+      .then(d => {
+        setDokumen(d.dokumen || []);
+        // Rekomendasi cuma dikirim server pas load awal (query kosong) —
+        // jangan ditimpa kosong pas lagi search (lihat komentar di GET route).
+        if (!query) { setRekomKwitansi(d.rekomendasi_kwitansi || []); setRekomTandaTerima(d.rekomendasi_tanda_terima || []); }
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
+  }
+
+  // Tombol "Buat Sekarang" di rekomendasi — generate dokumen yang kelewat
+  // (dikonfirmasi user 2026-10-13), lalu buka halaman cetaknya & refresh
+  // list biar rekomendasinya ikut ilang.
+  async function buatDariRekomendasi(jenis, idKey, id) {
+    setRekomBusyId(id);
+    try {
+      const res = await fetch('/api/admin/invoice-kwitansi/auto', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [idKey]: id, jenis }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal membuat dokumen'); return; }
+      window.open(`/admin/cetak-invoice/${d.id}`, '_blank');
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    finally { setRekomBusyId(null); }
   }
 
   useEffect(() => {
@@ -314,6 +341,43 @@ function InvoiceKwitansiPageInner() {
           </div>
         );
       })()}
+
+      {/* Rekomendasi "perlu dibuatkan" — booking lunas tanpa Kwitansi, payment
+          confirmed tanpa Tanda Terima. Harusnya dua-duanya auto-generate
+          sendiri, ini jaring pengaman buat yang kelewat/gagal, biar admin
+          gak perlu cek manual program per program (dikonfirmasi user
+          2026-10-13). */}
+      {(rekomKwitansi.length > 0 || rekomTandaTerima.length > 0) && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <div className="font-bold text-amber-800 text-sm mb-2">⚠️ Rekomendasi — Perlu Dibuatkan</div>
+          <div className="space-y-1.5">
+            {rekomKwitansi.map(b => (
+              <div key={`kwt-${b.booking_id}`} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs">
+                <div>
+                  <span className="font-semibold text-gray-700">{b.nama || '-'}</span>
+                  <span className="text-gray-400"> · Booking {b.booking_id} · {b.prog_name} · Lunas tapi Kwitansi belum ada</span>
+                </div>
+                <button onClick={() => buatDariRekomendasi('kwitansi', 'booking_id', b.booking_id)} disabled={rekomBusyId === b.booking_id}
+                  className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                  {rekomBusyId === b.booking_id ? '...' : '🧾 Buat Kwitansi'}
+                </button>
+              </div>
+            ))}
+            {rekomTandaTerima.map(p => (
+              <div key={`ttu-${p.payment_id}`} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 text-xs">
+                <div>
+                  <span className="font-semibold text-gray-700">{p.nama || '-'}</span>
+                  <span className="text-gray-400"> · Booking {p.booking_id} · {p.prog_name} · {LABEL_TIPE_PEMBAYARAN[p.type] || p.type} {rp(p.amount)} · belum ada Tanda Terima</span>
+                </div>
+                <button onClick={() => buatDariRekomendasi('tanda_terima', 'payment_id', p.payment_id)} disabled={rekomBusyId === p.payment_id}
+                  className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                  {rekomBusyId === p.payment_id ? '...' : '🧾 Buat Tanda Terima'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tab Invoice vs Kwitansi — konsisten sama pemisahan nomor urut di
           backend (Invoice DP & Pelunasan 1 seri, Kwitansi seri sendiri). */}
