@@ -6,6 +6,7 @@ import { CollapsibleSection } from '@/app/components/Collapsible';
 import DownlineModal from '@/app/components/DownlineModal';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
+import { pembayaranSudahDiAcc } from '@/lib/bookingStage';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const tglID = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -121,7 +122,7 @@ export default function DashboardPerwakilan() {
           )}
         </td>
         <td className="px-4 py-3">
-          {b.status === 'active' && b.ordered_by === user.id && (
+          {b.status === 'active' && b.ordered_by === user.id && !pembayaranSudahDiAcc(b) && (
             <button
               onClick={() => router.push(`/batalkan-program?booking_id=${b.id}`)}
               className="border border-red-300 text-red-500 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-red-50 transition-colors whitespace-nowrap"

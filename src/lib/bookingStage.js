@@ -62,3 +62,15 @@ export function petaBookingAktifPerProgram(bookings) {
   }
   return peta;
 }
+
+// Booking yang pembayarannya SUDAH di-ACC admin gak bisa dibatalkan sendiri
+// lagi oleh jamaah/sahabat (dikonfirmasi user 2026-10-12) — pembatalan
+// setelah titik ini cuma lewat admin (POST /api/pembatalan admin_langsung).
+// Reguler: DP confirmed. Checkout mandiri Sahabat Baitullah: dp_status udah
+// di-set 'confirmed' otomatis pas checkout (belum di-ACC), jadi patokannya
+// pelunasan 'paid' (debit saldo di-ACC admin).
+export function pembayaranSudahDiAcc(b) {
+  if (b.pelunasan_status === 'paid') return true;
+  if (b.prog_publish_type === 'sahabat_baitullah') return false;
+  return b.dp_status === 'confirmed';
+}

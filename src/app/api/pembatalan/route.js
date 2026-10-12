@@ -4,6 +4,7 @@ import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { lepasVoucher } from '@/lib/voucher';
 import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
+import { pembayaranSudahDiAcc } from '@/lib/bookingStage';
 
 /**
  * Pembatalan Program
@@ -85,9 +86,10 @@ export async function POST(request) {
     // Jamaah cuma boleh batalin booking miliknya sendiri; admin boleh
     // booking siapa aja (dipakai buat pembatalan langsung atas permintaan
     // jamaah yang telepon/dateng, bukan ngajuin dari akunnya sendiri).
+    const sqlBooking = 'SELECT b.*, p.publish_type AS prog_publish_type FROM bookings b LEFT JOIN programs p ON p.id = b.prog_id WHERE b.id = ?';
     const [rows] = isAdmin
-      ? await pool.query('SELECT * FROM bookings WHERE id = ?', [booking_id])
-      : await pool.query('SELECT * FROM bookings WHERE id = ? AND user_id = ?', [booking_id, auth.user.id]);
+      ? await pool.query(sqlBooking, [booking_id])
+      : await pool.query(`${sqlBooking} AND b.user_id = ?`, [booking_id, auth.user.id]);
     if (rows.length === 0) {
       return Response.json({ error: 'Booking tidak ditemukan' }, { status: 404 });
     }
@@ -101,6 +103,11 @@ export async function POST(request) {
     }
     if (b.status === 'menunggu_batal') {
       return Response.json({ error: 'Pengajuan pembatalan sedang diproses admin.' }, { status: 400 });
+    }
+    // Pembayaran sudah di-ACC admin -> jamaah/sahabat gak bisa batal sendiri
+    // lagi, cuma admin (dikonfirmasi user 2026-10-12, lihat pembayaranSudahDiAcc).
+    if (!isAdmin && pembayaranSudahDiAcc(b)) {
+      return Response.json({ error: 'Pembayaran booking ini sudah dikonfirmasi admin, tidak bisa dibatalkan sendiri. Hubungi admin JM Travel.' }, { status: 403 });
     }
 
     // Validasi jamaah_idx — harus nunjuk entry beneran di jamaah_data & belum
