@@ -486,6 +486,10 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '🪪', label: 'Pendaftaran', path: '/admin/perwakilan' },
         { icon: '💰', label: 'Database Perwakilan', path: '/admin/perwakilan/database' },
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/perwakilan/riwayat-closing' },
+        // Dipisah dari halaman Sahabat Baitullah (dikonfirmasi user
+        // 2026-10-12) — sebelumnya numpang 1 halaman sama-sama, "nyasar"
+        // kalau dibuka dari menu Sahabat Baitullah/HoP.
+        { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing-perwakilan' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/perwakilan/pencairan' },
       ] },
     ] },
