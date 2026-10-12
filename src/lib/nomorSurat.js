@@ -1,8 +1,9 @@
-const ROMAWI_BULAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
-
-// Nomor surat perjanjian kerjasama — format: NN.XXXX/JMT.<jenis>.<romawi>/YYYY
-// NN = bulan berjalan (2 digit), XXXX = urutan keseluruhan (counter terpisah
-// per jenis, mulai dari 1), romawi = bulan berjalan dalam angka romawi.
+// Nomor surat perjanjian kerjasama — format: XXXXXX.NN/JMT-<jenis>/YYYY
+// XXXXXX = urutan keseluruhan (6 digit, counter terpisah per jenis, mulai
+// dari 1), NN = bulan berjalan (2 digit). Format lama (NN.XXXX/JMT.<jenis>.
+// <romawi>/YYYY) DIUBAH (dikonfirmasi user 2026-10-12) — nomor yang udah
+// kebeku di kolom users (format lama) TIDAK diubah retroaktif, cuma nomor
+// BARU yang pakai format ini.
 //
 // Nomor di-generate SEKALI per user lalu dibekukan permanen di kolom
 // `kolom` (default users.no_perjanjian_kerjasama, dipakai SPKA-Ins) —
@@ -41,8 +42,7 @@ export async function ambilAtauBuatNomorSurat(pool, userId, jenis, kolom = 'no_p
     const [c] = await pool.query('SELECT urutan FROM nomor_surat_counter WHERE jenis = ?', [jenis]);
     const urutan = c[0].urutan;
     const bulan = String(bulanAngka).padStart(2, '0');
-    const romawi = ROMAWI_BULAN[now.getMonth()];
-    nomor = `${bulan}.${String(urutan).padStart(4, '0')}/JMT.${jenis}.${romawi}/${tahun}`;
+    nomor = `${String(urutan).padStart(6, '0')}.${bulan}/JMT-${jenis}/${tahun}`;
   }
 
   await pool.query(`UPDATE users SET ${kolom} = ? WHERE id = ?`, [nomor, userId]);
@@ -60,9 +60,13 @@ export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis)
   const nomor = row?.nomor;
   if (!nomor) return;
 
-  const cocok = nomor.match(/^(\d{2})\.(\d+)\/JMT\..+\/(\d{4})$/);
+  // Cuma cocok format BARU (XXXXXX.NN/JMT-<jenis>/YYYY) -- nomor format
+  // lama (dibekukan sebelum 2026-10-12) gak match, fungsi ini return lebih
+  // awal & nomornya gak dilepas (jadi gap permanen, sama kayak kasus beda
+  // bulan di bawah -- udah diterima sebagai perilaku wajar).
+  const cocok = nomor.match(/^(\d{6})\.(\d{2})\/JMT-.+\/(\d{4})$/);
   if (!cocok) return;
-  const [, bulanStr, urutanStr, tahunStr] = cocok;
+  const [, urutanStr, bulanStr, tahunStr] = cocok;
 
   const now = new Date();
   const bulanSekarang = String(now.getMonth() + 1).padStart(2, '0');
