@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
-import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
+import { cekPemesanBolehOrder, buatSatuBooking, cariNikDipakaiProgramLain } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { saldoSahabat } from '@/lib/saldoSahabat';
@@ -30,7 +30,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, opsi_tambahan_ids, password } = body;
+    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, opsi_tambahan_ids, password, nik, tanpa_nik } = body;
 
     // Wajib konfirmasi password akun sebelum saldo dipotong (dikonfirmasi
     // user 2026-10-11) — sama kayak bayar DP dari saldo di /api/bookings/batch.
@@ -49,17 +49,20 @@ export async function POST(request) {
       return Response.json({ error: 'Program ini bukan Program Sahabat Baitullah — pakai jalur checkout biasa.' }, { status: 400 });
     }
 
-    // Max 1 booking AKTIF per akun per program eksklusif (dikonfirmasi user
-    // 2026-10-06) — boleh checkout lagi di program yang SAMA begitu booking
-    // sebelumnya 'selesai'/batal, dan bebas checkout program LAIN kapan pun
-    // (gak ada batasan lintas-program). menunggu_batal tetap dihitung aktif
-    // (pembatalannya belum final).
-    const [[bookingAktif]] = await pool.query(
-      `SELECT id FROM bookings WHERE user_id = ? AND prog_id = ? AND status IN ('active','menunggu_batal') LIMIT 1`,
+    // Booking di program eksklusif yang sama (dikonfirmasi user 2026-10-12,
+    // revisi aturan 2026-10-06 "max 1 booking aktif"): booking yang SUDAH
+    // LUNAS gak menghalangi checkout lagi — yang menghalangi cuma booking
+    // aktif yang BELUM lunas. Orang yang sama tetap gak boleh terdaftar dua
+    // kali (dicek pakai nama di bawah, setelah namaFinal ketemu).
+    // menunggu_batal tetap dihitung aktif (pembatalannya belum final).
+    const [bookingSamaProgram] = await pool.query(
+      `SELECT id, pelunasan_status, jamaah_data FROM bookings
+       WHERE user_id = ? AND prog_id = ? AND status IN ('active','menunggu_batal')`,
       [auth.user.id, prog_id]
     );
-    if (bookingAktif) {
-      return Response.json({ error: 'Anda sudah punya booking aktif di program eksklusif ini. Checkout ulang baru bisa dilakukan setelah booking sebelumnya selesai atau dibatalkan.' }, { status: 400 });
+    const belumLunas = bookingSamaProgram.find(b => b.pelunasan_status !== 'paid');
+    if (belumLunas) {
+      return Response.json({ error: `Booking Anda sebelumnya di program ini (${belumLunas.id}) belum lunas. Checkout lagi baru bisa setelah booking tersebut lunas atau dibatalkan.` }, { status: 400 });
     }
 
     // Jalur "daftarin orang lain" cuma buat akun non-Muslim (dikonfirmasi
@@ -70,6 +73,39 @@ export async function POST(request) {
     // "Nama Lengkap" di UI-nya sendiri udah dikunci, ini lapisan server-side-nya).
     const namaFinal = me.agama === 'non_islam' ? String(nama || '').trim() : me.name;
     if (!namaFinal) return Response.json({ error: 'Nama jamaah wajib diisi' }, { status: 400 });
+
+    // Orang yang sama gak boleh terdaftar dua kali di program yang sama
+    // (dikonfirmasi user 2026-10-12) — kunci utamanya NIK. Akun Muslim =
+    // diri sendiri, NIK dipaksa dari akun (bukan kiriman client); kalau NIK
+    // akunnya kosong, fallback cek nama di booking milik sendiri. Non-Muslim
+    // (daftarin orang lain): NIK wajib, kecuali anak belum punya KTP.
+    const untukDiriSendiri = me.agama !== 'non_islam';
+    let nikFinal = '';
+    if (untukDiriSendiri) {
+      const [[u]] = await pool.query('SELECT nik FROM users WHERE id = ?', [auth.user.id]);
+      nikFinal = String(u?.nik || '').trim();
+    } else if (!tanpa_nik) {
+      nikFinal = String(nik || '').trim();
+      if (!/^\d{16}$/.test(nikFinal)) {
+        return Response.json({ error: 'NIK jamaah wajib 16 digit (atau tandai belum punya KTP untuk anak di bawah 17 tahun).' }, { status: 400 });
+      }
+    }
+    if (nikFinal) {
+      const dup = await cariNikDipakaiProgramLain(pool, { progId: prog_id, excludeBookingId: '', niks: [nikFinal] });
+      if (dup) {
+        return Response.json({ error: `NIK ${nikFinal} sudah terdaftar di program ini. Satu orang tidak bisa didaftarkan dua kali di program yang sama.` }, { status: 400 });
+      }
+    } else if (untukDiriSendiri) {
+      const normNama = (n) => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const sudahTerdaftar = bookingSamaProgram.find(b => {
+        let jd = b.jamaah_data;
+        if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = []; } }
+        return Array.isArray(jd) && jd.some(j => j?.status_jamaah !== 'dibatalkan' && normNama(j?.nama) === normNama(namaFinal));
+      });
+      if (sudahTerdaftar) {
+        return Response.json({ error: `Anda sudah terdaftar di program ini (booking ${sudahTerdaftar.id}). Satu orang tidak bisa didaftarkan dua kali di program yang sama.` }, { status: 400 });
+      }
+    }
 
     // Voucher — pola sama persis POST /api/bookings, gak percaya nominal dari
     // client, dihitung ulang server-side.
@@ -109,6 +145,7 @@ export async function POST(request) {
         user_id: auth.user.id, ordered_by: auth.user.id, ordered_by_role: 'sahabat_baitullah',
         prog_id, paket, kamar, jumlah_jamaah: 1,
         namas: [namaFinal], was: [wa], jks: [jk], alamats: [alamat],
+        niks: [nikFinal], untuk_diri_sendiri: untukDiriSendiri,
         voucher_kode_final: voucherKodeFinal, voucher_nominal: voucherNominal,
         opsi_tambahan_ids: opsi_tambahan_ids || [],
         meRole: 'sahabat_baitullah',

@@ -7,7 +7,9 @@ import DokumenSayaList from '@/app/components/DokumenSayaList';
 import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import { STAGE_LABELS, formLengkap, getStage } from '@/lib/bookingStage';
+import { formLengkap, getStage } from '@/lib/bookingStage';
+import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
+import BookingProgressBar from '@/app/components/BookingProgressBar';
 
 export default function DashboardJamaah() {
   const router = useRouter();
@@ -61,7 +63,6 @@ export default function DashboardJamaah() {
     return jamaah[0].nama + (jamaah.length > 1 ? ` & ${jamaah.length - 1} lainnya` : '');
   }
 
-  const stageLabels = STAGE_LABELS;
 
   return (
     <Layout title={user.role !== 'jamaah' ? '📦 Booking Saya' : undefined} showBack={user.role !== 'jamaah'}>
@@ -136,6 +137,7 @@ export default function DashboardJamaah() {
             {active.map(b => {
               const stage = getStage(b);
               const isOpen = expandBooking === b.id;
+              const tindakan = alasanPerluTindakan(b);
               return (
                 <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-md transition-all">
                   <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] p-4 text-white flex justify-between items-start cursor-pointer"
@@ -147,12 +149,23 @@ export default function DashboardJamaah() {
                       )}
                       <div className="text-xs opacity-80 mt-0.5 font-mono font-bold">{b.id}</div>
                       <div className="text-xs opacity-80">{b.paket} · {b.jumlah_jamaah} jamaah</div>
+                      {tindakan.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {tindakan.map(t => (
+                            <span key={t} className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">⚠️ {t}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       {b.status === 'menunggu_batal' ? (
                         <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-2 py-1 rounded-full">⏳ Proses Batal</span>
                       ) : (
                         <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full">Aktif</span>
+                      )}
+                      {tindakan.length > 0 && (
+                        <span className="bg-red-500 text-white text-[10px] font-bold min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center"
+                          title="Perlu tindakan">{tindakan.length}</span>
                       )}
                       <span className="text-[10px] opacity-80">{isOpen ? 'Tutup ▲' : 'Detail ▼'}</span>
                     </div>
@@ -168,24 +181,8 @@ export default function DashboardJamaah() {
 
                   {isOpen && b.status === 'active' && (
                     <div className="p-4">
-                      {/* Progress 4 tahap */}
-                      <div className="flex items-center mb-4">
-                        {stageLabels.map((label, i) => (
-                          <div key={label} className="flex items-center flex-1 last:flex-none">
-                            <div className="flex flex-col items-center">
-                              <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                i + 1 <= stage ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-400'
-                              }`}>
-                                {i + 1 <= stage ? '✓' : i + 1}
-                              </div>
-                              <div className={`text-[9px] mt-1 ${i + 1 <= stage ? 'text-[#1A4FA0] font-bold' : 'text-gray-400'}`}>{label}</div>
-                            </div>
-                            {i < stageLabels.length - 1 && (
-                              <div className={`flex-1 h-0.5 mx-1 mb-4 ${i + 1 < stage ? 'bg-[#1A4FA0]' : 'bg-gray-200'}`}></div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                      {/* Progress 5 tahap — komponen sama dengan admin */}
+                      <BookingProgressBar booking={b} className="mb-4" />
 
                       {/* Status DP */}
                       <div className="text-sm text-gray-500 mb-2">

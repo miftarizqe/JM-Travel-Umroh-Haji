@@ -8,7 +8,17 @@ import { DOC_LIST, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung
 //  - peringatan kalau ada dokumen yang ditolak admin,
 //  - "Lengkapi Dokumen" HANYA kalau masih ada yang belum diunggah,
 //  - "Edit Data & Dokumen" (buka form-jamaah dengan data lama terisi).
+//
+// Booking LUNAS -> data & dokumen dikunci (dikonfirmasi user 2026-10-12),
+// tombol diganti keterangan. Gerbang server-nya di PATCH /api/bookings/[id].
 export default function DokumenPendukungStatus({ booking, onUnggah, onEdit }) {
+  if (booking.pelunasan_status === 'paid') {
+    return (
+      <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+        🔒 Booking sudah lunas — data jamaah & dokumen tidak bisa diubah lagi. Hubungi admin JM Travel jika ada yang perlu dikoreksi.
+      </div>
+    );
+  }
   const jamaah = parseJamaahData(booking.jamaah_data);
   const total = jamaah.length * DOC_LIST.length;
   const terunggah = jamaah.reduce((n, j) => n + DOC_LIST.filter(d => j?.[d.key]).length, 0);

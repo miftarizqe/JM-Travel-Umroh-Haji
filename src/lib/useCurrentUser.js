@@ -4,7 +4,17 @@ import { useEffect, useMemo, useState } from 'react';
 function bacaLocalStorage() {
   if (typeof window === 'undefined') return null;
   try {
-    return localStorage.getItem('user');
+    const raw = localStorage.getItem('user');
+    // Sesi 24 jam sejak login (dikonfirmasi user 2026-10-12) — cache data
+    // user yang udah lewat batasnya dibuang (cookie-nya sendiri udah dibuang
+    // browser/proxy). Cache lama tanpa sesi_berakhir_at dibiarkan (cookie
+    // tetap dibatasi server & proxy).
+    const u = raw ? JSON.parse(raw) : null;
+    if (u?.sesi_berakhir_at && Date.now() >= u.sesi_berakhir_at) {
+      localStorage.removeItem('user');
+      return null;
+    }
+    return raw;
   } catch {
     return null;
   }
@@ -51,6 +61,23 @@ export function useCurrentUser() {
     } catch {
       return null;
     }
+  }, [raw]);
+  // Tab lagi kebuka pas sesinya habis -> bersihin cache & langsung arahkan
+  // ke login (bukan nunggu klik yang gagal 401).
+  useEffect(() => {
+    let u = null;
+    try { u = raw ? JSON.parse(raw) : null; } catch { u = null; }
+    if (!u?.sesi_berakhir_at) return;
+    const habiskan = () => {
+      try { localStorage.removeItem('user'); } catch {}
+      setRaw(null);
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = `/login?sesi=habis&from=${encodeURIComponent(window.location.pathname)}`;
+      }
+    };
+    // setTimeout maks ~24.8 hari, sesi 24 jam aman.
+    const t = setTimeout(habiskan, Math.max(0, u.sesi_berakhir_at - Date.now()));
+    return () => clearTimeout(t);
   }, [raw]);
   return [user];
 }

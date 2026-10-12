@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import jwt from 'jsonwebtoken';
-import { wajibLogin, ambilJwtSecret, headerCookieToken } from '@/lib/auth';
+import { wajibLogin, ambilJwtSecret, headerCookieToken, sesiBerakhirPada } from '@/lib/auth';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 // Ganti "mode" sesi aktif buat akun dual-role (perwakilan + sahabat) —
@@ -40,10 +40,17 @@ export async function POST(request) {
     const roleBaru = ke;
     const roleKeduaBaru = user.role;
 
+    // Ganti role TIDAK memperpanjang sesi — login_at & batas berakhirnya
+    // dibawa dari token lama (sesi tetap 24 jam sejak login).
+    const loginAt = Number(auth.user.login_at || auth.user.iat);
+    const berakhir = sesiBerakhirPada(auth.user);
+    const sisaDetik = berakhir - Math.floor(Date.now() / 1000);
+    if (sisaDetik <= 0) {
+      return Response.json({ error: 'Sesi Anda sudah berakhir. Silakan login kembali.' }, { status: 401 });
+    }
     const token = jwt.sign(
-      { id: user.id, role: roleBaru, role_kedua: roleKeduaBaru, name: user.name },
-      ambilJwtSecret(),
-      { expiresIn: '7d' }
+      { id: user.id, role: roleBaru, role_kedua: roleKeduaBaru, name: user.name, login_at: loginAt, exp: berakhir },
+      ambilJwtSecret()
     );
 
     const dataUser = {
@@ -60,9 +67,10 @@ export async function POST(request) {
       points: user.points,
       tabungan_bsi: user.tabungan_bsi,
       wajib_ganti_password: !!user.wajib_ganti_password,
+      sesi_berakhir_at: berakhir * 1000,
     };
 
-    const maxAge = 7 * 24 * 60 * 60;
+    const maxAge = sisaDetik;
 
     return new Response(
       JSON.stringify({ message: 'Mode berhasil diganti.', user: dataUser }),

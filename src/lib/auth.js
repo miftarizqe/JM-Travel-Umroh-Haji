@@ -9,6 +9,21 @@ import jwt from 'jsonwebtoken';
  * bisa memanggil API admin langsung: approve pembayaran, cairkan komisi, hapus program.
  */
 
+/**
+ * Sesi login berlaku 24 jam sejak LOGIN (dikonfirmasi user 2026-10-12) —
+ * bukan sejak token terakhir diterbitkan: ganti role (/api/auth/switch-role)
+ * nerbitin token baru tapi bawa `login_at` yang sama, jadi gak memperpanjang
+ * sesi. Dicek di sini (semua API), di src/proxy.js (halaman), dan di
+ * useCurrentUser (cache data user di browser).
+ */
+export const DURASI_SESI_DETIK = 24 * 60 * 60;
+
+/** Detik (epoch) kapan sesi token ini berakhir. Token lama tanpa login_at pakai iat. */
+export function sesiBerakhirPada(payload) {
+  const loginAt = Number(payload?.login_at || payload?.iat || 0);
+  return loginAt + DURASI_SESI_DETIK;
+}
+
 /** Ambil token dari cookie request. */
 function ambilToken(request) {
   // Next.js Request: cookie ada di header
@@ -25,7 +40,11 @@ export function verifikasiToken(request) {
   const token = ambilToken(request);
   if (!token) return null;
   try {
-    return jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    // Token terbitan sebelum aturan 24 jam (masa berlaku 7 hari) ikut
+    // ditolak begitu lewat 24 jam dari login.
+    if (Math.floor(Date.now() / 1000) >= sesiBerakhirPada(payload)) return null;
+    return payload;
   } catch {
     return null;
   }
