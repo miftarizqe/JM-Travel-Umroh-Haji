@@ -1,6 +1,5 @@
 import { cariPotensiResellerLangsung, costBasisPerwakilan } from '@/lib/closing';
 import { groupJamaahAktif } from '@/lib/jamaahHarga';
-import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 
 // 'closing_bsi' dikunci ke tabungan BSI (bukan ditransfer ke rekening
 // pribadi) — semua jenis lain ditransfer ke rekening pribadi penerima.
@@ -351,9 +350,12 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
         rantaiAbis = true;
       }
       const ancestorManajemen = ancestor && ['admin', 'super_admin', 'hop'].includes(ancestor.role);
+      // Aturan "6 bulan tanpa Gen1 baru" DICABUT TOTAL (dikonfirmasi user
+      // 2026-10-12, lihat komentar di status-pendaftaran-sahabat/route.js)
+      // -- forecast di sini ikut disamain, cukup cek status akun 'active'.
       if (nominal > 0 && ancestor) {
         const ancestorAktif = !ancestorManajemen && !(hopUserIdGen && String(ancestor.id) === String(hopUserIdGen))
-          && (await statusKeaktifanUjroh(pool, ancestor.id)).aktif;
+          && ancestor.status === 'active';
         if (ancestorAktif) {
           tambahForecastSahabat(orangSahabat(ancestor), 'komisi_sahabat', nominal,
             refPendaftaran(pend.name), `Ujroh Generasi ${gen + 1} — atas nama ${pend.name} (belum aktif)`);

@@ -1,6 +1,5 @@
 import pool from '@/lib/db';
 import { alasanKunciMetodeTtd } from '@/lib/kunciMetodeTtdSahabat';
-import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 import { saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 import { wajibLogin, wajibRole } from '@/lib/auth';
 import { pastikanKodeInviteSahabat } from '@/lib/kodeInvitePerwakilan';
@@ -487,11 +486,14 @@ export async function PATCH(request) {
           //     bukan penerima ujroh) — SELURUH rantai di atas titik ini pun
           //     ikut mati (chain-nya emang berhenti di situ, admin gak
           //     punya perekrut_id sendiri) — dikonfirmasi user 2026-09-19.
-          //  4. Ancestor TIDAK AKTIF menurut aturan keaktifan ujroh (akun bukan
-          //     'active', atau 6 bulan tanpa Gen1 aktif baru — lihat
-          //     src/lib/keaktifanSahabat.js, dikonfirmasi user 2026-10-02).
-          //     Jatah level itu ke operasional; upline di atasnya TETAP dapat
-          //     jatah level masing-masing (bukan dinaikkan/dikompresi).
+          //  4. Ancestor TIDAK AKTIF (akun bukan status 'active', mis. sudah
+          //     dinonaktifkan) — jatah level itu ke operasional; upline di
+          //     atasnya TETAP dapat jatah level masing-masing (bukan
+          //     dinaikkan/dikompresi). Aturan "6 bulan tanpa Gen1 baru"
+          //     SEMPAT ada (lib/keaktifanSahabat.js, 2026-10-02) tapi
+          //     DICABUT TOTAL (dikonfirmasi user 2026-10-12) — sahabat
+          //     sekarang selalu dapat ujroh Gen1-5 selama akunnya aktif,
+          //     gak peduli kapan terakhir rekrut.
           const hopUserId = pengaturan?.head_of_program_user_id || null;
           let operasionalTambahan = 0;
           let current = p.perekrut_id;
@@ -510,7 +512,7 @@ export async function PATCH(request) {
             const ancestorManajemen = ancestor && ['admin', 'super_admin', 'hop'].includes(ancestor.role);
             if (nominal > 0) {
               const ancestorAktif = ancestor && !ancestorManajemen && !(hopUserId && ancestor.id === hopUserId)
-                && (await statusKeaktifanUjroh(pool, ancestor.id)).aktif;
+                && ancestor.status === 'active';
               if (ancestorAktif) {
                 await pool.query(
                   `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, level)
@@ -582,7 +584,7 @@ export async function PATCH(request) {
               [
                 user_id, operasionalTotal,
                 operasionalTambahan > 0
-                  ? `Sisa pendaftaran ${p.nama} (Rp${operasionalFlat.toLocaleString('id-ID')}) + jatah gen yang gak kebagian ke ancestor beneran (Rp${operasionalTambahan.toLocaleString('id-ID')}) — rantai perekrut abis, kena HOP, dan/atau upline tidak aktif (aturan 6 bulan)`
+                  ? `Sisa pendaftaran ${p.nama} (Rp${operasionalFlat.toLocaleString('id-ID')}) + jatah gen yang gak kebagian ke ancestor beneran (Rp${operasionalTambahan.toLocaleString('id-ID')}) — rantai perekrut abis, kena HOP, dan/atau upline tidak aktif (status akun bukan 'active')`
                   : `Sisa pendaftaran Sahabat Baitullah — atas nama ${p.nama} (Kode Agen: ${u.kode_unik || '-'})`,
               ]
             );
