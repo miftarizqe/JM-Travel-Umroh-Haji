@@ -52,14 +52,19 @@ export async function ambilAtauBuatNomorSurat(pool, rowId, jenis, kolom = 'no_pe
   return nomor;
 }
 
-// Dipanggil saat pendaftaran DITOLAK -- nomor yang udah kebakar (dibaca
-// jamaah sebelum admin tolak) dilepas biar jamaah LAIN yang daftar bulan
-// yang sama bisa kepake nomor itu (lihat ambilAtauBuatNomorSurat). Beda
-// bulan -> dibiarin, jadi gap permanen (lumrah, auditable lewat
-// pendaftaran_status_log) -- reuse lintas bulan bikin nomor kecil bertanggal
+// Dipanggil saat pendaftaran DITOLAK (atau booking DIBATALKAN) -- nomor
+// yang udah kebakar (dibaca/dicetak sebelum ditolak/dibatalkan) dilepas
+// biar orang/booking LAIN bulan yang sama bisa kepake nomor itu (lihat
+// ambilAtauBuatNomorSurat). Beda bulan -> dibiarin, jadi gap permanen
+// (lumrah, auditable) -- reuse lintas bulan bikin nomor kecil bertanggal
 // lebih baru dari nomor besar, berisiko keliatan aneh buat audit.
-export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis) {
-  const [[row]] = await pool.query(`SELECT ${kolom} AS nomor FROM users WHERE id = ?`, [userId]);
+// `tabel` default 'users', Perjanjian Jamaah pakai 'bookings'.
+// `kolomTanggal` opsional -- kalau dokumennya juga punya kolom tanggal
+// beku berpasangan (lihat ambilAtauBuatTanggalBeku, cth SPKA-Ins), ikut
+// dikosongkan juga biar generate ulang nanti dapat tanggal baru yang
+// match sama nomor barunya, bukan nyangkut ke tanggal lama.
+export async function releaseNomorSuratJikaBulanSama(pool, rowId, kolom, jenis, tabel = 'users', kolomTanggal = null) {
+  const [[row]] = await pool.query(`SELECT ${kolom} AS nomor FROM ${tabel} WHERE id = ?`, [rowId]);
   const nomor = row?.nomor;
   if (!nomor) return;
 
@@ -80,7 +85,8 @@ export async function releaseNomorSuratJikaBulanSama(pool, userId, kolom, jenis)
     'INSERT INTO nomor_surat_released (jenis, bulan, tahun, urutan, nomor) VALUES (?, ?, ?, ?, ?)',
     [jenis, Number(bulanStr), Number(tahunStr), Number(urutanStr), nomor]
   );
-  await pool.query(`UPDATE users SET ${kolom} = NULL WHERE id = ?`, [userId]);
+  const setClause = kolomTanggal ? `${kolom} = NULL, ${kolomTanggal} = NULL` : `${kolom} = NULL`;
+  await pool.query(`UPDATE ${tabel} SET ${setClause} WHERE id = ?`, [rowId]);
 }
 
 // Tanggal TTD dibekukan PERMANEN bareng nomor (dikonfirmasi user 2026-10-12)
