@@ -175,19 +175,30 @@ export default function CetakInvoiceKwitansi() {
             </div>
           )}
         </div>
-      ) : (
+      ) : butuhMaterai ? (
+        // >= Rp5jt WAJIB materai asli (UU Bea Meterai No.10/2020) -- "Setuju"
+        // (self-certify tanpa materai) gak boleh dipakai buat nominal segini,
+        // cuma jalur fisik: print, tempel materai, TTD basah NEMBUS materai,
+        // stempel, scan, upload (dikonfirmasi user 2026-10-12).
         <>
-        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
-          <button onClick={setujui} disabled={menyetujui}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: menyetujui ? 0.6 : 1 }}>
-            {menyetujui ? 'Memproses...' : '✅ Setuju'}
-          </button>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>atau unggah scan fisik di bawah</div>
+        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 8 }}>
+          ⚠️ Nominal ≥ Rp5.000.000 — wajib materai asli. Print, tempel materai, TTD basah nembus materai, stempel, lalu unggah scan.
         </div>
         <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
           userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
           onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path, terkirim: 1, terkirim_metode: 'fisik', terkirim_at: new Date().toISOString() }))} />
         </>
+      ) : (
+        // < Rp5jt -- gak perlu materai, TTD digital (PNG tanda tangan yang
+        // udah dirender di dokumen) cukup, tinggal "Setuju" (dikonfirmasi
+        // user 2026-10-12).
+        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
+          <button onClick={setujui} disabled={menyetujui}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: menyetujui ? 0.6 : 1 }}>
+            {menyetujui ? 'Memproses...' : '✅ Setuju'}
+          </button>
+          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>Nominal &lt; Rp5.000.000, gak perlu materai — TTD digital cukup.</div>
+        </div>
       )}
 
       <div className="sheet" style={{ background: '#fff', width: 720, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
