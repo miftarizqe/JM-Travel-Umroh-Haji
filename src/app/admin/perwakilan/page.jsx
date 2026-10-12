@@ -39,7 +39,6 @@ function pathUntukMetode(metode) {
 function syaratBelum(p) {
   if (p.status === 'pending') {
     return [
-      !p.formulir_ttd_selesai && 'TTD Digital Formulir',
       !p.pks_disetujui && 'Persetujuan PKS',
       !p.pendaftaran_metode && 'Pemilihan Metode',
     ].filter(Boolean);
@@ -138,7 +137,7 @@ export default function AdminPerwakilanPage() {
   }
 
   async function rekrutJadiPerwakilan(u) {
-    if (!confirm(`Rekrut ${u.name} jadi Perwakilan? Tetap wajib lewat proses pendaftaran lengkap (TTD formulir, PKS, pilih metode kantor/paket sendiri, dst) — cuma jalur masuknya langsung dari admin, bukan link referral.`)) return;
+    if (!confirm(`Rekrut ${u.name} jadi Perwakilan? Tetap wajib lewat proses pendaftaran lengkap (isi formulir, setuju PKS, pilih metode kantor/paket sendiri, dst) — cuma jalur masuknya langsung dari admin, bukan link referral.`)) return;
     setBusy(true);
     try {
       const res = await fetch('/api/admin/users', {
@@ -240,7 +239,7 @@ export default function AdminPerwakilanPage() {
           rekrut_jadi_perwakilan di /api/admin/users). */}
       <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">
         <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🔍 Rekrut dari Akun Existing (Jamaah/Sahabat Baitullah)</div>
-        <div className="text-xs text-gray-400 mb-2">Cari akun Jamaah atau Sahabat Baitullah yang mau direkrut langsung jadi Perwakilan oleh manajemen — gak perlu daftar ulang dari nol, data yang udah ada dipakai lagi. Tetap wajib lewat proses pendaftaran lengkap (TTD formulir, PKS, lalu pilih sendiri metode kantor/paket — sama seperti pendaftar baru). <span className="text-gray-400">Sahabat Baitullah yang masuk team Head of Program gak akan muncul di hasil pencarian — gak boleh direkrut jadi Perwakilan.</span></div>
+        <div className="text-xs text-gray-400 mb-2">Cari akun Jamaah atau Sahabat Baitullah yang mau direkrut langsung jadi Perwakilan oleh manajemen — gak perlu daftar ulang dari nol, data yang udah ada dipakai lagi. Tetap wajib lewat proses pendaftaran lengkap (setuju PKS, lalu pilih sendiri metode kantor/paket — sama seperti pendaftar baru). <span className="text-gray-400">Sahabat Baitullah yang masuk team Head of Program gak akan muncul di hasil pencarian — gak boleh direkrut jadi Perwakilan.</span></div>
         <div className="flex gap-2 mb-2">
           <input value={cariQ} onChange={e => setCariQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && cariAkun()}
             placeholder="Cari nama / NIK / WA / kode unik..."
@@ -296,10 +295,6 @@ export default function AdminPerwakilanPage() {
             </div>
 
             <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>TTD Digital Formulir</span>
-                {detail.formulir_ttd_selesai ? <span className="text-green-600 font-bold">✅ Selesai</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}
-              </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
                 <span>Persetujuan PKS</span>
                 {detail.pks_disetujui ? <span className="text-green-600 font-bold">✅ Ya</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}

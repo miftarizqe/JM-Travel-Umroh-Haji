@@ -66,7 +66,7 @@ export async function GET(request) {
          GROUP BY penerima_id
        ) kl ON kl.penerima_id = u.id
     `;
-    // Field status pendaftaran (metode/jadwal/TTD formulir/PKS) — SUDAH ada
+    // Field status pendaftaran (metode/jadwal/PKS) — SUDAH ada
     // di /api/admin/perwakilan (Pendaftaran) tapi belum ikut ditampilkan di
     // Database, disamain ke sini juga (dikonfirmasi user 2026-09-06: apapun
     // data yang ada di Sahabat Baitullah, hadirin juga versi Perwakilan-nya
@@ -80,7 +80,6 @@ export async function GET(request) {
        perekrut.name AS perekrut_nama, u.created_at,
        ap.id AS pendaftaran_id, ap.jadwal_kunjungan, ap.metode AS pendaftaran_metode, ap.status AS pendaftaran_status,
        u.janji_temu_kantor_selesai_at,
-       (SELECT fase FROM dokumen_signature WHERE dokumen = 'formulir' AND ref_id = u.id ORDER BY id DESC LIMIT 1) AS formulir_fase,
        COALESCE(kl.total_komisi, 0) AS total_komisi,
        COALESCE(kl.total_komisi_pending, 0) AS total_komisi_pending,
        COALESCE(kl.total_komisi_tahun_ini, 0) AS total_komisi_tahun_ini
@@ -105,7 +104,6 @@ export async function GET(request) {
       ...u,
       alamat_ktp: u.alamat_ktp || u.alamat,
       alamat_domisili: u.alamat_domisili || u.alamat,
-      formulir_ttd_selesai: u.formulir_fase === 'selesai',
       pks_disetujui: !!u.setuju_pks,
     }));
 

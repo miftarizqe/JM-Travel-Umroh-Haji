@@ -129,10 +129,12 @@ export default function DaftarPerwakilanPage() {
     return true;
   }
 
-  // Submit formulir -> langsung chain ke TTD digital (self-service, pola sama
-  // kayak simpanLaluTtdDigital jamaah di pks/page.jsx) -> /tanda-tangan/[id].
-  // Metode Pendaftaran & PKS dipindah ke langkah SETELAH ini (lihat
-  // /daftar-perwakilan/metode & /pks?jenis=perwakilan), gak lagi di sini.
+  // Submit formulir -> langsung ke Persetujuan Kerjasama (PKS). TTD digital
+  // formulir (step mock /tanda-tangan/[id]) DICABUT (dikonfirmasi user
+  // 2026-10-12) — proses sekarang semuanya fisik, dokumen SPK-PWK
+  // ditandatangani fisik belakangan pas kantor/paket. Metode Pendaftaran &
+  // PKS dipindah ke langkah SETELAH ini (lihat /daftar-perwakilan/metode &
+  // /pks?jenis=perwakilan), gak lagi di sini.
   async function submit() {
     if (!validStep()) return;
     setLoading(true);
@@ -143,18 +145,7 @@ export default function DaftarPerwakilanPage() {
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setLoading(false); return; }
-
-      const resSig = await fetch('/api/admin/dokumen-signature', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dokumen: 'formulir', ref_id: user.id, metode: 'digital' }),
-      });
-      const dSig = await resSig.json();
-      if (!resSig.ok) {
-        alert((dSig.error || 'Formulir tersimpan, tapi gagal menyiapkan TTD digital.') + ' Silakan lanjutkan dari halaman status.');
-        router.push('/status-pendaftaran');
-        return;
-      }
-      router.push(`/tanda-tangan/${dSig.id}`);
+      router.push('/pks?jenis=perwakilan');
     } catch { alert('Terjadi kesalahan'); }
     setLoading(false);
   }
@@ -170,15 +161,12 @@ export default function DaftarPerwakilanPage() {
       </div></div></Layout>;
   }
 
-  // Blokir kalau prasyarat belum lengkap — mencegah step diloncati
-  if (cek && !cek.prasyarat?.akun_terverifikasi) {
-    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
-        <div className="text-3xl mb-2">⏳</div>
-        <h4 className="font-bold text-yellow-800 mb-1">Menunggu Verifikasi Admin</h4>
-        <p className="text-sm text-yellow-700">Akun Anda belum diverifikasi admin. Silakan tunggu, atau hubungi admin JM Travel.</p>
-      </div></div></Layout>;
-  }
+  // Gerbang "verifikasi akun" terpisah DICABUT (dikonfirmasi user
+  // 2026-10-12, mirror Sahabat Baitullah 2026-09-27) — akun Perwakilan
+  // sekarang auto-terverifikasi pas daftar (lihat /api/auth/register).
+  // Admin tetap review manual di titik "Aktifkan" ujung funnel
+  // (/api/status-pendaftaran), dan cekPemesanBolehOrder tetap nahan akun
+  // sebelum status beneran 'active' — jadi gak ada yang kelewat.
   if (cek && !cek.prasyarat?.foto_profil) {
     return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
@@ -191,8 +179,8 @@ export default function DaftarPerwakilanPage() {
   }
   if (cek?.pendaftaran) {
     // Formulir udah pernah dikirim — arahkan ke langkah LANJUTAN yang belum
-    // selesai (TTD formulir/PKS/pilih metode), bukan selalu ke status
-    // tracker mentah, biar applicant yang keluar di tengah jalan gak nyangkut.
+    // selesai (PKS/pilih metode), bukan selalu ke status tracker mentah,
+    // biar applicant yang keluar di tengah jalan gak nyangkut.
     const langkah = langkahBerikutnyaPerwakilan(cek) || '/status-pendaftaran';
     const sudahLengkap = langkah === '/status-pendaftaran';
     return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
