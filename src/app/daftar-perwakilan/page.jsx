@@ -72,7 +72,48 @@ export default function DaftarPerwakilanPage() {
     // tanya ulang di sini, tinggal tampilkan. User yang upgrade dari jamaah
     // (lewat /upgrade-perwakilan) belum pernah ditanya sama sekali, tetap
     // pakai dropdown biasa di bawah.
-    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => { if (d.user) setProfil(d.user); }).catch(()=>{});
+    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => {
+      if (!d.user) return;
+      setProfil(d.user);
+      // Prefill formulir dari data profil yang udah ada (jamaah/sahabat
+      // existing yang upgrade ke perwakilan) -- gak perlu ngetik ulang data
+      // yang udah pernah diisi sebelumnya (dikonfirmasi user 2026-10-12,
+      // mirror pola prefill checkout mandiri sahabat di form-jamaah/page.jsx).
+      // Cuma isi field yang MASIH KOSONG/default, apa pun yang user udah
+      // ketik/ubah sendiri tetap menang. Alamat domisili TIDAK diprefill
+      // (users cuma simpan 1 kolom teks bebas, gak terstruktur kayak KTP) --
+      // sama_ktp default true sudah menutupi kasus umumnya.
+      const p = d.user;
+      const kosong = (v) => !v || !String(v).trim();
+      setForm(prev => ({
+        ...prev,
+        nama: kosong(prev.nama) ? (p.name || '') : prev.nama,
+        nik: kosong(prev.nik) ? (p.nik || '') : prev.nik,
+        tempat_lahir: kosong(prev.tempat_lahir) ? (p.tempat_lahir || '') : prev.tempat_lahir,
+        tl: prev.tl === maksTanggalLahir17Tahun && p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : prev.tl,
+        jk: p.jenis_kelamin || prev.jk,
+        ibu: kosong(prev.ibu) ? (p.nama_ibu || '') : prev.ibu,
+        ayah: kosong(prev.ayah) ? (p.nama_ayah || '') : prev.ayah,
+        foto_ktp_path: kosong(prev.foto_ktp_path) ? (p.foto_ktp_path || '') : prev.foto_ktp_path,
+        wa: kosong(prev.wa) ? (p.wa || '') : prev.wa,
+        email: kosong(prev.email) ? (p.email || '') : prev.email,
+        pkj: kosong(prev.pkj) ? (p.pekerjaan || '') : prev.pkj,
+        pendidikan: kosong(prev.pendidikan) ? (p.pendidikan_terakhir || '') : prev.pendidikan,
+        bank: kosong(prev.bank) ? (p.bank || '') : prev.bank,
+        norek: kosong(prev.norek) ? (p.no_rekening || '') : prev.norek,
+        pemilik: kosong(prev.pemilik) ? (p.nama_pemilik_rekening || '') : prev.pemilik,
+        jalan: kosong(prev.jalan) ? (p.alamat_ktp_jalan || '') : prev.jalan,
+        norumah: kosong(prev.norumah) ? (p.alamat_ktp_no_rumah || '') : prev.norumah,
+        rt: kosong(prev.rt) ? (p.alamat_ktp_rt || '') : prev.rt,
+        rw: kosong(prev.rw) ? (p.alamat_ktp_rw || '') : prev.rw,
+        kp: kosong(prev.kp) ? (p.kode_pos || '') : prev.kp,
+        kel: kosong(prev.kel) ? (p.alamat_ktp_kelurahan || '') : prev.kel,
+        kec: kosong(prev.kec) ? (p.alamat_ktp_kecamatan || '') : prev.kec,
+        kota: kosong(prev.kota) ? (p.alamat_ktp_kota || '') : prev.kota,
+        provinsi: kosong(prev.provinsi) ? (p.alamat_ktp_provinsi || '') : prev.provinsi,
+      }));
+    }).catch(()=>{});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Perekrut dari registrasi sudah final (role sudah 'perwakilan') — dipakai
