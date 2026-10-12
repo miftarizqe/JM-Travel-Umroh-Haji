@@ -253,7 +253,9 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
 
   const terkunciPerjanjian = !!perjanjian && cart.length > 0;
 
-  function tambahkan() {
+  const [cekNikBusy, setCekNikBusy] = useState(false);
+
+  async function tambahkan() {
     if (current.jumlah < 1) return;
     if (current.paket === 'custom') {
       if (!customHotelPilihan.mekkahPaket || !customHotelPilihan.madinahPaket) { alert('Pilih Bintang Mekkah & Madinah dulu!'); return; }
@@ -274,10 +276,42 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     const was = resizeNamas(current.was, current.jumlah).map(w => w.trim());
     const alamats = resizeNamas(current.alamats, current.jumlah).map(a => a.trim());
     if (alamats.some(a => !a)) { alert('Isi alamat kirim perlengkapan semua jamaah dulu!'); return; }
-    onAdd({ ...current, namas, was, jks, alamats });
+    let niks = [];
+    if (dataDiriSendiri) {
+      niks = resizeNamas(current.niks, current.jumlah).map(n => String(n || '').trim());
+      const tanpaNiks = resizeNamas(current.tanpaNiks, current.jumlah);
+      for (let i = 0; i < niks.length; i++) {
+        if (tanpaNiks[i]) { niks[i] = ''; continue; }
+        if (!/^\d{16}$/.test(niks[i])) {
+          alert(i === 0 && current.untukDiri === 'sendiri' && !dataDiriSendiri.nik
+            ? 'NIK di profil akun Anda belum ada — isi NIK Anda (16 digit) dulu.'
+            : `NIK jamaah #${i + 1} wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).`);
+          return;
+        }
+      }
+      const terisi = niks.filter(Boolean);
+      const diKeranjang = cart.flatMap(c => c.niks || []).filter(Boolean);
+      const dobelLokal = terisi.find((n, i) => terisi.indexOf(n) !== i || diKeranjang.includes(n));
+      if (dobelLokal) { alert(`NIK ${dobelLokal} dimasukkan lebih dari sekali. Satu orang cuma bisa didaftarkan sekali di program ini.`); return; }
+      if (terisi.length > 0) {
+        setCekNikBusy(true);
+        try {
+          const d = await fetch('/api/bookings/cek-nik', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prog_id: prog?.id, niks: terisi }),
+          }).then(r => r.json());
+          if (d.terpakai) {
+            alert(`NIK ${d.terpakai} sudah terdaftar di program ini${d.booking_id ? ` (booking ${d.booking_id})` : ''}. Satu orang tidak bisa didaftarkan dua kali di program yang sama.`);
+            return;
+          }
+        } catch { alert('Gagal mengecek NIK, coba lagi.'); return; }
+        finally { setCekNikBusy(false); }
+      }
+    }
+    onAdd({ ...current, namas, was, jks, alamats, niks });
     // Mode perjanjian: form tetap nampilin isi item (dikunci), gak di-reset.
     if (perjanjian) return;
-    onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', customHotel: current.paket === 'custom' ? {} : null, namas: [''], was: [''], jks: [''], alamats: [''], opsiTambahan: [] });
+    onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', customHotel: current.paket === 'custom' ? {} : null, namas: [''], was: [''], jks: [''], alamats: [''], niks: [''], tanpaNiks: [''], opsiTambahan: [] });
   }
 
   function toggleOpsiTambahan(opsi) {
@@ -430,13 +464,13 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         <div className="flex items-center gap-4">
           <button onClick={() => {
               const jumlah = Math.max(1, current.jumlah - 1);
-              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah) });
+              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah), niks: resizeNamas(current.niks, jumlah), tanpaNiks: resizeNamas(current.tanpaNiks, jumlah) });
             }}
             className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors">−</button>
           <span className="text-2xl font-black text-[#0E2F6E] w-8 text-center">{current.jumlah}</span>
           <button onClick={() => {
               const jumlah = Math.min(maxJumlah, current.jumlah + 1);
-              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah) });
+              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah), niks: resizeNamas(current.niks, jumlah), tanpaNiks: resizeNamas(current.tanpaNiks, jumlah) });
             }}
             className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors">+</button>
           <span className="text-xs text-gray-400">Sisa seat: {Math.max(0, sisaSeat)}</span>
@@ -461,17 +495,23 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
                   const was = resizeNamas(current.was, current.jumlah);
                   const jks = resizeNamas(current.jks, current.jumlah);
                   const alamats = resizeNamas(current.alamats, current.jumlah);
+                  const niks = resizeNamas(current.niks, current.jumlah);
+                  const tanpaNiks = resizeNamas(current.tanpaNiks, current.jumlah);
+                  // Autofill dari profil CUMA buat opsi Diri Sendiri
+                  // (dikonfirmasi user 2026-10-12) — Orang Lain selalu manual.
                   if (o.key === 'sendiri') {
                     namas[0] = dataDiriSendiri.nama || '';
                     was[0] = dataDiriSendiri.wa || '';
                     jks[0] = dataDiriSendiri.jk || '';
                     alamats[0] = dataDiriSendiri.alamat || '';
+                    niks[0] = dataDiriSendiri.nik || '';
+                    tanpaNiks[0] = '';
                   } else if (current.untukDiri === 'sendiri') {
                     // Pindah dari Diri Sendiri — kosongkan jamaah #1 yang tadi
                     // ke-isi otomatis biar gak kebawa jadi data orang lain.
-                    namas[0] = ''; was[0] = ''; jks[0] = ''; alamats[0] = '';
+                    namas[0] = ''; was[0] = ''; jks[0] = ''; alamats[0] = ''; niks[0] = ''; tanpaNiks[0] = '';
                   }
-                  onChangeCurrent({ ...current, untukDiri: o.key, namas, was, jks, alamats });
+                  onChangeCurrent({ ...current, untukDiri: o.key, namas, was, jks, alamats, niks, tanpaNiks });
                 }}
                 className={`rounded-xl p-3 border-2 cursor-pointer ${
                   current.untukDiri === o.key ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
@@ -499,7 +539,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
           {Array.from({ length: current.jumlah }).map((_, i) => (
             <div key={i} className="space-y-2 pb-3 border-b border-gray-100 last:border-0 last:pb-0">
               {i === 0 && current.untukDiri === 'sendiri' && (
-                <div className="text-[10px] font-semibold text-[#C9952A]">🙋 Jamaah #1 — Anda (otomatis dari profil, bisa disesuaikan)</div>
+                <div className="text-[10px] font-semibold text-[#C9952A]">🙋 Jamaah #1 — Anda (otomatis dari profil; NIK dikunci sesuai akun)</div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <input
@@ -535,6 +575,45 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
                   maxLength={13}
                   className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
               </div>
+              {dataDiriSendiri && (() => {
+                // NIK dipakai buat cek dobel daftar di program yang sama.
+                // Diri Sendiri: dari profil & dikunci. Orang Lain: manual,
+                // boleh "belum punya KTP" (anak < 17 th, NIK gak wajib —
+                // sama aturan formulir jamaah).
+                const nikTerkunci = i === 0 && current.untukDiri === 'sendiri' && !!dataDiriSendiri.nik;
+                const tanpaNik = !!current.tanpaNiks?.[i];
+                return (
+                  <div className="space-y-1">
+                    <input
+                      value={current.niks?.[i] || ''}
+                      readOnly={nikTerkunci}
+                      disabled={tanpaNik}
+                      onChange={e => {
+                        const niks = resizeNamas(current.niks, current.jumlah);
+                        niks[i] = e.target.value.replace(/\D/g, '').slice(0, 16);
+                        onChangeCurrent({ ...current, niks });
+                      }}
+                      inputMode="numeric" maxLength={16}
+                      placeholder={tanpaNik ? 'Belum punya KTP' : `NIK (No. KTP) jamaah #${i + 1} — 16 digit`}
+                      className={`w-full px-4 py-3 rounded-xl border-2 text-sm focus:outline-none ${nikTerkunci || tanpaNik
+                        ? 'border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed'
+                        : 'border-gray-200 focus:border-[#1A4FA0]'}`}/>
+                    {!(i === 0 && current.untukDiri === 'sendiri') && (
+                      <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
+                        <input type="checkbox" checked={tanpaNik} className="w-3.5 h-3.5 accent-[#1A4FA0]"
+                          onChange={e => {
+                            const tanpaNiks = resizeNamas(current.tanpaNiks, current.jumlah);
+                            const niks = resizeNamas(current.niks, current.jumlah);
+                            tanpaNiks[i] = e.target.checked ? '1' : '';
+                            if (e.target.checked) niks[i] = '';
+                            onChangeCurrent({ ...current, tanpaNiks, niks });
+                          }} />
+                        Belum punya KTP (usia di bawah 17 tahun)
+                      </label>
+                    )}
+                  </div>
+                );
+              })()}
               <input
                 value={current.alamats?.[i] || ''}
                 onChange={e => {
@@ -586,7 +665,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
 
       {perjanjian ? perjanjian.render(
         <label className={`flex items-start gap-2 text-xs ${perjanjian.dibaca ? 'text-gray-700 cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}>
-          <input type="checkbox" checked={terkunciPerjanjian} disabled={!perjanjian.dibaca}
+          <input type="checkbox" checked={terkunciPerjanjian} disabled={!perjanjian.dibaca || cekNikBusy}
             onChange={e => { if (e.target.checked) tambahkan(); else cart.forEach(() => onRemove(0)); }}
             className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
           <span>
@@ -596,7 +675,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
           </span>
         </label>
       ) : (
-      <button onClick={tambahkan} disabled={sisaSeat < 1}
+      <button onClick={tambahkan} disabled={sisaSeat < 1 || cekNikBusy}
         className="w-full border-2 border-dashed border-[#1A4FA0] text-[#1A4FA0] font-bold py-3 rounded-full hover:bg-[#E8F0FB] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
         + Tambahkan ke Pesanan
       </button>

@@ -8,6 +8,8 @@ import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
 import TombolWA from '@/app/components/TombolWA';
+import { STAGE_LABELS, getStage } from '@/lib/bookingStage';
+import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -44,6 +46,9 @@ export default function DashboardSahabatPage() {
   const [loadingProgramEksklusif, setLoadingProgramEksklusif] = useState(false);
   const [pilihanProgramId, setPilihanProgramId] = useState(null);
   const [pembatalanLoading, setPembatalanLoading] = useState(false);
+  // Ringkasan booking aktif di Beranda (dikonfirmasi user 2026-10-12) —
+  // termasuk status "✅ Lunas", sebelumnya cuma kelihatan di Booking Saya.
+  const [bookingAktif, setBookingAktif] = useState([]);
 
   async function setujuDataPribadi() {
     setMenyimpanPersetujuan(true);
@@ -61,6 +66,10 @@ export default function DashboardSahabatPage() {
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
+    fetch(`/api/bookings?user_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => setBookingAktif((d.bookings || []).filter(b => b.status === 'active')))
+      .catch(() => {});
   }
 
   function bukaGantiPopup() {
@@ -110,7 +119,9 @@ export default function DashboardSahabatPage() {
   // Catatan SYSTEM UJROH E3: jadwal keberangkatan target lewat (atau program
   // target dinonaktifkan) sebelum target tercapai -> WAJIB pilih program lain.
   // Popup Ganti Target dibuka otomatis sekali per sesi browser.
-  const wajibGantiTarget = !!(data?.target && !(data.target.nominal > 0 && data.ringkasan?.saldo_tabungan_umroh >= data.target.nominal)
+  // Target yang udah di-checkout = program eksklusif biasa (lihat
+  // lib/targetImpian.js) — gak ada lagi progress/ganti target.
+  const wajibGantiTarget = !!(data?.target && !data.target.sudah_checkout && !(data.target.nominal > 0 && data.ringkasan?.saldo_tabungan_umroh >= data.target.nominal)
     && (data.target.jadwal_terlewat || !data.target.program_aktif)
     && !['diajukan', 'pembatalan_diajukan'].includes(data.target.ganti_status));
   useEffect(() => {
@@ -250,6 +261,54 @@ export default function DashboardSahabatPage() {
           )}
         </div>
 
+        {/* Booking aktif — ringkas per booking, detail & aksinya tetap di
+            Booking Saya (/dashboard/jamaah). */}
+        {bookingAktif.length > 0 && (
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-[#0E2F6E] text-sm">📦 Booking Aktif</div>
+              <button onClick={() => router.push('/dashboard/jamaah')} className="text-xs font-bold text-[#1A4FA0] hover:underline">Lihat semua →</button>
+            </div>
+            {bookingAktif.map(b => {
+              const stage = getStage(b);
+              const tindakan = alasanPerluTindakan(b);
+              const namaUtama = (() => {
+                const jd = typeof b.jamaah_data === 'string' ? (() => { try { return JSON.parse(b.jamaah_data); } catch { return []; } })() : b.jamaah_data;
+                return Array.isArray(jd) ? jd[0]?.nama : null;
+              })();
+              return (
+                <div key={b.id} onClick={() => router.push('/dashboard/jamaah')}
+                  className="border border-gray-100 rounded-lg p-3 cursor-pointer hover:bg-[#E8F0FB] transition-colors">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-[#0E2F6E] truncate">{b.prog_name}</div>
+                      <div className="text-[11px] text-gray-500 truncate">
+                        {namaUtama ? `📛 ${namaUtama}${b.jumlah_jamaah > 1 ? ` +${b.jumlah_jamaah - 1}` : ''} · ` : ''}{b.id}
+                      </div>
+                    </div>
+                    {stage < 5 && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F0FB] text-[#1A4FA0] whitespace-nowrap">
+                        {stage}/5 · {STAGE_LABELS[stage - 1]}
+                      </span>
+                    )}
+                  </div>
+                  {stage === 5 ? (
+                    <div className="mt-2 bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
+                      ✅ Lunas — Selamat menunaikan ibadah!
+                    </div>
+                  ) : tindakan.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {tindakan.map(t => (
+                        <span key={t} className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">⚠️ {t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* Total Ujroh Terkonfirmasi — klik keluar ke Riwayat Tabungan Umroh
             (dikonfirmasi user 2026-09-22, rincian per kategori udah ada
             lengkap di sana, gak perlu expand ganda di sini). */}
@@ -275,7 +334,7 @@ export default function DashboardSahabatPage() {
             tombol lanjut checkout ke program yang sama — kalau program
             targetnya somehow dinonaktifkan admin, tombol diganti pesan
             hubungi admin (bukan disembunyikan diam-diam). */}
-        {target && (
+        {target && !target.sudah_checkout && (
           <div className={`bg-white rounded-xl border-2 p-4 ${wajibGantiTarget ? 'border-red-300' : 'border-[#e0e8f0]'}`}>
             {wajibGantiTarget && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3 text-xs text-red-700">

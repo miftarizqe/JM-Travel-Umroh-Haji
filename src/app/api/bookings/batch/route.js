@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
-import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
+import { cekPemesanBolehOrder, buatSatuBooking, cariNikDipakaiProgramLain } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
 import { saldoSahabat } from '@/lib/saldoSahabat';
 
@@ -73,6 +73,33 @@ export async function POST(request) {
     if (bayarDariSaldo) {
       await conn.query('SELECT id FROM users WHERE id = ? FOR UPDATE', [auth.user.id]);
       saldoTersedia = await saldoSahabat(conn, auth.user.id);
+    }
+
+    // NIK dari checkout (akun Sahabat, dikonfirmasi user 2026-10-12): jamaah
+    // #1 "Diri Sendiri" dipaksa NIK akun ini (bukan kiriman client), lalu 1
+    // NIK gak boleh dobel — di keranjang ini maupun booking aktif lain di
+    // program yang sama (aturan sama dengan simpan formulir).
+    let nikAkun = null;
+    if (items.some(it => it.untuk_diri_sendiri)) {
+      const [[u]] = await conn.query('SELECT nik FROM users WHERE id = ?', [auth.user.id]);
+      nikAkun = String(u?.nik || '').trim() || null;
+    }
+    const semuaNik = [];
+    for (const it of items) {
+      it.untuk_diri_sendiri = !!it.untuk_diri_sendiri && auth.user.role === 'sahabat_baitullah';
+      const niks = (Array.isArray(it.niks) ? it.niks : []).map(n => String(n || '').trim());
+      if (it.untuk_diri_sendiri && nikAkun) niks[0] = nikAkun;
+      for (const n of niks) {
+        if (n && !/^\d{16}$/.test(n)) throw Object.assign(new Error(`NIK ${n} tidak valid (wajib 16 digit).`), { status: 400 });
+      }
+      it.niks = niks;
+      semuaNik.push(...niks.filter(Boolean));
+    }
+    const dobelLokal = semuaNik.find((n, i) => semuaNik.indexOf(n) !== i);
+    if (dobelLokal) throw Object.assign(new Error(`NIK ${dobelLokal} dimasukkan lebih dari sekali.`), { status: 400 });
+    if (semuaNik.length) {
+      const dup = await cariNikDipakaiProgramLain(conn, { progId: bersama.prog_id, excludeBookingId: '', niks: semuaNik });
+      if (dup) throw Object.assign(new Error(`NIK ${dup.nik} sudah terdaftar di program ini. Satu orang tidak bisa didaftarkan dua kali di program yang sama.`), { status: 400 });
     }
 
     const totalJamaah = items.reduce((s, it) => s + Number(it.jumlah_jamaah || 0), 0);

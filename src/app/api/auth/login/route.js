@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { ambilJwtSecret, headerCookieToken } from '@/lib/auth';
+import { ambilJwtSecret, headerCookieToken, DURASI_SESI_DETIK } from '@/lib/auth';
 import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
 import { varianWA } from '@/lib/validasiAkun';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
@@ -67,10 +67,11 @@ export async function POST(request) {
       return Response.json({ error: PESAN_PERWAKILAN_COMING_SOON }, { status: 403 });
     }
 
+    const loginAt = Math.floor(Date.now() / 1000);
     const token = jwt.sign(
-      { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name },
+      { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name, login_at: loginAt },
       ambilJwtSecret(),
-      { expiresIn: '7d' }
+      { expiresIn: DURASI_SESI_DETIK }
     );
 
     const dataUser = {
@@ -99,7 +100,10 @@ export async function POST(request) {
 
     // Cookie di-set oleh SERVER dengan httpOnly:
     // token tidak bisa dibaca/dicuri lewat JavaScript di browser.
-    const maxAge = 7 * 24 * 60 * 60; // 7 hari
+    // Sesi 24 jam sejak login (lihat DURASI_SESI_DETIK di lib/auth.js).
+    const maxAge = DURASI_SESI_DETIK;
+    // Dipakai useCurrentUser buat ngebuang cache data user begitu sesi habis.
+    dataUser.sesi_berakhir_at = (loginAt + DURASI_SESI_DETIK) * 1000;
 
     return new Response(
       JSON.stringify({ message: 'Login berhasil!', user: dataUser }),

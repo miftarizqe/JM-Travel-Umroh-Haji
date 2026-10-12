@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import PasswordInput from '@/app/components/PasswordInput';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -20,6 +20,13 @@ function LoginPageInner() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Diarahkan ke sini karena sesi 24 jam habis (src/proxy.js /
+  // useCurrentUser) — buang cache data user lama & kasih tau alasannya.
+  const sesiHabis = searchParams.get('sesi') === 'habis';
+  useEffect(() => {
+    if (!sesiHabis) return;
+    try { localStorage.removeItem('user'); } catch {}
+  }, [sesiHabis]);
 
   async function handleLogin() {
     // Validasi sebelum kirim — mencegah tombol "seolah tidak bereaksi"
@@ -51,7 +58,7 @@ function LoginPageInner() {
       localStorage.setItem('user', JSON.stringify(data.user));
       const role = data.user.role;
       // Kalau datang dari tombol Booking (ada ?redirect=), balik ke sana
-      const redirect = searchParams.get('redirect');
+      const redirect = searchParams.get('redirect') || searchParams.get('from');
       if (data.user.perlu_perbaikan_akun) {
         router.push('/perbaiki-data-akun');
       } else if (redirect) {
@@ -114,6 +121,11 @@ function LoginPageInner() {
               </div>
             </div>
 
+            {sesiHabis && !error && (
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-4">
+                ⏰ Sesi login Anda sudah berakhir (berlaku 24 jam). Silakan login kembali.
+              </div>
+            )}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
                 ⚠️ {error}

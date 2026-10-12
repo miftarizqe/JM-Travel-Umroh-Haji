@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { wajibPemilikAtauAdminHopSahabat } from '@/lib/hopAuth';
 import { groupJamaahAktif } from '@/lib/jamaahHarga';
 import { keTanggal, jadwalSudahLewat } from '@/lib/jadwalTarget';
+import { targetSudahDicheckout } from '@/lib/targetImpian';
 
 // GET /api/sahabat/dashboard?sahabat_id=xxx
 // Jauh lebih simpel dari dashboard perwakilan — sahabat gak punya
@@ -91,6 +92,7 @@ export async function GET(request) {
       nominal: Number(targetRow.target_estimasi_harga || 0),
       ganti_status: targetRow.target_ganti_status || null,
       ganti_program_name: targetRow.target_ganti_program_name || null,
+      sudah_checkout: await targetSudahDicheckout(pool, sahabatId, targetRow.program_id),
     } : null;
 
     // Rekrutan langsung — SEMUA role (jamaah biasa yang cuma nabung, ATAU
