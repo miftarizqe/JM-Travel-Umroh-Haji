@@ -65,7 +65,6 @@ export default function AdminPerwakilanPage() {
   const [cariQ, setCariQ] = useState('');
   const [cariHasil, setCariHasil] = useState(null);
   const [cariLoading, setCariLoading] = useState(false);
-  const [rekrutMetode, setRekrutMetode] = useState('kantor');
   // Link referral admin/super_admin sendiri — mirror /admin/sahabat/page.jsx
   // (dikonfirmasi user 2026-09-19), buat ngerekrut Perwakilan baru langsung
   // dari panel tanpa lewat link anggota aktif.
@@ -139,12 +138,12 @@ export default function AdminPerwakilanPage() {
   }
 
   async function rekrutJadiPerwakilan(u) {
-    if (!confirm(`Rekrut ${u.name} jadi Perwakilan? Tetap wajib lewat proses pendaftaran lengkap (PKS, metode TTD, dst) — cuma jalur masuknya langsung dari admin, bukan link referral.`)) return;
+    if (!confirm(`Rekrut ${u.name} jadi Perwakilan? Tetap wajib lewat proses pendaftaran lengkap (TTD formulir, PKS, pilih metode kantor/paket sendiri, dst) — cuma jalur masuknya langsung dari admin, bukan link referral.`)) return;
     setBusy(true);
     try {
       const res = await fetch('/api/admin/users', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: u.id, action: 'rekrut_jadi_perwakilan', metode: rekrutMetode }),
+        body: JSON.stringify({ user_id: u.id, action: 'rekrut_jadi_perwakilan' }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setBusy(false); return; }
@@ -241,16 +240,11 @@ export default function AdminPerwakilanPage() {
           rekrut_jadi_perwakilan di /api/admin/users). */}
       <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">
         <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🔍 Rekrut dari Akun Existing (Jamaah/Sahabat Baitullah)</div>
-        <div className="text-xs text-gray-400 mb-2">Cari akun Jamaah atau Sahabat Baitullah yang mau direkrut langsung jadi Perwakilan oleh manajemen — gak perlu daftar ulang dari nol, data yang udah ada dipakai lagi. Tetap wajib lewat proses pendaftaran lengkap (PKS, metode TTD, dst). <span className="text-gray-400">Sahabat Baitullah yang masuk team Head of Program gak akan muncul di hasil pencarian — gak boleh direkrut jadi Perwakilan.</span></div>
+        <div className="text-xs text-gray-400 mb-2">Cari akun Jamaah atau Sahabat Baitullah yang mau direkrut langsung jadi Perwakilan oleh manajemen — gak perlu daftar ulang dari nol, data yang udah ada dipakai lagi. Tetap wajib lewat proses pendaftaran lengkap (TTD formulir, PKS, lalu pilih sendiri metode kantor/paket — sama seperti pendaftar baru). <span className="text-gray-400">Sahabat Baitullah yang masuk team Head of Program gak akan muncul di hasil pencarian — gak boleh direkrut jadi Perwakilan.</span></div>
         <div className="flex gap-2 mb-2">
           <input value={cariQ} onChange={e => setCariQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && cariAkun()}
             placeholder="Cari nama / NIK / WA / kode unik..."
             className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
-          <select value={rekrutMetode} onChange={e => setRekrutMetode(e.target.value)}
-            className="px-3 py-2 rounded-lg border-2 border-gray-200 text-xs">
-            <option value="kantor">Metode: Kantor</option>
-            <option value="paket">Metode: Paket</option>
-          </select>
           <button onClick={cariAkun} disabled={cariLoading || !cariQ.trim()}
             className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
             {cariLoading ? '...' : 'Cari'}
