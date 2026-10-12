@@ -114,7 +114,11 @@ export default function CetakInvoiceKwitansi() {
       .catch(() => setLoading(false));
   }, [user, id]);
 
-  // Setuju tanpa TTD digital — POST ke Go (/api/admin/invoice-kwitansi/{id}/setuju).
+  // Setuju tanpa TTD digital -- endpoint-nya di Next.js sendiri sekarang
+  // (/api/admin/invoice-kwitansi/[id]/setuju, dipindah dari Go 2026-10-13
+  // biar gating materai Rp5jt bisa ditegakkan server-side tanpa sentuh repo
+  // jm-travel-api). Cek Caddyfile.tahap2 di VPS kalau ternyata masih
+  // keproxy ke Go.
   async function setujui() {
     if (!confirm(`Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor}? Dokumen akan ditandai sudah dikirim.`)) return;
     setMenyetujui(true);
