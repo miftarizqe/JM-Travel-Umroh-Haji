@@ -214,19 +214,9 @@ export default function DashboardSahabatPage() {
           </div>
         </div>
 
-        {/* Status keaktifan ujroh (aturan 6 bulan, dihitung server —
-            lib/keaktifanSahabat.js, dikonfirmasi user 2026-10-02). */}
-        {data.keaktifan_ujroh?.berlaku_sampai && (
-          data.keaktifan_ujroh.aktif ? (
-            <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-xs text-green-700">
-              ✅ <b>Ujroh aktif</b> sampai {new Date(data.keaktifan_ujroh.berlaku_sampai).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}. Ajak minimal 1 Sahabat baru (Gen1) sebelum tanggal itu supaya ujroh tetap masuk.
-            </div>
-          ) : (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-700">
-              ⏸️ <b>Ujroh baru sedang berhenti</b> — sudah lebih dari 6 bulan tanpa Sahabat baru (Gen1). Ajak 1 Sahabat baru untuk mengaktifkan kembali. Saldo Anda yang sudah ada tidak terpengaruh.
-            </div>
-          )
-        )}
+        {/* Status keaktifan ujroh "aturan 6 bulan tanpa Gen1 baru" DICABUT
+            TOTAL (dikonfirmasi user 2026-10-12) -- badge ini dihapus,
+            data.keaktifan_ujroh gak lagi dikirim API. */}
         {/* Susunan kartu warna disamain ke gaya dashboard HoP (dikonfirmasi
             user 2026-10-05, style/tatanan doang — Team/Saldo/Pending yang
             tadinya nyatu di 1 strip gradient dipisah jadi kartu kecil kayak
