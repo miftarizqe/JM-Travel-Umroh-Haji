@@ -37,6 +37,7 @@ function CheckoutPageInner() {
   const [pengaturan] = usePengaturan();
   const [metodePembayaran] = useMetodePembayaran();
   const [prog, setProg] = useState(null);
+  const [progTidakTersedia, setProgTidakTersedia] = useState(false);
   const [step, setStep] = useState(1);
   const [cart, setCart] = useState([]);
   const [current, setCurrent] = useState({ paket: 'eksekutif', kamar: 'Triple (3/Kamar)', jumlah: 1, hargaCustom: '', customHotel: null, namas: [''], was: [''], jks: [''], opsiTambahan: [] });
@@ -109,6 +110,9 @@ function CheckoutPageInner() {
   const [waMandiri, setWaMandiri] = useState('');
   const [jkMandiri, setJkMandiri] = useState('');
   const [alamatMandiri, setAlamatMandiri] = useState('');
+  const [nikMandiri, setNikMandiri] = useState('');
+  const [tanpaNikMandiri, setTanpaNikMandiri] = useState(false);
+  const [cekLanjutMandiri, setCekLanjutMandiri] = useState(false);
   const [voucherMandiri, setVoucherMandiri] = useState(null);
   const [saldoInfo, setSaldoInfo] = useState(null);
   const [hasilMandiri, setHasilMandiri] = useState(null);
@@ -183,6 +187,9 @@ function CheckoutPageInner() {
         .then(d => {
           const found = d.programs.find(p => p.id === progId);
           if (found) setProg(found);
+          // Program gak ada di daftar (mis. udah lewat tanggal berangkat /
+          // nonaktif) — jangan nyangkut di "Memuat program..." selamanya.
+          else setProgTidakTersedia(true);
         });
     }
   }, [user, progId]);
@@ -218,8 +225,9 @@ function CheckoutPageInner() {
         // Sama kayak checkout mandiri di bawah — alamat sahabat kesimpen di
         // alamat_domisili/alamat, bukan alamat_kirim.
         alamat: d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '',
+        nik: d.user?.nik || '',
       }))
-      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '' }));
+      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '' }));
   }, [user]);
 
   useEffect(() => {
@@ -235,15 +243,20 @@ function CheckoutPageInner() {
     fetch(`/api/profil?user_id=${user.id}`)
       .then(r => r.json())
       .then(d => {
+        setNoRekeningUmrohMandiri(d.user?.no_rekening_tabungan_umroh || '');
+        // Autofill data diri CUMA kalau checkout buat diri sendiri (akun
+        // Muslim) — akun non-Muslim selalu daftarin ORANG LAIN, isi manual
+        // (dikonfirmasi user 2026-10-12).
+        if (user.agama === 'non_islam') return;
         setNamaMandiri(d.user?.name || '');
         setWaMandiri(d.user?.wa || '');
         setJkMandiri(d.user?.jenis_kelamin || '');
+        setNikMandiri(d.user?.nik || '');
         // alamat_kirim kosong buat Sahabat Baitullah -- daftar-sahabat gak
         // pernah nyimpen ke kolom itu (cuma dipakai form-jamaah/perwakilan),
         // alamat sahabat kesimpen di alamat_domisili/alamat (dikonfirmasi
         // user 2026-10-08, autofill sebelumnya selalu kosong akibat ini).
         setAlamatMandiri(d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '');
-        setNoRekeningUmrohMandiri(d.user?.no_rekening_tabungan_umroh || '');
       })
       .catch(() => {});
     fetch(`/api/sahabat/dashboard?sahabat_id=${user.id}`)
@@ -270,6 +283,61 @@ function CheckoutPageInner() {
   const [hasilDpSaldo, setHasilDpSaldo] = useState(null);
   const [passwordDpSaldo, setPasswordDpSaldo] = useState('');
 
+  // Booking akun ini di program eksklusif yang sama (dikonfirmasi user
+  // 2026-10-12) — cegah dari FE: masih ada yang belum lunas, ATAU orang yang
+  // sama (nama) udah terdaftar. Server (checkout-mandiri) tetap ngecek ulang.
+  const [bookingSamaProgram, setBookingSamaProgram] = useState([]);
+  useEffect(() => {
+    if (!isMandiriSahabat || !user?.id) return;
+    fetch(`/api/bookings?user_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => setBookingSamaProgram((d.bookings || []).filter(b =>
+        b.prog_id === progId && ['active', 'menunggu_batal'].includes(b.status) && b.user_id === user.id)))
+      .catch(() => {});
+  }, [isMandiriSahabat, user?.id, progId]);
+  const normNama = (n) => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const bookingBelumLunasMandiri = bookingSamaProgram.find(b => b.pelunasan_status !== 'paid');
+  const bookingNamaSamaMandiri = namaMandiri.trim() ? bookingSamaProgram.find(b => {
+    const jd = typeof b.jamaah_data === 'string' ? (() => { try { return JSON.parse(b.jamaah_data); } catch { return []; } })() : b.jamaah_data;
+    return Array.isArray(jd) && jd.some(j => j?.status_jamaah !== 'dibatalkan' && normNama(j?.nama) === normNama(namaMandiri));
+  }) : null;
+  // Diri sendiri (akun Muslim): kebaca dari booking milik sendiri yang
+  // jamaahnya akun ini — blokir langsung. Orang lain (non-Muslim): kunci
+  // utamanya NIK (dicek pas klik Lanjut), nama cuma peringatan.
+  const blokirMandiri = bookingBelumLunasMandiri
+    ? `Booking Anda sebelumnya di program ini (${bookingBelumLunasMandiri.id}) belum lunas. Checkout lagi baru bisa setelah booking tersebut lunas atau dibatalkan.`
+    : (namaMandiriTerkunci && bookingNamaSamaMandiri)
+      ? `Anda sudah terdaftar di program ini (booking ${bookingNamaSamaMandiri.id}). Satu orang tidak bisa didaftarkan dua kali di program yang sama.`
+      : null;
+
+  async function lanjutMandiri() {
+    if (hargaMandiri <= 0) { alert('Kombinasi paket & kamar ini belum tersedia harganya. Pilih kombinasi lain.'); return; }
+    if (!namaMandiri || !waMandiri || !jkMandiri || !alamatMandiri) { alert('Lengkapi data diri terlebih dahulu!'); return; }
+    if (blokirMandiri) { alert(blokirMandiri); return; }
+    const nik = nikMandiri.trim();
+    if (!(tanpaNikMandiri && !namaMandiriTerkunci) && !/^\d{16}$/.test(nik)) {
+      alert(namaMandiriTerkunci ? 'NIK di profil akun Anda belum ada / tidak valid. Hubungi admin untuk melengkapinya.' : 'NIK jamaah wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).');
+      return;
+    }
+    if (!namaMandiriTerkunci && bookingNamaSamaMandiri &&
+        !confirm(`Nama "${namaMandiri.trim()}" sudah terdaftar di booking ${bookingNamaSamaMandiri.id} pada program ini. Apakah ini orang yang BERBEDA?`)) return;
+    if (nik) {
+      setCekLanjutMandiri(true);
+      try {
+        const d = await fetch('/api/bookings/cek-nik', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prog_id: progId, niks: [nik] }),
+        }).then(r => r.json());
+        if (d.terpakai) {
+          alert(`NIK ${d.terpakai} sudah terdaftar di program ini${d.booking_id ? ` (booking ${d.booking_id})` : ''}. Satu orang tidak bisa didaftarkan dua kali di program yang sama.`);
+          return;
+        }
+      } catch { alert('Gagal mengecek NIK, coba lagi.'); return; }
+      finally { setCekLanjutMandiri(false); }
+    }
+    setStep(2);
+  }
+
   const hargaMandiri = prog ? Number(prog[`harga_${paketMandiri}_${kamarKeyOf(kamarMandiri)}`] || 0) : 0;
   const voucherDiskonMandiri = voucherMandiri ? Math.min(Number(voucherMandiri.potongan || 0), hargaMandiri) : 0;
   const totalMandiri = Math.max(0, hargaMandiri - voucherDiskonMandiri);
@@ -294,6 +362,8 @@ function CheckoutPageInner() {
           prog_id: progId,
           paket: paketMandiri, kamar: kamarMandiri,
           nama: namaMandiri, wa: waMandiri, jk: jkMandiri, alamat: alamatMandiri,
+          nik: tanpaNikMandiri && !namaMandiriTerkunci ? '' : nikMandiri.trim(),
+          tanpa_nik: tanpaNikMandiri && !namaMandiriTerkunci,
           voucher_kode: voucherMandiri?.kode || null,
           password: passwordDpSaldo,
         })
@@ -322,6 +392,7 @@ function CheckoutPageInner() {
           prog_id: progId,
           items: cart.map(c => ({
             paket: c.paket, kamar: c.kamar, jumlah_jamaah: c.jumlah, namas: c.namas, was: c.was, jks: c.jks, alamats: c.alamats,
+            niks: c.niks, untuk_diri_sendiri: c.untukDiri === 'sendiri',
             harga_custom_per_jamaah: c.hargaCustom || null,
             customHotel: c.customHotel || null,
             opsi_tambahan_ids: (c.opsiTambahan || []).map(o => o.id),
@@ -368,8 +439,20 @@ function CheckoutPageInner() {
   const dpDariSaldo = user?.role === 'sahabat_baitullah' && !isMandiriSahabat && !!saldoInfo
     && totalDP > 0 && saldoTersediaMandiri >= totalDP;
 
-  const steps = ['Detail', 'Pilih Paket', 'Bayar DP', 'Selesai'];
+  // Setelah submit (step 4) yang aktif "Verifikasi Admin" — DP belum
+  // beneran beres sampai admin konfirmasi (maks 1×24 jam), "Selesai" baru
+  // tercapai sesudahnya (dikonfirmasi user 2026-10-12).
+  const steps = ['Detail', 'Pilih Paket', 'Bayar DP', 'Verifikasi Admin', 'Selesai'];
 
+  if (progTidakTersedia) return (
+    <Layout title="🛒 Checkout" backHref="/programs">
+      <div className="max-w-md mx-auto bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+        <div className="text-3xl mb-2">🕌</div>
+        <h3 className="font-bold text-[#0E2F6E] mb-1">Program Tidak Tersedia</h3>
+        <p className="text-sm text-gray-500">Program ini sudah berangkat / selesai atau tidak lagi dibuka untuk pendaftaran.</p>
+      </div>
+    </Layout>
+  );
   if (!user || !prog) return (
     <Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat program...</div></Layout>
   );
@@ -492,7 +575,7 @@ function CheckoutPageInner() {
               </div>
 
               <div className="bg-white border-2 border-gray-200 rounded-xl p-4 space-y-3">
-                <div className="font-bold text-[#0E2F6E] text-sm">Data Diri</div>
+                <div className="font-bold text-[#0E2F6E] text-sm">{namaMandiriTerkunci ? 'Data Diri' : 'Data Jamaah yang Didaftarkan'}</div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Nama Lengkap *</label>
                   <input value={namaMandiri} onChange={e => setNamaMandiri(e.target.value)} disabled={namaMandiriTerkunci}
@@ -508,6 +591,24 @@ function CheckoutPageInner() {
                   <input value={waMandiri} onChange={e => setWaMandiri(e.target.value.replace(/\D/g, ''))}
                     inputMode="numeric" maxLength={13}
                     className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">NIK (No. KTP) {tanpaNikMandiri ? '' : '*'}</label>
+                  <input value={nikMandiri} onChange={e => setNikMandiri(e.target.value.replace(/\D/g, '').slice(0, 16))}
+                    disabled={namaMandiriTerkunci || tanpaNikMandiri} inputMode="numeric" maxLength={16}
+                    placeholder={tanpaNikMandiri ? 'Belum punya KTP' : '16 digit sesuai KTP'}
+                    className={`w-full px-3 py-2 rounded-lg border-2 text-sm ${namaMandiriTerkunci || tanpaNikMandiri
+                      ? 'border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed'
+                      : 'border-gray-200 focus:border-[#1A4FA0] focus:outline-none'}`} />
+                  {namaMandiriTerkunci ? (
+                    <div className="text-[10px] text-gray-400 mt-1">Sesuai profil akun Anda — dipakai untuk mencegah pendaftaran ganda.</div>
+                  ) : (
+                    <label className="flex items-center gap-1.5 text-[11px] text-gray-500 mt-1 cursor-pointer">
+                      <input type="checkbox" checked={tanpaNikMandiri} className="w-3.5 h-3.5 accent-[#1A4FA0]"
+                        onChange={e => { setTanpaNikMandiri(e.target.checked); if (e.target.checked) setNikMandiri(''); }} />
+                      Belum punya KTP (usia di bawah 17 tahun)
+                    </label>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Jenis Kelamin *</label>
@@ -526,14 +627,15 @@ function CheckoutPageInner() {
                 </div>
               </div>
 
+              {blokirMandiri && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-3 text-sm text-red-700">⚠️ {blokirMandiri}</div>
+              )}
+
               <button
-                onClick={() => {
-                  if (hargaMandiri <= 0) { alert('Kombinasi paket & kamar ini belum tersedia harganya. Pilih kombinasi lain.'); return; }
-                  if (!namaMandiri || !waMandiri || !jkMandiri || !alamatMandiri) { alert('Lengkapi data diri terlebih dahulu!'); return; }
-                  setStep(2);
-                }}
-                className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors">
-                Lanjut ke Pembayaran →
+                onClick={lanjutMandiri}
+                disabled={!!blokirMandiri || cekLanjutMandiri}
+                className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                {cekLanjutMandiri ? 'Mengecek data...' : 'Lanjut ke Pembayaran →'}
               </button>
             </div>
           )}
@@ -873,7 +975,7 @@ function CheckoutPageInner() {
                   </div>
                 ),
               } : undefined}
-              dataDiriSendiri={user.role === 'sahabat_baitullah' ? (dataDiriSahabat || { nama: user.name || '', wa: '', jk: '', alamat: '' }) : undefined}
+              dataDiriSendiri={user.role === 'sahabat_baitullah' ? (dataDiriSahabat || { nama: user.name || '', wa: '', jk: '', alamat: '', nik: '' }) : undefined}
               referralPerwId={user.role === 'perwakilan' ? user.id
                 : permanentReferrer ? permanentReferrer.id
                 : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null}

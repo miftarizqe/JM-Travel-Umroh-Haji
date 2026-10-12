@@ -4,6 +4,7 @@ import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung';
 import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, validasiIsianJamaah } from '@/lib/dataJamaah';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
@@ -59,6 +60,7 @@ function FormJamaahPageInner() {
   const sudahGulir = useRef(false);
 
   const [user] = useCurrentUser();
+  const [pengaturan] = usePengaturan();
   const [booking, setBooking] = useState(null);
   const [jamaahList, setJamaahList] = useState([]);
   const [currentJ, setCurrentJ] = useState(0);
@@ -111,8 +113,19 @@ function FormJamaahPageInner() {
             // nik/wa/email yang keisi di akunnya emang data jamaah ini
             // juga. Non-Muslim DIKECUALIKAN -- mereka checkout buat ORANG
             // LAIN (gak bisa umroh sendiri), data akun BUKAN data jamaah.
-            const isSahabatMandiri = user.role === 'sahabat_baitullah' && user.agama !== 'non_islam';
-            const isPemilik = found.user_id === user.id && (user.role === 'jamaah' || isSahabatMandiri);
+            //
+            // Sahabat checkout program REGULER bisa buat diri sendiri ATAU
+            // orang lain (dikonfirmasi user 2026-10-12) — prefill dari akun
+            // CUMA kalau jamaah #1 ditandai untuk_diri_sendiri pas checkout
+            // (opsi "Diri Sendiri"), biar data akun gak kebawa ke formulir
+            // orang lain. Checkout mandiri program eksklusif akun Muslim
+            // tetap selalu diri sendiri.
+            const jdAwal = parseJamaahData(found.jamaah_data);
+            const isSahabatDiriSendiri = user.role === 'sahabat_baitullah' && (
+              jdAwal[0]?.untuk_diri_sendiri === true
+              || (found.prog_publish_type === 'sahabat_baitullah' && user.agama !== 'non_islam')
+            );
+            const isPemilik = found.user_id === user.id && (user.role === 'jamaah' || isSahabatDiriSendiri);
             if (isPemilik) {
               list[0] = {
                 ...list[0],
@@ -426,6 +439,10 @@ function FormJamaahPageInner() {
     <Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat data booking...</div></Layout>
   );
 
+  // Lunas -> formulir cuma bisa dilihat (dikonfirmasi user 2026-10-12),
+  // admin tetap bisa koreksi. Server juga nolak (PATCH /api/bookings/[id]).
+  const terkunci = booking.pelunasan_status === 'paid' && !['admin', 'super_admin'].includes(user.role);
+
   const isFirst = currentJ === 0;
   const isLast = currentJ === jamaahList.length - 1;
 
@@ -466,7 +483,14 @@ function FormJamaahPageInner() {
           </div>
         )}
 
+        {terkunci && (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 text-sm text-green-700">
+            🔒 Booking sudah <b>lunas</b> — data jamaah & dokumen hanya bisa dilihat, tidak bisa diubah lagi. Hubungi admin JM Travel jika ada yang perlu dikoreksi.
+          </div>
+        )}
+
         <div className="space-y-4">
+        <fieldset disabled={terkunci} className="space-y-4 min-w-0 border-0 p-0 m-0">
 
           {isFirst && booking.sumber_info && (
             <div className="bg-[#E8F0FB] rounded-xl p-4 text-xs text-[#1A4FA0]">
@@ -606,22 +630,51 @@ function FormJamaahPageInner() {
               </select>
             </div>
 
-            <div>
-              <label className={lbl}>Alamat Domisili *</label>
-              <input value={j.alamat} onChange={e => setField('alamat', e.target.value)} className={inp}/>
-            </div>
+            {(() => {
+              // Alamat kirim: pilih "Sama dengan Domisili" (form kedua
+              // disembunyikan, nilainya ikut domisili otomatis) atau "Alamat
+              // Berbeda" (baru munculin input) — dikonfirmasi user 2026-10-12.
+              // Pilihan disimpan di alamat_kirim_beda; data lama tanpa flag
+              // dianggap berbeda kalau isinya memang beda dari domisili.
+              const kirimBeda = j.alamat_kirim_beda ?? (!!(j.alamat_kirim || '').trim() && (j.alamat_kirim || '').trim() !== (j.alamat || '').trim());
+              return (
+                <>
+                  <div>
+                    <label className={lbl}>Alamat Domisili *</label>
+                    <input value={j.alamat} onChange={e => {
+                      setField('alamat', e.target.value);
+                      if (!kirimBeda) setField('alamat_kirim', e.target.value);
+                    }} className={inp}/>
+                  </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className={lbl} style={{ marginBottom: 0 }}>📦 Alamat Kirim Perlengkapan *</label>
-                <button type="button" onClick={() => setField('alamat_kirim', j.alamat)}
-                  className="text-[10px] font-bold text-[#1A4FA0] underline whitespace-nowrap">
-                  Sama dengan Alamat Domisili
-                </button>
-              </div>
-              <input value={j.alamat_kirim} onChange={e => setField('alamat_kirim', e.target.value)} className={inp}/>
-              <div className="text-[10px] text-gray-400 mt-1">Alamat tujuan pengiriman koper, ihrom/mukena, dan perlengkapan lainnya.</div>
-            </div>
+                  <div>
+                    <label className={lbl}>📦 Alamat Kirim Perlengkapan *</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { beda: false, label: '🏠 Sama dengan Alamat Domisili' },
+                        { beda: true, label: '📍 Alamat Berbeda' },
+                      ].map(o => (
+                        <button key={String(o.beda)} type="button"
+                          onClick={() => {
+                            setField('alamat_kirim_beda', o.beda);
+                            if (!o.beda) setField('alamat_kirim', j.alamat || '');
+                          }}
+                          className={`text-xs font-semibold rounded-xl px-3 py-2.5 border-2 transition-colors ${
+                            kirimBeda === o.beda ? 'border-[#1A4FA0] bg-[#E8F0FB] text-[#1A4FA0]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                          }`}>
+                          {o.label}
+                        </button>
+                      ))}
+                    </div>
+                    {kirimBeda && (
+                      <input value={j.alamat_kirim} onChange={e => setField('alamat_kirim', e.target.value)}
+                        placeholder="Alamat lengkap tujuan pengiriman perlengkapan" className={`${inp} mt-2`}/>
+                    )}
+                    <div className="text-[10px] text-gray-400 mt-1">Alamat tujuan pengiriman koper, ihrom/mukena, dan perlengkapan lainnya.</div>
+                  </div>
+                </>
+              );
+            })()}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -707,7 +760,14 @@ function FormJamaahPageInner() {
           <div ref={dokumenRef} className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3 scroll-mt-20">
             <div>
               <div className="font-bold text-[#0E2F6E]">📎 Dokumen Pendukung</div>
-              <div className="text-xs text-gray-400 mt-0.5">Opsional — boleh diunggah di sini sekarang, atau dikirim menyusul via WhatsApp admin.</div>
+              <div className="text-xs text-gray-400 mt-0.5">Opsional — boleh diunggah di sini sekarang, atau dikirim menyusul via WhatsApp admin.{' '}
+                {waLink(pengaturan.wa_kantor) && (
+                  <a href={waLink(pengaturan.wa_kantor, `Halo JM Travel, saya ingin mengirim dokumen pendukung untuk booking ${booking.id} (${j.nama || `Jamaah ${currentJ + 1}`}).`)}
+                    target="_blank" rel="noopener noreferrer" className="font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E]">
+                    Klik di sini untuk menghubungi admin
+                  </a>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               {DOC_LIST.map(doc => {
@@ -768,7 +828,9 @@ function FormJamaahPageInner() {
             </div>
           </div>
 
-          {isLast && (
+        </fieldset>
+
+          {isLast && !terkunci && (
             <label className="flex items-start gap-3 cursor-pointer">
               <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
                 className="mt-1 w-4 h-4 accent-[#1A4FA0] flex-shrink-0"/>
@@ -783,7 +845,7 @@ function FormJamaahPageInner() {
               className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
               ← {currentJ > 0 ? 'Jamaah ' + currentJ : 'Kembali'}
             </button>
-            {isLast ? (
+            {isLast && terkunci ? null : isLast ? (
               <button onClick={submitForm} disabled={loading}
                 className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50">
                 {loading ? 'Menyimpan...' : '📤 Kirim Semua Formulir'}

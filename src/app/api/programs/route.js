@@ -1,6 +1,14 @@
 import pool from '@/lib/db';
 import { wajibRole, verifikasiToken } from '@/lib/auth';
 import { PAKET, BINTANG_PAKET } from '@/lib/hotelCustomPricing';
+import { targetSudahDicheckout } from '@/lib/targetImpian';
+import { hariIniWib } from '@/lib/jadwalTarget';
+
+// Program yang tanggal berangkatnya udah lewat (cluster "✅ Program Selesai"
+// di admin) disembunyikan dari SEMUA role non-admin — gak bisa dilihat &
+// di-checkout lagi (dikonfirmasi user 2026-10-12). Gerbang server-nya di
+// buatSatuBooking (src/lib/booking.js). Admin/super_admin tetap lihat semua.
+const SQL_BELUM_BERANGKAT = '(p.tanggal_berangkat IS NULL OR p.tanggal_berangkat >= ?)';
 
 // Custom Hotel per Kota — jamaah pilih Bintang Mekkah & Madinah TERPISAH,
 // diambil dari 3 paket (Deluxe/Eksekutif/Signature = Bintang 3/4/5) yang
@@ -43,13 +51,13 @@ export async function GET(request) {
 
     if (user?.role === 'perwakilan') {
       const [programs] = await pool.query(
-        `SELECT p.* FROM programs p WHERE p.active = 1 AND (
+        `SELECT p.* FROM programs p WHERE p.active = 1 AND ${SQL_BELUM_BERANGKAT} AND (
            p.publish_type = 'public'
            OR (p.publish_type = 'perwakilan' AND EXISTS (
              SELECT 1 FROM program_perwakilan pp WHERE pp.program_id = p.id AND pp.perw_id = ?
            ))
          ) ORDER BY p.created_at DESC`,
-        [user.id]
+        [hariIniWib(), user.id]
       );
       return Response.json({ programs: stripProgramsUntukPublik(programs) });
     }
@@ -66,13 +74,13 @@ export async function GET(request) {
       // mekanisme dengan jamaah biasa, ditambah publish_type='sahabat_baitullah'
       // yang sifatnya blanket (semua anggota sahabat, gak per-akun).
       const [programs] = await pool.query(
-        `SELECT p.* FROM programs p WHERE p.active = 1 AND (
+        `SELECT p.* FROM programs p WHERE p.active = 1 AND ${SQL_BELUM_BERANGKAT} AND (
            p.publish_type IN ('public', 'sahabat_baitullah')
            OR (p.publish_type = 'private' AND EXISTS (
              SELECT 1 FROM program_private_akun ppa WHERE ppa.program_id = p.id AND ppa.user_id = ?
            ))
          ) ORDER BY p.created_at DESC`,
-        [user.id]
+        [hariIniWib(), user.id]
       );
       // target_program_id diikutkan (dikonfirmasi user 2026-09-29) — dipakai
       // FE buat nyematkan program target di paling depan section "Program
@@ -92,6 +100,7 @@ export async function GET(request) {
         target_program_id: pendaftaran?.program_id || null,
         target_ganti_program_id: gantiAktif ? pendaftaran.target_ganti_program_id : null,
         target_ganti_status: gantiAktif ? pendaftaran.target_ganti_status : null,
+        target_sudah_checkout: await targetSudahDicheckout(pool, user.id, pendaftaran?.program_id),
       });
     }
 
@@ -115,19 +124,20 @@ export async function GET(request) {
     // publish_type='public'.
     if (user?.role === 'jamaah') {
       const [programs] = await pool.query(
-        `SELECT p.* FROM programs p WHERE p.active = 1 AND (
+        `SELECT p.* FROM programs p WHERE p.active = 1 AND ${SQL_BELUM_BERANGKAT} AND (
            p.publish_type = 'public'
            OR (p.publish_type = 'private' AND EXISTS (
              SELECT 1 FROM program_private_akun ppa WHERE ppa.program_id = p.id AND ppa.user_id = ?
            ))
          ) ORDER BY p.created_at DESC`,
-        [user.id]
+        [hariIniWib(), user.id]
       );
       return Response.json({ programs: stripProgramsUntukPublik(programs) });
     }
 
     const [programs] = await pool.query(
-      "SELECT * FROM programs WHERE active = 1 AND publish_type = 'public' ORDER BY created_at DESC"
+      `SELECT p.* FROM programs p WHERE p.active = 1 AND p.publish_type = 'public' AND ${SQL_BELUM_BERANGKAT} ORDER BY p.created_at DESC`,
+      [hariIniWib()]
     );
     return Response.json({ programs: stripProgramsUntukPublik(programs) });
 

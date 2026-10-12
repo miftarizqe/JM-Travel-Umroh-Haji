@@ -1,8 +1,8 @@
 import pool from '@/lib/db';
-import { statusKeaktifanUjroh } from '@/lib/keaktifanSahabat';
 import { wajibPemilikAtauAdminHopSahabat } from '@/lib/hopAuth';
 import { groupJamaahAktif } from '@/lib/jamaahHarga';
 import { keTanggal, jadwalSudahLewat } from '@/lib/jadwalTarget';
+import { targetSudahDicheckout } from '@/lib/targetImpian';
 
 // GET /api/sahabat/dashboard?sahabat_id=xxx
 // Jauh lebih simpel dari dashboard perwakilan — sahabat gak punya
@@ -92,6 +92,7 @@ export async function GET(request) {
       nominal: Number(targetRow.target_estimasi_harga || 0),
       ganti_status: targetRow.target_ganti_status || null,
       ganti_program_name: targetRow.target_ganti_program_name || null,
+      sudah_checkout: await targetSudahDicheckout(pool, sahabatId, targetRow.program_id),
     } : null;
 
     // Rekrutan langsung — SEMUA role (jamaah biasa yang cuma nabung, ATAU
@@ -369,10 +370,11 @@ export async function GET(request) {
     const closingLangsungConfirmed = closingLangsung.filter(c => c.dikonfirmasi_at).reduce((s, c) => s + Number(c.nominal || 0), 0);
     const closingLangsungPending = closingLangsung.filter(c => !c.dikonfirmasi_at).reduce((s, c) => s + Number(c.nominal || 0), 0);
 
-    // Status keaktifan ujroh (aturan 6 bulan, lib/keaktifanSahabat.js) — dihitung server.
-    const keaktifan = await statusKeaktifanUjroh(pool, akun.id);
+    // Status keaktifan ujroh "aturan 6 bulan tanpa Gen1 baru" DICABUT TOTAL
+    // (dikonfirmasi user 2026-10-12) — field keaktifan_ujroh dihapus dari
+    // response ini, lihat lib/keaktifanSahabat.js (file sengaja dibiarkan,
+    // gak dipakai lagi dari mana pun).
     return Response.json({
-      keaktifan_ujroh: keaktifan,
       akun,
       voucher,
       dokumen,

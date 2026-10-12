@@ -139,8 +139,35 @@ export async function GET(request) {
       const [privateRows] = await pool.query('SELECT user_id FROM program_private_akun WHERE program_id = ?', [id]);
       return Response.json({ program: { ...rows[0], perw_ids: perwRows.map(r => r.perw_id), private_ids: privateRows.map(r => r.user_id) } });
     }
-    const [rows] = await pool.query('SELECT * FROM programs ORDER BY created_at DESC');
-    return Response.json({ programs: rows });
+    // Hitungan booking aktif yang butuh tindakan per program — buat penanda
+    // di kartu "📦 Program Aktif" tab Kelola Program (dikonfirmasi user
+    // 2026-10-12). DP pending & form belum lengkap = kriteria cluster
+    // "Pending Pendaftaran Program Umroh"; pelunasan menunggu konfirmasi
+    // ditambahkan karena juga nunggu ACC admin.
+    const [rows] = await pool.query(
+      `SELECT p.*,
+              COALESCE(t.n_dp, 0) AS tindakan_dp,
+              COALESCE(t.n_lunas, 0) AS tindakan_pelunasan,
+              COALESCE(t.n_form, 0) AS tindakan_form,
+              COALESCE(t.n_total, 0) AS tindakan_total
+       FROM programs p
+       LEFT JOIN (
+         SELECT prog_id,
+                SUM(dp_status = 'pending') AS n_dp,
+                SUM(pelunasan_status = 'pending_confirm') AS n_lunas,
+                SUM(form_filled < form_total) AS n_form,
+                SUM(dp_status = 'pending' OR pelunasan_status = 'pending_confirm' OR form_filled < form_total) AS n_total
+         FROM bookings WHERE status = 'active'
+         GROUP BY prog_id
+       ) t ON t.prog_id = p.id
+       ORDER BY p.created_at DESC`
+    );
+    const programs = rows.map(p => ({
+      ...p,
+      tindakan_dp: Number(p.tindakan_dp), tindakan_pelunasan: Number(p.tindakan_pelunasan),
+      tindakan_form: Number(p.tindakan_form), tindakan_total: Number(p.tindakan_total),
+    }));
+    return Response.json({ programs });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

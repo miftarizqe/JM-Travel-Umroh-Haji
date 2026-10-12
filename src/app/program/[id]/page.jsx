@@ -6,6 +6,8 @@ import WaitlistCTA from '@/app/components/WaitlistCTA';
 import { tangkapRefPerwakilan } from '@/lib/referralCapture';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { renderPasalBlock } from '@/lib/pasalMarkup';
+import { petaBookingAktifPerProgram } from '@/lib/bookingStage';
+import StatusBookingProgram from '@/app/components/StatusBookingProgram';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
@@ -49,6 +51,16 @@ export default function ProgramDetailPage() {
   const id = params?.id;
 
   const [user] = useCurrentUser();
+  // Booking aktif akun ini di program ini — tombol "Booking Seat" diganti
+  // status booking saat ini (dikonfirmasi user 2026-10-12).
+  const [bookingSaya, setBookingSaya] = useState(null);
+  useEffect(() => {
+    if (!user?.id || !id) return;
+    fetch(`/api/bookings?user_id=${user.id}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setBookingSaya(petaBookingAktifPerProgram(d?.bookings)[id] || null))
+      .catch(() => {});
+  }, [user?.id, id]);
   const [prog, setProg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -367,7 +379,17 @@ export default function ProgramDetailPage() {
 
         {(!isEksklusifSahabat || (isCurrentTarget && !hasPendingRequestElsewhere)) && (
           <div className="sticky bottom-4">
-            {seatSisa <= 0 ? (
+            {bookingSaya ? (
+              <div className="space-y-2">
+                <StatusBookingProgram booking={bookingSaya} besar onClick={() => router.push('/dashboard/jamaah')} />
+                {/* Baru muncul setelah lunas — fokus beresin 1 pendaftaran dulu. */}
+                {bookingSaya.pelunasan_status === 'paid' && (prog.publish_type !== 'sahabat_baitullah' || user?.agama === 'non_islam') && seatSisa > 0 && (
+                  <button onClick={handleBooking} className="w-full bg-white border border-[#e0e8f0] shadow text-sm font-bold text-[#1A4FA0] py-2.5 rounded-full hover:bg-[#E8F0FB]">
+                    + Daftarkan jamaah lain
+                  </button>
+                )}
+              </div>
+            ) : seatSisa <= 0 ? (
               <WaitlistCTA progId={prog.id} />
             ) : (
               <button onClick={handleBooking}

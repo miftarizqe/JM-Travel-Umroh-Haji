@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
+import { SQL_STATUS_LUNAS_TERAKHIR } from '@/lib/bookingPerluTindakan';
 
 export async function GET(request) {
   const auth = wajibLogin(request);
@@ -13,7 +14,12 @@ export async function GET(request) {
 
     // Ambil 1 booking by booking_id (dipakai form-jamaah untuk perwakilan/admin)
     if (bookingId) {
-      const [rows] = await pool.query('SELECT * FROM bookings WHERE id = ?', [bookingId]);
+      // prog_publish_type ikut — form-jamaah butuh buat nentuin prefill
+      // data akun (checkout mandiri program eksklusif = diri sendiri).
+      const [rows] = await pool.query(
+        'SELECT b.*, p.publish_type AS prog_publish_type FROM bookings b LEFT JOIN programs p ON p.id = b.prog_id WHERE b.id = ?',
+        [bookingId]
+      );
       if (rows.length === 0) {
         return Response.json({ error: 'Booking tidak ditemukan' }, { status: 404 });
       }
@@ -42,7 +48,9 @@ export async function GET(request) {
     // Sahabat Baitullah (program eksklusif), yang gak pernah lewat tahap
     // Perjanjian Jamaah biasa (dikonfirmasi user 2026-10-08).
     const [bookings] = await pool.query(
-      `SELECT b.*, p.publish_type AS prog_publish_type FROM bookings b
+      // status_lunas_terakhir -- buat badge "perlu tindakan" per kartu
+      // (alasanPerluTindakan di src/lib/bookingPerluTindakan.js).
+      `SELECT b.*, p.publish_type AS prog_publish_type, ${SQL_STATUS_LUNAS_TERAKHIR} FROM bookings b
        LEFT JOIN programs p ON p.id = b.prog_id
        WHERE b.user_id = ? OR b.ordered_by = ? ORDER BY b.created_at DESC`,
       [userId, userId]

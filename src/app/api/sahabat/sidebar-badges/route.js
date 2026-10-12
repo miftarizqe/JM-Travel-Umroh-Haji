@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { hitungBookingPerluTindakan } from '@/lib/bookingPerluTindakan';
 
 // GET /api/sahabat/sidebar-badges
 // Badge angka merah di sidebar Sahabat Baitullah (dikonfirmasi user
@@ -49,6 +50,16 @@ export async function GET(request) {
     if (row.n > 0) badges['/dashboard/sahabat/riwayat'] = Number(row.n);
   } catch (err) {
     console.error('sidebar-badges sahabat (pending ujroh):', err.message);
+  }
+
+  try {
+    // "Booking Saya" (/dashboard/jamaah) — booking yang butuh tindakan
+    // (formulir, perjanjian, dokumen/pelunasan ditolak), dikonfirmasi user
+    // 2026-10-12. Logika sama dengan sidebar jamaah.
+    const n = await hitungBookingPerluTindakan(pool, auth.user.id);
+    if (n > 0) badges['/dashboard/jamaah'] = n;
+  } catch (err) {
+    console.error('sidebar-badges sahabat (booking):', err.message);
   }
 
   return Response.json({ badges });

@@ -3,6 +3,7 @@
 // item jadi booking terpisah dalam 1 transaksi). `conn` boleh pool atau
 // connection transaksi, pola sama seperti src/lib/closing.js.
 import { hitungHargaCustomHotelDenganDb } from './hotelCustomPricing';
+import { jadwalSudahLewat } from './jadwalTarget';
 
 function generateBookingId() {
   return 'JMT-' + Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -77,6 +78,10 @@ export async function buatSatuBooking(conn, params) {
     voucher_kode_final = null, voucher_nominal = 0,
     opsi_tambahan_ids = [],
     meRole, customHotel,
+    // NIK per jamaah dari checkout (opsional, akun Sahabat) & penanda jamaah
+    // #1 = pemesan sendiri — dipakai cek dobel daftar & prefill formulir
+    // (dikonfirmasi user 2026-10-12).
+    niks = [], untuk_diri_sendiri = false,
   } = params;
 
   if (!user_id || !prog_id || !paket) {
@@ -144,6 +149,12 @@ export async function buatSatuBooking(conn, params) {
   }
   const prog = progs[0];
   const isAdminBooking = meRole === 'admin' || meRole === 'super_admin';
+  // Program yang udah lewat tanggal berangkatnya (cluster "✅ Program
+  // Selesai") gak bisa di-checkout lagi selain oleh admin (dikonfirmasi user
+  // 2026-10-12) — pasangan filter di GET /api/programs.
+  if (!isAdminBooking && jadwalSudahLewat(prog.tanggal_berangkat)) {
+    throw errStatus('Program ini sudah berangkat / selesai dan tidak bisa didaftarkan lagi.', 400);
+  }
 
   // Referral perwakilan permanen (dikunci sejak registrasi, lihat kolom
   // users.perekrut_perwakilan_jamaah_id) — HANYA berlaku utk booking
@@ -297,8 +308,11 @@ export async function buatSatuBooking(conn, params) {
   // siap diedit per-orang belakangan tanpa perlu fallback/backfill (lihat
   // src/lib/jamaahHarga.js#resolveJamaahHarga).
   const waList = Array.isArray(was) ? was.map(w => String(w || '').trim()) : [];
+  const nikList = Array.isArray(niks) ? niks.map(n => String(n || '').trim()) : [];
   const jamaahDataAwal = JSON.stringify(namaList.map((nama, i) => ({
     nama, wa: waList[i] || '', jk: jkListRaw[i], alamat_kirim: alamatList[i],
+    ...(nikList[i] ? { nik: nikList[i] } : {}),
+    ...(i === 0 && untuk_diri_sendiri ? { untuk_diri_sendiri: true } : {}),
     paket, kamar: kamar || 'Triple', harga_jual: hargaPerJamaah,
     ...(hotelCustomNama ? { hotel_custom: hotelCustomNama } : {}),
   })));
