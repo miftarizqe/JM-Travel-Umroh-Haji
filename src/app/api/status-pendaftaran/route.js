@@ -3,6 +3,7 @@ import { wajibLogin, wajibRole } from '@/lib/auth';
 import { pastikanKodeInvitePerwakilan } from '@/lib/kodeInvitePerwakilan';
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { kirimNotifikasi } from '@/lib/notifikasi';
+import { releaseNomorSuratJikaBulanSama } from '@/lib/nomorSurat';
 
 // Urutan step pendaftaran perwakilan — TIDAK BOLEH DILONCATI. SK BSI dihapus
 // total dari alur (dikonfirmasi user 2026-08-19) — 'pending' sekarang mewakili
@@ -114,6 +115,10 @@ export async function PATCH(request) {
         [catatan_admin || null, pendaftaran_id]
       );
       await pool.query("UPDATE users SET status = 'rejected' WHERE id = ?", [p.user_id]);
+      // Nomor SPKA-Ins (+ tanggal berpasangan) yang udah kebakar admin
+      // cetak sebelum ditolak -- dilepas biar gak jadi gap percuma (sama
+      // pola kayak Sahabat Baitullah, dikonfirmasi user 2026-10-12).
+      await releaseNomorSuratJikaBulanSama(pool, p.user_id, 'no_perjanjian_kerjasama', 'SPKA-Ins', 'users', 'tgl_perjanjian_kerjasama');
       await pool.query(
         "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('perwakilan', ?, 'ditolak', ?)",
         [p.user_id, catatan_admin || null]
