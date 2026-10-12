@@ -11,7 +11,7 @@ import { renderFormulirPdf } from '@/lib/pdfDokumen/renderFormulir';
 import { renderInvoicePdf } from '@/lib/pdfDokumen/renderInvoice';
 import { generateSpkAkPdf } from '@/lib/pdfDokumen/spkAkOverlay';
 import { simpanPdfDokumenSignature, logoAbsolutePath } from '@/lib/pdfDokumen/simpanPdf';
-import { ambilAtauBuatNomorSurat } from '@/lib/nomorSurat';
+import { ambilAtauBuatNomorSurat, ambilAtauBuatTanggalBeku } from '@/lib/nomorSurat';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
 
@@ -284,9 +284,13 @@ export async function kirimSpkAkTunggalUntukTtd({ dokumen, refId, actorUser, bas
 
   const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
   const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
+  const tanggalKolom = dokumen === 'spk_ak' ? 'tgl_spk_ak' : 'tgl_spk_ak_nonis';
   const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
-
-  const sekarang = new Date();
+  // Tanggal TTD dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
+  // kalau jamaah udah sempat baca dokumennya di /pks duluan, tanggal yang
+  // dipakai di sini SAMA dengan tanggal pas dia baca, bukan tanggal admin
+  // ngirim TTD digital.
+  const sekarang = await ambilAtauBuatTanggalBeku(pool, user.id, tanggalKolom);
   const pdfBuffer = await generateSpkAkPdf({
     dokumen, nomor,
     nama: user.name, alamat: user.alamat || '-', noTelepon: user.wa || '-', noPaspor: user.no_paspor || '-',
