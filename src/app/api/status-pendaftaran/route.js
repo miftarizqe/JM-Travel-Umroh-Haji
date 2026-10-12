@@ -7,9 +7,10 @@ import { kirimNotifikasi } from '@/lib/notifikasi';
 // Urutan step pendaftaran perwakilan — TIDAK BOLEH DILONCATI. SK BSI dihapus
 // total dari alur (dikonfirmasi user 2026-08-19) — 'pending' sekarang mewakili
 // "Verifikasi Data oleh Admin", satu-satunya gerbang admin sebelum jalur
-// kantor/paket, terjadi SETELAH applicant selesai TTD digital formulir +
-// setuju PKS + pilih metode (lihat prasyarat formulir_ttd_selesai/
-// pks_disetujui/metode_dipilih di GET di bawah).
+// kantor/paket, terjadi SETELAH applicant isi formulir + setuju PKS + pilih
+// metode (lihat prasyarat formulir_terkirim/pks_disetujui/metode_dipilih di
+// GET di bawah). TTD digital formulir DICABUT (dikonfirmasi user 2026-10-12)
+// — proses sekarang semuanya fisik, bukan esign.
 export const STEP_PENDAFTARAN = [
   { key: 'pending', label: 'Verifikasi Data oleh Admin', urut: 1 },
   { key: 'docs_sent', label: 'Perjanjian Dikirim ke Alamat Anda', urut: 2 },
@@ -52,22 +53,11 @@ export async function GET(request) {
     );
     const pendaftaran = ag[0] || null;
 
-    // Sesi TTD digital formulir — dipakai buat guard resume di
-    // /daftar-perwakilan (kalau applicant keluar di tengah jalan sebelum
-    // sempat setuju PKS/pilih metode, halaman itu bisa arahkan balik ke
-    // langkah yang benar, bukan cuma "Lihat Status" mentah).
-    const [sigRows] = await pool.query(
-      `SELECT id, fase FROM dokumen_signature WHERE dokumen = 'formulir' AND ref_id = ? LIMIT 1`,
-      [auth.user.id]
-    );
-    const sigFormulir = sigRows[0] || null;
-
     // Checklist prasyarat — supaya step tidak bisa diloncati
     const prasyarat = {
       akun_terverifikasi: !!u.terverifikasi,
       foto_profil: !!u.foto_path,
       formulir_terkirim: !!pendaftaran,
-      formulir_ttd_selesai: !!(sigFormulir && sigFormulir.fase === 'selesai'),
       pks_disetujui: !!u.setuju_pks,
       metode_dipilih: !!(pendaftaran && pendaftaran.metode),
     };
@@ -94,7 +84,6 @@ export async function GET(request) {
       prasyarat,
       semua_prasyarat_siap: semuaSiap,
       metode: pendaftaran?.metode || u.reg_metode || null,
-      formulir_signature_id: sigFormulir?.id || null,
       history,
     });
   } catch (error) {
@@ -132,11 +121,11 @@ export async function PATCH(request) {
       return Response.json({ message: 'Pendaftaran ditolak.' });
     }
 
-    // metode baru keisi SETELAH applicant TTD digital formulir + setuju PKS
-    // (lihat /daftar-perwakilan/metode) — sebelum itu jangan biarkan admin
-    // majuin status, karena jalur (kantor/paket) belum jelas.
+    // metode baru keisi SETELAH applicant setuju PKS (lihat
+    // /daftar-perwakilan/metode) — sebelum itu jangan biarkan admin majuin
+    // status, karena jalur (kantor/paket) belum jelas.
     if (!p.metode) {
-      return Response.json({ error: 'Calon perwakilan belum menyelesaikan TTD formulir, persetujuan PKS, dan pemilihan metode pendaftaran.' }, { status: 400 });
+      return Response.json({ error: 'Calon perwakilan belum menyelesaikan persetujuan PKS dan pemilihan metode pendaftaran.' }, { status: 400 });
     }
 
     // Divalidasi terhadap jalur applicant sendiri (kantor ATAU paket) —

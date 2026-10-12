@@ -455,20 +455,19 @@ export default function DatabasePerwakilanPage() {
 
                       {/* Status pendaftaran — CUMA relevan selama masih proses
                           (belum aktif). Begitu status udah 'active', checklist
-                          TTD/PKS/metode ini gak berarti apa2 lagi buat sebagian
-                          BESAR akun (banyak akun asli diaktifkan SEBELUM fitur
-                          TTD digital ada, jadi selamanya formulir_fase NULL /
-                          setuju_pks 0 walau udah lama aktif) — nampilinnya terus
-                          cuma bikin kesan "belum lengkap" yang menyesatkan
-                          (ditemukan & diperbaiki 2026-09-06). Read-only, aksi
-                          lanjut/tolak tetap di /admin/perwakilan. */}
+                          PKS/metode ini gak berarti apa2 lagi buat sebagian
+                          BESAR akun (banyak akun asli diaktifkan SEBELUM
+                          field ini dicatat, jadi selamanya setuju_pks 0 walau
+                          udah lama aktif) — nampilinnya terus cuma bikin kesan
+                          "belum lengkap" yang menyesatkan (ditemukan &
+                          diperbaiki 2026-09-06). Read-only, aksi lanjut/tolak
+                          tetap di /admin/perwakilan. */}
                       {row.status !== 'active' && row.status !== 'rejected' && (
                         <div className="bg-white rounded-lg p-3 border border-gray-100">
                           <div className="font-bold text-[#0E2F6E] mb-1.5">Status Pendaftaran</div>
                           <div className="grid grid-cols-2 gap-2 text-gray-500">
                             <div>Tahap: <b className="text-gray-700">{row.pendaftaran_id ? (PENDAFTARAN_STATUS_LABEL[row.pendaftaran_status] || row.pendaftaran_status) : '— Belum ada pendaftaran formal'}</b></div>
                             <div>Metode: <b className="text-gray-700">{row.pendaftaran_metode || '-'}</b></div>
-                            <div>TTD Digital Formulir: {row.formulir_ttd_selesai ? <span className="text-green-600 font-bold">✅ Selesai</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}</div>
                             <div>Persetujuan PKS: {row.pks_disetujui ? <span className="text-green-600 font-bold">✅ Ya</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}</div>
                             {row.jadwal_kunjungan && (
                               <div className="col-span-2">Jadwal Kunjungan: <b className="text-gray-700">{row.jadwal_kunjungan}</b></div>

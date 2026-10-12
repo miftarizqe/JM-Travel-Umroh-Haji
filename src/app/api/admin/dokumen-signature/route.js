@@ -345,12 +345,13 @@ export async function POST(request) {
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
     if (!isAdmin) {
       // Non-admin cuma boleh trigger dokumen JAMAAH miliknya sendiri (alur
-      // self-service dari /pks), dokumen FORMULIR miliknya sendiri (alur
-      // self-service TTD digital formulir pendaftaran perwakilan, langsung
-      // dipicu dari submit /daftar-perwakilan — lihat komentar di sana), atau
-      // SPK-AK/SK-CIF/Surat Pemblokiran miliknya sendiri (alur self-service
-      // funnel sahabat). Dokumen lain (spka_ins/invoice) tetap wajib admin
-      // yang memicu.
+      // self-service dari /pks), atau SPK-AK/SK-CIF/Surat Pemblokiran
+      // miliknya sendiri (alur self-service funnel sahabat). Dokumen lain
+      // (spka_ins/invoice) tetap wajib admin yang memicu. 'formulir' (TTD
+      // digital formulir pendaftaran perwakilan) DICABUT dari alur
+      // /daftar-perwakilan (dikonfirmasi user 2026-10-12, sekarang fisik) —
+      // case ini dibiarkan di whitelist buat dokumen 'formulir' lama yang
+      // mungkin masih ada sesinya, bukan jalur aktif baru.
       if (['formulir', 'spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'].includes(dokumen)) {
         if (String(ref_id) !== String(auth.user.id)) {
           return Response.json({ error: 'Anda tidak berwenang atas dokumen ini' }, { status: 403 });
