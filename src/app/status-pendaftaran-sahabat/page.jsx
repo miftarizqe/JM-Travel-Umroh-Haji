@@ -625,7 +625,7 @@ export default function StatusPendaftaranSahabatPage() {
                       onChange={e => pilihBuktiTf(e.target.files?.[0])} />
                   </label>
                 ) : (
-                  <button onClick={() => setGantiBuktiTf(true)} className="block text-[10px] font-bold text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">Ganti bukti transfer</button>
+                  <button onClick={() => setGantiBuktiTf(true)} className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-white border border-[#1A4FA0] px-3 py-1.5 rounded-lg hover:bg-[#1A4FA0] hover:text-white transition-colors cursor-pointer">🔄 Ganti bukti transfer</button>
                 )
               )}
             </div>
@@ -667,7 +667,7 @@ export default function StatusPendaftaranSahabatPage() {
                       ikut tercetak di SK-CIF & Surat Pemblokiran. */}
                   {bisaUbahRekening ? (
                     <button onClick={bukaEditRekUmroh}
-                      className="text-[10px] font-bold text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">✏️ Ubah nomor/nama rekening</button>
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-white border border-[#1A4FA0] px-3 py-1.5 rounded-lg hover:bg-[#1A4FA0] hover:text-white transition-colors cursor-pointer">✏️ Ubah nomor/nama rekening</button>
                   ) : (
                     <div className="text-[10px] text-gray-400">
                       Salah nomor/nama? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening Tabungan Umroh saya.')}
