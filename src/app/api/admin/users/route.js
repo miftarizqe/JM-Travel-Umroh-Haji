@@ -368,22 +368,18 @@ export async function PATCH(req) {
       // sahabat, dst) — gak ada fast-track, cuma jalur masuknya beda.
       case 'tambah_role_kedua': {
         const roleKedua = body.role_kedua;
-        const metode = body.metode === 'paket' ? 'paket' : 'kantor';
-        if (!['perwakilan', 'sahabat_baitullah'].includes(roleKedua)) {
-          return NextResponse.json({ error: 'role_kedua harus perwakilan atau sahabat' }, { status: 400 });
+        // Cuma 'sahabat_baitullah' (dipicu dari Database Perwakilan) --
+        // arah 'perwakilan' sekarang dipusatkan di action
+        // 'rekrut_jadi_perwakilan' (dikonfirmasi user 2026-10-12), gak lagi
+        // lewat sini.
+        if (roleKedua !== 'sahabat_baitullah') {
+          return NextResponse.json({ error: 'role_kedua harus sahabat_baitullah' }, { status: 400 });
         }
         if (target.status !== 'active') {
           return NextResponse.json({ error: 'Akun harus aktif dulu sebelum diberi role kedua' }, { status: 400 });
         }
-        // BUG (ditemukan & diperbaiki 2026-10-12): key kedua dulu 'sahabat',
-        // padahal roleKedua yang dipakai di seluruh codebase (termasuk
-        // validasi di atas) selalu 'sahabat_baitullah' -- jadi arah
-        // "Tambahkan Role Sahabat Baitullah" (dipicu dari Database
-        // Perwakilan) SELALU gagal, pasangan['sahabat_baitullah'] gak
-        // pernah match apa pun (selalu undefined).
-        const pasangan = { perwakilan: 'sahabat_baitullah', sahabat_baitullah: 'perwakilan' };
-        if (target.role !== pasangan[roleKedua]) {
-          return NextResponse.json({ error: `Role kedua "${roleKedua}" cuma bisa ditambahkan ke akun dengan role utama "${pasangan[roleKedua]}".` }, { status: 400 });
+        if (target.role !== 'perwakilan') {
+          return NextResponse.json({ error: 'Role kedua "sahabat_baitullah" cuma bisa ditambahkan ke akun dengan role utama "perwakilan".' }, { status: 400 });
         }
         if (target.role_kedua) {
           return NextResponse.json({ error: 'Akun ini sudah punya role kedua' }, { status: 400 });
@@ -396,31 +392,17 @@ export async function PATCH(req) {
            FROM users WHERE id = ?`, [user_id]
         );
 
-        if (roleKedua === 'sahabat_baitullah') {
-          await db.query(
-            `INSERT INTO sahabat_pendaftaran
-              (user_id, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu,
-               alamat, alamat_ktp, alamat_domisili, kode_pos, wa, email, pekerjaan,
-               bank, no_rekening, nama_pemilik_rekening, foto_ktp_path, perekrut_id,
-               status, untuk_role_kedua)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', 1)`,
-            [user_id, u.name, u.nik, u.tempat_lahir, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
-             u.alamat_ktp || u.alamat, u.alamat_ktp, u.alamat_domisili, u.kode_pos, u.wa, u.email, u.pekerjaan,
-             u.bank, u.no_rekening, u.nama_pemilik_rekening, u.foto_ktp_path]
-          );
-        } else {
-          await db.query(
-            `INSERT INTO agen_pendaftaran
-              (user_id, role_diajukan, nama, nik, tanggal_lahir, jenis_kelamin, nama_ibu,
-               alamat, kode_pos, wa, email, pekerjaan, bank, no_rekening, nama_pemilik_rekening,
-               perekrut_id, metode, status, alamat_ktp, alamat_domisili, alamat_kirim,
-               foto_ktp_path, tempat_lahir, untuk_role_kedua)
-             VALUES (?, 'perwakilan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'pending', ?, ?, ?, ?, ?, 1)`,
-            [user_id, u.name, u.nik, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
-             u.alamat_ktp || u.alamat, u.kode_pos, u.wa, u.email, u.pekerjaan, u.bank, u.no_rekening, u.nama_pemilik_rekening,
-             metode, u.alamat_ktp, u.alamat_domisili, u.alamat_kirim, u.foto_ktp_path, u.tempat_lahir]
-          );
-        }
+        await db.query(
+          `INSERT INTO sahabat_pendaftaran
+            (user_id, nama, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu,
+             alamat, alamat_ktp, alamat_domisili, kode_pos, wa, email, pekerjaan,
+             bank, no_rekening, nama_pemilik_rekening, foto_ktp_path, perekrut_id,
+             status, untuk_role_kedua)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', 1)`,
+          [user_id, u.name, u.nik, u.tempat_lahir, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
+           u.alamat_ktp || u.alamat, u.alamat_ktp, u.alamat_domisili, u.kode_pos, u.wa, u.email, u.pekerjaan,
+           u.bank, u.no_rekening, u.nama_pemilik_rekening, u.foto_ktp_path]
+        );
 
         await db.query(
           'UPDATE users SET role_kedua = ?, role_kedua_ditambahkan_at = NOW() WHERE id = ?',
@@ -431,7 +413,7 @@ export async function PATCH(req) {
           user_id: target.id,
           tipe: 'akun_aktif',
           judul: 'Role Kedua Ditambahkan',
-          pesan: `Akun Anda sekarang juga terdaftar sebagai ${roleKedua === 'sahabat_baitullah' ? 'Jamaah Sahabat Baitullah' : 'Perwakilan'}. Lengkapi proses pendaftarannya di halaman Profil.`,
+          pesan: 'Akun Anda sekarang juga terdaftar sebagai Jamaah Sahabat Baitullah. Lengkapi proses pendaftarannya di halaman Profil.',
           link: '/profil',
         });
 
@@ -464,7 +446,6 @@ export async function PATCH(req) {
       //   aman (tetap nempel di user_id yang sama, dashboard/jamaah sudah
       //   lama support nampilin "Booking Saya" buat role non-jamaah).
       case 'rekrut_jadi_perwakilan': {
-        const metode = body.metode === 'paket' ? 'paket' : 'kantor';
         if (target.status !== 'active') {
           return NextResponse.json({ error: 'Akun harus aktif dulu sebelum direkrut jadi Perwakilan' }, { status: 400 });
         }
@@ -499,16 +480,22 @@ export async function PATCH(req) {
            FROM users WHERE id = ?`, [user_id]
         );
 
+        // metode = NULL (SENGAJA, dikonfirmasi user 2026-10-12) -- sama
+        // persis pendaftaran mandiri (/api/daftar-perwakilan): orang yang
+        // direkrut TETAP wajib TTD digital formulir + setuju PKS, lalu
+        // milih sendiri kantor/paket lewat /daftar-perwakilan/metode. Admin
+        // gak lagi nebak/pre-pilih metode-nya di sini (dulu ada dropdown
+        // "Metode: Kantor/Paket" di picker, dihapus).
         await db.query(
           `INSERT INTO agen_pendaftaran
             (user_id, role_diajukan, nama, nik, tanggal_lahir, jenis_kelamin, nama_ibu,
              alamat, kode_pos, wa, email, pekerjaan, bank, no_rekening, nama_pemilik_rekening,
              perekrut_id, metode, status, alamat_ktp, alamat_domisili, alamat_kirim,
              foto_ktp_path, tempat_lahir, untuk_role_kedua)
-           VALUES (?, 'perwakilan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, 'perwakilan', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 'pending', ?, ?, ?, ?, ?, ?)`,
           [user_id, u.name, u.nik, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
            u.alamat_ktp || u.alamat, u.kode_pos, u.wa, u.email, u.pekerjaan, u.bank, u.no_rekening, u.nama_pemilik_rekening,
-           metode, u.alamat_ktp, u.alamat_domisili, u.alamat_kirim, u.foto_ktp_path, u.tempat_lahir, isDariSahabat ? 1 : 0]
+           u.alamat_ktp, u.alamat_domisili, u.alamat_kirim, u.foto_ktp_path, u.tempat_lahir, isDariSahabat ? 1 : 0]
         );
 
         if (isDariSahabat) {
