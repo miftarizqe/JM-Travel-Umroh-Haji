@@ -18,12 +18,16 @@ export async function GET(request) {
                 SELECT 1 FROM pembatalan pb
                 WHERE pb.booking_id = b.id AND pb.status IN ('menunggu','disetujui')
               ) AS ada_pembatalan_aktif,
+              EXISTS (
+                SELECT 1 FROM komisi_ledger kl
+                WHERE kl.booking_id = b.id AND kl.jenis = 'pemakaian_saldo_sahabat' AND kl.dikonfirmasi_at IS NULL
+              ) AS ada_saldo_hold_pending,
               u.name AS pemesan_nama, u.email AS pemesan_email, u.wa AS pemesan_wa
        FROM bookings b
        LEFT JOIN users u ON u.id = b.user_id
        ORDER BY b.created_at DESC`
     );
-    const result = bookings.map(b => ({ ...b, ada_pembatalan_aktif: !!b.ada_pembatalan_aktif }));
+    const result = bookings.map(b => ({ ...b, ada_pembatalan_aktif: !!b.ada_pembatalan_aktif, ada_saldo_hold_pending: !!b.ada_saldo_hold_pending }));
     return Response.json({ bookings: result });
   } catch (error) {
     console.error(error);

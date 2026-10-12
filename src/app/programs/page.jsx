@@ -5,6 +5,8 @@ import Layout from '@/app/components/Layout';
 import { hargaTermurahPaket, hargaTermurahProgram } from '@/lib/harga';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { tangkapRefPerwakilan } from '@/lib/referralCapture';
+import { petaBookingAktifPerProgram } from '@/lib/bookingStage';
+import StatusBookingProgram from '@/app/components/StatusBookingProgram';
 
 // Section per publish_type (dikonfirmasi user 2026-09-27) — API
 // (/api/programs) udah nyaring per role di server (sahabat gak pernah
@@ -39,7 +41,27 @@ function BadgeTarget({ isTarget, isPendingNewChoice, targetSuspended }) {
 // admin dulu. Target LAMA yang lagi nonaktif sementara (ada pengajuan pindah
 // yang menunggu ACC) JUGA cuma "Lihat Detail", gak bisa checkout sampai
 // pengajuannya diproses.
-function TombolAksi({ p, user, router, v = VARIAN.reguler, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
+function TombolAksi({ p, user, router, v = VARIAN.reguler, isPendingNewChoice, targetSuspended, eksklusifBukanTarget, booking }) {
+  // Sudah di-checkout — tombol jadi status booking saat ini (dikonfirmasi
+  // user 2026-10-12), klik ke Booking Saya. "Daftarkan jamaah lain" baru
+  // muncul setelah booking ini LUNAS — biar user fokus beresin 1 pendaftaran
+  // dulu (dikonfirmasi user 2026-10-12); eksklusif cuma buat akun non-Muslim
+  // (Muslim cuma bisa diri sendiri).
+  if (booking) {
+    const eksklusif = p.publish_type === 'sahabat_baitullah';
+    const bolehLagi = booking.pelunasan_status === 'paid' && (!eksklusif || user?.agama === 'non_islam');
+    return (
+      <div className="space-y-1.5">
+        <StatusBookingProgram booking={booking} onClick={() => router.push('/dashboard/jamaah')} />
+        {bolehLagi && (
+          <button onClick={() => router.push(`/checkout?prog_id=${p.id}`)}
+            className="w-full text-xs font-bold text-[#1A4FA0] hover:underline">
+            + Daftarkan jamaah lain
+          </button>
+        )}
+      </div>
+    );
+  }
   if (isPendingNewChoice) {
     return (
       <button onClick={() => router.push(`/program/${p.id}`)}
@@ -84,7 +106,7 @@ const VARIAN = {
   },
 };
 
-function KartuProgram({ p, user, router, varian = 'reguler', isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget }) {
+function KartuProgram({ p, user, router, varian = 'reguler', isTarget, isPendingNewChoice, targetSuspended, eksklusifBukanTarget, booking }) {
   const v = VARIAN[varian];
   return (
     <div className={`bg-white rounded-2xl border overflow-hidden hover:shadow-xl transition-all group ${(isTarget || isPendingNewChoice) ? 'border-[#C9952A] ring-2 ring-[#C9952A]/30' : v.border}`}>
@@ -134,7 +156,7 @@ function KartuProgram({ p, user, router, varian = 'reguler', isTarget, isPending
         </div>
 
         <TombolAksi p={p} user={user} router={router} v={v} isPendingNewChoice={isPendingNewChoice}
-          targetSuspended={targetSuspended} eksklusifBukanTarget={eksklusifBukanTarget} />
+          targetSuspended={targetSuspended} eksklusifBukanTarget={eksklusifBukanTarget} booking={booking} />
       </div>
     </div>
   );
@@ -145,7 +167,7 @@ function KartuProgram({ p, user, router, varian = 'reguler', isTarget, isPending
 // Banner lebar penuh warna emas, sengaja beda dari kartu Reguler (biru) &
 // Eksklusif (hijau) — dikonfirmasi user 2026-10-07. Aturan badge/tombol
 // sama persis (BadgeTarget/TombolAksi di atas).
-function KartuImpian({ p, user, router, isTarget, isPendingNewChoice, targetSuspended }) {
+function KartuImpian({ p, user, router, isTarget, isPendingNewChoice, targetSuspended, booking }) {
   const sisaSeat = p.total_seat - p.used_seat;
   return (
     <div className="group relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#7A5410] via-[#C9952A] to-[#8A6414] text-white border-2 border-[#F3D58A] shadow-xl">
@@ -191,7 +213,7 @@ function KartuImpian({ p, user, router, isTarget, isPendingNewChoice, targetSusp
             </div>
           </div>
           <TombolAksi p={p} user={user} router={router} isPendingNewChoice={isPendingNewChoice}
-            targetSuspended={targetSuspended} />
+            targetSuspended={targetSuspended} booking={booking} />
         </div>
       </div>
     </div>
@@ -251,14 +273,27 @@ export default function ProgramsPage() {
   const [programs, setPrograms] = useState([]);
   const [targetProgramId, setTargetProgramId] = useState(null);
   const [targetGantiProgramId, setTargetGantiProgramId] = useState(null);
+  // Target yang udah di-checkout tampil sebagai program eksklusif biasa
+  // (dikonfirmasi user 2026-10-12, lihat lib/targetImpian.js) — gak
+  // disematkan di "Program Impian Anda" lagi, tapi tetap bisa di-checkout.
+  const [targetSudahCheckout, setTargetSudahCheckout] = useState(false);
   const [loading, setLoading] = useState(true);
   const [user] = useCurrentUser();
+  // Booking aktif akun ini per program — tombol kartu jadi status booking.
+  const [bookingPerProgram, setBookingPerProgram] = useState({});
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`/api/bookings?user_id=${user.id}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setBookingPerProgram(petaBookingAktifPerProgram(d?.bookings)))
+      .catch(() => {});
+  }, [user?.id]);
 
   useEffect(() => { tangkapRefPerwakilan(); }, []);
 
   // Kartu besar paling atas: target impian Sahabat, plus pilihan paket baru
   // yang lagi nunggu ACC (kalau ada) — urutannya target dulu.
-  const impian = [targetProgramId, targetGantiProgramId]
+  const impian = [targetSudahCheckout ? null : targetProgramId, targetGantiProgramId]
     .filter(Boolean)
     .map(id => programs.find(p => p.id === id))
     .filter(Boolean);
@@ -271,6 +306,7 @@ export default function ProgramsPage() {
         setPrograms(d.programs || []);
         setTargetProgramId(d.target_program_id || null);
         setTargetGantiProgramId(d.target_ganti_program_id || null);
+        setTargetSudahCheckout(!!d.target_sudah_checkout);
         setLoading(false);
       });
   }, []);
@@ -292,7 +328,7 @@ export default function ProgramsPage() {
             </div>
             <CarouselImpian>
               {impian.map(p => (
-                <KartuImpian key={p.id} p={p} user={user} router={router}
+                <KartuImpian key={p.id} p={p} user={user} router={router} booking={bookingPerProgram[p.id]}
                   isTarget={p.id === targetProgramId}
                   isPendingNewChoice={!!targetGantiProgramId && p.id === targetGantiProgramId}
                   targetSuspended={p.id === targetProgramId && !!targetGantiProgramId} />
@@ -313,10 +349,10 @@ export default function ProgramsPage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {isi.map(p => s.key === 'sahabat_baitullah' ? (
-                  <KartuProgram key={p.id} p={p} user={user} router={router} varian="eksklusif"
+                  <KartuProgram key={p.id} p={p} user={user} router={router} varian="eksklusif" booking={bookingPerProgram[p.id]}
                     eksklusifBukanTarget={!!targetProgramId && p.id !== targetProgramId} />
                 ) : (
-                  <KartuProgram key={p.id} p={p} user={user} router={router} />
+                  <KartuProgram key={p.id} p={p} user={user} router={router} booking={bookingPerProgram[p.id]} />
                 ))}
               </div>
             </div>

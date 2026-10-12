@@ -18,6 +18,7 @@ import SortTh from '@/app/components/SortTh';
 import { pesanDpDikonfirmasi, pesanPelunasanDikonfirmasi, pesanReferralBaru, pesanReminderPelunasan, pesanReminderManasik } from '@/lib/waTemplates';
 import { resolveJamaahHarga, ringkasanPaketKamar } from '@/lib/jamaahHarga';
 import { persenKesiapan, diBawahProgress } from '@/lib/kesiapanTabungan';
+import BookingProgressBar from '@/app/components/BookingProgressBar';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
@@ -699,6 +700,56 @@ function AdminPageInner() {
     });
     const d = await res.json();
     alert(res.ok ? `Password ${u.name} berhasil direset. Sampaikan password baru ini ke yang bersangkutan.` : (d.error || 'Gagal reset password'));
+  }
+
+  // Antrian yang masih nunggu tindakan admin buat 1 booking — dipakai
+  // penanda ⚡ di tabel Daftar Booking & section "Perlu Tindakan" di modal
+  // detail (dikonfirmasi user 2026-10-12: dulu modal cuma nampilin status,
+  // gak ada jalan pintas ke halaman ACC-nya).
+  function aksiPendingBooking(bookingId) {
+    return {
+      payments: payments.filter(p => p.booking_id === bookingId && p.status === 'pending'),
+      pembatalan: pembatalan.find(p => p.booking_id === bookingId && p.status === 'menunggu') || null,
+    };
+  }
+
+  const [aksiModalBusy, setAksiModalBusy] = useState(null);
+  async function aksiPaymentDariModal(payment, action) {
+    const jenis = payment.type === 'lunas' ? 'pelunasan' : 'DP';
+    if (!confirm(`${action === 'approve' ? 'Konfirmasi' : 'Tolak'} ${jenis} ${rp(payment.amount)} untuk booking ${payment.booking_id}?`)) return;
+    setAksiModalBusy(payment.id);
+    try {
+      const res = await fetch('/api/payments', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_id: payment.id, action, reject_reason: action === 'reject' ? 'Ditolak admin' : undefined }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal memproses pembayaran'); return; }
+      await loadAll();
+      fetch('/api/admin/bookings').then(r => r.json()).then(d => setBookings(d.bookings || [])).catch(() => {});
+      openBookingDetail(payment.booking_id);
+    } catch { alert('Terjadi kesalahan'); }
+    finally { setAksiModalBusy(null); }
+  }
+
+  // ACC pemakaian saldo Sahabat (baris komisi_ledger pemakaian_saldo_sahabat)
+  // langsung dari modal — endpoint sama dengan /admin/sahabat/database,
+  // jenis ini gak butuh bukti TF. Server yang ngurus efek lanjutannya
+  // (lunas buat program eksklusif, DP confirmed buat reguler).
+  async function konfirmasiSaldoDariModal(bookingId, hold) {
+    if (!confirm(`Konfirmasi pemakaian saldo ${rp(Math.abs(Number(hold.nominal || 0)))} milik ${hold.penerima_nama || 'Sahabat'} untuk booking ${bookingId}?`)) return;
+    setAksiModalBusy(`hold:${hold.id}`);
+    try {
+      const fd = new FormData();
+      fd.append('confirmed', 'true');
+      const res = await fetch(`/api/admin/sahabat/komisi/${hold.id}`, { method: 'PATCH', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal konfirmasi'); return; }
+      await loadAll();
+      fetch('/api/admin/bookings').then(r => r.json()).then(d => setBookings(d.bookings || [])).catch(() => {});
+      openBookingDetail(bookingId);
+    } catch { alert('Terjadi kesalahan'); }
+    finally { setAksiModalBusy(null); }
   }
 
   async function openBookingDetail(bookingId) {
@@ -1495,7 +1546,17 @@ function AdminPageInner() {
                     {filtered.map(b => (
                       <tr key={b.id} onClick={() => openBookingDetail(b.id)}
                         className="border-t border-gray-100 hover:bg-[#E8F0FB] cursor-pointer transition-colors">
-                        <td className="px-4 py-2.5 font-semibold text-[#0E2F6E] whitespace-nowrap">{b.id}</td>
+                        <td className="px-4 py-2.5 font-semibold text-[#0E2F6E] whitespace-nowrap">
+                          {b.id}
+                          {(() => {
+                            const a = aksiPendingBooking(b.id);
+                            const n = a.payments.length + (a.pembatalan ? 1 : 0) + (b.ada_saldo_hold_pending ? 1 : 0);
+                            return n > 0 && (
+                              <span title="Ada yang menunggu tindakan admin — klik untuk lihat"
+                                className="ml-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">⚡ {n}</span>
+                            );
+                          })()}
+                        </td>
                         <td className="px-4 py-2.5 whitespace-nowrap">{b.prog_name}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap">{b.pemesan_nama || '-'}</td>
                         <td className="px-4 py-2.5 whitespace-nowrap capitalize">{b.paket} / {b.kamar}</td>
@@ -1831,19 +1892,36 @@ function AdminPageInner() {
                   <div className="text-sm text-gray-400">Gak ada.</div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {rows.map(p => (
+                    {rows.map(p => {
+                      // Penanda booking yang butuh tindakan (dikonfirmasi
+                      // user 2026-10-12) — hitungan dari /api/admin/programs.
+                      const perlu = Number(p.tindakan_total || 0) > 0;
+                      return (
                       <div key={p.id} onClick={() => openProgramDetail(p)}
-                        className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-md hover:border-[#1A4FA0] transition-all cursor-pointer">
-                        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] p-4 text-white">
-                          <div className="text-xs opacity-75">{p.type} · {p.durasi} Hari</div>
-                          <div className="font-bold mt-1">{p.name}</div>
+                        className={`bg-white rounded-xl border overflow-hidden hover:shadow-md transition-all cursor-pointer ${perlu ? 'border-red-300 ring-2 ring-red-100 hover:border-red-400' : 'border-[#e0e8f0] hover:border-[#1A4FA0]'}`}>
+                        <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] p-4 text-white flex justify-between items-start gap-2">
+                          <div className="min-w-0">
+                            <div className="text-xs opacity-75">{p.type} · {p.durasi} Hari</div>
+                            <div className="font-bold mt-1">{p.name}</div>
+                          </div>
+                          {perlu && (
+                            <span title="Booking yang butuh tindakan" className="shrink-0 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">⚡ {p.tindakan_total}</span>
+                          )}
                         </div>
+                        {perlu && (
+                          <div className="px-4 pt-3 flex flex-wrap gap-1.5">
+                            {p.tindakan_dp > 0 && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">💳 {p.tindakan_dp} DP menunggu konfirmasi</span>}
+                            {p.tindakan_pelunasan > 0 && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">💰 {p.tindakan_pelunasan} pelunasan menunggu konfirmasi</span>}
+                            {p.tindakan_form > 0 && <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">📝 {p.tindakan_form} formulir belum lengkap</span>}
+                          </div>
+                        )}
                         <div className="p-4 text-sm flex justify-between items-center">
                           <span className="text-gray-400">Seat {p.used_seat||0}/{p.total_seat}</span>
                           <span className="text-xs font-bold text-[#1A4FA0]">Lihat Jamaah →</span>
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CollapsibleSection>
@@ -1905,6 +1983,7 @@ function AdminPageInner() {
                       <span className="text-[10px] text-[#1A4FA0] font-bold">{isOpen?'Tutup ▲':'Detail ▼'}</span>
                     </div>
                   </div>
+                  {b.status === 'active' && <BookingProgressBar booking={b} className="mb-2" />}
 
                   {isOpen && (
                     <>
@@ -2692,6 +2771,13 @@ function AdminPageInner() {
                     <button onClick={() => setDetailBooking(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
                   </div>
 
+                  {/* Bar progres sama persis dengan yang dilihat jamaah. */}
+                  {b.status === 'active' && (
+                    <div className="bg-gray-50 rounded-xl px-3 pt-3 pb-1">
+                      <BookingProgressBar booking={b} />
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <Field label="Pemesan" value={b.pemesan_nama} />
                     <Field label="Kontak Pemesan" value={b.pemesan_email || b.pemesan_wa} />
@@ -2709,6 +2795,78 @@ function AdminPageInner() {
                     <Field label="Dipesan Oleh (Role)" value={b.ordered_by_role} />
                     <Field label="Tanggal Booking" value={tgl(b.created_at)} />
                   </div>
+
+                  {(() => {
+                    const a = aksiPendingBooking(b.id);
+                    const jamaahArr = Array.isArray(b.jamaah_data) ? b.jamaah_data : [];
+                    const dokMenunggu = jamaahArr.some(j => j && j.doc_status && Object.values(j.doc_status).some(st => st?.status === 'menunggu'));
+                    const hold = b.saldo_hold_pending;
+                    if (a.payments.length === 0 && !a.pembatalan && !dokMenunggu && !hold) return null;
+                    return (
+                      <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 space-y-2">
+                        <div className="font-bold text-sm text-amber-800">⚡ Perlu Tindakan</div>
+                        {a.payments.map(p => (
+                          <div key={p.id} className="bg-white rounded-lg p-3 space-y-2 border border-amber-200">
+                            <div className="flex justify-between items-start gap-2 text-sm">
+                              <div>
+                                <div className="font-bold text-[#0E2F6E]">{p.type === 'lunas' ? '💰 Pelunasan' : '💳 DP'} menunggu konfirmasi</div>
+                                <div className="text-xs text-gray-500">{rp(p.amount)} · dikirim {tgl(p.bukti_uploaded_at || p.created_at)}{p.batch_id ? ' · bagian dari 1 transfer keranjang' : ''}</div>
+                              </div>
+                              {p.bukti_path ? (
+                                <a href={p.bukti_path} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">📎 Lihat Bukti</a>
+                              ) : (
+                                <span className="text-[10px] text-purple-600 font-semibold whitespace-nowrap">Tanpa bukti TF (saldo)</span>
+                              )}
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => aksiPaymentDariModal(p, 'approve')} disabled={aksiModalBusy === p.id}
+                                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">✅ Konfirmasi</button>
+                              <button onClick={() => aksiPaymentDariModal(p, 'reject')} disabled={aksiModalBusy === p.id}
+                                className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">❌ Tolak</button>
+                              <button onClick={() => { setSearchPayments(b.id); setDetailBooking(null); pindahTab('payments'); }}
+                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Buka di Pembayaran →</button>
+                            </div>
+                          </div>
+                        ))}
+                        {hold && (
+                          <div className="bg-white rounded-lg p-3 space-y-2 border border-amber-200">
+                            <div className="text-sm">
+                              <div className="font-bold text-[#0E2F6E]">
+                                🏦 {b.dp_status === 'confirmed' ? 'Pelunasan' : 'DP'} dari saldo tabungan Sahabat menunggu ACC
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {rp(Math.abs(Number(hold.nominal || 0)))} · {hold.penerima_nama || '-'}{hold.penerima_kode ? ` (${hold.penerima_kode})` : ''} · {tgl(hold.created_at)}
+                              </div>
+                              <div className="text-[10px] text-gray-400 mt-0.5">Saldo sudah terpotong sejak checkout — ACC ini menandai pembayarannya resmi diterima.</div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={() => konfirmasiSaldoDariModal(b.id, hold)} disabled={aksiModalBusy === `hold:${hold.id}`}
+                                className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">✅ Konfirmasi Pemakaian Saldo</button>
+                              <button onClick={() => router.push(`/admin/sahabat/database?cari=${encodeURIComponent(hold.penerima_kode || hold.penerima_nama || '')}`)}
+                                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Buka di Database Sahabat →</button>
+                            </div>
+                          </div>
+                        )}
+                        {a.pembatalan && (
+                          <div className="bg-white rounded-lg p-3 flex justify-between items-center gap-2 border border-amber-200">
+                            <div className="text-sm">
+                              <div className="font-bold text-[#0E2F6E]">🚫 Pengajuan pembatalan menunggu keputusan</div>
+                              <div className="text-xs text-gray-500">{a.pembatalan.pemohon_nama || '-'} · {tgl(a.pembatalan.created_at)}</div>
+                            </div>
+                            <button onClick={() => { setOpenPembatalan(a.pembatalan.id); setDetailBooking(null); pindahTab('pembatalan'); }}
+                              className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full whitespace-nowrap">Proses →</button>
+                          </div>
+                        )}
+                        {dokMenunggu && (
+                          <div className="bg-white rounded-lg p-3 flex justify-between items-center gap-2 border border-amber-200">
+                            <div className="text-sm font-bold text-[#0E2F6E]">📎 Dokumen pendukung menunggu verifikasi</div>
+                            <button onClick={() => router.push('/admin/dokumen-pendukung')}
+                              className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full whitespace-nowrap">Verifikasi →</button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Edit Paket/Kamar/Harga — koreksi manual booking yang udah
                       dibuat (mis. jamaah minta ganti paket via telepon).

@@ -6,6 +6,7 @@ import { catatAudit } from '@/lib/audit';
 import { ambilItemDikirimJamaah } from '@/lib/perlengkapan';
 import { KAMAR_KEY, hargaProgram, resolveJamaahHarga } from '@/lib/jamaahHarga';
 import { cariNikDipakaiProgramLain } from '@/lib/booking';
+import { lampirkanInfoStage } from '@/lib/bookingStageServer';
 
 // GET — detail satu booking (untuk halaman cetak formulir)
 export async function GET(request, { params }) {
@@ -60,6 +61,25 @@ export async function GET(request, { params }) {
           dikirim_at: p?.dikirim_at || null, diterima_at: p?.diterima_at || null, items,
         };
       }));
+    }
+
+    // Field getStage() — bar progres di modal admin = bar progres jamaah.
+    await lampirkanInfoStage(pool, [booking]);
+
+    // Pemakaian saldo Sahabat yang masih nunggu ACC (checkout mandiri =
+    // pelunasan penuh, reguler = DP dari saldo) — dipakai quick action
+    // "Perlu Tindakan" di modal detail booking admin (dikonfirmasi user
+    // 2026-10-12: pelunasan pending_confirm jalur saldo gak punya baris
+    // payments, jadi sebelumnya gak ada jalan pintas ke ACC-nya).
+    if (isAdmin) {
+      const [[hold]] = await pool.query(
+        `SELECT kl.id, kl.nominal, kl.created_at, kl.penerima_id, u.name AS penerima_nama, u.kode_unik AS penerima_kode
+         FROM komisi_ledger kl LEFT JOIN users u ON u.id = kl.penerima_id
+         WHERE kl.booking_id = ? AND kl.jenis = 'pemakaian_saldo_sahabat' AND kl.dikonfirmasi_at IS NULL
+         LIMIT 1`,
+        [booking.id]
+      );
+      booking.saldo_hold_pending = hold || null;
     }
 
     return Response.json({ booking });
@@ -242,6 +262,14 @@ export async function PATCH(request, { params }) {
     // request edit paket di atas), biar gak ke-NULL-kan form_filled/
     // jamaah_data pas admin cuma mau edit paket doang.
     if (form_filled !== undefined) {
+      // Booking LUNAS -> formulir & dokumen jamaah dikunci buat pemilik /
+      // pemesan (dikonfirmasi user 2026-10-12), koreksi lewat admin.
+      if (!isAdmin) {
+        const [[cekLunas]] = await pool.query('SELECT pelunasan_status FROM bookings WHERE id = ?', [id]);
+        if (cekLunas?.pelunasan_status === 'paid') {
+          return Response.json({ error: 'Booking sudah lunas — data jamaah & dokumen tidak bisa diubah lagi. Hubungi admin JM Travel.' }, { status: 403 });
+        }
+      }
       // Status verifikasi dokumen pendukung (doc_status) ditentukan server,
       // bukan client — lihat terapkanStatusDokumen. Dikunci FOR UPDATE biar
       // gak nimpa verifikasi admin yang jalan barengan

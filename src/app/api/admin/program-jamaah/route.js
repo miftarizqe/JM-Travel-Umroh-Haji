@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { lampirkanInfoStage } from '@/lib/bookingStageServer';
 
 // GET /api/admin/program-jamaah?prog_id=xxx
 // Daftar booking + jamaah pada satu program, untuk admin.
@@ -60,6 +61,8 @@ export async function GET(request) {
       };
     });
 
+    // Field getStage() — bar progres admin = bar progres jamaah.
+    await lampirkanInfoStage(pool, result);
     return Response.json({ bookings: result });
   } catch (error) {
     console.error(error);
