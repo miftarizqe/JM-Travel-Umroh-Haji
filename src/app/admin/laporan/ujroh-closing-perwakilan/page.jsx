@@ -13,8 +13,9 @@ import { rp, TabelClosing, TabelForecast } from '@/app/components/LaporanUjrohTa
 // Baitullah/HoP. Sekarang halaman sendiri, link-nya di sidebar grup
 // "Perwakilan". Admin-only (gak ada versi HoP — HoP itu Sahabat
 // Baitullah, gak ada hubungannya sama Perwakilan sama sekali).
-// Warna TETAP hijau/amber (gak diubah, cuma yang Sahabat Baitullah yang
-// ganti oranye/biru).
+// Label & warna disamain kayak Sahabat Baitullah (dikonfirmasi user
+// 2026-10-12 lagi): "Sudah Cair" -> "Pending" (oranye, baris di situ
+// masih "Wajib Ditransfer", belum beneran cair) & Forecast -> biru.
 export default function LaporanUjrohClosingPerwakilanPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
@@ -59,7 +60,7 @@ export default function LaporanUjrohClosingPerwakilanPage() {
   return (
     <Layout title="💰 Closing & Forecast Ujroh — Perwakilan" backHref="/admin?tab=dashboard">
       <div className="text-xs text-gray-400 mb-4">
-        Cuma yang punya minimal 1 closing/komisi yang ditampilkan, 1 baris per orang. Tabel Sudah Cair (dipecah Rekening Pribadi vs Tabungan BSI) dan tabel Forecast (proyeksi, belum closing) sengaja tabel terpisah — klik barisnya buat lihat rincian per program. Export Excel berisi rincian transaksi lengkap di sheet terpisah.
+        Cuma yang punya minimal 1 closing/komisi yang ditampilkan, 1 baris per orang. Tabel Pending (wajib ditransfer, dipecah Rekening Pribadi vs Tabungan BSI) dan tabel Forecast (proyeksi, belum closing) sengaja tabel terpisah — klik barisnya buat lihat rincian per program. Export Excel berisi rincian transaksi lengkap di sheet terpisah.
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3 items-end">
@@ -90,23 +91,23 @@ export default function LaporanUjrohClosingPerwakilanPage() {
           {t && (
             <div className="grid grid-cols-2 gap-3 mb-6">
               <div className="bg-purple-50 rounded-xl p-4">
-                <div className="text-xs text-gray-400">Perwakilan — Sudah Cair</div>
-                <div className="font-black text-lg mt-0.5 text-green-600">{rp(t.perwakilan_realized)}</div>
+                <div className="text-xs text-gray-400">Perwakilan — Pending</div>
+                <div className="font-black text-lg mt-0.5 text-orange-600">{rp(t.perwakilan_realized)}</div>
               </div>
               <div className="bg-purple-50 rounded-xl p-4">
                 <div className="text-xs text-gray-400">Perwakilan — Forecast</div>
-                <div className="font-black text-lg mt-0.5 text-[#C9952A]">{rp(t.perwakilan_forecast)}</div>
+                <div className="font-black text-lg mt-0.5 text-[#1A4FA0]">{rp(t.perwakilan_forecast)}</div>
               </div>
             </div>
           )}
 
           <div className="mb-8">
-            <div className="font-bold text-green-700 mb-3">✅ Perwakilan — Sudah Cair (Wajib Ditransfer)</div>
-            <TabelClosing list={list} tema="hijau" />
+            <div className="font-bold text-orange-700 mb-3">⏳ Perwakilan — Pending (Wajib Ditransfer)</div>
+            <TabelClosing list={list} />
           </div>
           <div className="mb-8">
-            <div className="font-bold text-[#8a6516] mb-3">⏳ Perwakilan — Forecast (Proyeksi)</div>
-            <TabelForecast list={list} tema="amber" />
+            <div className="font-bold text-[#1A4FA0] mb-3">📊 Perwakilan — Forecast (Proyeksi)</div>
+            <TabelForecast list={list} />
           </div>
         </>
       )}

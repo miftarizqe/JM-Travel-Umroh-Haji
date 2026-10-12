@@ -15,6 +15,9 @@ import { rp, TabelClosing, TabelForecast } from '@/app/components/LaporanUjrohTa
 // dari "Sudah Cair" (hijau) jadi "Pending" (oranye) -- baris di sini
 // MASIH "Wajib Ditransfer" alias BELUM beneran ditransfer, jadi "Sudah
 // Cair" kesannya keliru. Forecast tetap namanya, cuma warna hijau->biru.
+// Perwakilan ikut disamain label & warnanya (dikonfirmasi user lagi) --
+// komponen tabel di LaporanUjrohTable.jsx sekarang 1 skema warna doang
+// buat kedua halaman, gak ada parameter tema lagi.
 export default function LaporanUjrohClosingPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
@@ -123,12 +126,12 @@ export default function LaporanUjrohClosingPage() {
 
           <div className="mb-8">
             <div className="font-bold text-orange-700 mb-3">⏳ Sahabat Baitullah — Pending (Wajib Ditransfer)</div>
-            <TabelClosing list={sahabatList} showBsi={false} tema="oranye" />
+            <TabelClosing list={sahabatList} showBsi={false} />
           </div>
 
           <div className="mb-4">
             <div className="font-bold text-[#1A4FA0] mb-3">📊 Sahabat Baitullah — Forecast (Proyeksi)</div>
-            <TabelForecast list={sahabatList} tema="biru" />
+            <TabelForecast list={sahabatList} />
           </div>
         </>
       )}
