@@ -609,24 +609,25 @@ export default function StatusPendaftaranSahabatPage() {
               begitu terunggah, gak ada cara ngecek apa yang keupload atau
               koreksi kalau salah file. */}
           {prasyarat.bukti_tf_verified && (
-            <div className="space-y-2">
-              <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">📎 Lihat Bukti Transfer</a>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">📎 Lihat Bukti Transfer</a>
+                {!(metodeTtdSelesai || sudahDiajukan) && !gantiBuktiTf && (
+                  <button onClick={() => setGantiBuktiTf(true)} className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Bukti Transfer</button>
+                )}
+              </div>
               {metodeTtdSelesai || sudahDiajukan ? (
                 <div className="text-[10px] text-gray-400">
                   Salah unggah? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengganti bukti transfer pendaftaran Sahabat Baitullah saya.')}
                     target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk menggantinya.
                 </div>
-              ) : (
-                gantiBuktiTf ? (
-                  <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer text-xs ${uploadingTf ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
-                    {uploadingTf ? 'Mengunggah...' : '📄 Klik untuk unggah bukti transfer pengganti'}
-                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={uploadingTf}
-                      onChange={e => pilihBuktiTf(e.target.files?.[0])} />
-                  </label>
-                ) : (
-                  <button onClick={() => setGantiBuktiTf(true)} className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-white border border-[#1A4FA0] px-3 py-1.5 rounded-lg hover:bg-[#1A4FA0] hover:text-white transition-colors cursor-pointer">🔄 Ganti bukti transfer</button>
-                )
+              ) : gantiBuktiTf && (
+                <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer text-xs ${uploadingTf ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
+                  {uploadingTf ? 'Mengunggah...' : '📄 Klik untuk unggah bukti transfer pengganti'}
+                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={uploadingTf}
+                    onChange={e => pilihBuktiTf(e.target.files?.[0])} />
+                </label>
               )}
             </div>
           )}
@@ -659,7 +660,7 @@ export default function StatusPendaftaranSahabatPage() {
               </div>
             ) : prasyarat.rekening_umroh_terisi ? (
               u.no_rekening_tabungan_umroh ? (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
                   {/* Sebelum "Kirim Pendaftaran" jamaah boleh ubah sendiri
                       (dikonfirmasi user 2026-10-11). Setelahnya koreksi cuma
@@ -667,7 +668,7 @@ export default function StatusPendaftaranSahabatPage() {
                       ikut tercetak di SK-CIF & Surat Pemblokiran. */}
                   {bisaUbahRekening ? (
                     <button onClick={bukaEditRekUmroh}
-                      className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-white border border-[#1A4FA0] px-3 py-1.5 rounded-lg hover:bg-[#1A4FA0] hover:text-white transition-colors cursor-pointer">✏️ Ubah nomor/nama rekening</button>
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">✏️ Ubah Nomor/Nama Rekening</button>
                   ) : (
                     <div className="text-[10px] text-gray-400">
                       Salah nomor/nama? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening Tabungan Umroh saya.')}
