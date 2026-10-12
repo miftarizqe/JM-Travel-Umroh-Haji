@@ -244,11 +244,36 @@ export default function PerlengkapanPage() {
   const [stokKeluarItem, setStokKeluarItem] = useState(null);
   const [ledger, setLedger] = useState(null);
   const [showTambahItem, setShowTambahItem] = useState(false);
+  // Aksi sekunder (Edit/Nonaktifkan/Hapus) dikumpulin ke menu titik-tiga
+  // per baris (dikonfirmasi user 2026-10-12 -- 5 tombol sebelumnya numpuk
+  // 2 baris & kepotong di layar sempit). Cuma 1 menu kebuka dalam satu
+  // waktu -- id item yang lagi kebuka, null kalau semua tertutup. Posisi
+  // DIHITUNG dari tombol (position: fixed) biar gak kepotong overflow-hidden
+  // bungkus tabel (kejadian nyata buat baris paling bawah).
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+
+  function bukaMenu(e, id) {
+    if (openMenuId === id) { setOpenMenuId(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    setOpenMenuId(id);
+  }
 
   useEffect(() => {
     if (!user) return;
     if (user.role !== 'super_admin') { router.replace('/admin?tab=dashboard'); }
   }, [user]);
+
+  // Tutup menu titik-tiga kalau klik di luar area menu.
+  useEffect(() => {
+    if (openMenuId == null) return;
+    function handleClick(e) {
+      if (!e.target.closest('[data-menu-aksi]')) setOpenMenuId(null);
+    }
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
+  }, [openMenuId]);
 
   function muat() {
     fetch('/api/admin/perlengkapan').then(r => r.json()).then(d => setItems(d.items || [])).catch(() => setItems([]));
@@ -349,35 +374,27 @@ export default function PerlengkapanPage() {
                   <td className="px-3 py-2 text-right font-bold">{it.stok_saat_ini}</td>
                   <td className="px-3 py-2 text-right text-gray-500">{it.stok_minimum}</td>
                   <td className="px-3 py-2 text-right text-gray-500">{it.kebutuhan_mendatang}</td>
+                  {/* Direwamp (dikonfirmasi user 2026-10-12) -- sebelumnya
+                      5 tombol sejajar numpuk 2 baris & kepotong di layar
+                      sempit. Sekarang 2 aksi UTAMA (paling sering dipakai)
+                      tetap tombol langsung, 3 aksi SEKUNDER (Edit/
+                      Nonaktifkan/Hapus) dikumpulin ke menu titik-tiga. */}
                   <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1.5 flex-wrap">
-                      <button onClick={() => setEditItem(it)} title="Edit nama/deskripsi/ambang minimum"
-                        className="bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap">
-                        ✏️ Edit
-                      </button>
+                    <div className="flex items-center justify-end gap-1.5">
                       <button onClick={() => setModalItem(it)}
                         className="bg-[#1A4FA0] text-white text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap">
-                        ➕ Stok Masuk
+                        ➕ Masuk
                       </button>
                       {/* Disabled kalau stok udah 0 -- gak ada apa pun buat
                           dikeluarin (dikonfirmasi user 2026-10-12). */}
                       <button onClick={() => setStokKeluarItem(it)} disabled={it.stok_saat_ini === 0}
+                        title="Stok Keluar (manual)"
                         className="bg-amber-100 text-amber-700 hover:bg-amber-200 text-xs font-bold px-3 py-1.5 rounded-full whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">
-                        ➖ Stok Keluar
+                        ➖ Keluar
                       </button>
-                      <button onClick={() => toggleAktif(it)} title={it.aktif ? 'Nonaktifkan item ini' : 'Aktifkan lagi item ini'}
-                        className="bg-gray-100 text-gray-600 hover:bg-gray-200 text-xs font-bold px-2.5 py-1.5 rounded-full whitespace-nowrap">
-                        {it.aktif ? '🚫 Nonaktifkan' : '✅ Aktifkan'}
-                      </button>
-                      {/* Cuma aktif (gak disabled) kalau stok udah 0 -- kalau
-                          masih ada stok, klik tetap jalan tapi server nolak &
-                          kasih tau alasannya (dikonfirmasi user 2026-10-08).
-                          Buat stok yang masih ada, pakai "Nonaktifkan" dulu
-                          atau habiskan lewat "Stok Keluar" (dikonfirmasi
-                          user 2026-10-12). */}
-                      <button onClick={() => hapusItem(it)} title={it.stok_saat_ini !== 0 ? 'Stok belum 0, kosongkan dulu (Stok Keluar) atau nonaktifkan' : 'Hapus item'}
-                        className="text-red-500 hover:bg-red-50 text-xs font-bold px-2 py-1.5 rounded-full">
-                        🗑️
+                      <button data-menu-aksi onClick={e => bukaMenu(e, it.id)}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-600 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
+                        ⋮
                       </button>
                     </div>
                   </td>
@@ -387,6 +404,40 @@ export default function PerlengkapanPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Menu titik-tiga dirender SEKALI di luar tabel, position: fixed
+            dihitung dari tombol yang diklik (lihat bukaMenu()) -- bukan
+            absolute di dalam baris, biar gak kepotong overflow-hidden
+            bungkus tabel (kejadian nyata buat baris paling bawah,
+            dikonfirmasi user 2026-10-12). */}
+        {openMenuId != null && (() => {
+          const it = (items || []).find(i => i.id === openMenuId);
+          if (!it) return null;
+          return (
+            <div data-menu-aksi style={{ position: 'fixed', top: menuPos.top, right: menuPos.right }}
+              className="z-20 bg-white rounded-xl border border-gray-200 shadow-lg py-1 w-48 text-left">
+              <button onClick={() => { setEditItem(it); setOpenMenuId(null); }}
+                className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                ✏️ Edit Item
+              </button>
+              <button onClick={() => { toggleAktif(it); setOpenMenuId(null); }}
+                title={it.aktif ? 'Nonaktifkan item ini' : 'Aktifkan lagi item ini'}
+                className="w-full text-left px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                {it.aktif ? '🚫 Nonaktifkan' : '✅ Aktifkan'}
+              </button>
+              {/* Cuma aktif (gak disabled) kalau stok udah 0 -- kalau masih
+                  ada stok, klik tetap jalan tapi server nolak & kasih tau
+                  alasannya (dikonfirmasi user 2026-10-08). Buat stok yang
+                  masih ada, pakai "Nonaktifkan" dulu atau habiskan lewat
+                  "Stok Keluar" (dikonfirmasi user 2026-10-12). */}
+              <button onClick={() => { hapusItem(it); setOpenMenuId(null); }}
+                title={it.stok_saat_ini !== 0 ? 'Stok belum 0, kosongkan dulu (Stok Keluar) atau nonaktifkan' : 'Hapus item'}
+                className="w-full text-left px-3 py-2 text-xs font-semibold text-red-500 hover:bg-red-50 flex items-center gap-2 border-t border-gray-100">
+                🗑️ Hapus Item
+              </button>
+            </div>
+          );
+        })()}
 
         <button onClick={bukaRiwayat} className="text-sm font-bold text-[#1A4FA0]">📜 Lihat Riwayat Stok Masuk/Keluar</button>
 
