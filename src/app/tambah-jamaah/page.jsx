@@ -9,6 +9,7 @@ import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { resolveJamaahHarga } from '@/lib/jamaahHarga';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+const PAKET_LABEL = { deluxe: '⭐⭐⭐ Deluxe', eksekutif: '⭐⭐⭐⭐ Eksekutif', signature: '⭐⭐⭐⭐⭐ Signature' };
 
 export default function TambahJamaahPage() {
   return (
@@ -31,6 +32,9 @@ function TambahJamaahInner() {
   const [metodePembayaran] = useMetodePembayaran();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [opsiKombo, setOpsiKombo] = useState(null); // null = belum dimuat
+  const [selPaket, setSelPaket] = useState(null);
+  const [selKamar, setSelKamar] = useState(null);
   const [list, setList] = useState([kosongJamaah()]);
   const [buktiPath, setBuktiPath] = useState(null);
   const [buktiNama, setBuktiNama] = useState(null);
@@ -47,6 +51,28 @@ function TambahJamaahInner() {
       .catch(() => setLoading(false));
   }, [user, bookingId]);
 
+  // Kombo paket/kamar yang boleh dipilih — BEBAS, gak harus ikut jamaah lain
+  // di booking ini (dikonfirmasi user 2026-10-13). Default seleksi diarahkan
+  // ke kombo yang SAMA kayak jamaah lain (biar yang gak peduli tinggal lanjut),
+  // tapi bisa diganti bebas.
+  useEffect(() => {
+    if (!booking) return;
+    fetch(`/api/bookings/${bookingId}/kombo-tersedia`)
+      .then(r => r.json())
+      .then(d => {
+        const opsi = d.kombo || [];
+        setOpsiKombo(opsi);
+        let jd = booking.jamaah_data;
+        if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+        const aktifPertama = (Array.isArray(jd) ? jd : []).find(j => j?.status_jamaah !== 'dibatalkan');
+        const komboSaatIni = resolveJamaahHarga(booking, aktifPertama);
+        const match = opsi.find(o => o.paket === komboSaatIni.paket && o.kamarKey === komboSaatIni.kamarKey);
+        const dipilih = match || opsi[0] || null;
+        if (dipilih) { setSelPaket(dipilih.paket); setSelKamar(dipilih.kamar); }
+      })
+      .catch(() => setOpsiKombo([]));
+  }, [booking, bookingId]);
+
   function ubah(idx, field, value) {
     setList(prev => prev.map((j, i) => i === idx ? { ...j, [field]: value } : j));
   }
@@ -54,6 +80,7 @@ function TambahJamaahInner() {
   function hapusBaris(idx) { setList(prev => prev.filter((_, i) => i !== idx)); }
 
   async function submit() {
+    if (!selPaket || !selKamar) { alert('Pilih paket & kamar dulu!'); return; }
     if (list.some(j => !j.nama.trim())) { alert('Nama semua jamaah wajib diisi!'); return; }
     if (list.some(j => j.jk !== 'Laki-Laki' && j.jk !== 'Perempuan')) { alert('Jenis kelamin semua jamaah wajib diisi!'); return; }
     if (list.some(j => !j.alamat_kirim.trim())) { alert('Alamat kirim perlengkapan semua jamaah wajib diisi!'); return; }
@@ -66,6 +93,7 @@ function TambahJamaahInner() {
         body: JSON.stringify({
           namas: list.map(j => j.nama), jks: list.map(j => j.jk),
           alamats: list.map(j => j.alamat_kirim), was: list.map(j => j.wa),
+          paket: selPaket, kamar: selKamar,
           bukti_path: buktiPath, bukti_nama: buktiNama,
         }),
       });
@@ -112,14 +140,13 @@ function TambahJamaahInner() {
     );
   }
 
-  let jd = booking.jamaah_data;
-  if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
-  const aktifPertama = (Array.isArray(jd) ? jd : []).find(j => j?.status_jamaah !== 'dibatalkan');
-  const kombo = resolveJamaahHarga(booking, aktifPertama);
   const dpPerOrang = booking.jumlah_jamaah > 0 ? Math.round((booking.dp_amount || 0) / booking.jumlah_jamaah) : 0;
   const n = list.length;
-  const totalHargaTambahan = kombo.hargaJual * n;
+  const komboTerpilih = (opsiKombo || []).find(o => o.paket === selPaket && o.kamar === selKamar);
+  const hargaPerOrang = komboTerpilih?.harga || 0;
+  const totalHargaTambahan = hargaPerOrang * n;
   const dpTambahan = dpPerOrang * n;
+  const paketSet = [...new Set((opsiKombo || []).map(o => o.paket))];
 
   return (
     <Layout title="➕ Tambah Jamaah" showBack confirmLeave={isDirty}
@@ -129,9 +156,39 @@ function TambahJamaahInner() {
         <div className="bg-[#E8F0FB] rounded-xl p-4">
           <div className="text-xs text-gray-400">Menambah jamaah ke booking</div>
           <div className="font-bold text-[#0E2F6E]">{booking.prog_name} — {booking.id}</div>
-          <div className="text-xs text-gray-500 mt-1">
-            Kombo mengikuti jamaah lain di booking ini: <b>{kombo.paket}</b> · <b>{kombo.kamar}</b> · {rp(kombo.hargaJual)}/orang
-          </div>
+        </div>
+
+        {/* Pilihan Paket & Kamar — bebas dipilih, gak harus ikut jamaah lain
+            di booking ini (dikonfirmasi user 2026-10-13). */}
+        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
+          <div className="font-bold text-[#0E2F6E] text-sm mb-3">💰 Pilih Paket & Kamar (untuk semua jamaah baru di bawah)</div>
+          {opsiKombo === null ? (
+            <div className="text-center text-gray-400 text-sm py-4">Memuat pilihan paket...</div>
+          ) : opsiKombo.length === 0 ? (
+            <div className="text-center text-gray-400 text-sm py-4">Belum ada kombo paket/kamar tersedia untuk program ini. Hubungi admin.</div>
+          ) : (
+            <div className="space-y-3">
+              {paketSet.map(pk => (
+                <div key={pk}>
+                  <div className="text-xs font-bold text-gray-500 mb-1.5">{PAKET_LABEL[pk] || pk}</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {opsiKombo.filter(o => o.paket === pk).map(o => {
+                      const aktif = selPaket === o.paket && selKamar === o.kamar;
+                      return (
+                        <button key={o.kamar} onClick={() => { setSelPaket(o.paket); setSelKamar(o.kamar); }}
+                          className={`rounded-xl border-2 p-2.5 text-center transition-colors ${
+                            aktif ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-blue-200'
+                          }`}>
+                          <div className="text-[11px] text-gray-400">{o.kamar.split(' ')[0]}</div>
+                          <div className="font-bold text-[#0E2F6E] text-xs mt-0.5">{rp(o.harga)}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -198,7 +255,7 @@ function TambahJamaahInner() {
           label="Klik untuk upload bukti transfer DP"
         />
 
-        <button onClick={submit} disabled={!buktiPath || submitting}
+        <button onClick={submit} disabled={!buktiPath || submitting || !selPaket}
           className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
           {submitting ? 'Memproses...' : 'Kirim & Tambah Jamaah →'}
         </button>
