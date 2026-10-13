@@ -41,10 +41,24 @@ export default function DokumenSayaList({ bookingId, booking }) {
     .map(d => ({ idx, nama: j.nama || `Jamaah ${idx + 1}`, label: d.label, path: j[d.key], st: statusDokumen(j, d.key) })));
   const infoGabungan = pendukung.length > 0 ? STATUS_DOKUMEN[statusGabungan(pendukung.map(p => p.st))] : null;
 
+  // Scan fisik (materai + TTD) Perjanjian Jamaah — 1 PER JAMAAH sejak
+  // 2026-10-13 (lihat jamaah_data[i].perjanjian_scan_path, diisi admin dari
+  // /admin/cetak-perjanjian). Jamaah berhak liat hasil scan tanda tangan
+  // mereka sendiri (dikonfirmasi user 2026-10-13, dokumen bernilai puluhan
+  // juta rupiah — bukan cuma soal "udah klik setuju", tapi bukti fisiknya
+  // juga). Booking LAMA (sebelum per-jamaah) cuma punya 1 scan gabungan di
+  // level booking — ditampilkan sebagai 1 baris "seluruh booking", bukan
+  // dipaksa diasosiasikan ke jamaah tertentu yang gak bisa dipastikan.
+  const punyaPerJamaah = jamaah.some(j => j.perjanjian_scan_path);
+  const perjanjianScan = punyaPerJamaah
+    ? jamaah.map((j, idx) => ({ idx, nama: j.nama || `Jamaah ${idx + 1}`, path: j.perjanjian_scan_path }))
+      .filter(p => p.path)
+    : (booking?.perjanjian_scan_path ? [{ idx: null, nama: null, path: booking.perjanjian_scan_path }] : []);
+
   return (
     <div className="mt-3 bg-gray-50 rounded-xl p-3">
       <div className="text-xs font-bold text-[#0E2F6E] mb-2">📄 Dokumen Saya</div>
-      {dokumen.length === 0 && pendukung.length === 0 ? (
+      {dokumen.length === 0 && pendukung.length === 0 && perjanjianScan.length === 0 ? (
         <div className="text-xs text-gray-400">Belum ada dokumen.</div>
       ) : (
         <div className="space-y-1.5">
@@ -82,6 +96,17 @@ export default function DokumenSayaList({ bookingId, booking }) {
               )}
             </div>
           )}
+          {perjanjianScan.map(p => (
+            <div key={`perjanjian-${p.idx ?? 'booking'}`} className="flex items-center justify-between text-xs gap-2">
+              <div className="text-gray-600">
+                <span className="font-semibold">Perjanjian Jamaah (scan TTD fisik)</span>{p.nama ? ` — ${p.nama}` : ''}
+              </div>
+              <a href={p.path} target="_blank" rel="noopener noreferrer"
+                className="text-[10px] font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] px-2 py-0.5 rounded-full whitespace-nowrap">
+                Lihat/Unduh
+              </a>
+            </div>
+          ))}
           {dokumen.map(d => (
             <div key={d.id} className="flex items-center justify-between text-xs gap-2">
               <div className="text-gray-600">
