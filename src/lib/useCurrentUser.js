@@ -5,7 +5,7 @@ function bacaLocalStorage() {
   if (typeof window === 'undefined') return null;
   try {
     const raw = localStorage.getItem('user');
-    // Sesi 24 jam sejak login (dikonfirmasi user 2026-10-12) — cache data
+    // Sesi 4 jam sejak login (dikonfirmasi user 2026-10-13) — cache data
     // user yang udah lewat batasnya dibuang (cookie-nya sendiri udah dibuang
     // browser/proxy). Cache lama tanpa sesi_berakhir_at dibiarkan (cookie
     // tetap dibatasi server & proxy).
@@ -75,7 +75,7 @@ export function useCurrentUser() {
         window.location.href = `/login?sesi=habis&from=${encodeURIComponent(window.location.pathname)}`;
       }
     };
-    // setTimeout maks ~24.8 hari, sesi 24 jam aman.
+    // setTimeout maks ~24.8 hari, sesi 4 jam aman.
     const t = setTimeout(habiskan, Math.max(0, u.sesi_berakhir_at - Date.now()));
     return () => clearTimeout(t);
   }, [raw]);

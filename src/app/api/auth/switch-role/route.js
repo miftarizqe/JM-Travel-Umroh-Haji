@@ -41,7 +41,7 @@ export async function POST(request) {
     const roleKeduaBaru = user.role;
 
     // Ganti role TIDAK memperpanjang sesi — login_at & batas berakhirnya
-    // dibawa dari token lama (sesi tetap 24 jam sejak login).
+    // dibawa dari token lama (sesi tetap 4 jam sejak login).
     const loginAt = Number(auth.user.login_at || auth.user.iat);
     const berakhir = sesiBerakhirPada(auth.user);
     const sisaDetik = berakhir - Math.floor(Date.now() / 1000);

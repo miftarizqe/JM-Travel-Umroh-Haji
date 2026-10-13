@@ -100,7 +100,7 @@ export async function POST(request) {
 
     // Cookie di-set oleh SERVER dengan httpOnly:
     // token tidak bisa dibaca/dicuri lewat JavaScript di browser.
-    // Sesi 24 jam sejak login (lihat DURASI_SESI_DETIK di lib/auth.js).
+    // Sesi 4 jam sejak login (lihat DURASI_SESI_DETIK di lib/auth.js).
     const maxAge = DURASI_SESI_DETIK;
     // Dipakai useCurrentUser buat ngebuang cache data user begitu sesi habis.
     dataUser.sesi_berakhir_at = (loginAt + DURASI_SESI_DETIK) * 1000;

@@ -10,13 +10,13 @@ import jwt from 'jsonwebtoken';
  */
 
 /**
- * Sesi login berlaku 24 jam sejak LOGIN (dikonfirmasi user 2026-10-12) —
+ * Sesi login berlaku 4 jam sejak LOGIN (dikonfirmasi user 2026-10-13, sebelumnya 24 jam) —
  * bukan sejak token terakhir diterbitkan: ganti role (/api/auth/switch-role)
  * nerbitin token baru tapi bawa `login_at` yang sama, jadi gak memperpanjang
  * sesi. Dicek di sini (semua API), di src/proxy.js (halaman), dan di
  * useCurrentUser (cache data user di browser).
  */
-export const DURASI_SESI_DETIK = 24 * 60 * 60;
+export const DURASI_SESI_DETIK = 4 * 60 * 60;
 
 /** Detik (epoch) kapan sesi token ini berakhir. Token lama tanpa login_at pakai iat. */
 export function sesiBerakhirPada(payload) {
@@ -60,8 +60,8 @@ export function verifikasiToken(request) {
   for (const token of tokens) {
     try {
       const payload = jwt.verify(token, process.env.JWT_SECRET);
-      // Token terbitan sebelum aturan 24 jam (masa berlaku 7 hari) ikut
-      // ditolak begitu lewat 24 jam dari login.
+      // Token terbitan sebelum aturan ini (masa berlaku lebih lama) ikut
+      // ditolak begitu lewat 4 jam dari login.
       if (sekarang >= sesiBerakhirPada(payload)) continue;
       if (!terbaik || Number(payload.iat || 0) > Number(terbaik.iat || 0)) terbaik = payload;
     } catch {

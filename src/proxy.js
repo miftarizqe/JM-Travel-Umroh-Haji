@@ -41,12 +41,12 @@ function tokenSah(token) {
   return t.split('.').length === 3;
 }
 
-// Sesi 24 jam sejak login (dikonfirmasi user 2026-10-12, aturan sama dengan
+// Sesi 4 jam sejak login (dikonfirmasi user 2026-10-13, aturan sama dengan
 // DURASI_SESI_DETIK di src/lib/auth.js). Proxy cuma BACA payload (gak
 // verifikasi tanda tangan — itu tugas API); cukup buat nentuin sesi udah
 // habis & cookie-nya dibuang, biar user gak nyangkut "kelihatan login"
 // padahal semua API udah nolak.
-const DURASI_SESI_DETIK = 24 * 60 * 60;
+const DURASI_SESI_DETIK = 4 * 60 * 60;
 function sesiHabis(token) {
   try {
     const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -92,7 +92,7 @@ export function proxy(request) {
     .sort((a, b) => loginAtToken(b) - loginAtToken(a));
   const raw = aktif[0] || berbentukJwt[0] || semua[0];
 
-  // Sesi lewat 24 jam -> buang cookie; halaman privat diarahkan ke login
+  // Sesi lewat 4 jam -> buang cookie; halaman privat diarahkan ke login
   // dengan keterangan sesi habis.
   if (!aktif.length && berbentukJwt.length) {
     const isProtectedHabis = protectedRoutes.some(route => pathname.startsWith(route));
