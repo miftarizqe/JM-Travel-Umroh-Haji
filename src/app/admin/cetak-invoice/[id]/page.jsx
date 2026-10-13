@@ -147,7 +147,10 @@ export default function CetakInvoiceKwitansi() {
   const punyaRincianBooking = booking?.total_harga != null;
   const qtyJamaah = booking ? Number(booking.jumlah_jamaah || 1) : 1;
   const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
-  const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) >= BATAS_MATERAI;
+  // UU Bea Meterai Pasal 3: "nilai nominal LEBIH DARI Rp5.000.000" — strictly
+  // di atas, Rp5.000.000 persis TIDAK kena materai (dikonfirmasi user
+  // 2026-10-13, sebelumnya salah pakai >=).
+  const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
