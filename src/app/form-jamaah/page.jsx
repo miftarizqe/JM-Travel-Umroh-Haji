@@ -16,6 +16,7 @@ const emptyJamaah = () => ({
   nama: '', nik: '', paspor: '', tl: '', ttl: '', exp_mulai: '', exp_paspor: '',
   tkp: '', jk: 'Laki-Laki', alamat: '', alamat_kirim: '', wa: '', email: '',
   pkj: '', ayah: '', ibu: '', pendidikan: '', penyakit: '', mahram: '', hub_mahram: 'Suami/Istri',
+  wali_nama: '', wali_hub: '',
   kdnama: '', kdwa: '', kdhub: '',
   // Dokumen pendukung — OPSIONAL, gak wajib buat lanjut submit formulir.
   doc_paspor: '', doc_kk: '', doc_ktp: '', doc_vaksin: '', doc_foto: ''
@@ -350,6 +351,18 @@ function FormJamaahPageInner() {
       }
       if (!d.pendidikan || !String(d.pendidikan).trim()) {
         alert('Pendidikan Terakhir wajib diisi!'); return false;
+      }
+    }
+    // Wali/Penanggung Jawab — WAJIB buat jamaah DI BAWAH 17 tahun
+    // (dikonfirmasi user 2026-10-13): anak/infant gak ikut tanda tangan
+    // Perjanjian Jamaah sendiri, nama wali inilah yang dicetak sebagai
+    // penanda tangan mewakili dia di /admin/cetak-perjanjian.
+    if (umurJ !== null && umurJ < 17) {
+      if (!d.wali_nama || !String(d.wali_nama).trim()) {
+        alert('Nama Wali/Penanggung Jawab wajib diisi untuk jamaah di bawah 17 tahun!'); return false;
+      }
+      if (!d.wali_hub || !String(d.wali_hub).trim()) {
+        alert('Hubungan Wali dengan jamaah wajib diisi!'); return false;
       }
     }
 
@@ -725,6 +738,27 @@ function FormJamaahPageInner() {
                 <input value={j.penyakit} onChange={e => setField('penyakit', e.target.value)} className={inp}/>
               </div>
             </div>
+
+            {/* Wali/Penanggung Jawab — cuma buat jamaah DI BAWAH 17 tahun
+                (dikonfirmasi user 2026-10-13). Anak/infant gak tanda tangan
+                Perjanjian Jamaah sendiri, nama ini yang dicetak sebagai
+                penanda tangan mewakili dia di lembar perjanjian. */}
+            {!wajibAyahPendidikan && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={lbl}>Nama Wali/Penanggung Jawab *</label>
+                  <input value={j.wali_nama} onChange={e => setField('wali_nama', e.target.value)} className={inp}/>
+                </div>
+                <div>
+                  <label className={lbl}>Hubungan Wali *</label>
+                  <input value={j.wali_hub} onChange={e => setField('wali_hub', e.target.value)}
+                    placeholder="mis. Orang Tua, Kakak" className={inp}/>
+                </div>
+                <div className="col-span-2 text-[10px] text-gray-400 -mt-2">
+                  Karena jamaah ini di bawah 17 tahun, Perjanjian Jamaah akan ditandatangani oleh wali ini, bukan jamaah sendiri.
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>

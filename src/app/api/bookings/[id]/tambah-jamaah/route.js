@@ -37,7 +37,7 @@ export async function POST(request, { params }) {
     });
 
     const pesan = hasil.perjanjianDireset
-      ? 'Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin. Karena jumlah jamaah/total harga berubah, Perjanjian Jamaah yang sebelumnya sudah disetujui/ditandatangani perlu disetujui & ditandatangani ulang sebelum bisa lanjut pelunasan.'
+      ? 'Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin. Karena jumlah jamaah/total harga berubah, Perjanjian Jamaah perlu disetujui ulang (cukup klik setuju lagi) sebelum bisa lanjut pelunasan.'
       : 'Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin.';
     return Response.json({ message: pesan, ...hasil }, { status: 201 });
   } catch (error) {
