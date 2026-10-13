@@ -475,10 +475,17 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
   const formTotalBaru = (booking.form_total || booking.jumlah_jamaah || 1) + n;
   const totalHargaBaru = Number(booking.total_harga || 0) + kombo.hargaJual * n;
   const dpAmountTambahan = Number(prog.dp || 0) * n;
+  // dp_amount booking DIBUMP LANGSUNG di sini (bukan nunggu admin approve DP
+  // tambahan ini) — sama persis pola dp_amount awal (diset pas booking
+  // dibuat, independen dari kapan dp_status beneran jadi confirmed). Kalau
+  // enggak, /pelunasan (sisaBayar = total_harga - dp_amount) bakal minta
+  // bayar KELEBIHAN sebesar DP pax tambahan ini, padahal DP-nya udah pernah
+  // ditagih & (nanti) dikonfirmasi lewat payment row terpisah di bawah.
+  const dpAmountBaru = Number(booking.dp_amount || 0) + dpAmountTambahan;
 
   await conn.query(
-    `UPDATE bookings SET jamaah_data = ?, jumlah_jamaah = ?, form_total = ?, total_harga = ? WHERE id = ?`,
-    [JSON.stringify(entriesFinal), jumlahJamaahBaru, formTotalBaru, totalHargaBaru, bookingId]
+    `UPDATE bookings SET jamaah_data = ?, jumlah_jamaah = ?, form_total = ?, total_harga = ?, dp_amount = ? WHERE id = ?`,
+    [JSON.stringify(entriesFinal), jumlahJamaahBaru, formTotalBaru, totalHargaBaru, dpAmountBaru, bookingId]
   );
 
   await conn.query(

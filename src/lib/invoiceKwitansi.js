@@ -26,9 +26,14 @@ export async function generateOrUpdateKwitansi(pool, bookingId, actorUserId) {
   );
   if (!booking || booking.pelunasan_status !== 'paid') return null;
 
+  // SUM, bukan ambil 1 baris terakhir — sejak fitur "Tambah Jamaah" (DP pax
+  // tambahan = payment row type='dp' BARU & TERPISAH dari DP awal, lihat
+  // src/lib/booking.js#tambahJamaahKeBooking), 1 booking bisa punya LEBIH
+  // dari 1 payment DP confirmed. Ambil cuma yang terakhir bakal nunjukin
+  // "DP sudah dibayar" di Kwitansi jauh lebih kecil dari yang beneran
+  // ditransfer (dikonfirmasi user 2026-10-13).
   const [[bayarDp]] = await pool.query(
-    `SELECT amount FROM payments WHERE booking_id = ? AND type = 'dp' AND status = 'confirmed'
-     ORDER BY created_at DESC LIMIT 1`,
+    `SELECT COALESCE(SUM(amount), 0) AS amount FROM payments WHERE booking_id = ? AND type = 'dp' AND status = 'confirmed'`,
     [bookingId]
   );
   const nominalDp = Number(bayarDp?.amount ?? booking.dp_amount ?? 0);
@@ -101,9 +106,10 @@ export async function syncKwitansiDariInvoice(pool, invoiceId) {
   );
   if (Number(totalInvoicePaid) < Number(booking.total_harga || 0)) return null; // belum nutup total_harga, belum lunas total
 
+  // SUM — sama alasan kayak generateOrUpdateKwitansi di atas, 1 booking bisa
+  // punya lebih dari 1 payment DP confirmed sejak fitur "Tambah Jamaah".
   const [[bayarDp]] = await pool.query(
-    `SELECT amount FROM payments WHERE booking_id = ? AND type = 'dp' AND status = 'confirmed'
-     ORDER BY created_at DESC LIMIT 1`,
+    `SELECT COALESCE(SUM(amount), 0) AS amount FROM payments WHERE booking_id = ? AND type = 'dp' AND status = 'confirmed'`,
     [inv.booking_id]
   );
   const nominalDp = Number(bayarDp?.amount ?? booking.dp_amount ?? 0);
