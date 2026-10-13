@@ -1,17 +1,25 @@
 import pool from '@/lib/db';
-import { wajibRole } from '@/lib/auth';
+import { wajibLogin } from '@/lib/auth';
 import { ringkasanPaketKamar } from '@/lib/jamaahHarga';
 
 // GET /api/admin/invoice-kwitansi/[id] — detail 1 dokumen buat halaman cetak.
+// Admin selalu boleh. Pemilik booking-nya (jamaah) JUGA boleh, HANYA kalau
+// dokumennya udah terkirim (dikonfirmasi user 2026-10-13 — jamaah butuh
+// lihat Tanda Terima Uang/Kwitansi/Invoice miliknya sendiri yang udah
+// dikirim admin via "✅ Setuju", sebelumnya cuma bisa diakses admin sama
+// sekali, bikin jamaah gak bisa lihat dokumennya meski udah terkirim).
+// Dokumen tanpa booking_id (manual, gak nempel akun manapun) cuma admin.
 // Ikut sertakan data booking (kalau ada) buat konteks tambahan di cetakan
 // (program, paket, kamar) — dokumen manual tanpa booking_id ya cuma null.
 export async function GET(request, { params }) {
-  const auth = wajibRole(request, ['admin']);
+  const auth = wajibLogin(request);
   if (auth.error) return auth.error;
   try {
     const { id } = await params;
     const [[dokumen]] = await pool.query('SELECT * FROM invoice_kwitansi WHERE id = ?', [id]);
     if (!dokumen) return Response.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
+
+    const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
 
     // Tanda Terima Uang nempel ke 1 payment spesifik — ambil tipe pembayaran
     // (dp/lunas) buat ditampilin di cetakan ("Pembayaran diterima — DP", dst).
@@ -27,7 +35,7 @@ export async function GET(request, { params }) {
       // tanggal keberangkatan, itu atributnya program. jamaah_data di-parse
       // di sini biar halaman cetak gak perlu urus JSON.parse lagi.
       const [[b]] = await pool.query(
-        `SELECT b.id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.total_harga, b.dp_amount, b.jamaah_data,
+        `SELECT b.id, b.user_id, b.ordered_by, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.total_harga, b.dp_amount, b.jamaah_data,
                 b.opsi_tambahan_data, b.opsi_tambahan_total,
                 p.tanggal_berangkat, u.wa AS pemesan_wa
          FROM bookings b LEFT JOIN programs p ON p.id = b.prog_id
@@ -35,6 +43,18 @@ export async function GET(request, { params }) {
          WHERE b.id = ?`,
         [dokumen.booking_id]
       );
+
+      // Akses: admin selalu boleh. Non-admin cuma boleh kalau dia pemilik
+      // booking INI (user_id/ordered_by) DAN dokumennya udah terkirim —
+      // sebelum terkirim, dokumen masih di tangan admin (preview/draft),
+      // jamaah belum semestinya lihat (dikonfirmasi user 2026-10-13).
+      if (!isAdmin) {
+        const milikSendiri = b && (String(b.user_id) === String(auth.user.id) || String(b.ordered_by) === String(auth.user.id));
+        if (!milikSendiri || !dokumen.terkirim) {
+          return Response.json({ error: 'Akses ditolak.' }, { status: 403 });
+        }
+      }
+
       if (b) {
         // jamaah_data kolomnya bertipe JSON asli di MySQL — mysql2 udah
         // auto-parse jadi array, BUKAN string, jadi jangan JSON.parse() lagi
@@ -94,6 +114,10 @@ export async function GET(request, { params }) {
           sisa_pembayaran: sisaPembayaran,
         };
       }
+    } else if (!isAdmin) {
+      // Dokumen manual tanpa booking_id — gak ada konsep "pemilik", cuma
+      // admin yang boleh akses.
+      return Response.json({ error: 'Akses ditolak.' }, { status: 403 });
     }
 
     return Response.json({ dokumen, booking, payment });

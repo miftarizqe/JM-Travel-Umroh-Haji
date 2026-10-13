@@ -663,10 +663,10 @@ function AdminPageInner() {
 
   // Kirim Tanda Terima Uang — TTU udah auto-kebuat sendiri begitu payment
   // confirmed (hook di PATCH /api/payments), jadi tombol ini GAK bikin
-  // dokumen baru, cuma "ngirim"-nya: coba Setuju (digital, cuma jalan kalau
-  // nominal gak wajib materai — endpoint sendiri yang nolak kalau >Rp5jt),
-  // kalau GAGAL karena materai wajib, buka halaman cetak buat jalur fisik
-  // (print+materai+TTD+scan) alih-alih. Dikonfirmasi user 2026-10-13.
+  // dokumen baru, cuma mastiin ID-nya lalu BUKA halaman cetak buat admin
+  // LIAT isinya dulu sebelum kirim (dikonfirmasi user 2026-10-13 — jangan
+  // auto-kirim tanpa preview) — tombol "✅ Setuju" (kalau gak wajib materai)
+  // atau upload scan fisik (kalau >Rp5jt) ada di halaman itu sendiri.
   async function kirimTandaTerima(paymentId) {
     try {
       const resAuto = await fetch('/api/admin/invoice-kwitansi/auto', {
@@ -675,19 +675,9 @@ function AdminPageInner() {
       });
       const dAuto = await resAuto.json();
       if (!resAuto.ok) { alert(dAuto.error || 'Gagal menyiapkan Tanda Terima Uang'); return; }
-
-      const resSetuju = await fetch(`/api/admin/invoice-kwitansi/${dAuto.id}/setuju`, { method: 'POST' });
-      const dSetuju = await resSetuju.json();
-      if (resSetuju.ok || dSetuju.error?.includes('sudah disetujui')) {
-        alert('✅ Tanda Terima Uang terkirim ke akun jamaah!');
-        loadAll();
-        return;
-      }
-      // Materai wajib (>Rp5jt) -- gak bisa auto-kirim, lempar ke halaman
-      // cetak buat jalur fisik.
       window.open(`/admin/cetak-invoice/${dAuto.id}`, '_blank');
     } catch {
-      alert('Terjadi kesalahan saat mengirim Tanda Terima Uang');
+      alert('Terjadi kesalahan saat menyiapkan Tanda Terima Uang');
     }
   }
 
@@ -1495,10 +1485,12 @@ function AdminPageInner() {
                               bukan hasil otomatis dari approve. Tanda Terima
                               Uang-nya SENDIRI udah auto-generate dari hook
                               approve (lihat generateTandaTerimaUntukPayment) —
-                              tombol ini cuma NGIRIM-nya ke akun jamaah, bukan
-                              bikin dokumen baru. */}
+                              tombol ini buka halaman cetaknya buat admin LIAT
+                              dulu isinya, baru klik "Setuju" di sana buat
+                              ngirim (dikonfirmasi user 2026-10-13, jangan
+                              auto-kirim tanpa preview). */}
                           <button onClick={() => kirimTandaTerima(p.id)} className="w-full mt-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2 rounded-full">
-                            📨 Kirim Tanda Terima Uang — {p.booking_id}
+                            🧾 Lihat & Kirim Tanda Terima Uang — {p.booking_id}
                           </button>
                           {/* Kwitansi cuma keluar begitu LUNAS TOTAL — biasanya
                               udah auto kebuat sendiri dari hook approve
