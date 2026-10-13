@@ -20,7 +20,7 @@ function LoginPageInner() {
   const [form, setForm] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  // Diarahkan ke sini karena sesi 24 jam habis (src/proxy.js /
+  // Diarahkan ke sini karena sesi 4 jam habis (src/proxy.js /
   // useCurrentUser) — buang cache data user lama & kasih tau alasannya.
   const sesiHabis = searchParams.get('sesi') === 'habis';
   useEffect(() => {
@@ -123,7 +123,7 @@ function LoginPageInner() {
 
             {sesiHabis && !error && (
               <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3 mb-4">
-                ⏰ Sesi login Anda sudah berakhir (berlaku 24 jam). Silakan login kembali.
+                ⏰ Sesi login Anda sudah berakhir (berlaku 4 jam). Silakan login kembali.
               </div>
             )}
             {error && (

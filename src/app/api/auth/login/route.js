@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { ambilJwtSecret, headerCookieToken, DURASI_SESI_DETIK } from '@/lib/auth';
+import { ambilJwtSecret, headersCookieSesi, DURASI_SESI_DETIK } from '@/lib/auth';
 import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
 import { varianWA } from '@/lib/validasiAkun';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
@@ -100,7 +100,7 @@ export async function POST(request) {
 
     // Cookie di-set oleh SERVER dengan httpOnly:
     // token tidak bisa dibaca/dicuri lewat JavaScript di browser.
-    // Sesi 24 jam sejak login (lihat DURASI_SESI_DETIK di lib/auth.js).
+    // Sesi 4 jam sejak login (lihat DURASI_SESI_DETIK di lib/auth.js).
     const maxAge = DURASI_SESI_DETIK;
     // Dipakai useCurrentUser buat ngebuang cache data user begitu sesi habis.
     dataUser.sesi_berakhir_at = (loginAt + DURASI_SESI_DETIK) * 1000;
@@ -109,10 +109,7 @@ export async function POST(request) {
       JSON.stringify({ message: 'Login berhasil!', user: dataUser }),
       {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Set-Cookie': headerCookieToken(token, maxAge),
-        },
+        headers: headersCookieSesi(request, token, maxAge),
       }
     );
   } catch (error) {

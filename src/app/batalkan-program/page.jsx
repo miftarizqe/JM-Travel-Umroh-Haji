@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
+import { pembayaranSudahDiAcc } from '@/lib/bookingStage';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
@@ -89,6 +90,17 @@ function BatalkanProgramPageInner() {
           <div className="text-3xl mb-2">✅</div>
           <h4 className="font-bold text-blue-800 mb-1">Perjalanan Sudah Selesai</h4>
           <p className="text-sm text-blue-600">Booking yang sudah selesai tidak bisa dibatalkan.</p>
+        </div>
+      </Layout>
+    );
+  }
+  if (pembayaranSudahDiAcc(booking)) {
+    return (
+      <Layout title="❌ Batalkan Program" backHref="/dashboard/jamaah">
+        <div className="max-w-md mx-auto bg-blue-50 border border-blue-200 rounded-xl p-5 text-center">
+          <div className="text-3xl mb-2">🔒</div>
+          <h4 className="font-bold text-blue-800 mb-1">Booking Sudah Dikonfirmasi</h4>
+          <p className="text-sm text-blue-600">Pembayaran booking ini sudah dikonfirmasi admin, jadi tidak bisa dibatalkan sendiri. Hubungi admin JM Travel untuk pembatalan.</p>
         </div>
       </Layout>
     );

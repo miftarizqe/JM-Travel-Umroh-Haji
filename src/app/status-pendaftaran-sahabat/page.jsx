@@ -409,6 +409,11 @@ export default function StatusPendaftaranSahabatPage() {
   const dokumenKetigaSelesai = prasyarat.spk_ak_selesai && prasyarat.sk_cif_selesai && prasyarat.surat_pemblokiran_selesai
     && (!u.bantuan_bsi_manual_disetujui_at || prasyarat.formulir_bsi_fisik_selesai);
   const metodeTtdSelesai = u.metode_ttd_sahabat === 'kantor' || (u.metode_ttd_sahabat === 'kirim' && dokumenKetigaSelesai);
+  // Jalur "kirim sendiri" yang paketnya udah dikonfirmasi dikirim (resi +
+  // foto) — dari sisi jamaah langkahnya UDAH selesai & terkunci, tinggal
+  // nunggu kantor nerima; kartunya diringkas & ijo kayak kartu lain di atas
+  // (dikonfirmasi user 2026-10-12), bukan tetap nampilin instruksi cetak.
+  const kirimSudahDikonfirmasi = u.metode_ttd_sahabat === 'kirim' && !!u.dokumen_fisik_dikirim_at;
   const pengirimanSudahDiterima = prasyarat.spk_ak_selesai || prasyarat.sk_cif_selesai || prasyarat.surat_pemblokiran_selesai || prasyarat.formulir_bsi_fisik_selesai;
 
   // "Kirim Pendaftaran" final (migrations/219) — sebelum terkirim isian di
@@ -609,24 +614,25 @@ export default function StatusPendaftaranSahabatPage() {
               begitu terunggah, gak ada cara ngecek apa yang keupload atau
               koreksi kalau salah file. */}
           {prasyarat.bukti_tf_verified && (
-            <div className="space-y-2">
-              <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer"
-                className="text-xs font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">📎 Lihat Bukti Transfer</a>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">📎 Lihat Bukti Transfer</a>
+                {!(metodeTtdSelesai || sudahDiajukan) && !gantiBuktiTf && (
+                  <button onClick={() => setGantiBuktiTf(true)} className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Bukti Transfer</button>
+                )}
+              </div>
               {metodeTtdSelesai || sudahDiajukan ? (
                 <div className="text-[10px] text-gray-400">
                   Salah unggah? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengganti bukti transfer pendaftaran Sahabat Baitullah saya.')}
                     target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk menggantinya.
                 </div>
-              ) : (
-                gantiBuktiTf ? (
-                  <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer text-xs ${uploadingTf ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
-                    {uploadingTf ? 'Mengunggah...' : '📄 Klik untuk unggah bukti transfer pengganti'}
-                    <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={uploadingTf}
-                      onChange={e => pilihBuktiTf(e.target.files?.[0])} />
-                  </label>
-                ) : (
-                  <button onClick={() => setGantiBuktiTf(true)} className="block text-[10px] font-bold text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">Ganti bukti transfer</button>
-                )
+              ) : gantiBuktiTf && (
+                <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer text-xs ${uploadingTf ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
+                  {uploadingTf ? 'Mengunggah...' : '📄 Klik untuk unggah bukti transfer pengganti'}
+                  <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={uploadingTf}
+                    onChange={e => pilihBuktiTf(e.target.files?.[0])} />
+                </label>
               )}
             </div>
           )}
@@ -659,7 +665,7 @@ export default function StatusPendaftaranSahabatPage() {
               </div>
             ) : prasyarat.rekening_umroh_terisi ? (
               u.no_rekening_tabungan_umroh ? (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <div className="text-xs text-gray-500">{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <> a.n. {u.nama_pemilik_rekening_umroh}</>}</div>
                   {/* Sebelum "Kirim Pendaftaran" jamaah boleh ubah sendiri
                       (dikonfirmasi user 2026-10-11). Setelahnya koreksi cuma
@@ -667,7 +673,7 @@ export default function StatusPendaftaranSahabatPage() {
                       ikut tercetak di SK-CIF & Surat Pemblokiran. */}
                   {bisaUbahRekening ? (
                     <button onClick={bukaEditRekUmroh}
-                      className="text-[10px] font-bold text-gray-400 underline hover:text-gray-600 transition-colors cursor-pointer">✏️ Ubah nomor/nama rekening</button>
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">✏️ Ubah Nomor/Nama Rekening</button>
                   ) : (
                     <div className="text-[10px] text-gray-400">
                       Salah nomor/nama? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening Tabungan Umroh saya.')}
@@ -919,15 +925,17 @@ export default function StatusPendaftaranSahabatPage() {
             Ketiga jenis dokumen tetap jadi SATU tempat baca/unduh via
             /api/sahabat/dokumen-legal/unduh-lengkap, SELAIN unduhan
             terpisah yang sudah ada. */}
-        <Item done={metodeTtdSelesai} label={`Metode TTD & Kirim Dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran${u.bantuan_bsi_manual_disetujui_at ? ', Formulir Pendaftaran Rekening BSI' : ''})`}>
+        <Item done={metodeTtdSelesai || kirimSudahDikonfirmasi} label={`Metode TTD & Kirim Dokumen (Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF & Surat Pemblokiran${u.bantuan_bsi_manual_disetujui_at ? ', Formulir Pendaftaran Rekening BSI' : ''})`}>
           {!prasyarat.setuju_sk_cif_pemblokiran && <div className="text-xs text-gray-400">Baca & setujui SK-CIF & Surat Kuasa Blokir Rekening dulu di atas.</div>}
 
           {prasyarat.setuju_sk_cif_pemblokiran && (
             <div className="space-y-3">
+              {!(kirimSudahDikonfirmasi && !editKirimFisik) && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
                 📌 Siapkan <b>3 lembar Materai Rp10.000</b> — masing-masing 1 untuk Surat Perjanjian Jamaah Sahabat Baitullah, SK-CIF, dan Surat Pemblokiran.
                 {u.bantuan_bsi_manual_disetujui_at && ' Formulir Pendaftaran Rekening BSI ikut disiapkan juga, gak perlu materai.'}
               </div>
+              )}
 
               {/* Metode TTD WAJIB dipilih DULU (dikonfirmasi user 2026-10-03)
                   — dokumen (viewer/unduhan) cuma relevan buat yang pilih
@@ -1022,7 +1030,38 @@ export default function StatusPendaftaranSahabatPage() {
                 </div>
               )}
 
-              {u.metode_ttd_sahabat === 'kirim' && !gantiMetode && (
+              {kirimSudahDikonfirmasi && !editKirimFisik && !gantiMetode && (
+                <div className="space-y-2">
+                  <div className="text-xs text-gray-500">
+                    📄 Cetak &amp; Kirim Sendiri — dokumen sudah dikirim {new Date(u.dokumen_fisik_dikirim_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                    {dokumenKetigaSelesai ? ' Semua dokumen sudah diterima kantor JM Travel.'
+                      : pengirimanSudahDiterima ? ' Sebagian dokumen sudah diterima kantor JM Travel.'
+                      : ' Menunggu dokumen diterima kantor JM Travel.'}
+                  </div>
+                  {u.dokumen_fisik_resi && (
+                    <div className="text-xs text-gray-500 break-all">Resi: <b className="text-gray-700">{u.dokumen_fisik_resi}</b></div>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {u.dokumen_fisik_resi_foto_path && (
+                      <a href={u.dokumen_fisik_resi_foto_path} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">📷 Lihat Foto Resi</a>
+                    )}
+                    <button onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">📖 Lihat Dokumen</button>
+                    {/* Ubah resi/foto cuma selama kantor belum mulai
+                        nerima dokumen (server juga ngecek). */}
+                    {!pengirimanSudahDiterima && (
+                      <button onClick={() => { setResiInput(u.dokumen_fisik_resi || ''); setFotoResi(null); setEditKirimFisik(true); }}
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">✏️ Ubah Resi</button>
+                    )}
+                  </div>
+                  {u.kunci_ganti_metode_ttd && (
+                    <div className="text-xs font-bold text-amber-800 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">🔒 {u.kunci_ganti_metode_ttd}</div>
+                  )}
+                </div>
+              )}
+
+              {u.metode_ttd_sahabat === 'kirim' && !gantiMetode && !(kirimSudahDikonfirmasi && !editKirimFisik) && (
                 <div className="space-y-3">
                   <div className="bg-gray-50 border-2 border-gray-100 rounded-lg p-2.5 space-y-2">
                     <div className="text-xs font-bold text-[#0E2F6E]">📑 Dokumen Lengkap Sahabat Baitullah</div>

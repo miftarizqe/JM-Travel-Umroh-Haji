@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import jwt from 'jsonwebtoken';
-import { wajibLogin, ambilJwtSecret, headerCookieToken, sesiBerakhirPada } from '@/lib/auth';
+import { wajibLogin, ambilJwtSecret, headersCookieSesi, sesiBerakhirPada } from '@/lib/auth';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 // Ganti "mode" sesi aktif buat akun dual-role (perwakilan + sahabat) —
@@ -41,7 +41,7 @@ export async function POST(request) {
     const roleKeduaBaru = user.role;
 
     // Ganti role TIDAK memperpanjang sesi — login_at & batas berakhirnya
-    // dibawa dari token lama (sesi tetap 24 jam sejak login).
+    // dibawa dari token lama (sesi tetap 4 jam sejak login).
     const loginAt = Number(auth.user.login_at || auth.user.iat);
     const berakhir = sesiBerakhirPada(auth.user);
     const sisaDetik = berakhir - Math.floor(Date.now() / 1000);
@@ -76,10 +76,7 @@ export async function POST(request) {
       JSON.stringify({ message: 'Mode berhasil diganti.', user: dataUser }),
       {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Set-Cookie': headerCookieToken(token, maxAge),
-        },
+        headers: headersCookieSesi(request, token, maxAge),
       }
     );
   } catch (error) {

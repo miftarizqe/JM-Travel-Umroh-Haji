@@ -7,7 +7,7 @@ import DokumenSayaList from '@/app/components/DokumenSayaList';
 import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import { formLengkap, getStage } from '@/lib/bookingStage';
+import { formLengkap, getStage, pembayaranSudahDiAcc } from '@/lib/bookingStage';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
 
@@ -393,12 +393,14 @@ export default function DashboardJamaah() {
 
                       <DokumenSayaList bookingId={b.id} booking={b} />
 
-                      <button
-                        onClick={() => router.push(`/batalkan-program?booking_id=${b.id}`)}
-                        className="w-full mt-2 border border-red-300 text-red-500 text-xs font-bold py-2 rounded-full hover:bg-red-50 transition-colors"
-                      >
-                        ❌ Batalkan Booking
-                      </button>
+                      {!pembayaranSudahDiAcc(b) && (
+                        <button
+                          onClick={() => router.push(`/batalkan-program?booking_id=${b.id}`)}
+                          className="w-full mt-2 border border-red-300 text-red-500 text-xs font-bold py-2 rounded-full hover:bg-red-50 transition-colors"
+                        >
+                          ❌ Batalkan Booking
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { semuaTokenDariHeader, headerHapusTokenLama, headerCookieToken } from '@/lib/auth';
 
 // Halaman yang butuh login
 const protectedRoutes = [
@@ -40,12 +41,12 @@ function tokenSah(token) {
   return t.split('.').length === 3;
 }
 
-// Sesi 24 jam sejak login (dikonfirmasi user 2026-10-12, aturan sama dengan
+// Sesi 4 jam sejak login (dikonfirmasi user 2026-10-13, aturan sama dengan
 // DURASI_SESI_DETIK di src/lib/auth.js). Proxy cuma BACA payload (gak
 // verifikasi tanda tangan — itu tugas API); cukup buat nentuin sesi udah
 // habis & cookie-nya dibuang, biar user gak nyangkut "kelihatan login"
 // padahal semua API udah nolak.
-const DURASI_SESI_DETIK = 24 * 60 * 60;
+const DURASI_SESI_DETIK = 4 * 60 * 60;
 function sesiHabis(token) {
   try {
     const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -57,13 +58,43 @@ function sesiHabis(token) {
   }
 }
 
+function loginAtToken(token) {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)));
+    return Number(payload.iat || payload.login_at || 0);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Buang SEMUA cookie `token` di browser: varian Path/Domain lama + cookie
+ * resmi. Pakai headers.append (bukan res.cookies.set) karena res.cookies
+ * cuma bisa nyimpen satu Set-Cookie per nama.
+ */
+function hapusSemuaToken(res, request) {
+  for (const h of headerHapusTokenLama(request)) res.headers.append('Set-Cookie', h);
+  res.headers.append('Set-Cookie', headerCookieToken('', 0));
+  return res;
+}
+
 export function proxy(request) {
-  const raw = request.cookies.get('token')?.value;
   const { pathname } = request.nextUrl;
 
-  // Sesi lewat 24 jam -> buang cookie; halaman privat diarahkan ke login
+  // Bisa ada >1 cookie `token` (varian Path/Domain lama yang gak ketimpa
+  // login baru). Pilih token sah yang sesinya masih jalan & paling baru —
+  // jangan asal ambil yang pertama (itu biasanya yang lama).
+  const semua = semuaTokenDariHeader(request.headers.get('cookie'));
+  const berbentukJwt = semua.filter(tokenSah);
+  const aktif = berbentukJwt
+    .filter(t => !sesiHabis(t))
+    .sort((a, b) => loginAtToken(b) - loginAtToken(a));
+  const raw = aktif[0] || berbentukJwt[0] || semua[0];
+
+  // Sesi lewat 4 jam -> buang cookie; halaman privat diarahkan ke login
   // dengan keterangan sesi habis.
-  if (tokenSah(raw) && sesiHabis(raw)) {
+  if (!aktif.length && berbentukJwt.length) {
     const isProtectedHabis = protectedRoutes.some(route => pathname.startsWith(route));
     let res;
     if (isProtectedHabis) {
@@ -74,8 +105,7 @@ export function proxy(request) {
     } else {
       res = NextResponse.next();
     }
-    res.cookies.set('token', '', { path: '/', maxAge: 0 });
-    return res;
+    return hapusSemuaToken(res, request);
   }
 
   const login = tokenSah(raw);
@@ -85,9 +115,12 @@ export function proxy(request) {
     const res = (pathname === '/login' || pathname === '/register')
       ? NextResponse.next()
       : NextResponse.redirect(new URL('/login', request.url));
-    res.cookies.set('token', '', { path: '/', maxAge: 0 });
-    return res;
+    return hapusSemuaToken(res, request);
   }
+
+  // Ada token aktif tapi juga ada cookie `token` lain yang nyangkut ->
+  // bersihkan varian lama (cookie resmi Path=/ dibiarkan).
+  const adaSisaLama = semua.length > 1;
 
   const isProtected = protectedRoutes.some(route => pathname.startsWith(route));
 
@@ -98,12 +131,15 @@ export function proxy(request) {
     return NextResponse.redirect(url);
   }
 
+  let res = NextResponse.next();
   // Sudah login tapi buka /login atau /register -> ke beranda
   if (login && (pathname === '/login' || pathname === '/register')) {
-    return NextResponse.redirect(new URL('/', request.url));
+    res = NextResponse.redirect(new URL('/', request.url));
   }
-
-  return NextResponse.next();
+  if (adaSisaLama) {
+    for (const h of headerHapusTokenLama(request)) res.headers.append('Set-Cookie', h);
+  }
+  return res;
 }
 
 export const config = {
