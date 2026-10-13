@@ -106,10 +106,12 @@ function PelunasanPageInner() {
 
   const formBelumLengkap = (booking.form_filled || 0) < (booking.form_total || booking.jumlah_jamaah || 1);
   // Defense-in-depth — jalur normal (dashboard jamaah) sudah menahan tombol
-  // "Lanjut Pelunasan" sampai Perjanjian Jamaah beneran selesai (materai +
-  // TTD, digital atau fisik), bukan cuma centang setuju. Gate ini jaga-jaga
-  // kalau halaman ini diakses langsung lewat URL.
-  const perjanjianBelumSelesai = !(booking.perjanjian_scan_path || booking.perjanjian_sig?.fase === 'selesai');
+  // "Lanjut Pelunasan" sampai setuju_pks dicentang. SETUJU ONLINE SAJA SUDAH
+  // CUKUP (dikonfirmasi user 2026-10-13) — materai+TTD fisik beneran
+  // dilakukan belakangan (ke kantor/pas manasik), BUKAN syarat pelunasan.
+  // SAMA PERSIS kriteria perjanjianSelesai() di src/lib/bookingStage.js &
+  // gerbang server di /api/payments, jangan hitung ulang beda logic.
+  const perjanjianBelumSelesai = !(booking.setuju_pks || booking.perjanjian_scan_path || booking.perjanjian_sig?.fase === 'selesai');
   const adaPenyesuaianPending = !!booking.penyesuaian_pending;
 
   return (

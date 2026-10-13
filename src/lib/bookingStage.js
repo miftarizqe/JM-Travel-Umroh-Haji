@@ -16,14 +16,19 @@ export function formLengkap(b) {
 // (dikonfirmasi user 2026-10-08, sebelumnya booking jenis ini kekunci
 // selamanya di "Baca & Setujui Perjanjian" yang gak akan pernah kepenuhi).
 //
-// Selesai = scan fisik (materai + TTD) sudah diunggah admin ATAU TTD digital
-// selesai — SAMA dengan gerbang server di /api/payments (type 'lunas').
-// setuju_pks (centang online) SENGAJA bukan syarat (2026-10-11): jamaah yang
-// TTD fisik di kantor sering gak pernah centang online, jadi dulu nyangkut
-// selamanya di tahap Perjanjian walau scan-nya udah diunggah & diverifikasi.
+// Selesai = SETUJU ONLINE (setuju_pks) SUDAH CUKUP buat lanjut ke pelunasan
+// (dikonfirmasi user 2026-10-13) — materai + TTD fisik beneran dilakukan
+// BELAKANGAN (jamaah ke kantor, atau paling lambat pas sesi manasik),
+// disiapkan & diproses manajemen sendiri, BUKAN syarat buat jamaah bisa
+// bayar pelunasan. Scan fisik ATAU TTD digital 'selesai' TETAP dihitung
+// selesai juga (OR, bukan AND) — buat jamaah yang TTD fisik duluan di
+// kantor tanpa pernah centang online sama sekali (kasus awal 2026-10-11,
+// sebelumnya nyangkut selamanya kalau cuma syarat setuju_pks doang).
+// SAMA PERSIS gerbang server di /api/payments (type 'lunas') & client di
+// /pelunasan — jangan hitung ulang beda logic di tempat lain.
 export function perjanjianSelesai(b) {
   if (b.prog_publish_type === 'sahabat_baitullah') return true;
-  return !!b.perjanjian_scan_path || b.perjanjian_sig?.fase === 'selesai';
+  return !!b.setuju_pks || !!b.perjanjian_scan_path || b.perjanjian_sig?.fase === 'selesai';
 }
 
 export function getStage(b) {
