@@ -15,7 +15,7 @@ const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
 const emptyJamaah = () => ({
   nama: '', nik: '', paspor: '', tl: '', ttl: '', exp_mulai: '', exp_paspor: '',
   tkp: '', jk: 'Laki-Laki', alamat: '', alamat_kirim: '', wa: '', email: '',
-  pkj: '', ayah: '', pendidikan: '', penyakit: '', mahram: '', hub_mahram: 'Suami/Istri',
+  pkj: '', ayah: '', ibu: '', pendidikan: '', penyakit: '', mahram: '', hub_mahram: 'Suami/Istri',
   kdnama: '', kdwa: '', kdhub: '',
   // Dokumen pendukung — OPSIONAL, gak wajib buat lanjut submit formulir.
   doc_paspor: '', doc_kk: '', doc_ktp: '', doc_vaksin: '', doc_foto: ''
@@ -196,6 +196,7 @@ function FormJamaahPageInner() {
           ttl: kosong(j0.ttl) ? (p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : '') : j0.ttl,
           jk: p.jenis_kelamin || j0.jk,
           ayah: kosong(j0.ayah) ? (p.nama_ayah || '') : j0.ayah,
+          ibu: kosong(j0.ibu) ? (p.nama_ibu || '') : j0.ibu,
           pendidikan: kosong(j0.pendidikan) ? (p.pendidikan_terakhir || '') : j0.pendidikan,
           pkj: kosong(j0.pkj) ? (p.pekerjaan || '') : j0.pkj,
           paspor: kosong(j0.paspor) ? (p.no_paspor || '') : j0.paspor,
@@ -336,11 +337,16 @@ function FormJamaahPageInner() {
         return false;
       }
     }
-    // Nama Ayah Kandung & Pendidikan Terakhir — wajib buat Siskopatuh,
-    // KECUALI jamaah di bawah 17 tahun (dikonfirmasi user 2026-10-08).
+    // Nama Ayah/Ibu Kandung & Pendidikan Terakhir — wajib buat Siskopatuh,
+    // KECUALI jamaah di bawah 17 tahun (dikonfirmasi user 2026-10-08, Nama
+    // Ibu Kandung nyusul ditambahin 2026-10-13 -- sebelumnya kelewat, cuma
+    // Ayah yang kebawa walau sama-sama dibutuhin Siskopatuh).
     if (umurJ === null || umurJ >= 17) {
       if (!d.ayah || !String(d.ayah).trim()) {
         alert('Nama Ayah Kandung wajib diisi!'); return false;
+      }
+      if (!d.ibu || !String(d.ibu).trim()) {
+        alert('Nama Ibu Kandung wajib diisi!'); return false;
       }
       if (!d.pendidikan || !String(d.pendidikan).trim()) {
         alert('Pendidikan Terakhir wajib diisi!'); return false;
@@ -694,19 +700,26 @@ function FormJamaahPageInner() {
                 <input value={j.ayah} onChange={e => setField('ayah', e.target.value)} className={inp}/>
               </div>
               <div>
+                <label className={lbl}>Nama Ibu Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
+                <input value={j.ibu} onChange={e => setField('ibu', e.target.value)} className={inp}/>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
                 <label className={lbl}>Pendidikan Terakhir {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
                 <select value={j.pendidikan} onChange={e => setField('pendidikan', e.target.value)} className={inp}>
                   <option value="">— Pilih —</option>
                   {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Pekerjaan (opsional)</label>
                 <input value={j.pkj} onChange={e => setField('pkj', e.target.value)} className={inp}/>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Riwayat Penyakit (opsional)</label>
                 <input value={j.penyakit} onChange={e => setField('penyakit', e.target.value)} className={inp}/>

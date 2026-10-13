@@ -153,6 +153,9 @@ function CetakFormulirInner() {
           <Field label="Alamat Lengkap Domisili" star value={j.alamat} />
           <Field label="No. Whatsapp" star value={j.wa} />
           <Field label="Email Aktif" value={j.email} />
+          <Field label="Nama Ayah Kandung" value={j.ayah} />
+          <Field label="Nama Ibu Kandung" value={j.ibu} />
+          <Field label="Pendidikan Terakhir" value={j.pendidikan} />
           <Field label="Riwayat Penyakit" value={j.penyakit} />
           <Field label="Pekerjaan" value={j.pkj} />
           <Field label="Nama Mahram/Pendamping" star value={j.mahram} />
