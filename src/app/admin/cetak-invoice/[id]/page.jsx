@@ -8,7 +8,7 @@ import KopSurat from '@/app/components/KopSurat';
 import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import TombolWA from '@/app/components/TombolWA';
-import { pesanDokumenFisikTerkirim } from '@/lib/waTemplates';
+import { pesanDokumenFisikTerkirim, pesanDokumenDigitalTerkirim } from '@/lib/waTemplates';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
@@ -185,6 +185,24 @@ export default function CetakInvoiceKwitansi() {
                 pesan={pesanDokumenFisikTerkirim({
                   namaJamaah: dokumen.nama, jenis: dokumen.jenis, nomor: dokumen.nomor,
                   linkScan: typeof window !== 'undefined' ? `${window.location.origin}${dokumen.scan_fisik_path}` : dokumen.scan_fisik_path,
+                })} />
+            </div>
+          )}
+          {/* Jalur "Setuju" (digital) gak punya file terpisah yang bisa
+              di-link langsung kayak scan fisik -- linknya ke HALAMAN INI
+              sendiri (sekarang bisa diakses pemilik booking, lihat GET
+              /api/admin/invoice-kwitansi/[id]). Ini tombol KIRIM aktifnya
+              (dikonfirmasi user 2026-10-13 -- sebelumnya "Setuju" cuma
+              nandain status di database, jamaah gak pernah DIBERITAHU sama
+              sekali, cuma bisa nemu sendiri kalau kebetulan buka Dokumen
+              Saya). Notifikasi in-app juga udah otomatis terkirim dari
+              endpoint /setuju. */}
+          {isAdmin && dokumen.terkirim_metode === 'setuju' && (
+            <div style={{ marginTop: 8 }}>
+              <TombolWA nomor={booking?.pemesan_wa} label="Kirim ke Jamaah via WA"
+                pesan={pesanDokumenDigitalTerkirim({
+                  namaJamaah: dokumen.nama, jenis: dokumen.jenis, nomor: dokumen.nomor,
+                  link: typeof window !== 'undefined' ? window.location.href : `/admin/cetak-invoice/${dokumen.id}`,
                 })} />
             </div>
           )}
