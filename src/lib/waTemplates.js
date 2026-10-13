@@ -102,6 +102,18 @@ ${linkScan}
 Mohon disimpan sebagai bukti. Terima kasih 🙏`;
 }
 
+// Dokumen jalur "Setuju" (digital, nominal <= Rp5jt, gak wajib materai) —
+// beda dari pesanDokumenFisikTerkirim yang nyebut "ditandatangani &
+// bermaterai" (gak relevan buat jalur ini), dikonfirmasi user 2026-10-13.
+export function pesanDokumenDigitalTerkirim({ namaJamaah, jenis, nomor, link }) {
+  return `Assalamu'alaikum ${namaJamaah || ''},
+
+Berikut *${JENIS_LABEL_WA[jenis] || jenis}* (${nomor}) Anda:
+${link}
+
+Terima kasih 🙏`;
+}
+
 export function pesanReminderManasik({ namaJamaah, progName, tanggal, lokasi }) {
   const tglLabel = tanggal ? new Date(tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
   return `Assalamu'alaikum ${namaJamaah || ''},

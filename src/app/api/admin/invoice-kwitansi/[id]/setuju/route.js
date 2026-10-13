@@ -1,5 +1,8 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { kirimNotifikasi } from '@/lib/notifikasi';
+
+const JENIS_LABEL = { invoice: 'Invoice', kwitansi: 'Kwitansi Pembayaran', tanda_terima: 'Tanda Terima Uang' };
 
 // UU Bea Meterai No.10/2020 Pasal 3 — dokumen yang menyatakan PENERIMAAN
 // uang dengan nilai nominal LEBIH DARI Rp5.000.000 wajib materai Rp10.000
@@ -49,6 +52,30 @@ export async function POST(request, { params }) {
       "UPDATE invoice_kwitansi SET terkirim = 1, terkirim_metode = 'setuju', terkirim_at = ? WHERE id = ?",
       [terkirimAt, id]
     );
+
+    // Notifikasi in-app ke pemilik booking -- sebelumnya "Setuju" CUMA
+    // nandain status di database, jamaah gak pernah diberitahu sama sekali
+    // (cuma bisa nemu sendiri kalau kebetulan buka Dokumen Saya). Dikirim
+    // ke user_id DAN ordered_by kalau beda (booking dipesanin orang lain)
+    // (dikonfirmasi user 2026-10-13).
+    if (dokumen.booking_id) {
+      try {
+        const [[booking]] = await pool.query('SELECT user_id, ordered_by FROM bookings WHERE id = ?', [dokumen.booking_id]);
+        const penerima = [booking?.user_id, booking?.ordered_by].filter((v, i, arr) => v && arr.indexOf(v) === i);
+        const label = JENIS_LABEL[dokumen.jenis] || dokumen.jenis;
+        for (const uid of penerima) {
+          await kirimNotifikasi(pool, {
+            user_id: uid,
+            tipe: 'dokumen_terkirim',
+            judul: `${label} Tersedia`,
+            pesan: `${label} (${dokumen.nomor}) booking ${dokumen.booking_id} sudah tersedia, bisa dilihat/diunduh.`,
+            link: `/admin/cetak-invoice/${id}`,
+          });
+        }
+      } catch (e) {
+        console.error('Gagal kirim notifikasi dokumen terkirim:', e);
+      }
+    }
 
     return Response.json({ message: 'Dokumen disetujui.', terkirim_at: terkirimAt.toISOString() });
   } catch (error) {
