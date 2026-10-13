@@ -293,8 +293,14 @@ export default function DashboardJamaah() {
                           harus udah confirmed dulu (stage 2/3/4), pax baru
                           wajib DP sendiri (dikonfirmasi user 2026-10-13).
                           Begitu lunas, pakai jalur "+ Daftarkan jamaah lain"
-                          di halaman program (bikin booking baru terpisah). */}
-                      {(stage === 2 || stage === 3 || stage === 4) && (
+                          di halaman program (bikin booking baru terpisah).
+                          KHUSUS program umroh biasa — Program Eksklusif
+                          Sahabat Baitullah sengaja gak ikut (dikonfirmasi
+                          user 2026-10-13): booking di situ didesain "untuk
+                          diri sendiri" (1 booking = 1 orang, ordered_by
+                          wajib sama dengan pemilik akun), nambah pax gak
+                          sesuai model itu. */}
+                      {(stage === 2 || stage === 3 || stage === 4) && b.prog_publish_type !== 'sahabat_baitullah' && (
                         <button
                           onClick={() => router.push(`/tambah-jamaah?booking_id=${b.id}`)}
                           className="w-full mt-2 border border-[#1A4FA0] text-[#1A4FA0] text-xs font-bold py-2 rounded-full hover:bg-[#E8F0FB] transition-colors"

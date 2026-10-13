@@ -430,6 +430,17 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
     throw errStatus('Booking ini sudah lunas — untuk menambah jamaah lagi, gunakan tombol "+ Daftarkan jamaah lain" di halaman program.', 400);
   }
 
+  const [[prog]] = await conn.query('SELECT * FROM programs WHERE id = ?', [booking.prog_id]);
+  if (!prog) throw errStatus('Program tidak ditemukan', 404);
+  // Program Eksklusif Sahabat Baitullah SENGAJA gak boleh lewat jalur ini
+  // (dikonfirmasi user 2026-10-13) — booking di situ didesain "untuk diri
+  // sendiri" (1 booking = 1 orang, ordered_by wajib sama dengan pemilik
+  // akun, 1 akun maks 1 booking aktif per program), nambah pax gak sesuai
+  // model itu & bisa kacaukan atribusi komisi referral_sahabat_id/HoP.
+  if (!isAdmin && prog.publish_type === 'sahabat_baitullah') {
+    throw errStatus('Tambah jamaah tidak berlaku untuk Program Eksklusif Sahabat Baitullah.', 400);
+  }
+
   const namaList = Array.isArray(namas) ? namas.map(n => String(n || '').trim()).filter(Boolean) : [];
   const n = namaList.length;
   if (n === 0) throw errStatus('Nama jamaah wajib diisi minimal 1 orang', 400);
@@ -442,9 +453,6 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
     throw errStatus('Alamat kirim perlengkapan wajib diisi untuk semua jamaah', 400);
   }
   if (!buktiPath) throw errStatus('Bukti transfer DP wajib diunggah', 400);
-
-  const [[prog]] = await conn.query('SELECT * FROM programs WHERE id = ?', [booking.prog_id]);
-  if (!prog) throw errStatus('Program tidak ditemukan', 404);
 
   if (prog.used_seat + n > prog.total_seat) {
     throw errStatus('Seat tidak cukup — sisa kuota tidak mencapai jumlah jamaah yang ditambahkan.', 400);

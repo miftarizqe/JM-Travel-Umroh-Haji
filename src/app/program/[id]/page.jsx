@@ -386,8 +386,10 @@ export default function ProgramDetailPage() {
                     dari "+ Daftarkan jamaah lain" di bawah yang bikin booking
                     BARU terpisah dan baru muncul setelah lunas (dikonfirmasi
                     user 2026-10-13). DP awal booking ini harus udah
-                    confirmed dulu, pax baru wajib DP sendiri. */}
-                {bookingSaya.dp_status === 'confirmed' && bookingSaya.pelunasan_status !== 'paid' && seatSisa > 0 && (
+                    confirmed dulu, pax baru wajib DP sendiri. KHUSUS program
+                    umroh biasa — Program Eksklusif Sahabat Baitullah sengaja
+                    gak ikut, booking di situ "untuk diri sendiri" doang. */}
+                {!isEksklusifSahabat && bookingSaya.dp_status === 'confirmed' && bookingSaya.pelunasan_status !== 'paid' && seatSisa > 0 && (
                   <button onClick={() => router.push(`/tambah-jamaah?booking_id=${bookingSaya.id}`)} className="w-full bg-white border border-[#1A4FA0] shadow text-sm font-bold text-[#1A4FA0] py-2.5 rounded-full hover:bg-[#E8F0FB]">
                     ➕ Tambah Jamaah ke Booking Ini
                   </button>
