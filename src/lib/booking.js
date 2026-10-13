@@ -4,7 +4,6 @@
 // connection transaksi, pola sama seperti src/lib/closing.js.
 import { hitungHargaCustomHotelDenganDb } from './hotelCustomPricing';
 import { jadwalSudahLewat } from './jadwalTarget';
-import { resolveJamaahHarga } from './jamaahHarga';
 
 function generateBookingId() {
   return 'JMT-' + Math.random().toString(36).substr(2, 6).toUpperCase();
@@ -12,6 +11,46 @@ function generateBookingId() {
 
 function errStatus(message, status) {
   return Object.assign(new Error(message), { status });
+}
+
+const PAKET_STANDAR = ['deluxe', 'eksekutif', 'signature'];
+const KAMAR_STANDAR = [
+  { key: 'quad', label: 'Quad (4/Kamar)' },
+  { key: 'triple', label: 'Triple (3/Kamar)' },
+  { key: 'double', label: 'Double (2/Kamar)' },
+];
+
+// Daftar kombo paket+kamar beserta harga yang BOLEH dipilih jamaah sendiri
+// buat pax tambahan (dipakai POST /api/bookings/[id]/tambah-jamaah) — jamaah
+// gak harus ikut kombo yang sama kayak jamaah lain di booking ini
+// (dikonfirmasi user 2026-10-13, awalnya kaku ngikut kombo pertama doang).
+// Harga reseller perwakilan (kalau booking ini lahir dari referral
+// perwakilan) tetap dihormati, SAMA PERSIS logika di buatSatuBooking —
+// jamaah gak boleh ujug-ujug dapet harga publik kalau harusnya harga
+// reseller. 'custom' (Custom Hotel per Kota) SENGAJA gak didukung di sini,
+// butuh alur pilih Bintang Mekkah/Madinah terpisah yang gak dibangun ulang
+// buat kasus tambah-pax ini — kalau booking asalnya custom, biarkan admin
+// yang urus manual lewat PATCH /api/bookings/[id].
+export async function kombinasiHargaTersedia(conn, booking) {
+  const [[prog]] = await conn.query('SELECT * FROM programs WHERE id = ?', [booking.prog_id]);
+  if (!prog) return [];
+  let perwHarga = null;
+  if (booking.referral_perw_id) {
+    const [rows] = await conn.query('SELECT * FROM perwakilan_harga WHERE perw_id = ? AND prog_id = ?', [booking.referral_perw_id, booking.prog_id]);
+    perwHarga = rows[0] || null;
+  }
+  const hasil = [];
+  for (const paket of PAKET_STANDAR) {
+    for (const k of KAMAR_STANDAR) {
+      let harga = Number(prog[`harga_${paket}_${k.key}`] || prog[`harga_${paket}`] || 0);
+      if (perwHarga) {
+        const jual = perwHarga[`jual_${paket}_${k.key}`];
+        if (jual && Number(jual) > 0) harga = Number(jual);
+      }
+      if (harga > 0) hasil.push({ paket, kamar: k.label, kamarKey: k.key, harga });
+    }
+  }
+  return hasil;
 }
 
 // Gerbang: perwakilan/sahabat yang belum di-ACC admin, atau akun belum
@@ -404,17 +443,22 @@ export async function potongKuotaSeatDp(conn, bookingId) {
 // Tambah N jamaah baru ke booking yang SUDAH ADA (dikonfirmasi user
 // 2026-10-13) — dipakai jamaah sendiri dari dashboard, bukan admin. Pax
 // baru WAJIB bayar DP sendiri (prog.dp per orang, payment row baru
-// terpisah type='dp'), harga per-orang ngikut kombo paket/kamar jamaah
-// aktif PERTAMA di booking ini (booking yang udah "campuran" per-jamaah,
-// lihat src/lib/jamaahHarga.js, gak didukung di jalur self-service ini —
-// kasus itu serahkan ke admin lewat PATCH /api/bookings/[id]).
+// terpisah type='dp'). Kombo paket/kamar BEBAS dipilih sendiri (gak harus
+// ikut kombo jamaah lain di booking ini, dikonfirmasi user 2026-10-13 —
+// awalnya kaku ngikut kombo pertama doang), divalidasi & diharga ulang di
+// server lewat kombinasiHargaTersedia (termasuk harga reseller perwakilan
+// kalau booking ini lahir dari referral, gak pernah percaya harga dari
+// client). Semua pax yang ditambahkan dalam SATU submit ini pakai kombo
+// yang SAMA (1 pilihan per batch, sama granularitasnya kayak 1 item
+// keranjang di checkout) — mau kombo beda-beda per orang, submit terpisah
+// per kombo.
 //
 // Gerbang: booking.dp_status HARUS 'confirmed' dulu (DP awal udah di-ACC)
 // sebelum boleh nambah pax — kalau DP awal aja belum jelas, jangan numpuk
 // kewajiban DP baru di atasnya. Booking juga harus masih 'active' & belum
 // lunas total (begitu lunas, jalur yang relevan adalah "+ Daftarkan jamaah
 // lain" di halaman program, yang bikin booking BARU terpisah).
-export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, namas, jks, alamats, was = [], buktiPath, buktiNama }) {
+export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, namas, jks, alamats, was = [], paket, kamar, buktiPath, buktiNama }) {
   const [[booking]] = await conn.query('SELECT * FROM bookings WHERE id = ?', [bookingId]);
   if (!booking) throw errStatus('Booking tidak ditemukan', 404);
   if (!isAdmin && booking.user_id !== userId && booking.ordered_by !== userId) {
@@ -458,22 +502,29 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
     throw errStatus('Seat tidak cukup — sisa kuota tidak mencapai jumlah jamaah yang ditambahkan.', 400);
   }
 
+  // Kombo dipilih jamaah SENDIRI (bukan ikut jamaah lain) — dicocokkan ke
+  // daftar yang BENERAN tersedia & dihitung ulang harganya di server, bukan
+  // percaya field harga dari client.
+  const opsiKombo = await kombinasiHargaTersedia(conn, booking);
+  const kombo = opsiKombo.find(o => o.paket === paket && o.kamar === kamar);
+  if (!kombo) {
+    throw errStatus('Kombo paket/kamar yang dipilih tidak tersedia untuk program ini.', 400);
+  }
+
   let jd = booking.jamaah_data;
   if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
   const entries = Array.isArray(jd) ? jd : [];
-  const aktifPertama = entries.find(e => e?.status_jamaah !== 'dibatalkan');
-  const kombo = resolveJamaahHarga(booking, aktifPertama);
 
   const waList = Array.isArray(was) ? was.map(w => String(w || '').trim()) : [];
   const entriesBaru = namaList.map((nama, i) => ({
     nama, wa: waList[i] || '', jk: jkList[i], alamat_kirim: alamatList[i],
-    paket: kombo.paket, kamar: kombo.kamar, harga_jual: kombo.hargaJual,
+    paket: kombo.paket, kamar: kombo.kamar, harga_jual: kombo.harga,
   }));
   const entriesFinal = [...entries, ...entriesBaru];
 
   const jumlahJamaahBaru = (booking.jumlah_jamaah || 1) + n;
   const formTotalBaru = (booking.form_total || booking.jumlah_jamaah || 1) + n;
-  const totalHargaBaru = Number(booking.total_harga || 0) + kombo.hargaJual * n;
+  const totalHargaBaru = Number(booking.total_harga || 0) + kombo.harga * n;
   const dpAmountTambahan = Number(prog.dp || 0) * n;
   // dp_amount booking DIBUMP LANGSUNG di sini (bukan nunggu admin approve DP
   // tambahan ini) — sama persis pola dp_amount awal (diset pas booking
