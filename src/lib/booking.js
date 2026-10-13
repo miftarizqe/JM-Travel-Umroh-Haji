@@ -443,22 +443,19 @@ export async function potongKuotaSeatDp(conn, bookingId) {
 // Tambah N jamaah baru ke booking yang SUDAH ADA (dikonfirmasi user
 // 2026-10-13) — dipakai jamaah sendiri dari dashboard, bukan admin. Pax
 // baru WAJIB bayar DP sendiri (prog.dp per orang, payment row baru
-// terpisah type='dp'). Kombo paket/kamar BEBAS dipilih sendiri (gak harus
-// ikut kombo jamaah lain di booking ini, dikonfirmasi user 2026-10-13 —
-// awalnya kaku ngikut kombo pertama doang), divalidasi & diharga ulang di
-// server lewat kombinasiHargaTersedia (termasuk harga reseller perwakilan
-// kalau booking ini lahir dari referral, gak pernah percaya harga dari
-// client). Semua pax yang ditambahkan dalam SATU submit ini pakai kombo
-// yang SAMA (1 pilihan per batch, sama granularitasnya kayak 1 item
-// keranjang di checkout) — mau kombo beda-beda per orang, submit terpisah
-// per kombo.
+// terpisah type='dp'). Kombo paket/kamar BEBAS dipilih PER ORANG (gak
+// harus sama kayak jamaah lain ATAU kayak sesama pax baru di submit yang
+// sama, dikonfirmasi user 2026-10-13 — awalnya 1 kombo dipaksa buat semua),
+// divalidasi & diharga ulang di server lewat kombinasiHargaTersedia
+// (termasuk harga reseller perwakilan kalau booking ini lahir dari
+// referral, gak pernah percaya harga dari client).
 //
 // Gerbang: booking.dp_status HARUS 'confirmed' dulu (DP awal udah di-ACC)
 // sebelum boleh nambah pax — kalau DP awal aja belum jelas, jangan numpuk
 // kewajiban DP baru di atasnya. Booking juga harus masih 'active' & belum
 // lunas total (begitu lunas, jalur yang relevan adalah "+ Daftarkan jamaah
 // lain" di halaman program, yang bikin booking BARU terpisah).
-export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, namas, jks, alamats, was = [], paket, kamar, buktiPath, buktiNama }) {
+export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, namas, jks, alamats, was = [], pakets, kamars, buktiPath, buktiNama }) {
   const [[booking]] = await conn.query('SELECT * FROM bookings WHERE id = ?', [bookingId]);
   if (!booking) throw errStatus('Booking tidak ditemukan', 404);
   if (!isAdmin && booking.user_id !== userId && booking.ordered_by !== userId) {
@@ -502,13 +499,20 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
     throw errStatus('Seat tidak cukup — sisa kuota tidak mencapai jumlah jamaah yang ditambahkan.', 400);
   }
 
-  // Kombo dipilih jamaah SENDIRI (bukan ikut jamaah lain) — dicocokkan ke
-  // daftar yang BENERAN tersedia & dihitung ulang harganya di server, bukan
-  // percaya field harga dari client.
+  // Kombo dipilih PER ORANG (bukan 1 kombo buat semua) — tiap pilihan
+  // dicocokkan ke daftar yang BENERAN tersedia & dihitung ulang harganya di
+  // server, bukan percaya field harga dari client. Sama persis granularitas
+  // booking dari awal/checkout (per-jamaah, lihat jamaah_data), cuma di
+  // sini lewat satu kali submit tambah-pax.
   const opsiKombo = await kombinasiHargaTersedia(conn, booking);
-  const kombo = opsiKombo.find(o => o.paket === paket && o.kamar === kamar);
-  if (!kombo) {
-    throw errStatus('Kombo paket/kamar yang dipilih tidak tersedia untuk program ini.', 400);
+  const paketList = Array.isArray(pakets) ? pakets : [];
+  const kamarList = Array.isArray(kamars) ? kamars : [];
+  if (paketList.length !== n || kamarList.length !== n) {
+    throw errStatus('Paket & kamar wajib dipilih untuk semua jamaah', 400);
+  }
+  const komboList = paketList.map((pk, i) => opsiKombo.find(o => o.paket === pk && o.kamar === kamarList[i]));
+  if (komboList.some(k => !k)) {
+    throw errStatus('Ada kombo paket/kamar yang dipilih tidak tersedia untuk program ini.', 400);
   }
 
   let jd = booking.jamaah_data;
@@ -518,13 +522,14 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
   const waList = Array.isArray(was) ? was.map(w => String(w || '').trim()) : [];
   const entriesBaru = namaList.map((nama, i) => ({
     nama, wa: waList[i] || '', jk: jkList[i], alamat_kirim: alamatList[i],
-    paket: kombo.paket, kamar: kombo.kamar, harga_jual: kombo.harga,
+    paket: komboList[i].paket, kamar: komboList[i].kamar, harga_jual: komboList[i].harga,
   }));
   const entriesFinal = [...entries, ...entriesBaru];
 
+  const totalHargaTambahan = komboList.reduce((s, k) => s + k.harga, 0);
   const jumlahJamaahBaru = (booking.jumlah_jamaah || 1) + n;
   const formTotalBaru = (booking.form_total || booking.jumlah_jamaah || 1) + n;
-  const totalHargaBaru = Number(booking.total_harga || 0) + kombo.harga * n;
+  const totalHargaBaru = Number(booking.total_harga || 0) + totalHargaTambahan;
   const dpAmountTambahan = Number(prog.dp || 0) * n;
   // dp_amount booking DIBUMP LANGSUNG di sini (bukan nunggu admin approve DP
   // tambahan ini) — sama persis pola dp_amount awal (diset pas booking

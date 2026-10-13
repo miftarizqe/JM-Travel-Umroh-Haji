@@ -13,12 +13,12 @@ export async function POST(request, { params }) {
   if (auth.error) return auth.error;
   try {
     const { id } = await params;
-    const { namas, jks, alamats, was, paket, kamar, bukti_path, bukti_nama } = await request.json();
+    const { namas, jks, alamats, was, pakets, kamars, bukti_path, bukti_nama } = await request.json();
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
 
     const hasil = await tambahJamaahKeBooking(pool, {
       bookingId: id, userId: auth.user.id, isAdmin,
-      namas, jks, alamats, was, paket, kamar, buktiPath: bukti_path, buktiNama: bukti_nama,
+      namas, jks, alamats, was, pakets, kamars, buktiPath: bukti_path, buktiNama: bukti_nama,
     });
 
     await kirimNotifikasiAdmin(pool, {
