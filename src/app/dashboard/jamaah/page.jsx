@@ -189,6 +189,18 @@ export default function DashboardJamaah() {
                         DP: <strong>{b.dp_status === 'confirmed' ? '✅ Dikonfirmasi' : b.dp_status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}</strong>
                       </div>
 
+                      {/* DP jamaah tambahan (dari "Tambah Jamaah") yang
+                          masih nunggu ACC admin TERPISAH dari DP awal di
+                          atas — booking.dp_status cuma 1 nilai buat DP awal,
+                          jadi badge di atas tetap "Dikonfirmasi" walau ada
+                          DP kedua ini yang belum di-ACC (dikonfirmasi user
+                          2026-10-13, awalnya nyesatin keliatan udah beres semua). */}
+                      {b.dp_tambahan_pending > 0 && (
+                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full mb-2">
+                          ⏳ DP jamaah tambahan Rp {Number(b.dp_tambahan_pending).toLocaleString('id-ID')} masih menunggu konfirmasi admin
+                        </div>
+                      )}
+
                       {Array.isArray(b.opsi_tambahan_data) && b.opsi_tambahan_data.length > 0 && (
                         <div className="text-xs text-[#1A4FA0] mb-2">
                           🧳 {b.opsi_tambahan_data.map(o => o.nama).join(', ')} (+Rp {Number(b.opsi_tambahan_total || 0).toLocaleString('id-ID')})
