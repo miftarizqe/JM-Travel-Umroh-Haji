@@ -43,7 +43,7 @@ function statusMasaBerlakuPaspor(expPaspor) {
 
 export default function FormJamaahPage() {
   return (
-    <Suspense fallback={<Layout title="📋 Formulir Jamaah"><div className="flex items-center justify-center py-20 text-gray-400">Memuat...</div></Layout>}>
+    <Suspense fallback={<Layout title="📋 Formulir Jamaah" showBack><div className="flex items-center justify-center py-20 text-gray-400">Memuat...</div></Layout>}>
       <FormJamaahPageInner />
     </Suspense>
   );
@@ -450,7 +450,7 @@ function FormJamaahPageInner() {
   const lbl = "block text-sm font-semibold text-[#0E2F6E] mb-1.5";
 
   return (
-    <Layout title="📋 Formulir Jamaah">
+    <Layout title="📋 Formulir Jamaah" showBack>
       <div className="max-w-2xl mx-auto">
 
         <div className="bg-[#E8F0FB] rounded-xl p-4 mb-6 text-sm">
