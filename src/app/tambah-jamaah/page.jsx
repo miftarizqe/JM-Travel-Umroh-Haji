@@ -111,7 +111,7 @@ function TambahJamaahInner() {
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal menambah jamaah'); setSubmitting(false); return; }
-      alert('Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin.');
+      alert(d.message || 'Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin.');
       router.push('/dashboard/jamaah');
     } catch {
       alert('Terjadi kesalahan');
