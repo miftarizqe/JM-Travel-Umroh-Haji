@@ -11,16 +11,17 @@ const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit',
 const JENIS_LABEL = { invoice: 'Invoice', kwitansi: 'Kwitansi', tanda_terima: 'Tanda Terima Uang' };
 const LABEL_TIPE_PEMBAYARAN = { dp: 'DP', lunas: 'Pelunasan' };
 
-// Invoice (1 jenis generik, judul bebas) vs Kwitansi (final, lunas total) —
-// 2 TAB, konsisten sama pemisahan nomor urut di backend. Tanda Terima Uang
-// SENGAJA gak punya tab sendiri — aksesnya nempel di tombol Cetak baris
-// Invoice booking yang sama (lihat cariTandaTerimaBooking), krn Invoice
-// sekarang fleksibel (bisa cicilan berapa kali) jadi gak ada lagi pemetaan
-// 1:1 yang pasti ke 1 payment — makanya ditampilin per booking, bukan per
-// invoice spesifik.
+// Invoice (1 jenis generik, judul bebas) vs Kwitansi (final, lunas total) vs
+// Tanda Terima Uang (per payment confirmed) — 3 TAB, konsisten sama
+// pemisahan nomor urut di backend. TTU dulu gak punya tab sendiri (cuma
+// nempel di tombol "TT DP/Pelunasan" di baris Invoice yang paid), sekarang
+// dikasih tab sendiri (dikonfirmasi user 2026-10-13) biar bisa dibrowse
+// langsung & biar rekomendasi "perlu dibuatkan" (lihat rekomKwitansi/
+// rekomTandaTerima) ada tempat relevan buat nampilin baris abu-abunya.
 const TAB_JENIS = {
   invoice: ['invoice'],
   kwitansi: ['kwitansi'],
+  tanda_terima: ['tanda_terima'],
 };
 
 // Semua dokumen Tanda Terima buat 1 booking (biasanya maks 2: DP & lunas,
@@ -46,6 +47,9 @@ function InvoiceKwitansiPageInner() {
   const searchParams = useSearchParams();
   const [dokumen, setDokumen] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [rekomKwitansi, setRekomKwitansi] = useState([]);
+  const [rekomTandaTerima, setRekomTandaTerima] = useState([]);
+  const [rekomBusyId, setRekomBusyId] = useState(null);
   const [tab, setTab] = useState('invoice');
   const [q, setQ] = useState('');
   const [showForm, setShowForm] = useState(false);
@@ -73,8 +77,32 @@ function InvoiceKwitansiPageInner() {
     setLoading(true);
     fetch(`/api/admin/invoice-kwitansi${query ? `?q=${encodeURIComponent(query)}` : ''}`)
       .then(r => r.json())
-      .then(d => { setDokumen(d.dokumen || []); setLoading(false); })
+      .then(d => {
+        setDokumen(d.dokumen || []);
+        // Rekomendasi cuma dikirim server pas load awal (query kosong) —
+        // jangan ditimpa kosong pas lagi search (lihat komentar di GET route).
+        if (!query) { setRekomKwitansi(d.rekomendasi_kwitansi || []); setRekomTandaTerima(d.rekomendasi_tanda_terima || []); }
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
+  }
+
+  // Tombol "Buat Sekarang" di rekomendasi — generate dokumen yang kelewat
+  // (dikonfirmasi user 2026-10-13), lalu buka halaman cetaknya & refresh
+  // list biar rekomendasinya ikut ilang.
+  async function buatDariRekomendasi(jenis, idKey, id) {
+    setRekomBusyId(id);
+    try {
+      const res = await fetch('/api/admin/invoice-kwitansi/auto', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [idKey]: id, jenis }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal membuat dokumen'); return; }
+      window.open(`/admin/cetak-invoice/${d.id}`, '_blank');
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    finally { setRekomBusyId(null); }
   }
 
   useEffect(() => {
@@ -315,8 +343,13 @@ function InvoiceKwitansiPageInner() {
         );
       })()}
 
-      {/* Tab Invoice vs Kwitansi — konsisten sama pemisahan nomor urut di
-          backend (Invoice DP & Pelunasan 1 seri, Kwitansi seri sendiri). */}
+      {/* Tab Invoice vs Kwitansi vs Tanda Terima Uang — 3 jenis dokumen asli
+          (TTU sebelumnya gak punya tab sendiri, cuma nempel di tombol "TT
+          DP/Pelunasan" di baris Invoice — sekarang bisa dibrowse langsung).
+          Rekomendasi "perlu dibuatkan" (booking lunas tanpa Kwitansi, payment
+          confirmed tanpa Tanda Terima) ditaruh INLINE sebagai baris abu-abu
+          di tab yang relevan (Kwitansi/Tanda Terima Uang) — bukan tab/halaman
+          terpisah lagi (dikonfirmasi user 2026-10-13). */}
       <div className="flex gap-2 mb-4">
         <button onClick={() => setTab('invoice')}
           className={`px-4 py-2 rounded-xl text-sm font-bold ${tab === 'invoice' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-600'}`}>
@@ -324,7 +357,11 @@ function InvoiceKwitansiPageInner() {
         </button>
         <button onClick={() => setTab('kwitansi')}
           className={`px-4 py-2 rounded-xl text-sm font-bold ${tab === 'kwitansi' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-600'}`}>
-          🧾 Kwitansi
+          🧾 Kwitansi{rekomKwitansi.length > 0 ? ` (${rekomKwitansi.length} rekomendasi)` : ''}
+        </button>
+        <button onClick={() => setTab('tanda_terima')}
+          className={`px-4 py-2 rounded-xl text-sm font-bold ${tab === 'tanda_terima' ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-600'}`}>
+          🧾 Tanda Terima Uang{rekomTandaTerima.length > 0 ? ` (${rekomTandaTerima.length} rekomendasi)` : ''}
         </button>
       </div>
 
@@ -357,7 +394,43 @@ function InvoiceKwitansiPageInner() {
               </tr>
             </thead>
             <tbody>
-              {dokumenTab.length === 0 ? (
+              {/* Baris rekomendasi (abu-abu, belum ada dokumennya) — SELALU
+                  di atas, biar yang perlu ditindaklanjuti kelihatan duluan. */}
+              {tab === 'kwitansi' && rekomKwitansi.map(b => (
+                <tr key={`rekom-kwt-${b.booking_id}`} className="border-t border-gray-100 bg-gray-50 text-gray-400">
+                  <td className="px-3 py-2 whitespace-nowrap italic">belum dibuat</td>
+                  <td className="px-3 py-2">{b.nama || '-'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{b.booking_id}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">{rp(b.total_harga)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">-</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{b.prog_name}</td>
+                  <td className="px-3 py-2 whitespace-nowrap italic">lunas, rekomendasi dibuat</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <button onClick={() => buatDariRekomendasi('kwitansi', 'booking_id', b.booking_id)} disabled={rekomBusyId === b.booking_id}
+                      className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                      {rekomBusyId === b.booking_id ? '...' : '🧾 Buat Kwitansi'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {tab === 'tanda_terima' && rekomTandaTerima.map(p => (
+                <tr key={`rekom-ttu-${p.payment_id}`} className="border-t border-gray-100 bg-gray-50 text-gray-400">
+                  <td className="px-3 py-2 whitespace-nowrap italic">belum dibuat</td>
+                  <td className="px-3 py-2">{p.nama || '-'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{p.booking_id || '-'}</td>
+                  <td className="px-3 py-2 text-right whitespace-nowrap">{rp(p.amount)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{tgl(p.created_at)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{p.prog_name || '-'}</td>
+                  <td className="px-3 py-2 whitespace-nowrap italic">{LABEL_TIPE_PEMBAYARAN[p.type] || p.type} confirmed, rekomendasi dibuat</td>
+                  <td className="px-3 py-2 whitespace-nowrap">
+                    <button onClick={() => buatDariRekomendasi('tanda_terima', 'payment_id', p.payment_id)} disabled={rekomBusyId === p.payment_id}
+                      className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                      {rekomBusyId === p.payment_id ? '...' : '🧾 Buat Tanda Terima'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {dokumenTab.length === 0 && !(tab === 'kwitansi' && rekomKwitansi.length > 0) && !(tab === 'tanda_terima' && rekomTandaTerima.length > 0) ? (
                 <tr><td colSpan={tab === 'invoice' ? 9 : 8} className="text-center text-gray-400 py-8">Belum ada dokumen.</td></tr>
               ) : dokumenTab.map(d => (
                 <tr key={d.id} className="border-t border-gray-100">

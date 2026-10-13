@@ -2033,8 +2033,15 @@ function AdminPageInner() {
                           {/* Invoice sekarang selalu manual (judul+nominal
                               admin, bisa DP/Pelunasan/cicilan) — tombol ini
                               cuma nge-link ke halaman Invoice & Kwitansi
-                              dengan booking ini udah pre-filled. */}
-                          {b.dp_status === 'confirmed' && (
+                              dengan booking ini udah pre-filled. Program
+                              Eksklusif Sahabat Baitullah (checkout mandiri)
+                              gak PERNAH punya tahap DP/cicilan terpisah —
+                              langsung lunas total sekali bayar dari saldo
+                              (lihat cekDanFinalisasiLunasSahabat) — jadi
+                              Invoice gak relevan buat program ini, tombolnya
+                              disembunyikan, cukup Kwitansi di bawah
+                              (dikonfirmasi user 2026-10-13). */}
+                          {b.dp_status === 'confirmed' && openProgram?.publish_type !== 'sahabat_baitullah' && (
                             <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${b.id}`, '_blank')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
                               🧾 Buat Invoice
                             </button>
