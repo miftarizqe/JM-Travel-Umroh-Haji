@@ -98,21 +98,26 @@ export default function CetakInvoiceKwitansi() {
   const [ditolak, setDitolak] = useState(false);
   const [menyetujui, setMenyetujui] = useState(false);
 
+  // Admin selalu boleh. Jamaah/pemesan JUGA boleh liat dokumen MILIKNYA
+  // sendiri yang udah terkirim (dikonfirmasi user 2026-10-13 -- sebelumnya
+  // halaman ini admin-only total, jamaah gak bisa lihat Tanda Terima Uang/
+  // Kwitansi/Invoice-nya sendiri meski udah dikirim admin). Server
+  // (/api/admin/invoice-kwitansi/[id]) yang nentuin boleh/enggak lewat
+  // status 403, bukan dicek role di sini.
   useEffect(() => {
     if (!user) return;
-    if (!['admin', 'super_admin'].includes(user.role)) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDitolak(true); setLoading(false); return;
-    }
     fetch(`/api/admin/invoice-kwitansi/${id}`)
-      .then(r => r.json())
+      .then(r => { if (r.status === 403) { setDitolak(true); setLoading(false); return null; } return r.json(); })
       .then(d => {
+        if (!d) return;
         if (!d.dokumen) { setLoading(false); return; }
         setDokumen(d.dokumen); setBooking(d.booking || null); setPayment(d.payment || null);
         setLoading(false);
       })
       .catch(() => setLoading(false));
   }, [user, id]);
+
+  const isAdmin = ['admin', 'super_admin'].includes(user?.role);
 
   // Setuju tanpa TTD digital -- endpoint-nya di Next.js sendiri sekarang
   // (/api/admin/invoice-kwitansi/[id]/setuju, dipindah dari Go 2026-10-13
@@ -136,7 +141,7 @@ export default function CetakInvoiceKwitansi() {
   if (ditolak) return (
     <div style={{ padding: 40, fontFamily: 'Arial', textAlign: 'center' }}>
       <h2 style={{ color: '#dc2626' }}>🔒 Akses Ditolak</h2>
-      <p style={{ color: '#666', fontSize: 14 }}>Halaman ini khusus admin.</p>
+      <p style={{ color: '#666', fontSize: 14 }}>Anda tidak punya akses ke dokumen ini.</p>
       <button onClick={() => router.back()} style={{ marginTop: 16, background: '#1A4FA0', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 20, cursor: 'pointer' }}>← Kembali</button>
     </div>
   );
@@ -164,15 +169,17 @@ export default function CetakInvoiceKwitansi() {
 
       {/* TTD digital & e-materai belum bisa dipakai (dikonfirmasi user 2026-10-04) — tombol
           "Kirim TTD Digital" diganti "Setuju" (lihat setujui). Komponen tetap dipasang supaya
-          sesi digital lama (kalau ada) masih kelihatan. */}
-      <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />
+          sesi digital lama (kalau ada) masih kelihatan. Admin-only -- jamaah yang lihat
+          dokumen miliknya sendiri gak perlu/gak boleh liat aksi-aksi ini (dikonfirmasi
+          user 2026-10-13). */}
+      {isAdmin && <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />}
 
       {dokumen.terkirim ? (
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
           <div style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 10, fontSize: 12, background: '#ecfdf5', color: '#047857', fontWeight: 700 }}>
             ✅ {dokumen.terkirim_metode === 'setuju' ? 'Sudah disetujui' : `Sudah dikirim (${dokumen.terkirim_metode === 'fisik' ? 'fisik' : 'digital'})`}, {tgl(dokumen.terkirim_at)}
           </div>
-          {dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
+          {isAdmin && dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
             <div style={{ marginTop: 8 }}>
               <TombolWA nomor={booking?.pemesan_wa} label="Kirim Ulang Scan via WA"
                 pesan={pesanDokumenFisikTerkirim({
@@ -182,7 +189,7 @@ export default function CetakInvoiceKwitansi() {
             </div>
           )}
         </div>
-      ) : butuhMaterai ? (
+      ) : !isAdmin ? null : butuhMaterai ? (
         // >= Rp5jt WAJIB materai asli (UU Bea Meterai No.10/2020) -- "Setuju"
         // (self-certify tanpa materai) gak boleh dipakai buat nominal segini,
         // cuma jalur fisik: print, tempel materai, TTD basah NEMBUS materai,
