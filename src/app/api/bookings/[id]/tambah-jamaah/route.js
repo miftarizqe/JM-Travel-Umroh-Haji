@@ -36,7 +36,10 @@ export async function POST(request, { params }) {
       keterangan: `Menambah ${hasil.jumlahTambahan} jamaah, DP tambahan ${hasil.dpAmountTambahan}`,
     });
 
-    return Response.json({ message: 'Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin.', ...hasil }, { status: 201 });
+    const pesan = hasil.perjanjianDireset
+      ? 'Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin. Karena jumlah jamaah/total harga berubah, Perjanjian Jamaah yang sebelumnya sudah disetujui/ditandatangani perlu disetujui & ditandatangani ulang sebelum bisa lanjut pelunasan.'
+      : 'Jamaah berhasil ditambahkan! Bukti DP menunggu konfirmasi admin.';
+    return Response.json({ message: pesan, ...hasil }, { status: 201 });
   } catch (error) {
     if (error.status) return Response.json({ error: error.message }, { status: error.status });
     console.error(error);
