@@ -267,22 +267,14 @@ function RiwayatClosingContent() {
                                   Isi Formulir Jamaah ({b.form_filled}/{b.form_total}) →
                                 </button>
                               )}
-                              {stage === 3 && !b.setuju_pks && (
+                              {/* Setuju online aja udah cukup lanjut ke pelunasan
+                                  (dikonfirmasi user 2026-10-13) — stage langsung
+                                  lompat ke 4 begitu setuju_pks tersimpan. */}
+                              {stage === 3 && (
                                 <button onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${b.id}`)}
                                   className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors">
                                   📜 Baca & Setujui Perjanjian →
                                 </button>
-                              )}
-                              {stage === 3 && b.setuju_pks && b.perjanjian_sig?.metode === 'digital' && b.perjanjian_sig?.fase !== 'selesai' && (
-                                <button onClick={() => router.push(`/tanda-tangan/${b.perjanjian_sig.id}`)}
-                                  className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors">
-                                  ✍️ Lanjutkan Tanda Tangan Digital →
-                                </button>
-                              )}
-                              {stage === 3 && b.setuju_pks && (!b.perjanjian_sig || b.perjanjian_sig.metode === 'fisik') && (
-                                <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full">
-                                  ⏳ Menunggu materai & TTD fisik Perjanjian Jamaah diproses admin
-                                </div>
                               )}
                               {stage === 4 && (
                                 <button onClick={() => router.push(`/pelunasan?booking_id=${b.id}`)}

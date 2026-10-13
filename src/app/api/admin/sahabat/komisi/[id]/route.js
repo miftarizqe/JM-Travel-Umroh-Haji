@@ -150,15 +150,23 @@ export async function PATCH(request, { params }) {
     // Baris pemakaian saldo checkout-mandiri yang baru di-acc — cek apakah
     // booking terkait udah bisa difinalisasi lunas (nunggu sisi transfer
     // pribadi juga, kalau ada).
+    // peringatanKuota: bukan error tak terduga (DB dll, tetap di-swallow
+    // diam2 kayak sebelumnya) -- kalau potongKuotaSeatDp nolak karena kuota
+    // penuh (dikonfirmasi user 2026-10-13), itu keputusan bisnis yang
+    // admin WAJIB tau, bukan error teknis buat disembunyiin.
+    let peringatanKuota = null;
     if (confirmed && rows[0].jenis === 'pemakaian_saldo_sahabat' && rows[0].booking_id) {
       try {
         await cekDanFinalisasiLunasSahabat(pool, rows[0].booking_id, auth.user);
       } catch (e) {
-        console.error('Gagal finalisasi lunas sahabat mandiri:', e);
+        if (e.status) peringatanKuota = e.message;
+        else console.error('Gagal finalisasi lunas sahabat mandiri:', e);
       }
     }
 
-    return Response.json({ message: 'Status konfirmasi diperbarui.' });
+    return Response.json({
+      message: peringatanKuota ? `Status konfirmasi diperbarui, TAPI: ${peringatanKuota}` : 'Status konfirmasi diperbarui.',
+    });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

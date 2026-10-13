@@ -39,13 +39,19 @@ export async function GET(request, { params }) {
 
     // Resolusi link aksi di server: fisik -> scan yang diunggah admin,
     // digital selesai -> PDF final, digital belum selesai -> link halaman
-    // TTD (jamaah bisa langsung tanda tangan dari sana).
+    // TTD (jamaah bisa langsung tanda tangan dari sana), setuju -> halaman
+    // cetak /admin/cetak-invoice (sekarang boleh diakses pemilik booking
+    // sendiri, bukan admin-only lagi, lihat GET /api/admin/invoice-kwitansi/
+    // [id] -- dikonfirmasi user 2026-10-13, sebelumnya jamaah gak punya
+    // cara liat dokumen yang dikirim via "✅ Setuju" sama sekali).
     const dokumen = dokumenRows.map(d => {
       const sig = sigByRefId[String(d.id)];
       let fileUrl = null;
       let linkTtd = null;
       if (d.terkirim_metode === 'fisik') {
         fileUrl = d.scan_fisik_path;
+      } else if (d.terkirim_metode === 'setuju') {
+        fileUrl = `/admin/cetak-invoice/${d.id}`;
       } else if (d.terkirim_metode === 'digital' && sig) {
         if (sig.fase === 'selesai' && sig.pdf_final_path) fileUrl = sig.pdf_final_path;
         else linkTtd = `/tanda-tangan/${sig.id}`;

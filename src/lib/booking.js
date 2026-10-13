@@ -13,6 +13,46 @@ function errStatus(message, status) {
   return Object.assign(new Error(message), { status });
 }
 
+const PAKET_STANDAR = ['deluxe', 'eksekutif', 'signature'];
+const KAMAR_STANDAR = [
+  { key: 'quad', label: 'Quad (4/Kamar)' },
+  { key: 'triple', label: 'Triple (3/Kamar)' },
+  { key: 'double', label: 'Double (2/Kamar)' },
+];
+
+// Daftar kombo paket+kamar beserta harga yang BOLEH dipilih jamaah sendiri
+// buat pax tambahan (dipakai POST /api/bookings/[id]/tambah-jamaah) — jamaah
+// gak harus ikut kombo yang sama kayak jamaah lain di booking ini
+// (dikonfirmasi user 2026-10-13, awalnya kaku ngikut kombo pertama doang).
+// Harga reseller perwakilan (kalau booking ini lahir dari referral
+// perwakilan) tetap dihormati, SAMA PERSIS logika di buatSatuBooking —
+// jamaah gak boleh ujug-ujug dapet harga publik kalau harusnya harga
+// reseller. 'custom' (Custom Hotel per Kota) SENGAJA gak didukung di sini,
+// butuh alur pilih Bintang Mekkah/Madinah terpisah yang gak dibangun ulang
+// buat kasus tambah-pax ini — kalau booking asalnya custom, biarkan admin
+// yang urus manual lewat PATCH /api/bookings/[id].
+export async function kombinasiHargaTersedia(conn, booking) {
+  const [[prog]] = await conn.query('SELECT * FROM programs WHERE id = ?', [booking.prog_id]);
+  if (!prog) return [];
+  let perwHarga = null;
+  if (booking.referral_perw_id) {
+    const [rows] = await conn.query('SELECT * FROM perwakilan_harga WHERE perw_id = ? AND prog_id = ?', [booking.referral_perw_id, booking.prog_id]);
+    perwHarga = rows[0] || null;
+  }
+  const hasil = [];
+  for (const paket of PAKET_STANDAR) {
+    for (const k of KAMAR_STANDAR) {
+      let harga = Number(prog[`harga_${paket}_${k.key}`] || prog[`harga_${paket}`] || 0);
+      if (perwHarga) {
+        const jual = perwHarga[`jual_${paket}_${k.key}`];
+        if (jual && Number(jual) > 0) harga = Number(jual);
+      }
+      if (harga > 0) hasil.push({ paket, kamar: k.label, kamarKey: k.key, harga });
+    }
+  }
+  return hasil;
+}
+
 // Gerbang: perwakilan/sahabat yang belum di-ACC admin, atau akun belum
 // terverifikasi, tidak boleh order jamaah. Dipakai di awal route sebelum
 // memproses booking apapun (single maupun batch).
@@ -214,6 +254,12 @@ export async function buatSatuBooking(conn, params) {
       throw errStatus('Program ini cuma bisa dipesan buat diri sendiri.', 403);
     }
   }
+  // Cek lembut pas checkout -- program yang BENERAN udah penuh (dari DP yang
+  // udah dikonfirmasi) ditolak dari awal. Booking pending BOLEH numpuk
+  // melebihi sisa kuota nominal (dikonfirmasi user 2026-10-13, lihat
+  // potongKuotaSeatDp) -- used_seat gak lagi naik di sini, baru naik pas DP
+  // dikonfirmasi admin, jadi banyak orang checkout bisa "ngantri" rebutan
+  // kursi yang sama, admin yang nentuin siapa beneran dapet pas approve DP.
   if (prog.used_seat + (jumlah_jamaah || 1) > prog.total_seat) {
     throw errStatus('Seat tidak cukup', 400);
   }
@@ -338,10 +384,11 @@ export async function buatSatuBooking(conn, params) {
   // bukan sekali per item), fungsi ini cuma nyimpen voucher_kode/nominal ke
   // baris booking untuk keperluan audit.
 
-  await conn.query(
-    'UPDATE programs SET used_seat = used_seat + ? WHERE id = ?',
-    [jumlah_jamaah || 1, prog_id]
-  );
+  // used_seat TIDAK dipotong di sini lagi (dikonfirmasi user 2026-10-13) —
+  // dipindah ke momen DP dikonfirmasi admin (lihat potongKuotaSeatDp di
+  // bawah), supaya akun belum-terverifikasi/booking yang DP-nya gak pernah
+  // kebayar gak nahan kursi beneran. Booking pending boleh numpuk melebihi
+  // sisa kuota nominal, admin yang nentuin siapa dapet kursi pas approve DP.
 
   // batch_id nyatuin payment2 yang lahir dari 1x submit keranjang (banyak
   // booking, tapi 1x transfer beneran & 1x bukti diupload) — dipakai admin
@@ -356,4 +403,167 @@ export async function buatSatuBooking(conn, params) {
   );
 
   return { bookingId, dpAmount, totalHarga: totalSetelahVoucher };
+}
+
+// Potong kuota kursi program — dipanggil dari SEMUA jalur yang nge-set
+// bookings.dp_status = 'confirmed' (approve DP manual di PATCH /api/payments,
+// checkout mandiri Program Eksklusif Sahabat Baitullah, DP dari saldo
+// Sahabat program reguler via konfirmasiDpDariSaldoSahabat) — dikonfirmasi
+// user 2026-10-13, gantiin potongan lama yang kejadian pas checkout
+// (buatSatuBooking). Ngecek ULANG kuota di titik ini (bukan cuma pas
+// checkout) karena banyak booking pending bisa numpuk ngelebihin sisa
+// kuota nominal — begitu program kepenuhan dari yang udah dikonfirmasi,
+// approve DP booking berikutnya ditolak di sini, admin yang nentuin lewat
+// tolak/reject booking itu (bukan auto-cancel, keputusan bisnis di luar
+// kode ini).
+//
+// SELISIH (bukan jumlah_jamaah mentah) — booking bisa punya LEBIH dari 1
+// payment type='dp' seumur hidupnya sejak fitur "Tambah Jamaah" (pax
+// tambahan wajib DP sendiri, lihat POST /api/bookings/[id]/tambah-jamaah),
+// jadi fungsi ini bisa dipanggil berkali-kali buat booking yang sama.
+// bookings.seat_dipotong nyimpen berapa seat yang BENERAN udah nambah ke
+// programs.used_seat sejauh ini — cuma selisihnya yang diproses di sini,
+// biar seat orang yang DP-nya udah confirmed sebelumnya gak dobel-kehitung.
+export async function potongKuotaSeatDp(conn, bookingId) {
+  const [[booking]] = await conn.query('SELECT prog_id, jumlah_jamaah, seat_dipotong FROM bookings WHERE id = ?', [bookingId]);
+  if (!booking) return;
+  const target = booking.jumlah_jamaah || 1;
+  const sudah = booking.seat_dipotong || 0;
+  const selisih = target - sudah;
+  if (selisih <= 0) return; // sudah tercatat penuh, gak ada tambahan seat yang perlu dipotong
+  const [[prog]] = await conn.query('SELECT used_seat, total_seat FROM programs WHERE id = ?', [booking.prog_id]);
+  if (!prog) return;
+  if (prog.used_seat + selisih > prog.total_seat) {
+    throw errStatus('Kuota kursi program ini sudah penuh — tidak bisa konfirmasi DP booking ini.', 400);
+  }
+  await conn.query('UPDATE programs SET used_seat = used_seat + ? WHERE id = ?', [selisih, booking.prog_id]);
+  await conn.query('UPDATE bookings SET seat_dipotong = ? WHERE id = ?', [target, bookingId]);
+}
+
+// Tambah N jamaah baru ke booking yang SUDAH ADA (dikonfirmasi user
+// 2026-10-13) — dipakai jamaah sendiri dari dashboard, bukan admin. Pax
+// baru WAJIB bayar DP sendiri (prog.dp per orang, payment row baru
+// terpisah type='dp'). Kombo paket/kamar BEBAS dipilih PER ORANG (gak
+// harus sama kayak jamaah lain ATAU kayak sesama pax baru di submit yang
+// sama, dikonfirmasi user 2026-10-13 — awalnya 1 kombo dipaksa buat semua),
+// divalidasi & diharga ulang di server lewat kombinasiHargaTersedia
+// (termasuk harga reseller perwakilan kalau booking ini lahir dari
+// referral, gak pernah percaya harga dari client).
+//
+// Gerbang: booking.dp_status HARUS 'confirmed' dulu (DP awal udah di-ACC)
+// sebelum boleh nambah pax — kalau DP awal aja belum jelas, jangan numpuk
+// kewajiban DP baru di atasnya. Booking juga harus masih 'active' & belum
+// lunas total (begitu lunas, jalur yang relevan adalah "+ Daftarkan jamaah
+// lain" di halaman program, yang bikin booking BARU terpisah).
+export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, namas, jks, alamats, was = [], pakets, kamars, buktiPath, buktiNama }) {
+  const [[booking]] = await conn.query('SELECT * FROM bookings WHERE id = ?', [bookingId]);
+  if (!booking) throw errStatus('Booking tidak ditemukan', 404);
+  if (!isAdmin && booking.user_id !== userId && booking.ordered_by !== userId) {
+    throw errStatus('Anda tidak punya akses ke booking ini', 403);
+  }
+  if (booking.status !== 'active') {
+    throw errStatus('Booking ini sudah tidak aktif.', 400);
+  }
+  if (booking.dp_status !== 'confirmed') {
+    throw errStatus('DP booking ini belum dikonfirmasi admin — selesaikan dulu sebelum menambah jamaah.', 400);
+  }
+  if (booking.pelunasan_status === 'paid') {
+    throw errStatus('Booking ini sudah lunas — untuk menambah jamaah lagi, gunakan tombol "+ Daftarkan jamaah lain" di halaman program.', 400);
+  }
+
+  const [[prog]] = await conn.query('SELECT * FROM programs WHERE id = ?', [booking.prog_id]);
+  if (!prog) throw errStatus('Program tidak ditemukan', 404);
+  // Program Eksklusif Sahabat Baitullah SENGAJA gak boleh lewat jalur ini
+  // (dikonfirmasi user 2026-10-13) — booking di situ didesain "untuk diri
+  // sendiri" (1 booking = 1 orang, ordered_by wajib sama dengan pemilik
+  // akun, 1 akun maks 1 booking aktif per program), nambah pax gak sesuai
+  // model itu & bisa kacaukan atribusi komisi referral_sahabat_id/HoP.
+  if (!isAdmin && prog.publish_type === 'sahabat_baitullah') {
+    throw errStatus('Tambah jamaah tidak berlaku untuk Program Eksklusif Sahabat Baitullah.', 400);
+  }
+
+  const namaList = Array.isArray(namas) ? namas.map(n => String(n || '').trim()).filter(Boolean) : [];
+  const n = namaList.length;
+  if (n === 0) throw errStatus('Nama jamaah wajib diisi minimal 1 orang', 400);
+  const jkList = Array.isArray(jks) ? jks.map(j => String(j || '').trim()) : [];
+  if (jkList.length !== n || jkList.some(j => j !== 'Laki-Laki' && j !== 'Perempuan')) {
+    throw errStatus('Jenis kelamin wajib diisi untuk semua jamaah', 400);
+  }
+  const alamatList = Array.isArray(alamats) ? alamats.map(a => String(a || '').trim()) : [];
+  if (alamatList.length !== n || alamatList.some(a => !a)) {
+    throw errStatus('Alamat kirim perlengkapan wajib diisi untuk semua jamaah', 400);
+  }
+  if (!buktiPath) throw errStatus('Bukti transfer DP wajib diunggah', 400);
+
+  if (prog.used_seat + n > prog.total_seat) {
+    throw errStatus('Seat tidak cukup — sisa kuota tidak mencapai jumlah jamaah yang ditambahkan.', 400);
+  }
+
+  // Kombo dipilih PER ORANG (bukan 1 kombo buat semua) — tiap pilihan
+  // dicocokkan ke daftar yang BENERAN tersedia & dihitung ulang harganya di
+  // server, bukan percaya field harga dari client. Sama persis granularitas
+  // booking dari awal/checkout (per-jamaah, lihat jamaah_data), cuma di
+  // sini lewat satu kali submit tambah-pax.
+  const opsiKombo = await kombinasiHargaTersedia(conn, booking);
+  const paketList = Array.isArray(pakets) ? pakets : [];
+  const kamarList = Array.isArray(kamars) ? kamars : [];
+  if (paketList.length !== n || kamarList.length !== n) {
+    throw errStatus('Paket & kamar wajib dipilih untuk semua jamaah', 400);
+  }
+  const komboList = paketList.map((pk, i) => opsiKombo.find(o => o.paket === pk && o.kamar === kamarList[i]));
+  if (komboList.some(k => !k)) {
+    throw errStatus('Ada kombo paket/kamar yang dipilih tidak tersedia untuk program ini.', 400);
+  }
+
+  let jd = booking.jamaah_data;
+  if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+  const entries = Array.isArray(jd) ? jd : [];
+
+  const waList = Array.isArray(was) ? was.map(w => String(w || '').trim()) : [];
+  const entriesBaru = namaList.map((nama, i) => ({
+    nama, wa: waList[i] || '', jk: jkList[i], alamat_kirim: alamatList[i],
+    paket: komboList[i].paket, kamar: komboList[i].kamar, harga_jual: komboList[i].harga,
+  }));
+  const entriesFinal = [...entries, ...entriesBaru];
+
+  const totalHargaTambahan = komboList.reduce((s, k) => s + k.harga, 0);
+  const jumlahJamaahBaru = (booking.jumlah_jamaah || 1) + n;
+  const formTotalBaru = (booking.form_total || booking.jumlah_jamaah || 1) + n;
+  const totalHargaBaru = Number(booking.total_harga || 0) + totalHargaTambahan;
+  const dpAmountTambahan = Number(prog.dp || 0) * n;
+  // dp_amount booking DIBUMP LANGSUNG di sini (bukan nunggu admin approve DP
+  // tambahan ini) — sama persis pola dp_amount awal (diset pas booking
+  // dibuat, independen dari kapan dp_status beneran jadi confirmed). Kalau
+  // enggak, /pelunasan (sisaBayar = total_harga - dp_amount) bakal minta
+  // bayar KELEBIHAN sebesar DP pax tambahan ini, padahal DP-nya udah pernah
+  // ditagih & (nanti) dikonfirmasi lewat payment row terpisah di bawah.
+  const dpAmountBaru = Number(booking.dp_amount || 0) + dpAmountTambahan;
+
+  // Persetujuan ONLINE (setuju_pks) itu 1x per booking/TRANSAKSI, bukan per
+  // jamaah (dikonfirmasi user 2026-10-13) — begitu pax ditambahkan, isi
+  // transaksi (jumlah jamaah/total harga) berubah, jadi "setuju" yang lama
+  // dianggap basi & direset, pemesan wajib klik setuju lagi (ringan, cuma
+  // 1 klik, "gapapa gak ngaruh" per keputusan user). Lembar materai+TTD
+  // FISIK sendiri sekarang per-jamaah (jamaah_data[i].perjanjian_scan_path,
+  // lihat /admin/cetak-perjanjian) — SENGAJA TIDAK direset di sini, jamaah
+  // yang udah pernah discan gak perlu diulang cuma gara-gara ada pax lain
+  // yang baru ditambahkan; admin dari sisi cetak-perjanjian tinggal
+  // generate lembar buat jamaah yang BARU aja (otomatis kebaca begitu
+  // jamaah_data bertambah, gak perlu langkah tambahan di sini).
+  if (booking.setuju_pks) {
+    await conn.query(`UPDATE bookings SET setuju_pks = 0, setuju_pks_at = NULL WHERE id = ?`, [bookingId]);
+  }
+
+  await conn.query(
+    `UPDATE bookings SET jamaah_data = ?, jumlah_jamaah = ?, form_total = ?, total_harga = ?, dp_amount = ? WHERE id = ?`,
+    [JSON.stringify(entriesFinal), jumlahJamaahBaru, formTotalBaru, totalHargaBaru, dpAmountBaru, bookingId]
+  );
+
+  await conn.query(
+    `INSERT INTO payments (booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status)
+     VALUES (?,?,?,?,?,?,?,NOW(),'pending')`,
+    [bookingId, userId, 'dp', dpAmountTambahan, 0, buktiPath, buktiNama || null]
+  );
+
+  return { jumlahTambahan: n, dpAmountTambahan, totalHargaBaru, perjanjianDireset: !!booking.setuju_pks };
 }

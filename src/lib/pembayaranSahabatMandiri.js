@@ -9,6 +9,7 @@
 import { kirimNotifikasi } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib/invoiceKwitansi';
+import { potongKuotaSeatDp } from '@/lib/booking';
 
 export async function cekDanFinalisasiLunasSahabat(pool, bookingId, actor) {
   // Hold saldo di booking program REGULER itu bayar DP (lihat
@@ -126,6 +127,12 @@ export async function konfirmasiDpDariSaldoSahabat(pool, bookingId, actor) {
     [bookingId]
   );
   if (!dp) return false;
+
+  // Kuota kursi dipotong DI SINI (dikonfirmasi user 2026-10-13) -- paling
+  // duluan, sebelum payment/booking ditandai confirmed, biar kalau program
+  // ini ternyata udah penuh duluan (banyak booking sama-sama ngantri DP
+  // dari saldo), ACC-nya gagal bersih, gak ada mutasi setengah jalan.
+  await potongKuotaSeatDp(pool, bookingId);
 
   await pool.query("UPDATE payments SET status = 'confirmed' WHERE id = ?", [dp.id]);
   await pool.query("UPDATE bookings SET dp_status = 'confirmed' WHERE id = ?", [bookingId]);

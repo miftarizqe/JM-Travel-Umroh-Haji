@@ -661,6 +661,26 @@ function AdminPageInner() {
     }
   }
 
+  // Kirim Tanda Terima Uang — TTU udah auto-kebuat sendiri begitu payment
+  // confirmed (hook di PATCH /api/payments), jadi tombol ini GAK bikin
+  // dokumen baru, cuma mastiin ID-nya lalu BUKA halaman cetak buat admin
+  // LIAT isinya dulu sebelum kirim (dikonfirmasi user 2026-10-13 — jangan
+  // auto-kirim tanpa preview) — tombol "✅ Setuju" (kalau gak wajib materai)
+  // atau upload scan fisik (kalau >Rp5jt) ada di halaman itu sendiri.
+  async function kirimTandaTerima(paymentId) {
+    try {
+      const resAuto = await fetch('/api/admin/invoice-kwitansi/auto', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_id: paymentId, jenis: 'tanda_terima' }),
+      });
+      const dAuto = await resAuto.json();
+      if (!resAuto.ok) { alert(dAuto.error || 'Gagal menyiapkan Tanda Terima Uang'); return; }
+      window.open(`/admin/cetak-invoice/${dAuto.id}`, '_blank');
+    } catch {
+      alert('Terjadi kesalahan saat menyiapkan Tanda Terima Uang');
+    }
+  }
+
   async function downloadIdCard(u) {
     setDownloadingIdCard(u.id);
     try {
@@ -1458,15 +1478,19 @@ function AdminPageInner() {
                               })}
                             />
                           )}
-                          <button onClick={() => printFormulir(p.booking_id)} className="w-full mt-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2 rounded-full">
-                            🖨️ Cetak Formulir Jamaah — {p.booking_id}
-                          </button>
-                          {/* Invoice sekarang selalu manual (judul+nominal
-                              admin) — tombol ini nge-link ke halaman Invoice
-                              & Kwitansi dengan booking ini udah pre-filled. */}
-                          <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${p.booking_id}`, '_blank')}
-                            className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
-                            🧾 Buat Invoice — {p.booking_id}
+                          {/* Formulir Jamaah & Buat Invoice DIBUANG dari sini
+                              (dikonfirmasi user 2026-10-13) — gak relevan sama
+                              momen "payment baru di-approve": formulir gak ada
+                              hubungannya sama pembayaran, Invoice manual/opsional
+                              bukan hasil otomatis dari approve. Tanda Terima
+                              Uang-nya SENDIRI udah auto-generate dari hook
+                              approve (lihat generateTandaTerimaUntukPayment) —
+                              tombol ini buka halaman cetaknya buat admin LIAT
+                              dulu isinya, baru klik "Setuju" di sana buat
+                              ngirim (dikonfirmasi user 2026-10-13, jangan
+                              auto-kirim tanpa preview). */}
+                          <button onClick={() => kirimTandaTerima(p.id)} className="w-full mt-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2 rounded-full">
+                            🧾 Lihat & Kirim Tanda Terima Uang — {p.booking_id}
                           </button>
                           {/* Kwitansi cuma keluar begitu LUNAS TOTAL — biasanya
                               udah auto kebuat sendiri dari hook approve

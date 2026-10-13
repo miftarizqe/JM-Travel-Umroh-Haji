@@ -6,6 +6,8 @@ import { usePengaturan } from '@/lib/usePengaturan';
 import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
+import { resolveJamaahHarga } from '@/lib/jamaahHarga';
+import { hitungUmur } from '@/lib/umur';
 
 function fmtTgl(t) {
   if (!t) return '';
@@ -29,6 +31,8 @@ function Field({ label, value }) {
     </div>
   );
 }
+
+const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
 export default function CetakPerjanjian() {
   const params = useParams();
@@ -72,7 +76,9 @@ export default function CetakPerjanjian() {
       .then(d => { setPasal(d.pasal || []); setSigner(d.signer || null); }).catch(() => setPasal([]));
     // Nomor surat resmi -- dibekukan server-side begitu halaman cetak ini
     // dibuka (dikonfirmasi user 2026-10-12), gantiin booking.id mentah yang
-    // dipakai sebelumnya.
+    // dipakai sebelumnya. SATU nomor dipakai bareng di SEMUA lembar jamaah
+    // dalam booking ini (dikonfirmasi user 2026-10-13 — konsistensinya di
+    // level transaksi/booking, bukan per lembar fisik).
     fetch(`/api/admin/cetak-perjanjian/${bookingId}`).then(r => r.json())
       .then(d => setNomor(d.nomor || null)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,6 +110,15 @@ export default function CetakPerjanjian() {
     setBusyDoc(null);
   }
 
+  function setScanJamaah(idx, path) {
+    setBooking(bk => {
+      const entries = (Array.isArray(bk.jamaah_data) ? bk.jamaah_data : []).map((j, i) =>
+        i === idx ? { ...j, perjanjian_scan_path: path, perjanjian_scan_uploaded_at: new Date().toISOString() } : j
+      );
+      return { ...bk, jamaah_data: entries };
+    });
+  }
+
   if (loading) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Memuat data...</div>;
 
   if (ditolak) return (
@@ -118,53 +133,54 @@ export default function CetakPerjanjian() {
 
   if (!booking) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Booking tidak ditemukan.</div>;
 
-  const jamaahArr = Array.isArray(booking.jamaah_data) ? booking.jamaah_data : [];
-  const jamaahTunggal = jamaahArr.length === 1 ? jamaahArr[0] : null;
+  // Cuma jamaah AKTIF yang butuh lembar perjanjian sendiri — yang dibatalkan
+  // gak perlu dokumen apa pun lagi (sama pola kayak cetak-formulir).
+  const jamaahAktif = (Array.isArray(booking.jamaah_data) ? booking.jamaah_data : [])
+    .map((j, idx) => ({ j, idx }))
+    .filter(({ j }) => j?.status_jamaah !== 'dibatalkan');
   const namaPenandatangan = signer?.nama || 'Ahmad Zaky Arief Bestary';
   const jabatanPenandatangan = signer?.jabatan || 'Direktur Pengembangan Bisnis & Sumber Daya Manusia';
   const tglBooking = new Date(booking.created_at);
+  // Dokumen lama (sebelum lembar per-jamaah ada, 2026-10-13) nyimpen 1 scan
+  // gabungan di level booking — tetap ditampilkan sebagai warisan biar
+  // booking lama yang udah pernah discan gak keliatan "belum selesai" lagi,
+  // TAPI scan BARU dari sini selalu per-jamaah (jamaah_data[i].perjanjian_scan_path).
+  const scanLegacy = booking.perjanjian_scan_path;
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
         <button onClick={() => window.print()}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
-          🖨️ Print / Save PDF
+          🖨️ Print / Save PDF ({jamaahAktif.length} lembar)
         </button>
         <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
-          Booking {booking.id} · di dialog print pilih &quot;Save as PDF&quot;
+          Booking {booking.id} · {jamaahAktif.length} jamaah · 1 lembar per jamaah · di dialog print pilih &quot;Save as PDF&quot;
         </div>
       </div>
 
-      {/* Kirim TTD Digital DICABUT (dikonfirmasi user 2026-10-08) -- vendor
-          esign belum connect, tombol itu cuma buka sesi mock. Perjanjian
-          Jamaah sekarang murni jalur fisik: cetak di sini, lalu unggah
-          scan-nya lewat UploadScanDokumen di bawah. */}
+      {/* Persetujuan ONLINE tetap 1x per booking/transaksi (dikonfirmasi user
+          2026-10-13) — materai+TTD FISIK yang per-jamaah, bukan centang
+          setuju-nya. Kirim TTD Digital DICABUT (dikonfirmasi user
+          2026-10-08) -- vendor esign belum connect. */}
       <DokumenSignatureAksi dokumen="jamaah" refId={booking.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />
 
-      {/* Unggah scan fisik = approve perjanjian (2026-10-11) — tahap
-          Perjanjian di progres booking & notif admin langsung selesai,
-          gak nunggu centang persetujuan online jamaah lagi. */}
       <div className="no-print" style={{ width: 720, margin: '0 auto 12px', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-        background: booking.perjanjian_scan_path ? '#dcfce7' : '#fef9c3', color: booking.perjanjian_scan_path ? '#15803d' : '#854d0e' }}>
-        {booking.perjanjian_scan_path
-          ? '✅ Perjanjian Jamaah selesai — scan fisik sudah diunggah.'
-          : '⏳ Perjanjian belum selesai — cetak, minta jamaah TTD di atas materai, lalu unggah scan-nya di bawah untuk menyelesaikan tahap ini.'}
+        background: booking.setuju_pks ? '#dcfce7' : '#fef9c3', color: booking.setuju_pks ? '#15803d' : '#854d0e' }}>
+        {booking.setuju_pks
+          ? `✅ Disetujui elektronik oleh pemesan pada ${fmtTgl(booking.setuju_pks_at)}. Materai & TTD fisik per jamaah tetap wajib diproses (lihat tiap lembar di bawah) — bukan syarat pelunasan lagi, cuma follow-up administratif.`
+          : '⏳ Pemesan belum menyetujui secara elektronik.'}
       </div>
-
-      <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/bookings/${booking.id}/scan-perjanjian`}
-        userId={booking.id} path={booking.perjanjian_scan_path} uploadedAt={booking.perjanjian_scan_uploaded_at}
-        onUploaded={(path) => setBooking(bk => ({ ...bk, perjanjian_scan_path: path, perjanjian_scan_uploaded_at: new Date().toISOString() }))} />
 
       {/* Verifikasi dokumen pendukung jamaah langsung di sini (dikonfirmasi
           user 2026-10-08, "gaada button approve dokumen pendukung") --
           sebelumnya cuma bisa lewat /admin/dokumen-pendukung terpisah.
           Sama endpoint/logic, cuma di-scope ke booking ini aja. */}
-      {jamaahArr.some(j => DOC_LIST.some(dl => j?.[dl.key])) && (
+      {jamaahAktif.some(({ j }) => DOC_LIST.some(dl => j?.[dl.key])) && (
         <div className="no-print" style={{ width: 720, margin: '0 auto 16px', background: '#fff', borderRadius: 12, padding: 16, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}>
           <div style={{ fontWeight: 700, color: '#0E2F6E', marginBottom: 10, fontSize: 14 }}>📎 Dokumen Pendukung Jamaah</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {jamaahArr.flatMap((j, idx) => DOC_LIST.filter(dl => j?.[dl.key]).map(dl => {
+            {jamaahAktif.flatMap(({ j, idx }) => DOC_LIST.filter(dl => j?.[dl.key]).map(dl => {
               const st = statusDokumen(j, dl.key);
               const info = STATUS_DOKUMEN[st.status];
               const id = `${idx}:${dl.key}`;
@@ -193,69 +209,93 @@ export default function CetakPerjanjian() {
         </div>
       )}
 
-      <div className="sheet" style={{ background: '#fff', width: 720, minHeight: '29.7cm', margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal, lineHeight: 1.6, color: '#111' }}>
-        <KopPasalDokumen pengaturan={pengaturan} />
+      {jamaahAktif.length === 0 ? (
+        <div style={{ textAlign: 'center', color: '#999', padding: 40 }}>Belum ada jamaah aktif di booking ini.</div>
+      ) : jamaahAktif.map(({ j, idx }) => {
+        const kombo = resolveJamaahHarga(booking, j);
+        const umur = hitungUmur(j.ttl);
+        const diwakiliWali = umur !== null && umur < 17;
+        const namaTtdKedua = diwakiliWali ? (j.wali_nama || '................') : (j.nama || '................');
+        const keteranganTtdKedua = diwakiliWali ? `Wali (${j.wali_hub || '-'}) dari ${j.nama || '-'}` : undefined;
+        const scanPath = j.perjanjian_scan_path || scanLegacy || null;
+        const scanAt = j.perjanjian_scan_path ? j.perjanjian_scan_uploaded_at : (scanLegacy ? booking.perjanjian_scan_uploaded_at : null);
+        const scanWarisan = !j.perjanjian_scan_path && !!scanLegacy;
 
-        <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.judul, fontWeight: 800 }}>SURAT PERJANJIAN JAMAAH UMROH</div>
-        <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.nomor, color: '#666', marginBottom: 18 }}>Nomor: {nomor || '...'}</div>
-
-        <p>
-          Pada hari {HARI[tglBooking.getDay()]}, tanggal {tglIndo(tglBooking)}, bertempat di Jakarta, yang bertanda tangan di bawah ini :
-        </p>
-
-        <div style={{ fontWeight: 700, marginTop: 10 }}>Pihak Pertama (Penyelenggara)</div>
-        <Field label="Nama Perusahaan" value="PT. Alkhalid Jaya Megah" />
-        <Field label="No. Izin PPIU/PIHK" value="SK PPIU No.921 Tahun 2017 / SK PHIK No.35 Tahun 2019" />
-        <Field label="Diwakilkan oleh" value={namaPenandatangan} />
-        <Field label="Jabatan" value={jabatanPenandatangan} />
-
-        <div style={{ fontWeight: 700, marginTop: 12 }}>Pihak Kedua (Jamaah)</div>
-        <Field label="Nama" value={booking.pemesan_nama} />
-        <Field label="Program" value={booking.prog_name} />
-        <Field label="Alamat" value={jamaahTunggal?.alamat} />
-        <Field label="No. Telepon" value={booking.pemesan_wa} />
-        <Field label="No. Paspor" value={jamaahTunggal?.paspor} />
-
-        <p style={{ marginTop: 12 }}>
-          PARA PIHAK sepakat untuk mengikatkan diri dalam Perjanjian Perjalanan Ibadah Umroh dengan ketentuan sebagai berikut:
-        </p>
-
-        {jamaahArr.length > 1 && (
-          <>
-            <div style={{ fontSize: UKURAN_DOKUMEN.subJudul, fontWeight: 800, color: '#000', margin: '10px 0 6px' }}>Jamaah Terkait</div>
-            <div style={{ marginBottom: 8 }}>
-              {jamaahArr.map((j, idx) => (
-                <div key={idx}>{idx + 1}. {j.nama || '(belum diisi)'} {j.nik ? `— NIK ${j.nik}` : ''}</div>
-              ))}
+        return (
+          <div key={idx}>
+            <div className="no-print" style={{ width: 720, margin: '0 auto 12px', padding: '10px 14px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: scanPath ? '#dcfce7' : '#fef9c3', color: scanPath ? '#15803d' : '#854d0e' }}>
+              {scanPath
+                ? `✅ ${j.nama || `Jamaah ${idx + 1}`} — materai+TTD fisik sudah diunggah${scanWarisan ? ' (dokumen lama/gabungan sebelum per-jamaah)' : ''}.`
+                : `⏳ ${j.nama || `Jamaah ${idx + 1}`} — belum ada scan materai+TTD fisik.`}
             </div>
-          </>
-        )}
+            <UploadScanDokumen label={`Scan fisik — ${j.nama || `Jamaah ${idx + 1}`}`}
+              uploadUrl={`/api/admin/bookings/${booking.id}/scan-perjanjian`}
+              userId={booking.id} path={scanPath} uploadedAt={scanAt}
+              extraFields={{ jamaah_idx: idx }}
+              onUploaded={(path) => setScanJamaah(idx, path)} />
 
-        {!pasal ? (
-          <div style={{ color: '#999' }}>Memuat ketentuan...</div>
-        ) : pasal.map(p => (
-          <div key={p.nomor}>
-            {renderPasalBlock(p)}
+            <div className="sheet" style={{ background: '#fff', width: 720, minHeight: '29.7cm', margin: '0 auto 20px', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal, lineHeight: 1.6, color: '#111' }}>
+              <KopPasalDokumen pengaturan={pengaturan} />
+
+              <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.judul, fontWeight: 800 }}>SURAT PERJANJIAN JAMAAH UMROH</div>
+              <div style={{ textAlign: 'center', fontSize: UKURAN_DOKUMEN.nomor, color: '#666', marginBottom: 18 }}>
+                Nomor: {nomor || '...'}
+                {jamaahAktif.length > 1 && <> — Jamaah {idx + 1}: {j.nama || '(belum diisi)'}</>}
+              </div>
+
+              <p>
+                Pada hari {HARI[tglBooking.getDay()]}, tanggal {tglIndo(tglBooking)}, bertempat di Jakarta, yang bertanda tangan di bawah ini :
+              </p>
+
+              <div style={{ fontWeight: 700, marginTop: 10 }}>Pihak Pertama (Penyelenggara)</div>
+              <Field label="Nama Perusahaan" value="PT. Alkhalid Jaya Megah" />
+              <Field label="No. Izin PPIU/PIHK" value="SK PPIU No.921 Tahun 2017 / SK PHIK No.35 Tahun 2019" />
+              <Field label="Diwakilkan oleh" value={namaPenandatangan} />
+              <Field label="Jabatan" value={jabatanPenandatangan} />
+
+              <div style={{ fontWeight: 700, marginTop: 12 }}>Pihak Kedua (Jamaah)</div>
+              <Field label="Nama" value={j.nama} />
+              {diwakiliWali && <Field label="Diwakili oleh" value={`${j.wali_nama || ''}${j.wali_hub ? ` (${j.wali_hub})` : ''}`} />}
+              <Field label="Program" value={booking.prog_name} />
+              <Field label="Paket / Kamar" value={`${kombo.paket} / ${kombo.kamar}`} />
+              <Field label="Harga" value={rp(kombo.hargaJual)} />
+              <Field label="Alamat" value={j.alamat} />
+              <Field label="No. Telepon" value={j.wa || booking.pemesan_wa} />
+              <Field label="No. Paspor" value={j.paspor} />
+
+              <p style={{ marginTop: 12 }}>
+                PARA PIHAK sepakat untuk mengikatkan diri dalam Perjanjian Perjalanan Ibadah Umroh dengan ketentuan sebagai berikut:
+              </p>
+
+              {!pasal ? (
+                <div style={{ color: '#999' }}>Memuat ketentuan...</div>
+              ) : pasal.map(p => (
+                <div key={p.nomor}>
+                  {renderPasalBlock(p)}
+                </div>
+              ))}
+
+              <div style={{ fontSize: 11, marginTop: 20, padding: '10px 12px', borderRadius: 8, background: booking.setuju_pks ? '#ecfdf5' : '#fef2f2', color: booking.setuju_pks ? '#047857' : '#b91c1c' }}>
+                {booking.setuju_pks
+                  ? `✅ Disetujui secara elektronik oleh pemesan pada ${fmtTgl(booking.setuju_pks_at)}.`
+                  : '⚠️ Persetujuan elektronik belum tercatat untuk booking ini.'}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, breakInside: 'avoid' }}>
+                <TtdBoxHtml pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} keterangan={jabatanPenandatangan} />
+                <TtdBoxHtml pihak="PIHAK KEDUA" sub="Jamaah" nama={namaTtdKedua} keterangan={keteranganTtdKedua} />
+              </div>
+            </div>
           </div>
-        ))}
-
-        <div style={{ fontSize: 11, marginTop: 20, padding: '10px 12px', borderRadius: 8, background: booking.setuju_pks ? '#ecfdf5' : '#fef2f2', color: booking.setuju_pks ? '#047857' : '#b91c1c' }}>
-          {booking.setuju_pks
-            ? `✅ Disetujui secara elektronik oleh pemesan pada ${fmtTgl(booking.setuju_pks_at)}.`
-            : '⚠️ Persetujuan elektronik belum tercatat untuk booking ini.'}
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, breakInside: 'avoid' }}>
-          <TtdBoxHtml pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} keterangan={jabatanPenandatangan} />
-          <TtdBoxHtml pihak="PIHAK KEDUA" sub="Jamaah" nama={booking.pemesan_nama || '................'} />
-        </div>
-      </div>
+        );
+      })}
 
       <style>{`
         @media print {
           .no-print { display: none !important; }
           body { background: #fff !important; }
-          .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
+          .sheet { box-shadow: none !important; margin: 0 auto !important; page-break-after: always; width: 100% !important; }
         }
         @page { size: A4; margin: 15mm; }
       `}</style>

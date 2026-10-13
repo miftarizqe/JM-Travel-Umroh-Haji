@@ -275,10 +275,22 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
       // dikonfirmasi (itu kasus refund beneran, bukan lepas hold).
       await lepasHoldSaldoSahabat(conn, p.booking_id);
       if (bk) {
-        await conn.query(
-          'UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?',
-          [bk.jumlah_jamaah || 1, bk.prog_id]
-        );
+        // Kuota kursi SEKARANG baru kepotong pas DP dikonfirmasi admin
+        // (dikonfirmasi user 2026-10-13, lihat potongKuotaSeatDp) -- booking
+        // yang DP-nya masih pending gak pernah motong kuota sama sekali,
+        // jadi JANGAN ikut dikembalikan di sini (bakal bikin used_seat
+        // salah/kebablasan ngurang punya booking lain). Dikembalikan PERSIS
+        // sejumlah bk.seat_dipotong (bukan jumlah_jamaah mentah) -- sejak
+        // fitur "Tambah Jamaah" (potongKuotaSeatDp bisa jalan berkali-kali
+        // per booking), seat_dipotong itu satu-satunya angka yang akurat
+        // soal berapa seat booking ini BENERAN lagi nahan di used_seat.
+        const refundSeat = bk.seat_dipotong || 0;
+        if (refundSeat > 0) {
+          await conn.query(
+            'UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?',
+            [refundSeat, bk.prog_id]
+          );
+        }
         progIdSeatDibuka = bk.prog_id;
         if (bk.voucher_kode) {
           await lepasVoucher(conn, bk.voucher_kode, bk.jumlah_jamaah || 1);
@@ -332,18 +344,28 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
         totalHargaBaru = Math.round(hargaPerJamaahLama * sisaAktif + opsiTotal);
       }
 
+      // Sama kayak pembatalan whole-booking di atas -- cuma kembaliin 1 seat
+      // kalau booking ini emang masih nahan minimal 1 seat di seat_dipotong
+      // (pernah motong kuota buat jamaah ini). seat_dipotong ikut disusutkan
+      // biar tetap akurat buat potongKuotaSeatDp kalau nanti ada pax
+      // tambahan lain yang DP-nya dikonfirmasi.
+      const refund1 = Math.min(1, bk.seat_dipotong || 0);
+      const seatDipotongBaru = (bk.seat_dipotong || 0) - refund1;
+
       // Semua jamaah aktif udah dibatalkan satu-satu — statusnya jadi sama
       // kayak booking dibatalkan utuh. Kalau masih ada sisa, booking TETAP
       // aktif, cuma jumlah_jamaah & total_harga-nya nyusut.
       await conn.query(
-        `UPDATE bookings SET jamaah_data = ?, jumlah_jamaah = ?, total_harga = ?, status = ? WHERE id = ?`,
-        [JSON.stringify(entries), sisaAktif, totalHargaBaru, sisaAktif === 0 ? 'dibatalkan' : bk.status, p.booking_id]
+        `UPDATE bookings SET jamaah_data = ?, jumlah_jamaah = ?, total_harga = ?, status = ?, seat_dipotong = ? WHERE id = ?`,
+        [JSON.stringify(entries), sisaAktif, totalHargaBaru, sisaAktif === 0 ? 'dibatalkan' : bk.status, seatDipotongBaru, p.booking_id]
       );
       if (sisaAktif === 0) {
         await releaseNomorSuratJikaBulanSama(conn, p.booking_id, 'no_perjanjian_jamaah', 'SPJ', 'bookings');
       }
 
-      await conn.query('UPDATE programs SET used_seat = GREATEST(0, used_seat - 1) WHERE id = ?', [bk.prog_id]);
+      if (refund1 > 0) {
+        await conn.query('UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?', [refund1, bk.prog_id]);
+      }
       progIdSeatDibuka = bk.prog_id;
       if (bk.voucher_kode) {
         await lepasVoucher(conn, bk.voucher_kode, 1);

@@ -189,6 +189,31 @@ export default function DashboardJamaah() {
                         DP: <strong>{b.dp_status === 'confirmed' ? '✅ Dikonfirmasi' : b.dp_status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}</strong>
                       </div>
 
+                      {/* DP jamaah tambahan (dari "Tambah Jamaah") yang
+                          masih nunggu ACC admin TERPISAH dari DP awal di
+                          atas — booking.dp_status cuma 1 nilai buat DP awal,
+                          jadi badge di atas tetap "Dikonfirmasi" walau ada
+                          DP kedua ini yang belum di-ACC (dikonfirmasi user
+                          2026-10-13, awalnya nyesatin keliatan udah beres semua). */}
+                      {b.dp_tambahan_pending > 0 && (
+                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full mb-2">
+                          ⏳ DP jamaah tambahan Rp {Number(b.dp_tambahan_pending).toLocaleString('id-ID')} masih menunggu konfirmasi admin
+                        </div>
+                      )}
+
+                      {/* Reminder materai+TTD fisik — begitu setuju_pks
+                          dicentang, jamaah udah boleh lanjut pelunasan
+                          (dikonfirmasi user 2026-10-13, TTD fisik beneran
+                          BUKAN syarat pelunasan lagi). Tapi tetap perlu
+                          diingetin biar gak lupa, soalnya materai+TTD fisik
+                          itu tetap wajib dilakukan — cuma belakangan, pas ke
+                          kantor atau paling lambat pas sesi manasik. */}
+                      {b.setuju_pks && !(b.perjanjian_scan_path || b.perjanjian_sig?.fase === 'selesai') && (
+                        <div className="bg-[#E8F0FB] text-[#1A4FA0] text-xs text-center py-2 rounded-full mb-2">
+                          📜 Perjanjian Jamaah sudah disetujui online. Materai & tanda tangan fisik akan disiapkan manajemen saat Anda ke kantor, atau paling lambat saat sesi manasik.
+                        </div>
+                      )}
+
                       {Array.isArray(b.opsi_tambahan_data) && b.opsi_tambahan_data.length > 0 && (
                         <div className="text-xs text-[#1A4FA0] mb-2">
                           🧳 {b.opsi_tambahan_data.map(o => o.nama).join(', ')} (+Rp {Number(b.opsi_tambahan_total || 0).toLocaleString('id-ID')})
@@ -225,28 +250,20 @@ export default function DashboardJamaah() {
                         </button>
                       )}
 
-                      {stage === 3 && !b.setuju_pks && (
+                      {/* Stage 3 = form lengkap + DP confirmed, tapi belum
+                          setuju_pks — SETUJU ONLINE SAJA SUDAH CUKUP buat
+                          lanjut ke pelunasan (dikonfirmasi user 2026-10-13,
+                          lihat perjanjianSelesai() di bookingStage.js), jadi
+                          begitu diklik & tersimpan, stage langsung lompat ke
+                          4 (reminder materai+TTD fisik ditampilkan terpisah
+                          di atas, gak lagi nahan di stage ini). */}
+                      {stage === 3 && (
                         <button
                           onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${b.id}`)}
                           className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"
                         >
                           📜 Baca & Setujui Perjanjian →
                         </button>
-                      )}
-
-                      {stage === 3 && b.setuju_pks && b.perjanjian_sig?.metode === 'digital' && b.perjanjian_sig?.fase !== 'selesai' && (
-                        <button
-                          onClick={() => router.push(`/tanda-tangan/${b.perjanjian_sig.id}`)}
-                          className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"
-                        >
-                          ✍️ Lanjutkan Tanda Tangan Digital →
-                        </button>
-                      )}
-
-                      {stage === 3 && b.setuju_pks && (!b.perjanjian_sig || b.perjanjian_sig.metode === 'fisik') && (
-                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full">
-                          ⏳ Menunggu materai & TTD fisik Perjanjian Jamaah diproses admin
-                        </div>
                       )}
 
                       {/* Checkout mandiri Sahabat Baitullah LANGSUNG lunas
@@ -286,6 +303,26 @@ export default function DashboardJamaah() {
                           className="w-full mt-2 border border-[#C9952A] text-[#C9952A] text-xs font-bold py-2 rounded-full hover:bg-[#FEF3DC] transition-colors"
                         >
                           ⬆️ Upgrade Paket / Kamar
+                        </button>
+                      )}
+
+                      {/* Tambah Jamaah ke booking yang sudah ada — DP awal
+                          harus udah confirmed dulu (stage 2/3/4), pax baru
+                          wajib DP sendiri (dikonfirmasi user 2026-10-13).
+                          Begitu lunas, pakai jalur "+ Daftarkan jamaah lain"
+                          di halaman program (bikin booking baru terpisah).
+                          KHUSUS program umroh biasa — Program Eksklusif
+                          Sahabat Baitullah sengaja gak ikut (dikonfirmasi
+                          user 2026-10-13): booking di situ didesain "untuk
+                          diri sendiri" (1 booking = 1 orang, ordered_by
+                          wajib sama dengan pemilik akun), nambah pax gak
+                          sesuai model itu. */}
+                      {(stage === 2 || stage === 3 || stage === 4) && b.prog_publish_type !== 'sahabat_baitullah' && (
+                        <button
+                          onClick={() => router.push(`/tambah-jamaah?booking_id=${b.id}`)}
+                          className="w-full mt-2 border border-[#1A4FA0] text-[#1A4FA0] text-xs font-bold py-2 rounded-full hover:bg-[#E8F0FB] transition-colors"
+                        >
+                          ➕ Tambah Jamaah
                         </button>
                       )}
 

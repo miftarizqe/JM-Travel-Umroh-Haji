@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
-import { cekPemesanBolehOrder, buatSatuBooking, cariNikDipakaiProgramLain } from '@/lib/booking';
+import { cekPemesanBolehOrder, buatSatuBooking, cariNikDipakaiProgramLain, potongKuotaSeatDp } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { saldoSahabat } from '@/lib/saldoSahabat';
@@ -185,6 +185,14 @@ export async function POST(request) {
         "UPDATE bookings SET dp_status = 'confirmed', pelunasan_status = 'pending_confirm' WHERE id = ?",
         [hasil.bookingId]
       );
+
+      // DP di jalur ini LANGSUNG confirmed (gak ada tahap admin approve
+      // terpisah buat DP-nya, cuma saldo usage-nya yang di-ACC belakangan)
+      // — kuota kursi dipotong di SINI juga, momen yang sama (dikonfirmasi
+      // user 2026-10-13, lihat potongKuotaSeatDp). Dalam transaksi yang
+      // sama biar kalau kuota ternyata penuh, booking-nya ikut gak jadi
+      // dibuat (rollback), sama kayak perilaku lama.
+      await potongKuotaSeatDp(conn, hasil.bookingId);
 
       await conn.commit();
 

@@ -6,6 +6,7 @@ import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
 import { catatRekening } from '@/lib/rekeningLedger';
+import { potongKuotaSeatDp } from '@/lib/booking';
 
 // GET — payments (admin/booking), termasuk bukti transfer
 export async function GET(request) {
@@ -79,32 +80,22 @@ export async function POST(request) {
       );
     }
 
-    // Pelunasan hanya boleh setelah setuju Surat Perjanjian Jamaah Umroh
+    // Pelunasan hanya boleh setelah setuju Surat Perjanjian Jamaah Umroh —
+    // SETUJU ONLINE SAJA SUDAH CUKUP (dikonfirmasi user 2026-10-13). Materai
+    // + TTD fisik beneran dilakukan BELAKANGAN (jamaah ke kantor, atau
+    // paling lambat pas sesi manasik), disiapkan & diproses manajemen
+    // sendiri — BUKAN syarat jamaah bisa bayar pelunasan, jadi SENGAJA
+    // gak dicek lagi di sini (dulu ada gerbang kedua yang mewajibkan
+    // perjanjian_scan_path/TTD digital 'selesai' juga, itu yang bikin
+    // jamaah "nyangkut" nunggu admin padahal proses fisiknya emang baru
+    // kejadian pas manasik — gerbang itu dihapus). Kriteria SAMA PERSIS
+    // perjanjianSelesai() di src/lib/bookingStage.js & client di
+    // /pelunasan, jangan hitung ulang beda logic di tempat lain.
     if (type === 'lunas' && !bookings[0].setuju_pks) {
       return Response.json(
         { error: 'Anda belum menyetujui Surat Perjanjian Jamaah Umroh. Setujui dulu sebelum pelunasan.' },
         { status: 400 }
       );
-    }
-
-    // Pelunasan hanya boleh setelah Perjanjian Jamaah BENERAN selesai
-    // (materai+TTD, digital ATAU fisik) — bukan cuma "setuju" (setuju_pks
-    // bisa dicentang duluan tanpa TTD/scan-nya kelar). Kondisi SAMA PERSIS
-    // src/lib/perjanjianJamaah.js#daftarPerjanjianBelumSelesai, jangan
-    // hitung ulang beda logic di 2 tempat. Sebelumnya cuma dicek client-side
-    // di /pelunasan, jadi bisa dilewatin kalau API dipanggil langsung.
-    if (type === 'lunas') {
-      const [[sig]] = await pool.query(
-        `SELECT fase FROM dokumen_signature WHERE dokumen = 'jamaah' AND ref_id = ?`,
-        [booking_id]
-      );
-      const perjanjianSelesai = bookings[0].perjanjian_scan_path != null || sig?.fase === 'selesai';
-      if (!perjanjianSelesai) {
-        return Response.json(
-          { error: 'Perjanjian Jamaah belum selesai (TTD digital atau scan fisik). Lengkapi dulu sebelum pelunasan.' },
-          { status: 400 }
-        );
-      }
     }
 
     const [users] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
@@ -167,6 +158,14 @@ export async function PATCH(request) {
     const penerimaNotif = [booking?.user_id, booking?.ordered_by].filter((id, i, arr) => id && arr.indexOf(id) === i);
 
     if (action === 'approve') {
+      // Kuota kursi dicek & dipotong DI SINI (dikonfirmasi user 2026-10-13,
+      // bukan lagi pas checkout) -- paling duluan, SEBELUM payment ditandai
+      // confirmed, biar kalau kuota ternyata udah penuh, gak ada mutasi
+      // sama sekali yang kepaksa setengah jalan (approve-nya gagal bersih).
+      if (payment.type === 'dp') {
+        await potongKuotaSeatDp(pool, payment.booking_id);
+      }
+
       await pool.query("UPDATE payments SET status = 'confirmed' WHERE id = ?", [payment_id]);
 
       // Rekening Alkhalid Jaya Megah — uang masuk dari SEMUA pembayaran
@@ -329,6 +328,7 @@ export async function PATCH(request) {
       return Response.json({ message: 'Pembayaran ditolak.' });
     }
   } catch (error) {
+    if (error.status) return Response.json({ error: error.message }, { status: error.status });
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
   }

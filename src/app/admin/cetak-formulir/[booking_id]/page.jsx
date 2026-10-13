@@ -153,6 +153,9 @@ function CetakFormulirInner() {
           <Field label="Alamat Lengkap Domisili" star value={j.alamat} />
           <Field label="No. Whatsapp" star value={j.wa} />
           <Field label="Email Aktif" value={j.email} />
+          <Field label="Nama Ayah Kandung" value={j.ayah} />
+          <Field label="Nama Ibu Kandung" value={j.ibu} />
+          <Field label="Pendidikan Terakhir" value={j.pendidikan} />
           <Field label="Riwayat Penyakit" value={j.penyakit} />
           <Field label="Pekerjaan" value={j.pkj} />
           <Field label="Nama Mahram/Pendamping" star value={j.mahram} />
@@ -171,20 +174,11 @@ function CetakFormulirInner() {
           )}
           <Field label="Total Harga Program" value={`Rp ${jk.hargaJual.toLocaleString('id-ID')}`} />
 
-          <div style={{ fontSize: 9.5, color: '#000', marginTop: 16, lineHeight: 1.5 }}>
-            <p style={{ margin: '4px 0' }}>1. Jamaah dilarang keras menitipkan pembayaran DP/pelunasan kepada perorangan/Perwakilan. Kerugian yang terjadi akibat hal tersebut bukan menjadi tanggung jawab perusahaan.</p>
-            <p style={{ margin: '4px 0' }}>2. Pembayaran DP/Pelunasan hanya melalui rekening: <b>{pengaturan.bank_nama}</b> a.n. <b>{pengaturan.bank_atas_nama}</b>, No. Rek IDR <b>{pengaturan.bank_rekening}</b></p>
-            <p style={{ margin: '4px 0' }}>3. Mohon menyertakan: Scan Paspor berlaku min. 6 bulan sebelum keberangkatan, Kartu Keluarga & KTP; Scan bukti vaksin meningitis & polio; Scan pas foto.</p>
-            <p style={{ margin: '10px 0 4px' }}>Dengan menandatangani dokumen ini, saya sudah membaca dan mengerti peraturan ini.</p>
-          </div>
-
-          <div style={{ textAlign: 'right', marginTop: 30, fontSize: 12 }}>
-            <div style={{ display: 'inline-block', textAlign: 'center' }}>
-              <div style={{ borderBottom: '1px solid #000', width: 200, marginBottom: 4, height: 40 }}></div>
-              (&nbsp;&nbsp;{j.nama || '................'}&nbsp;&nbsp;)
-              <div style={{ fontWeight: 700, marginTop: 2 }}>Jamaah JM Travel</div>
-            </div>
-          </div>
+          {/* Syarat & TTD (dulu di sini) DIHAPUS (dikonfirmasi user
+              2026-10-13) -- Formulir Jamaah cukup data, perjanjian/syarat
+              + tanda tangan beneran udah ditangani dokumen terpisah
+              (Surat Perjanjian Jamaah Umroh, /admin/cetak-perjanjian/
+              [booking_id]), redundant kalau ada di dua tempat. */}
         </div>
         );
       })}

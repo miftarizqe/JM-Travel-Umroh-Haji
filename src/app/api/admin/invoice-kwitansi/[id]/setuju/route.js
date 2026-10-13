@@ -1,10 +1,15 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { kirimNotifikasi } from '@/lib/notifikasi';
 
-// UU Bea Meterai No.10/2020 — dokumen yang menyatakan PENERIMAAN uang
-// senilai >= Rp5.000.000 wajib materai Rp10.000 asli. Sama persis logika
-// `butuhMaterai` di halaman cetak (/admin/cetak-invoice/[id]/page.jsx) —
-// JANGAN diubah sendiri2, kalau salah satu berubah yang lain ikut.
+const JENIS_LABEL = { invoice: 'Invoice', kwitansi: 'Kwitansi Pembayaran', tanda_terima: 'Tanda Terima Uang' };
+
+// UU Bea Meterai No.10/2020 Pasal 3 — dokumen yang menyatakan PENERIMAAN
+// uang dengan nilai nominal LEBIH DARI Rp5.000.000 wajib materai Rp10.000
+// asli (strictly di atas, persis Rp5jt TIDAK kena, dikonfirmasi user
+// 2026-10-13). Sama persis logika `butuhMaterai` di halaman cetak
+// (/admin/cetak-invoice/[id]/page.jsx) — JANGAN diubah sendiri2, kalau
+// salah satu berubah yang lain ikut.
 const BATAS_MATERAI = 5_000_000;
 
 // POST /api/admin/invoice-kwitansi/[id]/setuju — "Setuju" tanpa cetak fisik
@@ -34,7 +39,7 @@ export async function POST(request, { params }) {
     }
 
     const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
-    const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) >= BATAS_MATERAI;
+    const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
     if (butuhMaterai) {
       return Response.json(
         { error: `Nominal Rp${Number(dokumen.nominal).toLocaleString('id-ID')} wajib materai asli — tidak bisa disetujui tanpa materai. Cetak fisik, tempel materai, TTD basah, lalu unggah scan.` },
@@ -47,6 +52,30 @@ export async function POST(request, { params }) {
       "UPDATE invoice_kwitansi SET terkirim = 1, terkirim_metode = 'setuju', terkirim_at = ? WHERE id = ?",
       [terkirimAt, id]
     );
+
+    // Notifikasi in-app ke pemilik booking -- sebelumnya "Setuju" CUMA
+    // nandain status di database, jamaah gak pernah diberitahu sama sekali
+    // (cuma bisa nemu sendiri kalau kebetulan buka Dokumen Saya). Dikirim
+    // ke user_id DAN ordered_by kalau beda (booking dipesanin orang lain)
+    // (dikonfirmasi user 2026-10-13).
+    if (dokumen.booking_id) {
+      try {
+        const [[booking]] = await pool.query('SELECT user_id, ordered_by FROM bookings WHERE id = ?', [dokumen.booking_id]);
+        const penerima = [booking?.user_id, booking?.ordered_by].filter((v, i, arr) => v && arr.indexOf(v) === i);
+        const label = JENIS_LABEL[dokumen.jenis] || dokumen.jenis;
+        for (const uid of penerima) {
+          await kirimNotifikasi(pool, {
+            user_id: uid,
+            tipe: 'dokumen_terkirim',
+            judul: `${label} Tersedia`,
+            pesan: `${label} (${dokumen.nomor}) booking ${dokumen.booking_id} sudah tersedia, bisa dilihat/diunduh.`,
+            link: `/admin/cetak-invoice/${id}`,
+          });
+        }
+      } catch (e) {
+        console.error('Gagal kirim notifikasi dokumen terkirim:', e);
+      }
+    }
 
     return Response.json({ message: 'Dokumen disetujui.', terkirim_at: terkirimAt.toISOString() });
   } catch (error) {
