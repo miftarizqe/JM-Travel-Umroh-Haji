@@ -539,27 +539,19 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
   // ditagih & (nanti) dikonfirmasi lewat payment row terpisah di bawah.
   const dpAmountBaru = Number(booking.dp_amount || 0) + dpAmountTambahan;
 
-  // Perjanjian Jamaah yang udah disetujui/ditandatangani SEBELUM pax ini
-  // ditambahkan jadi BASI — jumlah jamaah & total harga yang disebut di
-  // dokumen itu udah beda dari kondisi booking sekarang, tapi gatenya
-  // (src/app/api/payments/route.js, perjanjianSelesai() di bookingStage.js)
-  // cuma ngecek status boolean, gak pernah dibandingkan ke jamaah_data
-  // terkini (ditemukan & diperbaiki 2026-10-13, soalnya tanpa ini jamaah
-  // bisa lolos ke pelunasan buat total harga BARU padahal yang
-  // ditandatangani masih punya jumlah/harga LAMA). Dipaksa reset ke
-  // belum-setuju lagi kalau sebelumnya udah ada progres apapun di tahap
-  // ini (setuju_pks, scan fisik, atau sesi TTD digital) — jamaah WAJIB
-  // baca ulang & setujui/tanda tangan ulang sebelum bisa lanjut pelunasan.
-  const [[sigRow]] = await conn.query(`SELECT fase FROM dokumen_signature WHERE dokumen = 'jamaah' AND ref_id = ?`, [bookingId]);
-  const perjanjianPernahProses = !!booking.setuju_pks || booking.perjanjian_scan_path != null || !!sigRow;
-  if (perjanjianPernahProses) {
-    await conn.query(
-      `UPDATE bookings SET setuju_pks = 0, setuju_pks_at = NULL, perjanjian_scan_path = NULL, perjanjian_scan_uploaded_at = NULL WHERE id = ?`,
-      [bookingId]
-    );
-    if (sigRow) {
-      await conn.query(`UPDATE dokumen_signature SET fase = 'draft' WHERE dokumen = 'jamaah' AND ref_id = ?`, [bookingId]);
-    }
+  // Persetujuan ONLINE (setuju_pks) itu 1x per booking/TRANSAKSI, bukan per
+  // jamaah (dikonfirmasi user 2026-10-13) — begitu pax ditambahkan, isi
+  // transaksi (jumlah jamaah/total harga) berubah, jadi "setuju" yang lama
+  // dianggap basi & direset, pemesan wajib klik setuju lagi (ringan, cuma
+  // 1 klik, "gapapa gak ngaruh" per keputusan user). Lembar materai+TTD
+  // FISIK sendiri sekarang per-jamaah (jamaah_data[i].perjanjian_scan_path,
+  // lihat /admin/cetak-perjanjian) — SENGAJA TIDAK direset di sini, jamaah
+  // yang udah pernah discan gak perlu diulang cuma gara-gara ada pax lain
+  // yang baru ditambahkan; admin dari sisi cetak-perjanjian tinggal
+  // generate lembar buat jamaah yang BARU aja (otomatis kebaca begitu
+  // jamaah_data bertambah, gak perlu langkah tambahan di sini).
+  if (booking.setuju_pks) {
+    await conn.query(`UPDATE bookings SET setuju_pks = 0, setuju_pks_at = NULL WHERE id = ?`, [bookingId]);
   }
 
   await conn.query(
@@ -573,5 +565,5 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
     [bookingId, userId, 'dp', dpAmountTambahan, 0, buktiPath, buktiNama || null]
   );
 
-  return { jumlahTambahan: n, dpAmountTambahan, totalHargaBaru, perjanjianDireset: perjanjianPernahProses };
+  return { jumlahTambahan: n, dpAmountTambahan, totalHargaBaru, perjanjianDireset: !!booking.setuju_pks };
 }
