@@ -382,6 +382,16 @@ export default function ProgramDetailPage() {
             {bookingSaya ? (
               <div className="space-y-2">
                 <StatusBookingProgram booking={bookingSaya} besar onClick={() => router.push('/dashboard/jamaah')} />
+                {/* Mau nambah pax ke booking yang SAMA (belum lunas) — beda
+                    dari "+ Daftarkan jamaah lain" di bawah yang bikin booking
+                    BARU terpisah dan baru muncul setelah lunas (dikonfirmasi
+                    user 2026-10-13). DP awal booking ini harus udah
+                    confirmed dulu, pax baru wajib DP sendiri. */}
+                {bookingSaya.dp_status === 'confirmed' && bookingSaya.pelunasan_status !== 'paid' && seatSisa > 0 && (
+                  <button onClick={() => router.push(`/tambah-jamaah?booking_id=${bookingSaya.id}`)} className="w-full bg-white border border-[#1A4FA0] shadow text-sm font-bold text-[#1A4FA0] py-2.5 rounded-full hover:bg-[#E8F0FB]">
+                    ➕ Tambah Jamaah ke Booking Ini
+                  </button>
+                )}
                 {/* Baru muncul setelah lunas — fokus beresin 1 pendaftaran dulu. */}
                 {bookingSaya.pelunasan_status === 'paid' && (prog.publish_type !== 'sahabat_baitullah' || user?.agama === 'non_islam') && seatSisa > 0 && (
                   <button onClick={handleBooking} className="w-full bg-white border border-[#e0e8f0] shadow text-sm font-bold text-[#1A4FA0] py-2.5 rounded-full hover:bg-[#E8F0FB]">

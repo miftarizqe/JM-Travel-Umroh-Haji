@@ -309,6 +309,22 @@ function CheckoutPageInner() {
       ? `Anda sudah terdaftar di program ini (booking ${bookingNamaSamaMandiri.id}). Satu orang tidak bisa didaftarkan dua kali di program yang sama.`
       : null;
 
+  // Reminder non-blocking (dikonfirmasi user 2026-10-13): kalau akun ini
+  // punya booking LAIN (program sama ATAU beda) yang DP-nya belum
+  // dikonfirmasi admin, diingatkan di sini sebelum lanjut checkout baru —
+  // supaya gak lupa follow-up pembayaran lama. Beda dari blokirMandiri di
+  // atas (itu blocking, khusus checkout mandiri Program Eksklusif Sahabat
+  // Baitullah) — ini cuma reminder, gak menghalangi checkout jalan terus.
+  const [bookingDpPending, setBookingDpPending] = useState([]);
+  useEffect(() => {
+    if (!user?.id) return;
+    fetch(`/api/bookings?user_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => setBookingDpPending((d.bookings || []).filter(b =>
+        b.dp_status === 'pending' && ['active', 'menunggu_batal'].includes(b.status))))
+      .catch(() => {});
+  }, [user?.id]);
+
   async function lanjutMandiri() {
     if (hargaMandiri <= 0) { alert('Kombinasi paket & kamar ini belum tersedia harganya. Pilih kombinasi lain.'); return; }
     if (!namaMandiri || !waMandiri || !jkMandiri || !alamatMandiri) { alert('Lengkapi data diri terlebih dahulu!'); return; }
@@ -787,6 +803,15 @@ function CheckoutPageInner() {
             </div>
           ))}
         </div>
+
+        {/* Reminder DP booking lain yang belum dikonfirmasi — non-blocking,
+            cuma muncul di step 1 biar gak ganggu alur isi data. */}
+        {step === 1 && bookingDpPending.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-700 mb-4">
+            ⚠️ Anda masih punya {bookingDpPending.length > 1 ? `${bookingDpPending.length} booking` : 'booking'} yang DP-nya belum dikonfirmasi admin:{' '}
+            {bookingDpPending.map(b => `${b.prog_name || b.id} (${b.id})`).join(', ')}. Pastikan sudah transfer agar tidak lupa, sebelum membuat booking baru.
+          </div>
+        )}
 
         {/* STEP 1 */}
         {step === 1 && (

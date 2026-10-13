@@ -289,6 +289,20 @@ export default function DashboardJamaah() {
                         </button>
                       )}
 
+                      {/* Tambah Jamaah ke booking yang sudah ada — DP awal
+                          harus udah confirmed dulu (stage 2/3/4), pax baru
+                          wajib DP sendiri (dikonfirmasi user 2026-10-13).
+                          Begitu lunas, pakai jalur "+ Daftarkan jamaah lain"
+                          di halaman program (bikin booking baru terpisah). */}
+                      {(stage === 2 || stage === 3 || stage === 4) && (
+                        <button
+                          onClick={() => router.push(`/tambah-jamaah?booking_id=${b.id}`)}
+                          className="w-full mt-2 border border-[#1A4FA0] text-[#1A4FA0] text-xs font-bold py-2 rounded-full hover:bg-[#E8F0FB] transition-colors"
+                        >
+                          ➕ Tambah Jamaah
+                        </button>
+                      )}
+
                       {/* Link balik ke form-jamaah SELALU ada (gak hilang
                           begitu tahap form kelewat) — dokumen pendukung
                           (paspor/KTP/KK/vaksin/foto) opsional & boleh
