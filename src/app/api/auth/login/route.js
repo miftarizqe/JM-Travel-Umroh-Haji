@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { ambilJwtSecret, headerCookieToken, DURASI_SESI_DETIK } from '@/lib/auth';
+import { ambilJwtSecret, headersCookieSesi, DURASI_SESI_DETIK } from '@/lib/auth';
 import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
 import { varianWA } from '@/lib/validasiAkun';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
@@ -109,10 +109,7 @@ export async function POST(request) {
       JSON.stringify({ message: 'Login berhasil!', user: dataUser }),
       {
         status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Set-Cookie': headerCookieToken(token, maxAge),
-        },
+        headers: headersCookieSesi(request, token, maxAge),
       }
     );
   } catch (error) {
