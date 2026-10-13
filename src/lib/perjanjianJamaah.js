@@ -1,11 +1,15 @@
-// Booking yang form-nya sudah lengkap + DP confirmed tapi Perjanjian Jamaah
-// belum selesai (materai + TTD, digital atau fisik) — dipakai cluster
-// "Perlu Perhatian" di admin dashboard biar jamaah gak nyangkut di tahap ini
-// tanpa admin sadar (mis. pilih fisik tapi scan-nya lupa diupload).
-// Kriteria selesai sama dengan perjanjianSelesai() di src/lib/bookingStage.js
-// (scan fisik ATAU TTD digital selesai, centang online bukan syarat), dan
-// checkout mandiri Program Sahabat Baitullah gak punya tahap ini sama sekali
-// — dulu ikut kehitung, jadi notifnya nyala terus (2026-10-11).
+// Booking yang form-nya sudah lengkap + DP confirmed tapi materai+TTD fisik
+// Perjanjian Jamaah-nya BELUM diproses admin — dipakai cluster "Perlu
+// Perhatian" di admin dashboard sebagai daftar follow-up (siapa yang perlu
+// diingetin TTD pas ke kantor/manasik). INI BUKAN GERBANG — jamaah TETAP
+// boleh lanjut pelunasan begitu setuju_pks dicentang online, materai/TTD
+// fisik beneran menyusul belakangan (dikonfirmasi user 2026-10-13, lihat
+// perjanjianSelesai() di src/lib/bookingStage.js). Query di sini SENGAJA
+// gak ikut filter setuju_pks — daftar ini berguna buat SEMUA booking yang
+// belum ada scan-nya, baik yang udah setuju online maupun yang TTD fisik
+// duluan di kantor tanpa pernah klik apa pun online. Checkout mandiri
+// Program Sahabat Baitullah gak punya tahap ini sama sekali — dulu ikut
+// kehitung, jadi notifnya nyala terus (2026-10-11).
 export async function daftarPerjanjianBelumSelesai(pool) {
   const [rows] = await pool.query(
     `SELECT b.id, b.prog_name, b.setuju_pks, b.perjanjian_scan_path,
