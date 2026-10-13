@@ -6,6 +6,7 @@ import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
 import { catatRekening } from '@/lib/rekeningLedger';
+import { potongKuotaSeatDp } from '@/lib/booking';
 
 // GET — payments (admin/booking), termasuk bukti transfer
 export async function GET(request) {
@@ -167,6 +168,14 @@ export async function PATCH(request) {
     const penerimaNotif = [booking?.user_id, booking?.ordered_by].filter((id, i, arr) => id && arr.indexOf(id) === i);
 
     if (action === 'approve') {
+      // Kuota kursi dicek & dipotong DI SINI (dikonfirmasi user 2026-10-13,
+      // bukan lagi pas checkout) -- paling duluan, SEBELUM payment ditandai
+      // confirmed, biar kalau kuota ternyata udah penuh, gak ada mutasi
+      // sama sekali yang kepaksa setengah jalan (approve-nya gagal bersih).
+      if (payment.type === 'dp') {
+        await potongKuotaSeatDp(pool, payment.booking_id);
+      }
+
       await pool.query("UPDATE payments SET status = 'confirmed' WHERE id = ?", [payment_id]);
 
       // Rekening Alkhalid Jaya Megah — uang masuk dari SEMUA pembayaran
@@ -329,6 +338,7 @@ export async function PATCH(request) {
       return Response.json({ message: 'Pembayaran ditolak.' });
     }
   } catch (error) {
+    if (error.status) return Response.json({ error: error.message }, { status: error.status });
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
   }

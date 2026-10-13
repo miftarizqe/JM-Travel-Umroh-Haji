@@ -214,6 +214,12 @@ export async function buatSatuBooking(conn, params) {
       throw errStatus('Program ini cuma bisa dipesan buat diri sendiri.', 403);
     }
   }
+  // Cek lembut pas checkout -- program yang BENERAN udah penuh (dari DP yang
+  // udah dikonfirmasi) ditolak dari awal. Booking pending BOLEH numpuk
+  // melebihi sisa kuota nominal (dikonfirmasi user 2026-10-13, lihat
+  // potongKuotaSeatDp) -- used_seat gak lagi naik di sini, baru naik pas DP
+  // dikonfirmasi admin, jadi banyak orang checkout bisa "ngantri" rebutan
+  // kursi yang sama, admin yang nentuin siapa beneran dapet pas approve DP.
   if (prog.used_seat + (jumlah_jamaah || 1) > prog.total_seat) {
     throw errStatus('Seat tidak cukup', 400);
   }
@@ -338,10 +344,11 @@ export async function buatSatuBooking(conn, params) {
   // bukan sekali per item), fungsi ini cuma nyimpen voucher_kode/nominal ke
   // baris booking untuk keperluan audit.
 
-  await conn.query(
-    'UPDATE programs SET used_seat = used_seat + ? WHERE id = ?',
-    [jumlah_jamaah || 1, prog_id]
-  );
+  // used_seat TIDAK dipotong di sini lagi (dikonfirmasi user 2026-10-13) —
+  // dipindah ke momen DP dikonfirmasi admin (lihat potongKuotaSeatDp di
+  // bawah), supaya akun belum-terverifikasi/booking yang DP-nya gak pernah
+  // kebayar gak nahan kursi beneran. Booking pending boleh numpuk melebihi
+  // sisa kuota nominal, admin yang nentuin siapa dapet kursi pas approve DP.
 
   // batch_id nyatuin payment2 yang lahir dari 1x submit keranjang (banyak
   // booking, tapi 1x transfer beneran & 1x bukti diupload) — dipakai admin
@@ -356,4 +363,27 @@ export async function buatSatuBooking(conn, params) {
   );
 
   return { bookingId, dpAmount, totalHarga: totalSetelahVoucher };
+}
+
+// Potong kuota kursi program — dipanggil dari SEMUA jalur yang nge-set
+// bookings.dp_status = 'confirmed' (approve DP manual di PATCH /api/payments,
+// checkout mandiri Program Eksklusif Sahabat Baitullah, DP dari saldo
+// Sahabat program reguler via konfirmasiDpDariSaldoSahabat) — dikonfirmasi
+// user 2026-10-13, gantiin potongan lama yang kejadian pas checkout
+// (buatSatuBooking). Ngecek ULANG kuota di titik ini (bukan cuma pas
+// checkout) karena banyak booking pending bisa numpuk ngelebihin sisa
+// kuota nominal — begitu program kepenuhan dari yang udah dikonfirmasi,
+// approve DP booking berikutnya ditolak di sini, admin yang nentuin lewat
+// tolak/reject booking itu (bukan auto-cancel, keputusan bisnis di luar
+// kode ini).
+export async function potongKuotaSeatDp(conn, bookingId) {
+  const [[booking]] = await conn.query('SELECT prog_id, jumlah_jamaah FROM bookings WHERE id = ?', [bookingId]);
+  if (!booking) return;
+  const [[prog]] = await conn.query('SELECT used_seat, total_seat FROM programs WHERE id = ?', [booking.prog_id]);
+  if (!prog) return;
+  const jumlah = booking.jumlah_jamaah || 1;
+  if (prog.used_seat + jumlah > prog.total_seat) {
+    throw errStatus('Kuota kursi program ini sudah penuh — tidak bisa konfirmasi DP booking ini.', 400);
+  }
+  await conn.query('UPDATE programs SET used_seat = used_seat + ? WHERE id = ?', [jumlah, booking.prog_id]);
 }

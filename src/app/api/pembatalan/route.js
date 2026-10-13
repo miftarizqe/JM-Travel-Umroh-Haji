@@ -282,10 +282,17 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
       // dikonfirmasi (itu kasus refund beneran, bukan lepas hold).
       await lepasHoldSaldoSahabat(conn, p.booking_id);
       if (bk) {
-        await conn.query(
-          'UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?',
-          [bk.jumlah_jamaah || 1, bk.prog_id]
-        );
+        // Kuota kursi SEKARANG baru kepotong pas DP dikonfirmasi admin
+        // (dikonfirmasi user 2026-10-13, lihat potongKuotaSeatDp) -- booking
+        // yang DP-nya masih pending gak pernah motong kuota sama sekali,
+        // jadi JANGAN ikut dikembalikan di sini (bakal bikin used_seat
+        // salah/kebablasan ngurang punya booking lain).
+        if (bk.dp_status === 'confirmed') {
+          await conn.query(
+            'UPDATE programs SET used_seat = GREATEST(0, used_seat - ?) WHERE id = ?',
+            [bk.jumlah_jamaah || 1, bk.prog_id]
+          );
+        }
         progIdSeatDibuka = bk.prog_id;
         if (bk.voucher_kode) {
           await lepasVoucher(conn, bk.voucher_kode, bk.jumlah_jamaah || 1);
@@ -350,7 +357,11 @@ async function setujuiPembatalan(id, actorUser, { penyebab, refund_nominal, cata
         await releaseNomorSuratJikaBulanSama(conn, p.booking_id, 'no_perjanjian_jamaah', 'SPJ', 'bookings');
       }
 
-      await conn.query('UPDATE programs SET used_seat = GREATEST(0, used_seat - 1) WHERE id = ?', [bk.prog_id]);
+      // Sama kayak pembatalan whole-booking di atas -- cuma kembaliin kuota
+      // kalau DP booking ini emang udah dikonfirmasi (pernah motong kuota).
+      if (bk.dp_status === 'confirmed') {
+        await conn.query('UPDATE programs SET used_seat = GREATEST(0, used_seat - 1) WHERE id = ?', [bk.prog_id]);
+      }
       progIdSeatDibuka = bk.prog_id;
       if (bk.voucher_kode) {
         await lepasVoucher(conn, bk.voucher_kode, 1);

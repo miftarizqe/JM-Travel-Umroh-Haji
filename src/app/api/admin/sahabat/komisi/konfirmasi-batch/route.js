@@ -92,6 +92,7 @@ export async function PATCH(request) {
       buktiPath = `/api/dokumen/bukti-tf-komisi/${nama}`;
     }
 
+    const peringatanKuota = [];
     for (const r of belumConfirm) {
       const pakaiBukti = !JENIS_TANPA_BUKTI.includes(r.jenis);
       const berpengaruhKeSaldo = JENIS_SALDO_SAHABAT.includes(r.jenis) && !!r.penerima_id;
@@ -117,7 +118,13 @@ export async function PATCH(request) {
 
       if (r.jenis === 'pemakaian_saldo_sahabat' && r.booking_id) {
         try { await cekDanFinalisasiLunasSahabat(pool, r.booking_id, auth.user); }
-        catch (e) { console.error('Gagal finalisasi lunas sahabat mandiri:', e); }
+        catch (e) {
+          // Kuota penuh (dikonfirmasi user 2026-10-13) -- bukan error tak
+          // terduga, admin WAJIB tau booking mana yang gagal, bukan
+          // disembunyiin diam2 kayak error teknis.
+          if (e.status) peringatanKuota.push(`${r.booking_id}: ${e.message}`);
+          else console.error('Gagal finalisasi lunas sahabat mandiri:', e);
+        }
       }
     }
 
@@ -147,7 +154,11 @@ export async function PATCH(request) {
       }
     }
 
-    return Response.json({ message: `${belumConfirm.length} baris dikonfirmasi.` });
+    return Response.json({
+      message: peringatanKuota.length > 0
+        ? `${belumConfirm.length} baris dikonfirmasi, TAPI ada yang kuotanya penuh: ${peringatanKuota.join('; ')}`
+        : `${belumConfirm.length} baris dikonfirmasi.`,
+    });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
