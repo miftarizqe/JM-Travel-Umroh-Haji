@@ -161,10 +161,17 @@ export async function GET(request, { params }) {
         // saranInvoice yang udah dibenerin). SATU sumber kebenaran sama
         // saranInvoice (src/app/admin/invoice-kwitansi/page.jsx) & PATCH
         // /api/payments.
+        // Sudah Dibayarkan = total_harga - sisa SEBELUM invoice ini (=
+        // dp_amount + semua cicilan lunas confirmed, sumber kebenaran sama
+        // persis hitungSisaBayar) — dipakai breakdown bersih di halaman
+        // cetak Invoice (Total Tagihan / Sudah Dibayarkan / [Judul] /
+        // Sisa), dikonfirmasi user 2026-10-14.
         let sisaPembayaran = null;
+        let sudahDibayar = null;
         if (dokumen.jenis === 'invoice') {
           const sisaSebelumInvoiceIni = await hitungSisaBayar(pool, dokumen.booking_id);
           sisaPembayaran = Math.max(0, sisaSebelumInvoiceIni - Number(dokumen.nominal || 0));
+          sudahDibayar = Math.max(0, Number(b.total_harga || 0) - sisaSebelumInvoiceIni);
         }
 
         booking = {
@@ -173,6 +180,7 @@ export async function GET(request, { params }) {
           opsi_tambahan_data: undefined, opsi_tambahan_nama: opsiTambahanNama,
           dp_dibayar_tanggal: bayarDp?.created_at || null,
           sisa_pembayaran: sisaPembayaran,
+          sudah_dibayar: sudahDibayar,
         };
       }
     } else if (!isAdmin) {
