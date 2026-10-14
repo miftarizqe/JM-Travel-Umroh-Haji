@@ -346,88 +346,79 @@ export default function CetakInvoiceKwitansi() {
           </div>
         )}
 
-        {dokumen.jenis === 'tanda_terima' ? (
-          // Tanda Terima Uang DISEDERHANAKAN (dikonfirmasi user 2026-10-14):
-          // ini bukti TERIMA UANG, bukan invoice berisi qty/satuan — cukup
-          // "diterima dari siapa" + "jumlah diterima berapa". Pelunasan
-          // (bukan DP) dikasih rincian Total Harga - DP sudah dibayar, biar
-          // kebaca sisa yang DILUNASI dihitung dari apa.
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ border: '1px solid #000', borderRadius: 6, padding: '14px 16px', fontSize: 13 }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                {LABEL_TIPE_PEMBAYARAN[payment?.type] || 'Pembayaran'} — Diterima
-              </div>
-              <KeteranganPembayaran list={jamaahUntukPembayaran} />
-              {payment?.type === 'lunas' && booking?.total_harga != null && (
-                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed #999', fontSize: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Total Harga Program</span><span>{rp(booking.total_harga)}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>DP Sudah Dibayar</span><span>− {rp(booking.dp_amount)}</span>
-                  </div>
-                </div>
-              )}
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '2px solid #000', display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15 }}>
-                <span>Jumlah Diterima</span><span>{rp(dokumen.nominal)}</span>
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>Terbilang: <i>{terbilang(dokumen.nominal)}</i></div>
-          </div>
-        ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
-            <thead>
-              <tr>
-                <th style={{ ...td, background: '#f0f0f0', textAlign: 'left' }}>Keterangan</th>
-                <th style={{ ...td, background: '#f0f0f0', textAlign: 'center', width: 50 }}>Qty</th>
-                <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 120 }}>Satuan</th>
-                <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 130 }}>Jumlah</th>
-              </tr>
-            </thead>
-            <tbody>
-              {punyaRincianBooking ? (
-                <>
-                  <BarisPaket booking={booking} />
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
+          <thead>
+            <tr>
+              <th style={{ ...td, background: '#f0f0f0', textAlign: 'left' }}>Keterangan</th>
+              <th style={{ ...td, background: '#f0f0f0', textAlign: 'center', width: 50 }}>Qty</th>
+              <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 120 }}>Satuan</th>
+              <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 130 }}>Jumlah</th>
+            </tr>
+          </thead>
+          <tbody>
+            {dokumen.jenis === 'tanda_terima' ? (
+              // Tanda Terima Uang: qty/satuan/jumlah TETAP ada (dikonfirmasi
+              // user 2026-10-14, "paket blablabla qty berapa satuan berapa
+              // total berapa dibayar berapa") — yang DIBENERIN itu cuma
+              // SCOPING-nya (qtyJamaah & jamaahUntukPembayaran sekarang dari
+              // payment yang BENERAN ditutup, bukan booking penuh). Khusus
+              // pelunasan (bukan DP) ditambah rincian Total Harga - DP
+              // Sudah Dibayar di bawahnya, biar kebaca sisa yang dilunasi
+              // dihitung dari apa.
+              <>
+                <BarisItem label={`${LABEL_TIPE_PEMBAYARAN[payment?.type] || 'Pembayaran'} — diterima`}
+                  sub={<KeteranganPembayaran list={jamaahUntukPembayaran} />}
+                  qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
+                {payment?.type === 'lunas' && booking?.total_harga != null && (
+                  <>
+                    <BarisItem label="Total Harga Program" jumlah={booking.total_harga} />
+                    <BarisItem label="DP Sudah Dibayar" jumlah={-Number(booking.dp_amount || 0)} />
+                  </>
+                )}
+                <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+              </>
+            ) : punyaRincianBooking ? (
+              <>
+                <BarisPaket booking={booking} />
 
-                  {booking.opsi_tambahan_total > 0 && (
-                    <BarisItem
-                      label={booking.opsi_tambahan_nama?.length > 0 ? `Opsi Tambahan: ${booking.opsi_tambahan_nama.join(', ')}` : 'Opsi Tambahan'}
-                      jumlah={booking.opsi_tambahan_total}
-                    />
-                  )}
+                {booking.opsi_tambahan_total > 0 && (
+                  <BarisItem
+                    label={booking.opsi_tambahan_nama?.length > 0 ? `Opsi Tambahan: ${booking.opsi_tambahan_nama.join(', ')}` : 'Opsi Tambahan'}
+                    jumlah={booking.opsi_tambahan_total}
+                  />
+                )}
 
-                  {dokumen.jenis === 'invoice' && (
-                    <>
-                      <BarisItem label={dokumen.judul} qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
-                      <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                      {booking.sisa_pembayaran > 0 && (
-                        <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
-                      )}
-                    </>
-                  )}
+                {dokumen.jenis === 'invoice' && (
+                  <>
+                    <BarisItem label={dokumen.judul} qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
+                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+                    {booking.sisa_pembayaran > 0 && (
+                      <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
+                    )}
+                  </>
+                )}
 
-                  {dokumen.jenis === 'kwitansi' && dokumen.nominal_dp != null && (
-                    <>
-                      <BarisItem label="Uang Muka (DP) — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_dp, qtyJamaah)} jumlah={dokumen.nominal_dp} />
-                      {dokumen.status === 'paid' ? (
-                        <BarisItem label="Pelunasan — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_pelunasan, qtyJamaah)} jumlah={dokumen.nominal_pelunasan} />
-                      ) : (
-                        <BarisCatatan>Pelunasan: <i>belum dibayar</i></BarisCatatan>
-                      )}
-                      <BarisItem label={dokumen.status === 'paid' ? 'TOTAL PAID (diterima)' : 'Total Diterima Sejauh Ini'} jumlah={dokumen.nominal} tebal />
-                      <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                    </>
-                  )}
-                </>
-              ) : (
-                <>
-                  <BarisItem label={dokumen.jenis === 'invoice' ? dokumen.judul : LABEL_BARIS[dokumen.jenis]} jumlah={dokumen.nominal} tebal />
-                  <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                </>
-              )}
-            </tbody>
-          </table>
-        )}
+                {dokumen.jenis === 'kwitansi' && dokumen.nominal_dp != null && (
+                  <>
+                    <BarisItem label="Uang Muka (DP) — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_dp, qtyJamaah)} jumlah={dokumen.nominal_dp} />
+                    {dokumen.status === 'paid' ? (
+                      <BarisItem label="Pelunasan — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_pelunasan, qtyJamaah)} jumlah={dokumen.nominal_pelunasan} />
+                    ) : (
+                      <BarisCatatan>Pelunasan: <i>belum dibayar</i></BarisCatatan>
+                    )}
+                    <BarisItem label={dokumen.status === 'paid' ? 'TOTAL PAID (diterima)' : 'Total Diterima Sejauh Ini'} jumlah={dokumen.nominal} tebal />
+                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <BarisItem label={dokumen.jenis === 'invoice' ? dokumen.judul : LABEL_BARIS[dokumen.jenis]} jumlah={dokumen.nominal} tebal />
+                <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+              </>
+            )}
+          </tbody>
+        </table>
 
         {dokumen.keterangan && dokumen.is_manual ? (
           <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>Catatan: {dokumen.keterangan}</div>
