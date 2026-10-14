@@ -154,6 +154,11 @@ export default function CetakInvoiceKwitansi() {
   const [loading, setLoading] = useState(true);
   const [ditolak, setDitolak] = useState(false);
   const [menyetujui, setMenyetujui] = useState(false);
+  // Checklist "Nominal sudah benar" — gerbang terakhir sebelum admin klik
+  // Kirim (dikonfirmasi user 2026-10-14) — admin WAJIB sadar liat nominal
+  // sekali lagi sebelum ngirim dokumen keuangan yang abis dikirim gak bisa
+  // diubah lagi (lock-on-send).
+  const [nominalBenar, setNominalBenar] = useState(false);
   // Step "2. Print" di indikator TTU/Kwitansi >Rp5jt — SEBELUMNYA gak
   // pernah keupdate walau tombol print udah dipencet (ditemukan user
   // 2026-10-14 lewat screenshot, step-nya diem di "1. Lihat" aja). Dilacak
@@ -200,8 +205,8 @@ export default function CetakInvoiceKwitansi() {
       if (!res.ok) { alert(d.error || 'Gagal menyetujui'); return; }
       // Server nentuin metode beneran (TTU materai -> 'fisik', lainnya ->
       // 'setuju') — jangan hardcode di client (dikonfirmasi user 2026-10-14).
-      // nomor ikut di-refresh dari respons server (seharusnya udah ada dari
-      // GET pas halaman ini pertama dibuka — ini cuma jaring pengaman).
+      // nomor ikut di-refresh -- buat dokumen yang gak wajib materai, nomor
+      // BARU dibakar di titik kirim ini (sebelumnya null/belum ada).
       setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: d.terkirim_metode || 'setuju', terkirim_at: d.terkirim_at, nomor: d.nomor || prev.nomor }));
     } catch { alert('Terjadi kesalahan'); }
     finally { setMenyetujui(false); }
@@ -320,8 +325,12 @@ export default function CetakInvoiceKwitansi() {
           ) : (
             <div style={{ fontSize: 11, color: '#666', marginBottom: 10 }}>Nominal &lt; Rp5.000.000, gak perlu materai — tinggal kirim.</div>
           )}
-          <button onClick={setujui} disabled={menyetujui || (butuhMaterai && !dokumen.scan_fisik_path)}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: '#333', marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={nominalBenar} onChange={e => setNominalBenar(e.target.checked)} />
+            Nominal {rp(dokumen.nominal)} di atas sudah benar
+          </label>
+          <button onClick={setujui} disabled={menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
             {menyetujui ? 'Mengirim...' : '📤 Kirim ke Jamaah'}
           </button>
         </div>

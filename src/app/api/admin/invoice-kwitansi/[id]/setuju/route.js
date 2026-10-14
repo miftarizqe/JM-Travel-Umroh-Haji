@@ -70,11 +70,10 @@ export async function POST(request, { params }) {
       );
     }
 
-    // Nomor SEHARUSNYA udah dibakar dari GET pas admin pertama kali buka
-    // halaman cetak (disederhanakan 2026-10-14 — SEMUA TTU/Kwitansi, gak
-    // cuma yang wajib materai, lihat route.js). Ini cuma jaring pengaman
-    // idempotent kalau somehow belum (mis. dipanggil langsung lewat API
-    // tanpa pernah buka halamannya).
+    // Nomor dokumen yang gak wajib materai baru dibakar DI SINI, pas tombol
+    // kirim beneran diklik (dikonfirmasi user 2026-10-14) — yang wajib
+    // materai harusnya udah dibakar dari GET (lihat pastikanNomorDokumen di
+    // route.js), ini cuma jaring pengaman idempotent kalau somehow belum.
     if (JENIS_LOCK_ON_SEND.includes(dokumen.jenis)) {
       dokumen.nomor = await pastikanNomorDokumen(pool, dokumen);
     }
