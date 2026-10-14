@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { ringkasanPaketKamar, resolveJamaahHarga } from '@/lib/jamaahHarga';
 import { hitungJamaahBreakdownTtu, pastikanNomorDokumen } from '@/lib/invoiceKwitansi';
+import { hitungSisaBayar } from '@/lib/pelunasan';
 
 // Sama persis BATAS_MATERAI/butuhMaterai di halaman cetak
 // (/admin/cetak-invoice/[id]/page.jsx) & POST .../setuju — JANGAN diubah
@@ -149,18 +150,21 @@ export async function GET(request, { params }) {
           [dokumen.booking_id]
         );
 
-        // Sisa Pembayaran = total_harga - SEMUA invoice (jenis 'invoice') yang
-        // pernah digenerate buat booking ini, TERMASUK dokumen ini sendiri —
-        // "sisa tagihan", bukan "sisa yang belum beneran dibayar" (itu udah
-        // dicover Tanda Terima/Kwitansi yang narik dari payments asli).
+        // Sisa Pembayaran = sisa BENERAN yang belum dibayar (total_harga -
+        // dp_amount - semua cicilan lunas confirmed, lihat hitungSisaBayar)
+        // DIKURANGI nominal invoice ini sendiri (asumsinya invoice ini bakal
+        // dilunasi) — bukan lagi "total_harga dikurangi SEMUA Invoice yang
+        // pernah dibuat" (bug ditemukan user 2026-10-14, "lo belom motong
+        // yang udah dibayar" — booking yang DP-nya lunas lewat alur normal
+        // TANPA pernah ada Invoice sebelumnya bakal keliatan sisa penuh lagi
+        // padahal DP-nya udah kepotong beneran, sama root cause kayak bug
+        // saranInvoice yang udah dibenerin). SATU sumber kebenaran sama
+        // saranInvoice (src/app/admin/invoice-kwitansi/page.jsx) & PATCH
+        // /api/payments.
         let sisaPembayaran = null;
         if (dokumen.jenis === 'invoice') {
-          const [[{ totalInvoiced }]] = await pool.query(
-            `SELECT COALESCE(SUM(nominal), 0) AS totalInvoiced FROM invoice_kwitansi
-             WHERE booking_id = ? AND jenis = 'invoice'`,
-            [dokumen.booking_id]
-          );
-          sisaPembayaran = Number(b.total_harga || 0) - Number(totalInvoiced);
+          const sisaSebelumInvoiceIni = await hitungSisaBayar(pool, dokumen.booking_id);
+          sisaPembayaran = Math.max(0, sisaSebelumInvoiceIni - Number(dokumen.nominal || 0));
         }
 
         booking = {

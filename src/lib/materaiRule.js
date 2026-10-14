@@ -33,7 +33,11 @@ export const BATAS_MATERAI = 5_000_000;
 export function apakahPerluMaterai(dokumen, ctx = {}) {
   if (dokumen === 'spka_ins' || dokumen === 'jamaah' || dokumen === 'spk_ak' || dokumen === 'sk_cif' || dokumen === 'surat_pemblokiran' || dokumen === 'spk_ak_nonis') return true;
   if (dokumen === 'invoice') {
-    const berfungsiTandaTerima = ctx.jenis === 'kwitansi' || ctx.status === 'paid';
+    // Invoice (ctx.jenis==='invoice') itu TAGIHAN, bukan tanda terima
+    // (dikonfirmasi user 2026-10-14) — gak pernah butuh materai, walau
+    // ditandai "Paid" manual. Sama formula berfungsiTandaTerima di
+    // src/app/admin/cetak-invoice/DokumenCetak.jsx — JANGAN diubah sendiri2.
+    const berfungsiTandaTerima = ctx.jenis === 'kwitansi' || (ctx.jenis === 'tanda_terima' && ctx.status === 'paid');
     return berfungsiTandaTerima && Number(ctx.nominal || 0) >= BATAS_MATERAI;
   }
   return false; // formulir

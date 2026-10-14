@@ -115,7 +115,9 @@ export default function CetakInvoiceKwitansi() {
   // formula di DokumenCetak.jsx & POST .../setuju) -- dipakai buat gating UI
   // tombol/banner di LUAR .sheet (materai, scan, step indicator), bukan buat
   // render isi dokumennya sendiri (itu sekarang tanggung jawab DokumenCetak).
-  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+  // Invoice itu TAGIHAN, bukan tanda terima (dikonfirmasi user 2026-10-14)
+  // -- gak pernah butuh materai, walau ditandai "Paid" manual.
+  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || (dokumen.jenis === 'tanda_terima' && dokumen.status === 'paid');
   // UU Bea Meterai Pasal 3: "nilai nominal LEBIH DARI Rp5.000.000" — strictly
   // di atas, Rp5.000.000 persis TIDAK kena materai (dikonfirmasi user
   // 2026-10-13, sebelumnya salah pakai >=).
@@ -221,28 +223,18 @@ export default function CetakInvoiceKwitansi() {
             {menyetujui ? 'Mengirim...' : '📤 Kirim ke Jamaah'}
           </button>
         </div>
-      ) : butuhMaterai ? (
-        // Invoice: perilaku LAMA gak diubah (di luar scope — dibahas
-        // terpisah nanti, dikonfirmasi user 2026-10-14). >= Rp5jt WAJIB
-        // materai asli, cuma jalur fisik (upload scan = auto-terkirim).
-        <>
-        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 8 }}>
-          ⚠️ Nominal ≥ Rp5.000.000 — wajib materai asli. Print, tempel materai, TTD basah nembus materai, stempel, lalu unggah scan.
-        </div>
-        <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
-          userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
-          onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path, terkirim: 1, terkirim_metode: 'fisik', terkirim_at: new Date().toISOString() }))} />
-        </>
       ) : (
-        // < Rp5jt -- gak perlu materai, TTD digital (PNG tanda tangan yang
-        // udah dirender di dokumen) cukup, tinggal "Setuju" (dikonfirmasi
-        // user 2026-10-12).
+        // Invoice -- TAGIHAN, bukan tanda terima (dikonfirmasi user
+        // 2026-10-14), jadi gak pernah butuh materai APAPUN nominalnya.
+        // butuhMaterai SELALU false buat jenis ini sekarang (lihat
+        // berfungsiTandaTerima di atas) -- cukup tombol Setuju polos,
+        // gak perlu info soal batas Rp5jt lagi (itu cuma relevan buat
+        // dokumen yang BENERAN jadi bukti penerimaan uang).
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
           <button onClick={setujui} disabled={menyetujui}
             style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: menyetujui ? 0.6 : 1 }}>
             {menyetujui ? 'Memproses...' : '✅ Setuju'}
           </button>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>Nominal &lt; Rp5.000.000, gak perlu materai — TTD digital cukup.</div>
         </div>
       )}
 

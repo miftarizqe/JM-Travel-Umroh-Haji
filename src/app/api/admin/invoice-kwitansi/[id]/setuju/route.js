@@ -43,7 +43,12 @@ export async function POST(request, { params }) {
       return Response.json({ error: 'Dokumen ini sudah disetujui/dikirim sebelumnya.' }, { status: 400 });
     }
 
-    const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+    // Invoice itu TAGIHAN, bukan tanda terima (dikonfirmasi user 2026-10-14)
+    // -- gak PERNAH butuh materai, APAPUN nominalnya, walau ditandai "Paid"
+    // manual. Materai cuma relevan buat dokumen yang BENERAN jadi bukti
+    // PENERIMAAN uang (Kwitansi selalu, Tanda Terima Uang pas statusnya
+    // 'paid' -- selalu begitu, lihat generateTandaTerimaUntukPayment).
+    const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || (dokumen.jenis === 'tanda_terima' && dokumen.status === 'paid');
     const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
 
     // Tanda Terima Uang & Kwitansi (dikonfirmasi user 2026-10-14): ini
@@ -52,7 +57,8 @@ export async function POST(request, { params }) {
     // >Rp5jt WAJIB udah ada scan fisik (materai+TTD) dulu sebelum boleh
     // kirim; kalau belum, ditolak di sini juga (bukan cuma disembunyikan
     // di tombol UI). Nominal <=Rp5jt boleh langsung kirim tanpa materai
-    // (self-certify).
+    // (self-certify). Invoice (else branch) gak pernah lewat gerbang ini
+    // lagi karena butuhMaterai-nya SELALU false buat jenis ini sekarang.
     if (JENIS_LOCK_ON_SEND.includes(dokumen.jenis)) {
       if (butuhMaterai && !dokumen.scan_fisik_path) {
         return Response.json(
@@ -60,14 +66,6 @@ export async function POST(request, { params }) {
           { status: 400 }
         );
       }
-    } else if (butuhMaterai) {
-      // Invoice: perilaku LAMA gak diubah (di luar scope — fokus Tanda
-      // Terima Uang & Kwitansi dulu, dikonfirmasi user 2026-10-14) — tetap
-      // hard-block, satu-satunya jalur tetap scan-fisik (auto-terkirim).
-      return Response.json(
-        { error: `Nominal Rp${Number(dokumen.nominal).toLocaleString('id-ID')} wajib materai asli — tidak bisa disetujui tanpa materai. Cetak fisik, tempel materai, TTD basah, lalu unggah scan.` },
-        { status: 400 }
-      );
     }
 
     // Nomor dokumen yang gak wajib materai baru dibakar DI SINI, pas tombol

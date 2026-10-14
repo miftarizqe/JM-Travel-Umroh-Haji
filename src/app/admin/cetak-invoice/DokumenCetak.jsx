@@ -169,7 +169,12 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
     ? (booking?.jamaah_breakdown_pembayaran || booking?.jamaah_breakdown || [])
     : (booking?.jamaah_breakdown || []);
   const qtyJamaah = jamaahUntukPembayaran.length || (booking ? Number(booking.jumlah_jamaah || 1) : 1);
-  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+  // Invoice itu TAGIHAN, bukan tanda terima (dikonfirmasi user 2026-10-14)
+  // -- gak pernah butuh materai sama sekali, APAPUN status/nominalnya,
+  // walau ditandai "Paid" manual. Kwitansi SELALU berfungsi tanda terima.
+  // Tanda Terima Uang berfungsi tanda terima pas statusnya 'paid' (selalu
+  // begitu, lihat generateTandaTerimaUntukPayment).
+  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || (dokumen.jenis === 'tanda_terima' && dokumen.status === 'paid');
   // UU Bea Meterai Pasal 3: "nilai nominal LEBIH DARI Rp5.000.000" — strictly
   // di atas, Rp5.000.000 persis TIDAK kena materai (dikonfirmasi user
   // 2026-10-13, sebelumnya salah pakai >=).
@@ -231,7 +236,10 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
 
               {dokumen.jenis === 'invoice' && (
                 <>
-                  <BarisItem label={dokumen.judul} qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
+                  {/* Invoice cuma nunjukin Jumlah, gak perlu Qty/Satuan
+                      (dikonfirmasi user 2026-10-14) -- beda dari TTU yang
+                      emang sengaja tetap nunjukin breakdown qty/satuan. */}
+                  <BarisItem label={dokumen.judul} jumlah={dokumen.nominal} tebal />
                   <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
                   {booking.sisa_pembayaran > 0 && (
                     <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
