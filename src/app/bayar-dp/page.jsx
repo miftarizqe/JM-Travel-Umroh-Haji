@@ -52,12 +52,12 @@ function BayarDpInner() {
     if (!buktiPath) { alert('Bukti transfer wajib diunggah!'); return; }
     setSubmitting(true);
     try {
-      const res = await fetch('/api/payments', {
+      // resubmit-dp UPDATE baris payment yang sama (bukan bikin baris baru)
+      // — biar nomor "DP N"-nya gak ikut nambah tiap kali ditolak+diajukan
+      // ulang (dikonfirmasi user 2026-10-14).
+      const res = await fetch('/api/payments/resubmit-dp', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          booking_id: bookingId, user_id: user.id, type: 'dp',
-          amount: ditolak.amount, bukti_path: buktiPath, bukti_nama: buktiNama, kode_unik: 0,
-        }),
+        body: JSON.stringify({ payment_id: ditolak.id, bukti_path: buktiPath, bukti_nama: buktiNama }),
       });
       if (res.ok) {
         alert('Bukti DP baru terkirim! Menunggu konfirmasi admin.');
