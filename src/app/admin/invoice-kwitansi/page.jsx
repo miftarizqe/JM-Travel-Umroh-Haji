@@ -434,7 +434,7 @@ function InvoiceKwitansiPageInner() {
                 <tr><td colSpan={tab === 'invoice' ? 9 : 8} className="text-center text-gray-400 py-8">Belum ada dokumen.</td></tr>
               ) : dokumenTab.map(d => (
                 <tr key={d.id} className="border-t border-gray-100">
-                  <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">{d.nomor}</td>
+                  <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">{d.nomor || <span className="text-gray-400 italic">belum dikirim</span>}</td>
                   {tab === 'invoice' && <td className="px-3 py-2 whitespace-nowrap">{d.judul || '-'}</td>}
                   <td className="px-3 py-2">{d.nama}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{d.booking_id || '-'}</td>

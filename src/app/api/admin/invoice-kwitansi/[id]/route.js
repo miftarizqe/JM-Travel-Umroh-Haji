@@ -1,7 +1,12 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { ringkasanPaketKamar, resolveJamaahHarga } from '@/lib/jamaahHarga';
-import { hitungJamaahBreakdownTtu } from '@/lib/invoiceKwitansi';
+import { hitungJamaahBreakdownTtu, pastikanNomorDokumen } from '@/lib/invoiceKwitansi';
+
+// Sama persis BATAS_MATERAI/butuhMaterai di halaman cetak
+// (/admin/cetak-invoice/[id]/page.jsx) & POST .../setuju — JANGAN diubah
+// sendiri2, kalau salah satu berubah yang lain ikut.
+const BATAS_MATERAI = 5_000_000;
 
 // GET /api/admin/invoice-kwitansi/[id] — detail 1 dokumen buat halaman cetak.
 // Admin selalu boleh. Pemilik booking-nya (jamaah) JUGA boleh, HANYA kalau
@@ -21,6 +26,20 @@ export async function GET(request, { params }) {
     if (!dokumen) return Response.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
 
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
+
+    // Nomor TTU/Kwitansi yang WAJIB materai dibakar PAS PERTAMA KALI admin
+    // buka halaman cetak ini (dikonfirmasi user 2026-10-14) — dari titik
+    // itu dokumennya udah bisa langsung diprint fisik, jadi nomornya harus
+    // udah final SEBELUM itu kejadian (beda dari yang gak wajib materai,
+    // nomornya baru dibakar pas tombol "Kirim ke Jamaah" diklik, lihat
+    // POST .../setuju). Idempotent — gak ngulang generate kalau udah ada.
+    if (isAdmin && ['tanda_terima', 'kwitansi'].includes(dokumen.jenis) && !dokumen.nomor) {
+      const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+      const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
+      if (butuhMaterai) {
+        dokumen.nomor = await pastikanNomorDokumen(pool, dokumen);
+      }
+    }
 
     // Tanda Terima Uang nempel ke 1 payment spesifik — ambil tipe pembayaran
     // (dp/lunas) buat ditampilin di cetakan ("Pembayaran diterima — DP", dst).

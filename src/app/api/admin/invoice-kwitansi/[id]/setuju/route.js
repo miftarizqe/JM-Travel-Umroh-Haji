@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { kirimNotifikasi } from '@/lib/notifikasi';
-import { hitungJamaahBreakdownTtu } from '@/lib/invoiceKwitansi';
+import { hitungJamaahBreakdownTtu, pastikanNomorDokumen } from '@/lib/invoiceKwitansi';
 
 const JENIS_LABEL = { invoice: 'Invoice', kwitansi: 'Kwitansi Pembayaran', tanda_terima: 'Tanda Terima Uang' };
 
@@ -70,6 +70,14 @@ export async function POST(request, { params }) {
       );
     }
 
+    // Nomor dokumen yang gak wajib materai baru dibakar DI SINI, pas tombol
+    // kirim beneran diklik (dikonfirmasi user 2026-10-14) — yang wajib
+    // materai harusnya udah dibakar dari GET (lihat pastikanNomorDokumen di
+    // route.js), ini cuma jaring pengaman idempotent kalau somehow belum.
+    if (JENIS_LOCK_ON_SEND.includes(dokumen.jenis)) {
+      dokumen.nomor = await pastikanNomorDokumen(pool, dokumen);
+    }
+
     const terkirimAt = new Date();
     // Snapshot konten dibekukan PERSIS di sini, saat tombol kirim beneran
     // diklik (dikonfirmasi user 2026-10-14) — GET /api/admin/invoice-
@@ -112,7 +120,7 @@ export async function POST(request, { params }) {
       }
     }
 
-    return Response.json({ message: 'Dokumen disetujui.', terkirim_at: terkirimAt.toISOString(), terkirim_metode: metode });
+    return Response.json({ message: 'Dokumen disetujui.', terkirim_at: terkirimAt.toISOString(), terkirim_metode: metode, nomor: dokumen.nomor });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

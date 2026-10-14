@@ -1,7 +1,24 @@
-import { generateNomorKwitansi, generateNomorTandaTerima } from './nomorInvoiceKwitansi';
+import { generateNomorInvoice, generateNomorKwitansi, generateNomorTandaTerima } from './nomorInvoiceKwitansi';
 import { resolveJamaahHarga } from './jamaahHarga';
 
 const fmtTgl = (d) => new Date(d).toISOString().slice(0, 10);
+
+// Nomor TTU/Kwitansi SEKARANG baru dibakar pas BENERAN "kepake" (dikonfirmasi
+// user 2026-10-14) — bukan pas baris invoice_kwitansi dibuat (itu bisa jauh
+// lebih dulu dari dokumennya beneran dilihat/dikirim, lihat migration 225).
+// Dipanggil dari 2 titik: GET /api/admin/invoice-kwitansi/[id] (dokumen wajib
+// materai — kepake begitu PERTAMA dibuka, karena dari situ udah bisa
+// langsung diprint fisik) & POST .../setuju (dokumen gak wajib materai —
+// kepake pas tombol "Kirim ke Jamaah" diklik). Idempotent: kalau nomor udah
+// ada, gak digenerate ulang.
+export async function pastikanNomorDokumen(pool, dokumen) {
+  if (dokumen.nomor) return dokumen.nomor;
+  const generator = { invoice: generateNomorInvoice, kwitansi: generateNomorKwitansi, tanda_terima: generateNomorTandaTerima }[dokumen.jenis];
+  if (!generator) return dokumen.nomor;
+  const nomor = await generator(pool);
+  await pool.query('UPDATE invoice_kwitansi SET nomor = ? WHERE id = ?', [nomor, dokumen.id]);
+  return nomor;
+}
 
 /**
  * Daftar {nama, paket, kamar, hargaJual} jamaah yang BENERAN ditutup 1
@@ -101,13 +118,14 @@ export async function generateOrUpdateKwitansi(pool, bookingId, actorUserId) {
     return { id: existing.id, nomor: existing.nomor, isNew: false };
   }
 
-  const nomor = await generateNomorKwitansi(pool);
+  // nomor DITUNDA (NULL) — baru dibakar pas dokumen beneran dibuka/dikirim
+  // (lihat pastikanNomorDokumen), bukan di sini.
   const [result] = await pool.query(
     `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, nama, nominal, tanggal, is_manual, dibuat_oleh, nominal_dp, nominal_pelunasan, status)
-     VALUES (?, 'kwitansi', ?, ?, ?, ?, 0, ?, ?, ?, 'paid')`,
-    [nomor, bookingId, booking.pemesan_nama || '-', nominal, fmtTgl(new Date()), actorUserId || null, nominalDp, nominalPelunasan]
+     VALUES (NULL, 'kwitansi', ?, ?, ?, ?, 0, ?, ?, ?, 'paid')`,
+    [bookingId, booking.pemesan_nama || '-', nominal, fmtTgl(new Date()), actorUserId || null, nominalDp, nominalPelunasan]
   );
-  return { id: result.insertId, nomor, isNew: true };
+  return { id: result.insertId, nomor: null, isNew: true };
 }
 
 /**
@@ -177,13 +195,13 @@ export async function syncKwitansiDariInvoice(pool, invoiceId) {
     return { id: existingKwt.id, nomor: existingKwt.nomor, isNew: false };
   }
 
-  const nomor = await generateNomorKwitansi(pool);
+  // nomor DITUNDA (NULL) — sama pola kayak generateOrUpdateKwitansi di atas.
   const [result] = await pool.query(
     `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, nama, nominal, tanggal, is_manual, dibuat_oleh, nominal_dp, nominal_pelunasan, status)
-     VALUES (?, 'kwitansi', ?, ?, ?, ?, 0, ?, ?, ?, 'paid')`,
-    [nomor, inv.booking_id, booking.pemesan_nama || inv.nama || '-', nominal, fmtTgl(new Date()), inv.dibuat_oleh, nominalDp, nominalPelunasan]
+     VALUES (NULL, 'kwitansi', ?, ?, ?, ?, 0, ?, ?, ?, 'paid')`,
+    [inv.booking_id, booking.pemesan_nama || inv.nama || '-', nominal, fmtTgl(new Date()), inv.dibuat_oleh, nominalDp, nominalPelunasan]
   );
-  return { id: result.insertId, nomor, isNew: true };
+  return { id: result.insertId, nomor: null, isNew: true };
 }
 
 /**
@@ -215,13 +233,14 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
     [payment.booking_id]
   );
 
-  const nomor = await generateNomorTandaTerima(pool);
+  // nomor DITUNDA (NULL) — baru dibakar pas dokumen beneran dibuka/dikirim
+  // (lihat pastikanNomorDokumen), bukan di sini.
   const [result] = await pool.query(
     `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, payment_id, nama, nominal, tanggal, is_manual, dibuat_oleh, status)
-     VALUES (?, 'tanda_terima', ?, ?, ?, ?, ?, 0, ?, 'paid')`,
-    [nomor, payment.booking_id || null, paymentId, booking?.pemesan_nama || '-', Number(payment.amount), fmtTgl(payment.created_at || new Date()), actorUserId || null]
+     VALUES (NULL, 'tanda_terima', ?, ?, ?, ?, ?, 0, ?, 'paid')`,
+    [payment.booking_id || null, paymentId, booking?.pemesan_nama || '-', Number(payment.amount), fmtTgl(payment.created_at || new Date()), actorUserId || null]
   );
-  return { id: result.insertId, nomor, isNew: true };
+  return { id: result.insertId, nomor: null, isNew: true };
 }
 
 /**
@@ -268,10 +287,13 @@ export async function daftarBookingPerluKwitansi(pool) {
 }
 
 /**
- * Payment CONFIRMED yang BELUM punya Tanda Terima Uang-nya sendiri — sama
+ * Payment DP CONFIRMED yang BELUM punya Tanda Terima Uang-nya sendiri — sama
  * alasannya kayak daftarBookingPerluKwitansi di atas, TTU harusnya auto
  * begitu payment di-approve (generateTandaTerimaUntukPayment), ini
  * nangkep kemungkinan kelewat/gagal (dikonfirmasi user 2026-10-13).
+ * type='lunas' SENGAJA gak diikutkan (dikonfirmasi user 2026-10-14) — TTU
+ * buat lunas emang udah gak pernah dibuat (digantikan Kwitansi), kalau
+ * ikut dicek di sini bakal keitung "kelewat" terus padahal disengaja.
  */
 export async function daftarPaymentPerluTandaTerima(pool) {
   const [rows] = await pool.query(
@@ -280,7 +302,7 @@ export async function daftarPaymentPerluTandaTerima(pool) {
      FROM payments py
      LEFT JOIN bookings b ON b.id = py.booking_id
      LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
-     WHERE py.status = 'confirmed'
+     WHERE py.status = 'confirmed' AND py.type = 'dp'
        AND NOT EXISTS (SELECT 1 FROM invoice_kwitansi ik WHERE ik.payment_id = py.id AND ik.jenis = 'tanda_terima')
      ORDER BY py.created_at DESC`
   );

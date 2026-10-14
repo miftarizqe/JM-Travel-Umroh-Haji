@@ -231,15 +231,24 @@ export async function PATCH(request) {
         await pool.query("UPDATE bookings SET pelunasan_status = 'paid' WHERE id = ?", [payment.booking_id]);
       }
 
-      // Tanda Terima Uang digenerate OTOMATIS tiap pembayaran (DP/cicilan/
-      // pelunasan) confirmed — 1 dokumen per payment, bukti uang itu spesifik
-      // diterima, TERLEPAS dari status lunas keseluruhan booking (fungsi ini
+      // Tanda Terima Uang digenerate OTOMATIS buat DP confirmed — 1 dokumen
+      // per payment DP, bukti uang itu spesifik diterima (fungsi ini
       // idempotent, aman dipanggil kapan pun). Gagal generate JANGAN sampai
       // gagalin approve pembayarannya sendiri — makanya try/catch.
-      try {
-        await generateTandaTerimaUntukPayment(pool, payment.id, auth.user.id);
-      } catch (e) {
-        console.error('Gagal auto-generate tanda terima:', e);
+      //
+      // type='lunas' SENGAJA DISKIP (dikonfirmasi user 2026-10-14, "gausah
+      // TTU, bisa aja langsung kwitansi") — pembayaran lunas SELALU
+      // langsung bikin booking.pelunasan_status='paid' di atas, yang
+      // SELALU memicu Kwitansi (generateOrUpdateKwitansi di bawah) buat
+      // payment yang sama persis. TTU buat lunas jadi dokumen kembar yang
+      // gak pernah perlu dikirim sendiri — cuma numpuk notif "TTU belum
+      // dikirim" yang gak akan pernah selesai karena emang gak relevan.
+      if (payment.type !== 'lunas') {
+        try {
+          await generateTandaTerimaUntukPayment(pool, payment.id, auth.user.id);
+        } catch (e) {
+          console.error('Gagal auto-generate tanda terima:', e);
+        }
       }
 
       if (payment.type === 'lunas' && punyaDebitSaldo) {

@@ -154,6 +154,13 @@ export default function CetakInvoiceKwitansi() {
   const [loading, setLoading] = useState(true);
   const [ditolak, setDitolak] = useState(false);
   const [menyetujui, setMenyetujui] = useState(false);
+  // Step "2. Print" di indikator TTU/Kwitansi >Rp5jt — SEBELUMNYA gak
+  // pernah keupdate walau tombol print udah dipencet (ditemukan user
+  // 2026-10-14 lewat screenshot, step-nya diem di "1. Lihat" aja). Dilacak
+  // lokal (gak perlu disimpan ke server, cuma penanda visual) begitu
+  // window.print() beneran dipanggil dari tombol manapun di halaman ini.
+  const [sudahPrint, setSudahPrint] = useState(false);
+  function cetak() { setSudahPrint(true); window.print(); }
 
   // Admin selalu boleh. Jamaah/pemesan JUGA boleh liat dokumen MILIKNYA
   // sendiri yang udah terkirim (dikonfirmasi user 2026-10-13 -- sebelumnya
@@ -183,8 +190,8 @@ export default function CetakInvoiceKwitansi() {
   // keproxy ke Go.
   async function setujui() {
     const pesanKonfirmasi = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
-      ? `Kirim ${JUDUL[dokumen.jenis]} ${dokumen.nomor} ke jamaah sekarang? Setelah dikirim, isi dokumen ini terkunci permanen.`
-      : `Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor}? Dokumen akan ditandai sudah dikirim.`;
+      ? `Kirim ${JUDUL[dokumen.jenis]} ${dokumen.nomor || '(nomor baru akan dibuat)'} ke jamaah sekarang? Setelah dikirim, isi dokumen ini terkunci permanen.`
+      : `Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor || ''}? Dokumen akan ditandai sudah dikirim.`;
     if (!confirm(pesanKonfirmasi)) return;
     setMenyetujui(true);
     try {
@@ -193,7 +200,9 @@ export default function CetakInvoiceKwitansi() {
       if (!res.ok) { alert(d.error || 'Gagal menyetujui'); return; }
       // Server nentuin metode beneran (TTU materai -> 'fisik', lainnya ->
       // 'setuju') — jangan hardcode di client (dikonfirmasi user 2026-10-14).
-      setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: d.terkirim_metode || 'setuju', terkirim_at: d.terkirim_at }));
+      // nomor ikut di-refresh -- buat dokumen yang gak wajib materai, nomor
+      // BARU dibakar di titik kirim ini (sebelumnya null/belum ada).
+      setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: d.terkirim_metode || 'setuju', terkirim_at: d.terkirim_at, nomor: d.nomor || prev.nomor }));
     } catch { alert('Terjadi kesalahan'); }
     finally { setMenyetujui(false); }
   }
@@ -230,11 +239,11 @@ export default function CetakInvoiceKwitansi() {
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
-        <button onClick={() => window.print()}
+        <button onClick={cetak}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
           🖨️ Print / Save PDF
         </button>
-        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor} · di dialog print pilih &quot;Save as PDF&quot;</div>
+        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor || 'Nomor diberikan otomatis'} · di dialog print pilih &quot;Save as PDF&quot;</div>
       </div>
 
       {/* TTD digital & e-materai belum bisa dipakai (dikonfirmasi user 2026-10-04) — tombol
@@ -242,7 +251,7 @@ export default function CetakInvoiceKwitansi() {
           sesi digital lama (kalau ada) masih kelihatan. Admin-only -- jamaah yang lihat
           dokumen miliknya sendiri gak perlu/gak boleh liat aksi-aksi ini (dikonfirmasi
           user 2026-10-13). */}
-      {isAdmin && <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />}
+      {isAdmin && <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={cetak} hideCetakFisik hideKirimDigital />}
 
       {dokumen.terkirim ? (
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
@@ -286,7 +295,11 @@ export default function CetakInvoiceKwitansi() {
           {butuhMaterai && (
             <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 10, fontSize: 11, color: '#666' }}>
               {['1. Lihat', '2. Print', '3. Scan Materai+TTD', '4. Kirim'].map((label, i) => {
-                const selesai = i === 0 || (i === 1 && !!dokumen.scan_fisik_path) || (i === 2 && !!dokumen.scan_fisik_path);
+                // "Print" ikut keitung selesai kalau scan udah ada juga
+                // (gak mungkin bisa scan tanpa print duluan) — jaga-jaga
+                // state lokal sudahPrint ilang kalau halaman di-reload
+                // abis print (ditemukan user 2026-10-14).
+                const selesai = i === 0 || (i === 1 && (sudahPrint || !!dokumen.scan_fisik_path)) || (i === 2 && !!dokumen.scan_fisik_path) || (i === 3 && !!dokumen.terkirim);
                 return (
                   <span key={label} style={{ padding: '3px 8px', borderRadius: 12, fontWeight: 700, background: selesai ? '#dcfce7' : '#f3f4f6', color: selesai ? '#15803d' : '#666' }}>
                     {selesai ? '✓ ' : ''}{label}
@@ -341,7 +354,7 @@ export default function CetakInvoiceKwitansi() {
         <KopSurat pengaturan={pengaturan} />
 
         <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, letterSpacing: 0.5, color: '#0E2F6E' }}>{judul}</div>
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginBottom: 24 }}>No: {dokumen.nomor}</div>
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginBottom: 24 }}>No: {dokumen.nomor || '(belum dikirim)'}</div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: booking ? 10 : 20 }}>
           <div>Kepada Yth.<br /><b>{dokumen.nama}</b></div>
