@@ -145,18 +145,28 @@ function InvoiceKwitansiPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Saran Judul+Nominal invoice berikutnya buat booking ini — belum pernah
-  // di-invoice sama sekali -> saranin DP (nominal = dp_amount target booking);
-  // udah pernah -> saranin Pelunasan (nominal = sisa total_harga - yang udah
-  // di-invoice). Cuma SARAN awal, admin tetap bebas ubah nominal/judulnya.
+  // Saran Judul+Nominal invoice berikutnya buat booking ini — berdasarkan
+  // STATUS PEMBAYARAN BENERAN (dp_status/pelunasan_status + daftar
+  // `pembayaran` confirmed dari cari-booking), BUKAN dari histori Invoice
+  // yang pernah dibuat (bug ditemukan user 2026-10-14: "orang udah bayar DP
+  // tapi invoice-nya malah invoice DP" — Invoice itu opsional/manual, jadi
+  // booking yang DP-nya UDAH LUNAS lewat alur normal tapi belum pernah
+  // di-invoice sama sekali bakal keliatan "totalInvoicedSoFar === 0" dan
+  // disaranin DP lagi, padahal DP-nya udah beres). DP belum confirmed ->
+  // saranin DP (nominal = dp_amount). DP udah confirmed -> saranin
+  // Pelunasan, nominalnya SISA BENERAN (total_harga - dp_amount - SEMUA
+  // cicilan lunas yang udah confirmed — sama formula hitungSisaBayar di
+  // src/lib/pelunasan.js, dihitung ulang dari `pembayaran` yang udah
+  // dibawa cari-booking biar gak perlu fetch lagi). Cuma SARAN awal, admin
+  // tetap bebas ubah nominal/judulnya.
   function saranInvoice(b) {
-    const totalInvoicedSoFar = dokumen
-      .filter(d => d.jenis === 'invoice' && d.booking_id === b.id)
-      .reduce((s, d) => s + Number(d.nominal), 0);
-    if (totalInvoicedSoFar === 0) {
+    if (b.dp_status !== 'confirmed') {
       return { nominal: String(Number(b.dp_amount || 0)), judul: 'Uang Muka (DP)' };
     }
-    const sisa = Math.max(Number(b.total_harga || 0) - totalInvoicedSoFar, 0);
+    const lunasConfirmed = (b.pembayaran || [])
+      .filter(p => p.type === 'lunas')
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+    const sisa = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0) - lunasConfirmed);
     return { nominal: String(sisa), judul: 'Pelunasan' };
   }
 
