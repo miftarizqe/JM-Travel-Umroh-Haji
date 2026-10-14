@@ -473,9 +473,14 @@ export default function CetakInvoiceKwitansi() {
                   Materai<br />Rp10.000
                 </div>
               )}
-              {/* TTD digital — nimpa di atas materai (persis kayak tanda
-                  tangan asli yang nembus materai fisik). */}
-              {pengaturan.ttd_penandatangan_keuangan_path && (
+              {/* TTD digital (template) CUMA buat dokumen yang GAK wajib
+                  materai (self-certify/digital, dikonfirmasi user
+                  2026-10-14) — begitu wajib materai, area ini WAJIB
+                  dikosongin karena bakal ditandatangani TANGAN ASLI di atas
+                  materai fisik pas dicetak, bukan ditimpa gambar TTD digital
+                  (nyampur tanda tangan digital & basah bikin rancu/salah
+                  kesan secara hukum). */}
+              {!butuhMaterai && pengaturan.ttd_penandatangan_keuangan_path && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={pengaturan.ttd_penandatangan_keuangan_path} alt="Tanda Tangan"
                   style={{ position: 'absolute', height: 65, objectFit: 'contain' }} />
