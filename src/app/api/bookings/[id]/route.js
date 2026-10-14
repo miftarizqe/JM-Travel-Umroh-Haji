@@ -263,10 +263,17 @@ export async function PATCH(request, { params }) {
     // jamaah_data pas admin cuma mau edit paket doang.
     if (form_filled !== undefined) {
       // Booking LUNAS -> formulir & dokumen jamaah dikunci buat pemilik /
-      // pemesan (dikonfirmasi user 2026-10-12), koreksi lewat admin.
+      // pemesan (dikonfirmasi user 2026-10-12), koreksi lewat admin. TAPI
+      // cuma kalau formulirnya emang UDAH LENGKAP duluan — kalau belum
+      // (booking lunas lewat jalur Invoice-paid-override admin yang gak
+      // lewat gerbang form, lihat syncKwitansiDariInvoice), jamaah TETAP
+      // boleh isi formulirnya, gak boleh nyangkut gak bisa ngapa-ngapain
+      // (ditemukan user 2026-10-14, "dia gabisa ubah apa2 lagi"). Beda dari
+      // dp_status, pelunasan_status sendiri gak kejamin lagi selalu nyusul
+      // form_filled >= form_total.
       if (!isAdmin) {
-        const [[cekLunas]] = await pool.query('SELECT pelunasan_status FROM bookings WHERE id = ?', [id]);
-        if (cekLunas?.pelunasan_status === 'paid') {
+        const [[cekLunas]] = await pool.query('SELECT pelunasan_status, form_filled, form_total FROM bookings WHERE id = ?', [id]);
+        if (cekLunas?.pelunasan_status === 'paid' && cekLunas.form_filled >= cekLunas.form_total) {
           return Response.json({ error: 'Booking sudah lunas — data jamaah & dokumen tidak bisa diubah lagi. Hubungi admin JM Travel.' }, { status: 403 });
         }
       }

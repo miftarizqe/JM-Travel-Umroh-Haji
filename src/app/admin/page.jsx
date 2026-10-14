@@ -645,6 +645,24 @@ function AdminPageInner() {
     window.open(`/admin/cetak-formulir/${bookingId}`, '_blank');
   }
 
+  // Label "DP 1"/"DP 2"/dst ATAU "Lunas 1"/"Lunas 2"/dst — 1 booking bisa
+  // punya lebih dari 1 payment type='dp' (DP awal, DP pax tambahan, resubmit
+  // abis ditolak) ATAUPUN type='lunas' (cicilan pelunasan, dikonfirmasi user
+  // 2026-10-14 — lihat src/lib/dpPayments.js). Dihitung dari urutan
+  // created_at SEMUA payment jenis yang sama milik booking yang sama di
+  // state `payments` ini — biar admin gak bingung ngeliat beberapa kartu
+  // "DP"/"Lunas" buat booking yang sama dikira dobel/salah input.
+  function labelJenisPayment(p) {
+    if (p.type !== 'dp' && p.type !== 'lunas') return (p.type || '').toUpperCase();
+    const label = p.type === 'dp' ? 'DP' : 'Lunas';
+    const sebookingAsc = payments
+      .filter(x => x.booking_id === p.booking_id && x.type === p.type)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    if (sebookingAsc.length <= 1) return label;
+    const urutan = sebookingAsc.findIndex(x => x.id === p.id) + 1;
+    return `${label} ${urutan}`;
+  }
+
   // Cetak invoice/kwitansi OTOMATIS — server yang validasi syarat (DP/pelunasan
   // harus sudah confirmed) & idempotensi nomor (klik ulang gak bikin nomor baru).
   async function cetakInvoiceOtomatis(bookingId, jenis) {
@@ -1145,7 +1163,7 @@ function AdminPageInner() {
                               else if (c.key==='custom_harga') pindahTab('customharga');
                               else if (c.key==='perlengkapan' && c.items[0]) router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(c.items[0].prog_name)}`);
                               else if (c.key==='kalkulator_lead') router.push('/admin/kalkulator-leads');
-                              else if (c.key==='ttu_belum_dikirim' && c.items[0]) router.push(`/admin/cetak-invoice/${c.items[0].id}`);
+                              else if (c.key==='ttu_belum_dikirim') router.push('/admin/invoice-kwitansi?tab=tanda_terima&belum_dikirim=1');
                               else if (c.key==='perjanjian_belum_selesai' && c.items[0]) router.push(`/admin/cetak-perjanjian/${c.items[0].id}`);
                               else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
                               else if (c.key==='refund_belum_ditransfer' && c.items[0]) { pindahTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
@@ -1353,7 +1371,14 @@ function AdminPageInner() {
           {(() => {
             const filtered = payments
               .filter(p => cocok(searchPayments, p.nama, p.booking_id))
-              .filter(p => !filterPaymentStatus || p.status === filterPaymentStatus);
+              .filter(p => !filterPaymentStatus || p.status === filterPaymentStatus)
+              // DP Rp0 (khusus checkout mandiri Program Eksklusif Sahabat
+              // Baitullah — auto-confirmed pas checkout, bukan lewat approve
+              // admin, lihat src/app/api/sahabat/checkout-mandiri/route.js)
+              // gak pernah butuh tindakan admin & gak ada duitnya buat
+              // di-"Tanda Terima"-in — cuma noise di list ini (dikonfirmasi
+              // user 2026-10-14).
+              .filter(p => !(p.type === 'dp' && Number(p.amount) === 0));
             if (filtered.length === 0) {
               return <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">Tidak ada pembayaran yang cocok.</div>;
             }
@@ -1386,18 +1411,35 @@ function AdminPageInner() {
                     <div className="font-bold text-[#0E2F6E] text-sm">
                       {first.nama || 'User'} — {g.members.length > 1 ? `${g.members.length} booking dalam 1 transaksi` : first.booking_id}
                     </div>
-                    <div className="text-xs text-gray-400">{(first.type||'').toUpperCase()} · {tgl(first.created_at)} · {rp(g.totalAmount)}</div>
+                    <div className="text-xs text-gray-400">{labelJenisPayment(first)} · {tgl(first.created_at)} · {rp(g.totalAmount)}</div>
                   </div>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    statusGroup==='confirmed'?'bg-green-100 text-green-700':statusGroup==='rejected'?'bg-red-100 text-red-600':statusGroup==='campuran'?'bg-amber-100 text-amber-700':'bg-yellow-100 text-yellow-700'
-                  }`}>{statusGroup==='confirmed'?'✅ Confirmed':statusGroup==='rejected'?'❌ Rejected':statusGroup==='campuran'?'⚠️ Sebagian diproses':'⏳ Pending'}</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      statusGroup==='confirmed'?'bg-green-100 text-green-700':statusGroup==='rejected'?'bg-red-100 text-red-600':statusGroup==='campuran'?'bg-amber-100 text-amber-700':'bg-yellow-100 text-yellow-700'
+                    }`}>{statusGroup==='confirmed'?'✅ Confirmed':statusGroup==='rejected'?'❌ Rejected':statusGroup==='campuran'?'⚠️ Sebagian diproses':'⏳ Pending'}</span>
+                    {/* Penanda TTU/Kwitansi udah dikirim apa belum (dikonfirmasi
+                        user 2026-10-14) — DP pakai Tanda Terima Uang (per-payment,
+                        lihat ttu_terkirim), Pelunasan pakai Kwitansi (per-booking,
+                        lihat kwitansi_terkirim). Cuma relevan buat payment yang
+                        udah confirmed. */}
+                    {first.status === 'confirmed' && first.type === 'dp' && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${first.ttu_terkirim ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {first.ttu_terkirim ? '📤 TTU Terkirim' : '📝 TTU Belum Dikirim'}
+                      </span>
+                    )}
+                    {first.status === 'confirmed' && first.type === 'lunas' && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${first.kwitansi_terkirim ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {first.kwitansi_terkirim ? '📤 Kwitansi Terkirim' : '📝 Kwitansi Belum Dibuat'}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Detail saat diklik */}
                 {openPayment === g.key && (
                   <div className="border-t border-gray-100 p-4 bg-gray-50 text-sm space-y-2">
                     <div className="flex justify-between"><span className="text-gray-400">Pemesan</span><span className="font-semibold">{first.nama||'-'}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-400">Jenis</span><span className="font-semibold">{(first.type||'').toUpperCase()}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Jenis</span><span className="font-semibold">{labelJenisPayment(first)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Total ({g.members.length} booking)</span><span className="font-semibold">{rp(g.totalAmount)}</span></div>
 
                     {/* Rincian per booking — cuma buat dilihat detailnya, aksinya digabung */}
@@ -1433,7 +1475,12 @@ function AdminPageInner() {
 
                     {g.members.some(m => m.status === 'pending') && (
                       <div className="flex gap-2 pt-2">
-                        <button onClick={() => Promise.all(g.members.filter(m => m.status === 'pending').map(m => patchPayment(m.id, 'approve', { skipReload: true }))).then(() => { loadAll(); setOpenPayment(null); })}
+                        {/* Abis approve, section JANGAN langsung ketutup (dikonfirmasi
+                            user 2026-10-14) — biar admin langsung liat tombol "Lihat &
+                            Kirim Tanda Terima Uang"/Kwitansi di bawah tanpa harus buka
+                            lagi manual, soalnya itu kerjaan lanjutan yang masih perlu
+                            dilakuin. Beda sama Tolak, yang emang udah selesai sampai situ. */}
+                        <button onClick={() => Promise.all(g.members.filter(m => m.status === 'pending').map(m => patchPayment(m.id, 'approve', { skipReload: true }))).then(() => { loadAll(); setOpenPayment(g.key); })}
                           className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 rounded-full">
                           ✅ Approve {g.members.length > 1 ? `Semua (${g.members.length})` : ''}
                         </button>
@@ -1448,24 +1495,35 @@ function AdminPageInner() {
                         booking dalam grup ini (termasuk yang gak bikin akun sendiri,
                         dipesankan admin/perwakilan) + ke perwakilan perekrutnya kalau ada. */}
                     {statusGroup === 'confirmed' && g.members.map(p => {
+                      // Pemilik akun = kontak UTAMA (dikonfirmasi user 2026-10-14,
+                      // sama alasan kayak reminder pelunasan) — WA-nya udah pasti
+                      // ada, beda sama WA jamaah yang sering belum keisi. Per-jamaah
+                      // cuma opsi tambahan kalau kebetulan ada.
                       const jamaahList = parseJamaahData(p.jamaah_data).filter(j => j.wa);
                       const ctx = {
                         progName: p.prog_name, totalHarga: p.total_harga, dpAmount: p.dp_amount,
                         namaKantor: pengaturan.nama_perusahaan,
                       };
+                      const pesanUntuk = (nama) => p.type === 'lunas'
+                        ? pesanPelunasanDikonfirmasi({ namaJamaah: nama, ...ctx })
+                        : pesanDpDikonfirmasi({ namaJamaah: nama, ...ctx });
                       return (
                         <div key={p.id} className="pt-2 border-t border-gray-200 mt-2 space-y-1.5">
                           <div className="text-gray-400 text-xs mb-1">Kirim Info via WhatsApp — {p.booking_id}</div>
-                          {jamaahList.length === 0 && (
-                            <div className="text-[11px] text-gray-400">Belum ada nomor WA jamaah tercatat untuk booking ini.</div>
+                          {p.pemesan_wa ? (
+                            <TombolWA nomor={p.pemesan_wa}
+                              label={`Kirim WA ke ${p.nama || 'Pemilik Akun'}`}
+                              className="w-full inline-flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded-full"
+                              pesan={pesanUntuk(p.nama)}
+                            />
+                          ) : (
+                            <div className="text-[11px] text-gray-400">Belum ada nomor WA pemilik akun tercatat untuk booking ini.</div>
                           )}
                           {jamaahList.map((j, i) => (
                             <TombolWA key={i} nomor={j.wa}
-                              label={`Kirim WA ke ${j.nama || 'Jamaah'}`}
-                              className="w-full inline-flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded-full"
-                              pesan={p.type === 'lunas'
-                                ? pesanPelunasanDikonfirmasi({ namaJamaah: j.nama, ...ctx })
-                                : pesanDpDikonfirmasi({ namaJamaah: j.nama, ...ctx })}
+                              label={`Kirim WA ke ${j.nama || 'Jamaah'} (langsung)`}
+                              className="w-full inline-flex items-center justify-center gap-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold px-3 py-2 rounded-full"
+                              pesan={pesanUntuk(j.nama)}
                             />
                           ))}
                           {p.referral_perw_id && p.referral_wa && (
@@ -2054,22 +2112,11 @@ function AdminPageInner() {
                           <button onClick={() => window.open(`/admin/cetak-perjanjian/${b.id}`, '_blank')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
                             📜 Cetak Surat Perjanjian
                           </button>
-                          {/* Invoice sekarang selalu manual (judul+nominal
-                              admin, bisa DP/Pelunasan/cicilan) — tombol ini
-                              cuma nge-link ke halaman Invoice & Kwitansi
-                              dengan booking ini udah pre-filled. Program
-                              Eksklusif Sahabat Baitullah (checkout mandiri)
-                              gak PERNAH punya tahap DP/cicilan terpisah —
-                              langsung lunas total sekali bayar dari saldo
-                              (lihat cekDanFinalisasiLunasSahabat) — jadi
-                              Invoice gak relevan buat program ini, tombolnya
-                              disembunyikan, cukup Kwitansi di bawah
-                              (dikonfirmasi user 2026-10-13). */}
-                          {b.dp_status === 'confirmed' && openProgram?.publish_type !== 'sahabat_baitullah' && (
-                            <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${b.id}`, '_blank')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
-                              🧾 Buat Invoice
-                            </button>
-                          )}
+                          {/* Tombol "Buat Invoice" DIPINDAH ke blok sc.kind===
+                              'belum-lunas' di bawah (dikonfirmasi user
+                              2026-10-14) — sebelumnya ada DUA tombol Buat
+                              Invoice nongol bareng kalau form lengkap + DP
+                              confirmed + belum lunas, sekarang cuma 1. */}
                           {/* Kwitansi cuma keluar begitu LUNAS TOTAL. */}
                           {b.pelunasan_status === 'paid' && (
                             <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
@@ -2101,6 +2148,16 @@ function AdminPageInner() {
                         if (sc.kind === 'selesai') {
                           return <div className="text-center text-xs text-green-600 font-bold py-1 mt-1">✅ Perjalanan Selesai — closing tercatat</div>;
                         }
+                        {/* Lunas TAPI formulir belum lengkap — SEBELUMNYA kosong
+                            total di sini (gak ada return sama sekali buat kind
+                            ini), keliatan kayak "udah semua beres" padahal masih
+                            ada yang perlu diselesaikan (ditemukan user 2026-10-14,
+                            "jangan dibablas seakan udah semua"). Tombol "Lengkapi
+                            Formulir" sendiri udah ada di atas (baris 2107-ish),
+                            ini nambahin penanda eksplisit di status ladder-nya. */}
+                        if (sc.kind === 'form-belum') {
+                          return <div className="text-center text-xs text-blue-600 font-bold py-1 mt-1">💰 Lunas — tinggal lengkapi formulir jamaah dulu sebelum siap closing.</div>;
+                        }
                         if (sc.kind === 'siap') {
                           return (
                             <button onClick={() => tandaiSelesai(b.id)} className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 rounded-full">
@@ -2118,20 +2175,67 @@ function AdminPageInner() {
                           return <div className="text-center text-xs text-red-500 py-1 mt-1">🚫 Ada pengajuan pembatalan aktif.</div>;
                         }
                         if (sc.kind === 'belum-lunas') {
+                          // Pemilik akun = kontak UTAMA buat info administratif kayak
+                          // reminder pelunasan (dikonfirmasi user 2026-10-14) — WA-nya
+                          // udah pasti ada (wajib diisi pas daftar akun), beda sama WA
+                          // jamaah yang sering kosong (baru keisi kalau mereka sendiri
+                          // yang isi formulir). Per-jamaah cuma jadi opsi TAMBAHAN kalau
+                          // kebetulan ada (mis. keluarga beda nomor), bukan yang utama.
+                          // Manasik tetap per-jamaah (beda konteks, dikonfirmasi user
+                          // 2026-10-14) — TIDAK diubah di sini.
                           const jamaahWa = (b.jamaah || []).filter(j => j.wa);
-                          const sisaBayar = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0));
+                          // Cicilan pelunasan (dikonfirmasi user 2026-10-14) — sisa yang
+                          // ditawarkan reminder WA ini juga perlu dikurangi cicilan yang
+                          // udah confirmed, bukan cuma DP, biar gak minta jamaah transfer
+                          // lagi nominal penuh padahal udah pernah bayar sebagian.
+                          const lunasSudahConfirmed = payments
+                            .filter(p => p.booking_id === b.id && p.type === 'lunas' && p.status === 'confirmed')
+                            .reduce((s, p) => s + Number(p.amount || 0), 0);
+                          const sisaBayar = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0) - lunasSudahConfirmed);
+                          const pesanUntuk = (nama) => pesanReminderPelunasan({
+                            namaJamaah: nama, progName: b.prog_name, sisaBayar,
+                            namaBank: pengaturan.bank_nama, noRekening: pengaturan.bank_rekening, atasNama: pengaturan.bank_atas_nama,
+                          });
                           return (
                             <div className="border-t border-gray-100 mt-2 pt-2 space-y-1.5">
+                              {/* Shortcut langsung ke form Buat Invoice, booking_id
+                                  udah ke-pre-fill (dikonfirmasi user 2026-10-14) —
+                                  sebelumnya admin harus pindah ke /admin/invoice-
+                                  kwitansi terus copy-paste Booking ID manual.
+                                  Deep-link ?booking_id= ini pola yang UDAH ADA
+                                  (dipakai tombol "Cetak Invoice" di tempat lain),
+                                  cuma dipasang di sini juga. Muncul terus selama
+                                  booking ini belum lunas (sc.kind==='belum-lunas'
+                                  persis sama syaratnya kayak reminder WA di bawah),
+                                  ilang otomatis begitu pelunasan_status jadi 'paid'.
+                                  Gerbang dp_status+sahabat_baitullah SAMA PERSIS
+                                  kayak tombol lama yang DIHAPUS di atas (dulu ada
+                                  2 tombol Buat Invoice nongol bareng, ditemukan
+                                  user 2026-10-14) — Invoice baru relevan begitu DP
+                                  confirmed, & Program Sahabat Baitullah checkout
+                                  mandiri gak pernah punya tahap DP/cicilan
+                                  terpisah (dikonfirmasi user 2026-10-13). */}
+                              {b.dp_status === 'confirmed' && openProgram?.publish_type !== 'sahabat_baitullah' && (
+                                <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${b.id}`, '_blank')}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full">
+                                  📄 Buat Invoice
+                                </button>
+                              )}
                               <div className="text-[10px] text-gray-400">⏳ Belum lunas — sisa {rp(sisaBayar)}. Kirim reminder pelunasan:</div>
-                              {jamaahWa.length === 0 && <div className="text-[11px] text-gray-400">Belum ada nomor WA jamaah tercatat untuk booking ini.</div>}
+                              {b.pemesan_wa ? (
+                                <TombolWA nomor={b.pemesan_wa}
+                                  label={`Reminder Pelunasan ke ${b.pemesan_nama || 'Pemilik Akun'}`}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-full"
+                                  pesan={pesanUntuk(b.pemesan_nama)}
+                                />
+                              ) : (
+                                <div className="text-[11px] text-gray-400">Belum ada nomor WA pemilik akun tercatat untuk booking ini.</div>
+                              )}
                               {jamaahWa.map((j, i) => (
                                 <TombolWA key={i} nomor={j.wa}
-                                  label={`Reminder Pelunasan ke ${j.nama || 'Jamaah'}`}
-                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-full"
-                                  pesan={pesanReminderPelunasan({
-                                    namaJamaah: j.nama, progName: b.prog_name, sisaBayar,
-                                    namaBank: pengaturan.bank_nama, noRekening: pengaturan.bank_rekening, atasNama: pengaturan.bank_atas_nama,
-                                  })}
+                                  label={`Reminder Pelunasan ke ${j.nama || 'Jamaah'} (langsung)`}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold px-3 py-2 rounded-full"
+                                  pesan={pesanUntuk(j.nama)}
                                 />
                               ))}
                             </div>
@@ -2840,7 +2944,7 @@ function AdminPageInner() {
                           <div key={p.id} className="bg-white rounded-lg p-3 space-y-2 border border-amber-200">
                             <div className="flex justify-between items-start gap-2 text-sm">
                               <div>
-                                <div className="font-bold text-[#0E2F6E]">{p.type === 'lunas' ? '💰 Pelunasan' : '💳 DP'} menunggu konfirmasi</div>
+                                <div className="font-bold text-[#0E2F6E]">{p.type === 'lunas' ? `💰 ${labelJenisPayment(p) === 'Lunas' ? 'Pelunasan' : 'Cicilan ' + labelJenisPayment(p)}` : `💳 ${labelJenisPayment(p)}`} menunggu konfirmasi</div>
                                 <div className="text-xs text-gray-500">{rp(p.amount)} · dikirim {tgl(p.bukti_uploaded_at || p.created_at)}{p.batch_id ? ' · bagian dari 1 transfer keranjang' : ''}</div>
                               </div>
                               {p.bukti_path ? (

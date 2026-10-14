@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import InputTanggal from '@/app/components/InputTanggal';
 import { useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import UploadBukti from '@/app/components/UploadBukti';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
@@ -24,14 +25,6 @@ const TAB_JENIS = {
   tanda_terima: ['tanda_terima'],
 };
 
-// Semua dokumen Tanda Terima buat 1 booking (biasanya maks 2: DP & lunas,
-// krn payments.type cuma dp/lunas) — ditampilin sbg link "Cetak Tanda
-// Terima" di baris Invoice booking itu begitu ada Invoice yang Paid.
-function cariTandaTerimaBooking(semuaDokumen, bookingId) {
-  if (!bookingId) return [];
-  return semuaDokumen.filter(x => x.jenis === 'tanda_terima' && x.booking_id === bookingId);
-}
-
 const formKosong = (jenisDefault) => ({ jenis: jenisDefault, booking_id: '', nama: '', nominal: '', judul: '', keterangan: '', tanggal: new Date().toISOString().slice(0, 10) });
 
 export default function InvoiceKwitansiPage() {
@@ -50,7 +43,25 @@ function InvoiceKwitansiPageInner() {
   const [rekomKwitansi, setRekomKwitansi] = useState([]);
   const [rekomTandaTerima, setRekomTandaTerima] = useState([]);
   const [rekomBusyId, setRekomBusyId] = useState(null);
+  // Saran dokumen relevan begitu admin nge-toggle Invoice ke Paid
+  // (dikonfirmasi user 2026-10-14, ganti link "TT [jenis]" yang gak
+  // nyambung sebelumnya) -- lunas total -> Kwitansi (udah auto-synced,
+  // tinggal buka), belum -> saranin bikin Tanda Terima Uang manual buat
+  // pembayaran yang baru ditandai paid ini.
+  const [rekomendasiSetelahPaid, setRekomendasiSetelahPaid] = useState(null);
+  // Modal "Tandai Paid" Invoice -- wajib upload bukti dulu, gak langsung
+  // toggle (dikonfirmasi user 2026-10-14).
+  const [modalTandaiPaid, setModalTandaiPaid] = useState(null);
+  const [buktiLunasPath, setBuktiLunasPath] = useState(null);
+  const [buktiLunasNama, setBuktiLunasNama] = useState(null);
+  const [submittingBuktiLunas, setSubmittingBuktiLunas] = useState(false);
   const [tab, setTab] = useState('invoice');
+  // Deep-link dari cluster "Tindak Lanjut" dashboard admin (dikonfirmasi user
+  // 2026-10-14) — ?tab=tanda_terima&belum_dikirim=1 buka tab yang bener +
+  // filter cuma yang belum dikirim, BUKAN langsung lompat ke 1 dokumen
+  // spesifik kayak sebelumnya (admin gak liat dokumen lain yang sama2 perlu
+  // ditindaklanjuti).
+  const [filterBelumDikirim, setFilterBelumDikirim] = useState(false);
   const [q, setQ] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(formKosong('invoice'));
@@ -110,6 +121,13 @@ function InvoiceKwitansiPageInner() {
     if (user) muat();
   }, [user]);
 
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (tabParam && TAB_JENIS[tabParam]) setTab(tabParam);
+    if (searchParams.get('belum_dikirim') === '1') setFilterBelumDikirim(true);
+  }, [searchParams]);
+
   // Cari 1 booking persis by ID lewat endpoint /cari-booking (yang udah
   // ikut sertakan jamaah_nama, tanggal_berangkat, referral_nama) — dipakai
   // bersama oleh isiOtomatisDariBooking (Booking ID diketik manual) & deep
@@ -132,26 +150,47 @@ function InvoiceKwitansiPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Saran Judul+Nominal invoice berikutnya buat booking ini — belum pernah
-  // di-invoice sama sekali -> saranin DP (nominal = dp_amount target booking);
-  // udah pernah -> saranin Pelunasan (nominal = sisa total_harga - yang udah
-  // di-invoice). Cuma SARAN awal, admin tetap bebas ubah nominal/judulnya.
+  // Saran Judul+Nominal invoice berikutnya buat booking ini — berdasarkan
+  // STATUS PEMBAYARAN BENERAN (dp_status/pelunasan_status + daftar
+  // `pembayaran` confirmed dari cari-booking), BUKAN dari histori Invoice
+  // yang pernah dibuat (bug ditemukan user 2026-10-14: "orang udah bayar DP
+  // tapi invoice-nya malah invoice DP" — Invoice itu opsional/manual, jadi
+  // booking yang DP-nya UDAH LUNAS lewat alur normal tapi belum pernah
+  // di-invoice sama sekali bakal keliatan "totalInvoicedSoFar === 0" dan
+  // disaranin DP lagi, padahal DP-nya udah beres). DP belum confirmed ->
+  // saranin DP (nominal = dp_amount). DP udah confirmed -> saranin
+  // Pelunasan, nominalnya SISA BENERAN (total_harga - dp_amount - SEMUA
+  // cicilan lunas yang udah confirmed — sama formula hitungSisaBayar di
+  // src/lib/pelunasan.js, dihitung ulang dari `pembayaran` yang udah
+  // dibawa cari-booking biar gak perlu fetch lagi). Cuma SARAN awal, admin
+  // tetap bebas ubah nominal/judulnya.
   function saranInvoice(b) {
-    const totalInvoicedSoFar = dokumen
-      .filter(d => d.jenis === 'invoice' && d.booking_id === b.id)
-      .reduce((s, d) => s + Number(d.nominal), 0);
-    if (totalInvoicedSoFar === 0) {
+    if (b.dp_status !== 'confirmed') {
       return { nominal: String(Number(b.dp_amount || 0)), judul: 'Uang Muka (DP)' };
     }
-    const sisa = Math.max(Number(b.total_harga || 0) - totalInvoicedSoFar, 0);
+    const lunasConfirmed = (b.pembayaran || [])
+      .filter(p => p.type === 'lunas')
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+    const sisa = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0) - lunasConfirmed);
     return { nominal: String(sisa), judul: 'Pelunasan' };
   }
 
   // Begitu Booking ID di form manual diisi (blur), tarik data booking-nya
-  // dan auto-isi Nama + Nominal + Judul (saran DP/Pelunasan, lihat
-  // saranInvoice) + total_harga (buat basis hitung Sisa) + detail
-  // (jamaah/tanggal berangkat/referral, buat verifikasi) — cuma isi field
-  // yang MASIH KOSONG, biar gak nimpa yang udah diketik manual.
+  // dan auto-isi Nama + Nominal + Judul + total_harga (buat basis hitung
+  // Sisa) + detail (jamaah/tanggal berangkat/referral, buat verifikasi) —
+  // cuma isi field yang MASIH KOSONG, biar gak nimpa yang udah diketik
+  // manual. Saran nominal BEDA per jenis (dikonfirmasi user 2026-10-14,
+  // bug ditemukan: buka form Kwitansi buat booking yang udah lunas total
+  // malah kesaran nominal kecil kayak "15 juta" — karena SEBELUMNYA di
+  // sini saranInvoice() yang DP/Pelunasan-oriented ikut dipanggil
+  // walaupun lagi bikin Kwitansi, bukan Invoice):
+  // - Invoice -> saranInvoice (DP kalau belum, atau Pelunasan = sisa).
+  // - Kwitansi -> LANGSUNG total_harga (dokumen final, "kwitansi total
+  //   bayar seluruhnya" — gak perlu breakdown sisa/sudah-dibayar sama
+  //   sekali, itu logic buat Invoice doang).
+  // - Tanda Terima Uang -> gak disaranin (biasanya udah pre-filled dari
+  //   tombol "Buat TTU" di baris Invoice yang di-paid-in, lihat
+  //   rekomendasiSetelahPaid), admin isi manual kalau dibuka langsung.
   async function isiOtomatisDariBooking() {
     const bid = form.booking_id.trim();
     if (!bid) { setTotalHargaForm(null); setDetailBookingForm(null); return; }
@@ -161,7 +200,9 @@ function InvoiceKwitansiPageInner() {
       if (!b) { setTotalHargaForm(null); setDetailBookingForm(null); return; }
       setTotalHargaForm(Number(b.total_harga || 0));
       setDetailBookingForm(b);
-      const saran = saranInvoice(b);
+      const saran = form.jenis === 'invoice' ? saranInvoice(b)
+        : form.jenis === 'kwitansi' ? { nominal: String(Number(b.total_harga || 0)), judul: '' }
+        : { nominal: '', judul: '' };
       setForm(f => ({
         ...f,
         nama: f.nama.trim() ? f.nama : (b.pemesan_nama || f.nama),
@@ -184,19 +225,6 @@ function InvoiceKwitansiPageInner() {
     setTotalHargaForm(Number(b.total_harga || 0));
     setDetailBookingForm(b);
     setTab('invoice');
-    setBookingDipilih(null);
-    setShowForm(true);
-  }
-
-  // Buka form Buat Kwitansi — treatment SAMA kyk Buat Invoice (pop-up
-  // pre-filled), bukan auto-generate langsung. Nominal SENGAJA gak disaranin
-  // (Kwitansi dokumen final, adminlah yang tau persis berapa yang beneran
-  // diterima) — admin isi manual.
-  function bukaFormKwitansi(b) {
-    setForm({ ...formKosong('kwitansi'), booking_id: b.id, nama: b.pemesan_nama || '' });
-    setTotalHargaForm(Number(b.total_harga || 0));
-    setDetailBookingForm(b);
-    setTab('kwitansi');
     setBookingDipilih(null);
     setShowForm(true);
   }
@@ -246,31 +274,71 @@ function InvoiceKwitansiPageInner() {
     }
   }
 
-  async function toggleStatus(d) {
-    const statusBaru = d.status === 'paid' ? 'unpaid' : 'paid';
-    if (!confirm(`Tandai ${d.nomor} sebagai "${statusBaru === 'paid' ? 'Paid' : 'Unpaid'}"?`)) return;
-    const res = await fetch('/api/admin/invoice-kwitansi', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: d.id, status: statusBaru }),
-    });
-    const j = await res.json();
-    if (!res.ok) { alert(j.error || 'Gagal mengubah status'); return; }
-    muat(q);
+  // Cuma kepanggil buat Invoice yang masih Unpaid -- Kwitansi/TTU statusnya
+  // selalu Paid (badge statis, gak ada tombol), Invoice yang udah Paid
+  // one-way locked (gak ada tombol juga, lihat kolom status di tabel).
+  // Wajib bukti dulu (dikonfirmasi user 2026-10-14, "jangan sampai bisa
+  // orang asal-asalan bikin itu lunas") -- buka modal upload, BUKAN
+  // langsung toggle (lihat konfirmasiTandaiPaid).
+  function toggleStatus(d) {
+    setModalTandaiPaid(d);
+    setBuktiLunasPath(null);
+    setBuktiLunasNama(null);
+  }
+
+  async function konfirmasiTandaiPaid() {
+    if (!modalTandaiPaid || !buktiLunasPath) return;
+    setSubmittingBuktiLunas(true);
+    try {
+      const res = await fetch('/api/admin/invoice-kwitansi', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: modalTandaiPaid.id, status: 'paid', bukti_path: buktiLunasPath, bukti_nama: buktiLunasNama }),
+      });
+      const j = await res.json();
+      if (!res.ok) { alert(j.error || 'Gagal menandai Paid'); return; }
+      // Saran dokumen relevan (dikonfirmasi user 2026-10-14) -- lunas total
+      // -> saranin buka Kwitansi, belum -> saranin buat Tanda Terima Uang.
+      if (modalTandaiPaid.booking_id) {
+        setRekomendasiSetelahPaid({ bookingId: modalTandaiPaid.booking_id, nama: modalTandaiPaid.nama, nominal: modalTandaiPaid.nominal, kwitansi: j.kwitansi || null });
+      }
+      setModalTandaiPaid(null);
+      muat(q);
+    } catch {
+      alert('Terjadi kesalahan');
+    } finally {
+      setSubmittingBuktiLunas(false);
+    }
   }
 
   if (!user) return null;
 
-  const dokumenTab = dokumen.filter(d => TAB_JENIS[tab].includes(d.jenis));
+  const dokumenTab = dokumen
+    .filter(d => TAB_JENIS[tab].includes(d.jenis))
+    .filter(d => !filterBelumDikirim || !d.terkirim);
 
-  // Sisa live di form manual: total_harga booking dikurangi SEMUA Invoice
-  // yang pernah dibuat buat booking ini (termasuk yang lagi diketik sekarang)
-  // — "sisa tagihan", bukan "sisa yang beneran belum dibayar" (soal duit
-  // yang beneran diterima ada di Kwitansi/Tanda Terima, narik dari payments).
-  const bidForm = form.booking_id.trim();
-  const totalInvoicedLain = bidForm
-    ? dokumen.filter(d => d.jenis === 'invoice' && d.booking_id === bidForm).reduce((s, d) => s + Number(d.nominal), 0)
-    : 0;
-  const sisaSetelahIni = totalHargaForm != null ? totalHargaForm - totalInvoicedLain - Number(form.nominal || 0) : null;
+  // Sisa live di form manual: total_harga booking dikurangi yang BENERAN
+  // udah dibayar (dp_status confirmed + semua cicilan lunas confirmed,
+  // sama formula saranInvoice) dikurangi nominal yang lagi diketik sekarang
+  // — SAMA SUMBER kebenaran sama saranInvoice (dibenerin bareng 2026-10-14,
+  // sebelumnya dihitung dari histori Invoice yang pernah dibuat, bukan dari
+  // pembayaran beneran, bug yang sama persis "invoice DP lagi padahal udah
+  // lunas DP").
+  const dpConfirmedForm = detailBookingForm?.dp_status === 'confirmed';
+  const lunasConfirmedForm = (detailBookingForm?.pembayaran || [])
+    .filter(p => p.type === 'lunas')
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const sudahDibayarForm = (dpConfirmedForm ? Number(detailBookingForm?.dp_amount || 0) : 0) + lunasConfirmedForm;
+  const sisaSetelahIni = totalHargaForm != null ? totalHargaForm - sudahDibayarForm - Number(form.nominal || 0) : null;
+
+  // Warning kalau booking ini udah punya Invoice LAIN yang belum ditandai
+  // paid (dikonfirmasi user 2026-10-14) — admin bisa aja lupa udah pernah
+  // bikin sebelumnya terus bikin lagi buat tagihan yang sama, jamaah jadi
+  // dapet 2 tagihan buat utang yang sama. SENGAJA cuma warning (gak di-
+  // block) — kadang emang sah bikin invoice baru walau yang lama masih
+  // unpaid (mis. invoice lama udah gak relevan/mau diganti nominalnya).
+  const invoiceLainBelumLunas = form.jenis === 'invoice' && form.booking_id.trim()
+    ? dokumen.filter(d => d.jenis === 'invoice' && d.booking_id === form.booking_id.trim() && d.status !== 'paid')
+    : [];
 
   return (
     <Layout title="🧾 Invoice & Kwitansi" backHref="/admin">
@@ -328,9 +396,20 @@ function InvoiceKwitansiPageInner() {
                     ditawarin kalau belum pernah dibuat (1 booking = 1
                     Kwitansi). Begitu lunas total DAN Kwitansi udah ada,
                     dua-duanya ilang. */}
+                {/* Pakai jalur SAMA PERSIS kayak yang auto-trigger dari
+                    PATCH /api/payments (generateOrUpdateKwitansi) -- BUKAN
+                    form manual isi nominal sendiri lagi (dikonfirmasi user
+                    2026-10-14, "samain aja kayak skenario dari section
+                    pembayaran, biar terintegritas jangan beda-beda"). Form
+                    manual sebelumnya gak ngisi nominal_dp/nominal_pelunasan
+                    sama sekali (NULL), bikin breakdown DP/Pelunasan di
+                    cetakan gak muncul -- beda struktur dari Kwitansi yang
+                    auto-generate. */}
                 {b.pelunasan_status === 'paid' && !kwitansiAda && (
-                  <button onClick={() => bukaFormKwitansi(b)}
-                    className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full">🧾 Buat Kwitansi</button>
+                  <button onClick={() => buatDariRekomendasi('kwitansi', 'booking_id', b.id)} disabled={rekomBusyId === b.id}
+                    className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full disabled:opacity-50">
+                    {rekomBusyId === b.id ? '...' : '🧾 Buat Kwitansi'}
+                  </button>
                 )}
                 {b.pelunasan_status === 'paid' && kwitansiAda && (
                   <div className="text-xs text-gray-400 py-2">✅ Invoice & Kwitansi booking ini sudah lengkap.</div>
@@ -366,9 +445,17 @@ function InvoiceKwitansiPageInner() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && muat(q)}
-          placeholder="Cari nama / booking ID / nomor..."
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-64" />
+        <div className="flex flex-wrap items-center gap-3">
+          <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && muat(q)}
+            placeholder="Cari nama / booking ID / nomor..."
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-64" />
+          {(tab === 'tanda_terima' || tab === 'kwitansi') && (
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" checked={filterBelumDikirim} onChange={e => setFilterBelumDikirim(e.target.checked)} />
+              Cuma yang belum dikirim
+            </label>
+          )}
+        </div>
         <button onClick={() => { setForm(formKosong(tab)); setTotalHargaForm(null); setDetailBookingForm(null); setShowForm(true); }}
           className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-4 py-2 rounded-xl">
           + Buat Manual
@@ -434,7 +521,7 @@ function InvoiceKwitansiPageInner() {
                 <tr><td colSpan={tab === 'invoice' ? 9 : 8} className="text-center text-gray-400 py-8">Belum ada dokumen.</td></tr>
               ) : dokumenTab.map(d => (
                 <tr key={d.id} className="border-t border-gray-100">
-                  <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">{d.nomor}</td>
+                  <td className="px-3 py-2 whitespace-nowrap font-mono text-xs">{d.nomor || <span className="text-gray-400 italic">belum dikirim</span>}</td>
                   {tab === 'invoice' && <td className="px-3 py-2 whitespace-nowrap">{d.judul || '-'}</td>}
                   <td className="px-3 py-2">{d.nama}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{d.booking_id || '-'}</td>
@@ -442,10 +529,23 @@ function InvoiceKwitansiPageInner() {
                   <td className="px-3 py-2 whitespace-nowrap">{tgl(d.tanggal)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{d.is_manual ? 'Manual' : 'Otomatis'}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {/* Tanda Terima cuma dibuat begitu uangnya beneran udah
-                        diterima — statusnya selalu Paid, gak perlu toggle. */}
-                    {d.jenis === 'tanda_terima' ? (
+                    {/* Tanda Terima & Kwitansi cuma dibuat begitu uangnya
+                        BENERAN udah diterima/lunas total — statusnya selalu
+                        Paid, gak ngaruh apa-apa buat ditoggle (dikonfirmasi
+                        user 2026-10-14) — dijadiin badge statis doang, biar
+                        gak ada yang kepencet gak sengaja ngubah isi cetakan. */}
+                    {d.jenis === 'tanda_terima' || d.jenis === 'kwitansi' ? (
                       <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">✅ Paid</span>
+                    ) : d.status === 'paid' ? (
+                      // One-way lock (dikonfirmasi user 2026-10-14) -- udah
+                      // Paid gak bisa diklik/diutak-atik lagi sama sekali.
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">✅ Paid</span>
+                        {d.bukti_lunas_path && (
+                          <a href={d.bukti_lunas_path} target="_blank" rel="noopener noreferrer"
+                            className="text-[#1A4FA0] hover:underline text-xs">📎 Bukti</a>
+                        )}
+                      </div>
                     ) : (
                       <button onClick={() => toggleStatus(d)}
                         className={`text-xs font-bold px-2 py-1 rounded-full ${d.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -454,31 +554,101 @@ function InvoiceKwitansiPageInner() {
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {/* Unpaid = cuma bisa cetak Invoice (tagihan). Paid = ada
-                        2 opsi: Invoice (udah lunas, jadi tanda terima juga)
-                        ATAU Tanda Terima Uang punya invoice ini kalau ada
-                        (dokumen bukti terima yang auto-generate pas payment
-                        confirmed). */}
-                    {tab === 'invoice' && d.status === 'paid' ? (
-                      <div className="flex gap-2 flex-wrap">
-                        <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
-                          className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Invoice</button>
-                        {cariTandaTerimaBooking(dokumen, d.booking_id).map(tt => (
-                          <button key={tt.id} onClick={() => window.open(`/admin/cetak-invoice/${tt.id}`, '_blank')}
-                            className="text-[#1A4FA0] font-bold hover:underline text-xs">
-                            🧾 TT {LABEL_TIPE_PEMBAYARAN[tt.payment_type] || ''}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
+                    {/* Link "🧾 TT [jenis]" DIHAPUS (dikonfirmasi user
+                        2026-10-14) -- sebelumnya nunjukin SEMUA Tanda Terima
+                        booking ini, gak ada hubungan data sama sekali sama
+                        Invoice spesifik yang lagi dilihat (cuma kebetulan
+                        sama-sama nempel booking yang sama), jadi suka gak
+                        nyambung. */}
+                    <div className="flex gap-2 flex-wrap">
                       <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
                         className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Cetak</button>
-                    )}
+                      {/* Link langsung ke scan materai+TTD -- SEBELUMNYA list ini
+                          sama sekali gak nunjukin ada scan apa enggak, admin harus
+                          buka halaman detail dulu (ditemukan via pertanyaan user
+                          2026-10-14). */}
+                      {d.scan_fisik_path && (
+                        <a href={d.scan_fisik_path} target="_blank" rel="noopener noreferrer"
+                          className="text-[#1A4FA0] font-bold hover:underline text-xs">👁️ Scan</a>
+                      )}
+                      {/* Saran dokumen PERSISTEN di baris -- toast
+                          rekomendasiSetelahPaid cuma muncul SEKALI pas toggle
+                          & ilang kalau di-close (dikonfirmasi user 2026-10-14,
+                          "kalo diclose gue gabisa liat lagi"). Ini dihitung
+                          ULANG tiap render dari data terkini, jadi tetap ada
+                          walau toast-nya udah lama ditutup/di-refresh. */}
+                      {d.jenis === 'invoice' && d.status === 'paid' && d.booking_id && (() => {
+                        const kwitansiBooking = dokumen.find(x => x.jenis === 'kwitansi' && x.booking_id === d.booking_id);
+                        return kwitansiBooking ? (
+                          <button onClick={() => window.open(`/admin/cetak-invoice/${kwitansiBooking.id}`, '_blank')}
+                            className="text-green-700 font-bold hover:underline text-xs">🧾 Kwitansi</button>
+                        ) : (
+                          <button onClick={() => {
+                            setForm({ ...formKosong('tanda_terima'), booking_id: d.booking_id, nama: d.nama, nominal: String(d.nominal) });
+                            setTab('tanda_terima');
+                            setShowForm(true);
+                          }} className="text-amber-700 font-bold hover:underline text-xs">📝 Buat TTU</button>
+                        );
+                      })()}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {rekomendasiSetelahPaid && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white border-2 border-[#1A4FA0] rounded-xl shadow-lg p-4 max-w-xs text-sm">
+          <button onClick={() => setRekomendasiSetelahPaid(null)} className="float-right text-gray-400 hover:text-gray-600 text-xs">✕</button>
+          {rekomendasiSetelahPaid.kwitansi ? (
+            <>
+              <div className="font-bold text-[#0E2F6E] mb-1">✅ Booking {rekomendasiSetelahPaid.bookingId} lunas total!</div>
+              <div className="text-xs text-gray-500 mb-2">Kwitansi Pembayaran {rekomendasiSetelahPaid.kwitansi.nomor || '(nomor baru dibuat)'} udah {rekomendasiSetelahPaid.kwitansi.isNew ? 'dibuat' : 'diupdate'} otomatis.</div>
+              <button onClick={() => { window.open(`/admin/cetak-invoice/${rekomendasiSetelahPaid.kwitansi.id}`, '_blank'); setRekomendasiSetelahPaid(null); }}
+                className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold py-2 rounded-full">
+                🧾 Buka Kwitansi
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="font-bold text-[#0E2F6E] mb-1">📝 Belum lunas total</div>
+              <div className="text-xs text-gray-500 mb-2">Mau buatkan Tanda Terima Uang buat pembayaran Rp{Number(rekomendasiSetelahPaid.nominal).toLocaleString('id-ID')} ini?</div>
+              <button onClick={() => {
+                setForm({ ...formKosong('tanda_terima'), booking_id: rekomendasiSetelahPaid.bookingId, nama: rekomendasiSetelahPaid.nama, nominal: String(rekomendasiSetelahPaid.nominal) });
+                setTab('tanda_terima');
+                setShowForm(true);
+                setRekomendasiSetelahPaid(null);
+              }} className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold py-2 rounded-full">
+                📝 Buat Tanda Terima Uang
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {modalTandaiPaid && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setModalTandaiPaid(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-[#0E2F6E] mb-1">Tandai {modalTandaiPaid.nomor} sebagai Paid</h3>
+            <div className="text-xs text-gray-400 mb-4">
+              {modalTandaiPaid.nama} — {rp(modalTandaiPaid.nominal)}. Gak bisa dibatalkan lagi setelah ditandai Paid —
+              lampirkan bukti transfer/pembayaran dulu sebelum konfirmasi.
+            </div>
+            <UploadBukti
+              onUploaded={(path, nama) => { setBuktiLunasPath(path); setBuktiLunasNama(nama); }}
+              label="Klik untuk upload bukti transfer/pembayaran"
+            />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setModalTandaiPaid(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl text-sm">
+                Batal
+              </button>
+              <button onClick={konfirmasiTandaiPaid} disabled={!buktiLunasPath || submittingBuktiLunas}
+                className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                {submittingBuktiLunas ? 'Memproses...' : '✅ Konfirmasi Paid'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -504,6 +674,17 @@ function InvoiceKwitansiPageInner() {
                   placeholder="JMT-XXXXXX (kosongkan kalau gak nempel ke booking)"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 {mencariBookingForm && <div className="text-[11px] text-gray-400 mt-1">Mencari data booking...</div>}
+                {invoiceLainBelumLunas.length > 0 && (
+                  <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                    ⚠️ Booking ini udah punya {invoiceLainBelumLunas.length} Invoice lain yang belum ditandai Paid:
+                    <ul className="mt-1 ml-4 list-disc">
+                      {invoiceLainBelumLunas.map(d => (
+                        <li key={d.id}>{d.nomor || '(belum dikirim)'} — {d.judul || '-'} — {rp(d.nominal)}</li>
+                      ))}
+                    </ul>
+                    Pastikan ini bukan dobel tagihan buat utang yang sama.
+                  </div>
+                )}
                 {/* Detail booking — biar admin bisa MAKE SURE ini booking yang
                     bener sebelum generate, bukan cuma nebak dari ID/nama. */}
                 {detailBookingForm && (

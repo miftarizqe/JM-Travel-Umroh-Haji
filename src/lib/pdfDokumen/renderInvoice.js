@@ -31,7 +31,9 @@ const tblStyles = {
  */
 export async function renderInvoicePdf({ dokumen, booking, pengaturan, logoPath, untukTtdDigital }) {
   const judul = JUDUL[dokumen.jenis] || 'INVOICE';
-  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+  // Invoice itu TAGIHAN, bukan tanda terima (dikonfirmasi user 2026-10-14)
+  // -- gak pernah butuh materai, walau ditandai "Paid" manual.
+  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || (dokumen.jenis === 'tanda_terima' && dokumen.status === 'paid');
   const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) >= BATAS_MATERAI;
   const qty = booking ? Number(booking.jumlah_jamaah || 1) : 1;
   const satuan = qty > 0 ? Math.round(Number(dokumen.nominal) / qty) : Number(dokumen.nominal);

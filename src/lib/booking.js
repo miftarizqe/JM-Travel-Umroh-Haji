@@ -53,9 +53,20 @@ export async function kombinasiHargaTersedia(conn, booking) {
   return hasil;
 }
 
-// Gerbang: perwakilan/sahabat yang belum di-ACC admin, atau akun belum
-// terverifikasi, tidak boleh order jamaah. Dipakai di awal route sebelum
-// memproses booking apapun (single maupun batch).
+// Gerbang: perwakilan/sahabat yang belum di-ACC admin tidak boleh order
+// jamaah. Dipakai di awal route sebelum memproses booking apapun (single
+// maupun batch).
+//
+// Verifikasi akun jamaah (`terverifikasi`) SENGAJA TIDAK lagi jadi gerbang
+// di sini (dikonfirmasi user 2026-10-14, dicabut — sebelumnya jamaah yang
+// mau langsung bayar DP kena blokir nunggu admin verifikasi dulu, bikin
+// lead dingin & kehilangan minat). Jamaah baru (role='jamaah') tetap
+// start `terverifikasi=0` pas daftar (lihat /api/auth/register) buat
+// keperluan lain (badge admin "Menunggu Verifikasi", dsb — lihat
+// src/lib/statusAkun.js), cuma gak lagi dipakai buat nolak checkout.
+// perwakilan/sahabat_baitullah TETAP butuh status='active' (gerbang di
+// bawah) — itu akun reseller/kemitraan dengan implikasi komisi, beda
+// kategori dari sekadar "akun jamaah baru daftar".
 export async function cekPemesanBolehOrder(conn, userId) {
   const [pemesan] = await conn.query(
     'SELECT name, role, status, terverifikasi, agama FROM users WHERE id = ?', [userId]
@@ -64,9 +75,6 @@ export async function cekPemesanBolehOrder(conn, userId) {
     throw errStatus('User tidak ditemukan', 404);
   }
   const me = pemesan[0];
-  if (!me.terverifikasi) {
-    throw errStatus('Akun Anda masih menunggu verifikasi admin. Anda belum bisa melakukan order.', 403);
-  }
   if (['perwakilan', 'sahabat_baitullah'].includes(me.role) && me.status !== 'active') {
     throw errStatus('Akun Anda belum dikonfirmasi admin. Anda belum bisa melakukan order jamaah.', 403);
   }
@@ -396,10 +404,15 @@ export async function buatSatuBooking(conn, params) {
   // terpisah per booking yang bukti transfernya keliatan berulang-ulang
   // padahal file-nya sama persis (dikonfirmasi user 2026-07-28: bikin admin
   // gampang lengah pas ngecek satu-satu).
+  // jamaah_data_snapshot = jamaahDataAwal (SAMA PERSIS isinya) — biar TTU/
+  // Invoice buat DP ini nanti kebaca jamaah siapa aja yang DP-nya beneran
+  // nutup, gak ikut narik jamaah tambahan yang ditambahin belakangan lewat
+  // Tambah Jamaah (dikonfirmasi user 2026-10-14, lihat GET
+  // /api/admin/invoice-kwitansi/[id]).
   await conn.query(
-    `INSERT INTO payments (booking_id, batch_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at)
-    VALUES (?,?,?,?,?,?,?,?,NOW())`,
-    [bookingId, batch_id || null, user_id, 'dp', dpAmount + (kode_unik_dp||0), kode_unik_dp||0, bukti_path||null, bukti_nama||null]
+    `INSERT INTO payments (booking_id, batch_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, jamaah_data_snapshot)
+    VALUES (?,?,?,?,?,?,?,?,NOW(),?)`,
+    [bookingId, batch_id || null, user_id, 'dp', dpAmount + (kode_unik_dp||0), kode_unik_dp||0, bukti_path||null, bukti_nama||null, jamaahDataAwal]
   );
 
   return { bookingId, dpAmount, totalHarga: totalSetelahVoucher };
@@ -559,10 +572,13 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
     [JSON.stringify(entriesFinal), jumlahJamaahBaru, formTotalBaru, totalHargaBaru, dpAmountBaru, bookingId]
   );
 
+  // jamaah_data_snapshot = CUMA pax yang baru ditambahkan (entriesBaru),
+  // BUKAN entriesFinal (yang lama ikut) — DP ini emang cuma buat orang baru
+  // ini, biar TTU-nya kebaca bener (dikonfirmasi user 2026-10-14).
   await conn.query(
-    `INSERT INTO payments (booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status)
-     VALUES (?,?,?,?,?,?,?,NOW(),'pending')`,
-    [bookingId, userId, 'dp', dpAmountTambahan, 0, buktiPath, buktiNama || null]
+    `INSERT INTO payments (booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status, jamaah_data_snapshot)
+     VALUES (?,?,?,?,?,?,?,NOW(),'pending',?)`,
+    [bookingId, userId, 'dp', dpAmountTambahan, 0, buktiPath, buktiNama || null, JSON.stringify(entriesBaru)]
   );
 
   return { jumlahTambahan: n, dpAmountTambahan, totalHargaBaru, perjanjianDireset: !!booking.setuju_pks };

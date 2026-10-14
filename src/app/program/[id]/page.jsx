@@ -144,19 +144,20 @@ export default function ProgramDetailPage() {
       router.push(`/login?redirect=${encodeURIComponent(tujuan)}`);
       return;
     }
-    // Akun belum aktif (verifikasi admin / ACC perwakilan-sahabat) TETAP
-    // boleh browsing & lihat detail program bebas (dikonfirmasi user
-    // 2026-10-08) — gerbangnya baru ditutup PERSIS di titik klik tombol ini,
-    // sebelum checkout dimulai, bukan lebih awal (nge-block browsing) atau
-    // lebih telat (biarin isi form dulu baru gagal pas submit akhir —
-    // server di cekPemesanBolehOrder nolak hal sama, ini cuma UX lebih awal).
-    // Status diambil TERKINI dari server, bukan cache login — akun yang
-    // baru diverifikasi admin sesudah login sebelumnya tetap keblokir.
+    // Akun perwakilan/sahabat yang belum di-ACC TETAP boleh browsing & lihat
+    // detail program bebas (dikonfirmasi user 2026-10-08) — gerbangnya baru
+    // ditutup PERSIS di titik klik tombol ini, sebelum checkout dimulai,
+    // bukan lebih awal (nge-block browsing) atau lebih telat (biarin isi
+    // form dulu baru gagal pas submit akhir — server di cekPemesanBolehOrder
+    // nolak hal sama, ini cuma UX lebih awal). Status diambil TERKINI dari
+    // server, bukan cache login — akun yang baru di-ACC admin sesudah login
+    // sebelumnya tetap ke-reflect.
+    //
+    // Verifikasi akun jamaah (terverifikasi) SENGAJA TIDAK lagi ngeblok di
+    // sini (dikonfirmasi user 2026-10-14, dicabut — sebelumnya jamaah yang
+    // mau langsung bayar DP kena blokir nunggu admin verifikasi dulu, bikin
+    // lead dingin). Samain sama server di cekPemesanBolehOrder.
     user = await segarkanStatusUser(user);
-    if (!user.terverifikasi) {
-      alert('Akun Anda masih menunggu verifikasi admin. Anda belum bisa melakukan pendaftaran program.');
-      return;
-    }
     if (['perwakilan', 'sahabat_baitullah'].includes(user.role) && user.status !== 'active') {
       alert(`Akun ${user.role} Anda masih menunggu ACC admin. Anda belum bisa checkout sampai akun ini aktif.`);
       return;

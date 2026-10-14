@@ -1,89 +1,13 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan } from '@/lib/usePengaturan';
-import { terbilang } from '@/lib/terbilang';
-import KopSurat from '@/app/components/KopSurat';
 import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
 import TombolWA from '@/app/components/TombolWA';
 import { pesanDokumenFisikTerkirim, pesanDokumenDigitalTerkirim } from '@/lib/waTemplates';
-
-const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
-const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
-const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
-// per-unit = total / qty (dibulatkan) — kalau qty gak ada/0, ya satuan = total (qty tersirat 1).
-const perUnit = (total, qty) => qty > 0 ? Math.round(Number(total) / qty) : Number(total);
-
-// Judul dokumen sengaja "INVOICE" polos aja (bukan "INVOICE — DP"/
-// "INVOICE — PELUNASAN") — Invoice sekarang 1 jenis generik, labelnya ambil
-// dari `dokumen.judul` yang diisi bebas oleh admin tiap generate (bisa "DP",
-// "Pelunasan", "Cicilan ke-2", dst), bukan lagi hardcode di kode.
-const JUDUL = {
-  invoice: 'INVOICE',
-  kwitansi: 'KWITANSI PEMBAYARAN',
-  tanda_terima: 'TANDA TERIMA UANG',
-};
-// Label pembayaran generik (payments.type) dipakai buat baris Tanda Terima
-// Uang, biar keliatan ini bukti terima buat pembayaran YANG MANA (DP/lunas).
-const LABEL_TIPE_PEMBAYARAN = { dp: 'Uang Muka (DP)', lunas: 'Pelunasan' };
-const LABEL_BARIS = {
-  kwitansi: 'Pembayaran Total Paket (Paid)',
-  tanda_terima: 'Pembayaran Diterima',
-};
-const BUTUH_REKENING = ['invoice']; // kwitansi/tanda terima = udah dibayar, gak perlu instruksi transfer
-// UU Bea Meterai No. 10/2020 — dokumen yang menyatakan PENERIMAAN uang
-// senilai >= Rp5.000.000 wajib materai Rp10.000. Berlaku begitu dokumen ini
-// FUNGSINYA jadi tanda terima (Kwitansi selalu, Invoice DP/Pelunasan begitu
-// statusnya Paid) — bukan pas masih jadi tagihan yang belum dibayar.
-const BATAS_MATERAI = 5_000_000;
-
-const td = { border: '1px solid #000', padding: '6px 8px' };
-
-function BarisPaket({ booking }) {
-  const qty = Number(booking.jumlah_jamaah || 1);
-  return (
-    <tr>
-      <td style={td}>
-        <div><b>Paket:</b> {PAKET_LABEL[booking.paket] || booking.paket}{booking.kamar ? ` · ${booking.kamar}` : ''}</div>
-        {booking.jamaah_nama?.length > 0 && (
-          <div style={{ marginTop: 4 }}>
-            <b>Atas Nama Jamaah:</b>
-            <ol style={{ margin: '4px 0 0 20px', padding: 0 }}>
-              {booking.jamaah_nama.map((nama, i) => <li key={i}>{nama}</li>)}
-            </ol>
-          </div>
-        )}
-      </td>
-      <td style={{ ...td, textAlign: 'center' }}>{qty}</td>
-      <td style={{ ...td, textAlign: 'right' }}>{rp(perUnit(booking.total_harga, qty))}</td>
-      <td style={{ ...td, textAlign: 'right' }}>{rp(booking.total_harga)}</td>
-    </tr>
-  );
-}
-
-function BarisItem({ label, sub, qty, satuan, jumlah, tebal }) {
-  return (
-    <tr>
-      <td style={{ ...td, fontWeight: tebal ? 700 : 400 }}>
-        {label}
-        {sub && <div style={{ fontWeight: 400, fontSize: 10, color: '#666', marginTop: 2 }}>{sub}</div>}
-      </td>
-      <td style={{ ...td, textAlign: 'center', fontWeight: tebal ? 700 : 400 }}>{qty ?? ''}</td>
-      <td style={{ ...td, textAlign: 'right', fontWeight: tebal ? 700 : 400 }}>{satuan != null ? rp(satuan) : ''}</td>
-      <td style={{ ...td, textAlign: 'right', fontWeight: tebal ? 700 : 400 }}>{rp(jumlah)}</td>
-    </tr>
-  );
-}
-
-function BarisCatatan({ children }) {
-  return (
-    <tr>
-      <td colSpan={4} style={{ ...td, fontSize: 11 }}>{children}</td>
-    </tr>
-  );
-}
+import DokumenCetak, { rp, tgl, JUDUL, BATAS_MATERAI } from '../DokumenCetak';
 
 export default function CetakInvoiceKwitansi() {
   const params = useParams();
@@ -97,6 +21,37 @@ export default function CetakInvoiceKwitansi() {
   const [loading, setLoading] = useState(true);
   const [ditolak, setDitolak] = useState(false);
   const [menyetujui, setMenyetujui] = useState(false);
+  // Checklist "Nominal sudah benar" — gerbang terakhir sebelum admin klik
+  // Kirim (dikonfirmasi user 2026-10-14) — admin WAJIB sadar liat nominal
+  // sekali lagi sebelum ngirim dokumen keuangan yang abis dikirim gak bisa
+  // diubah lagi (lock-on-send).
+  const [nominalBenar, setNominalBenar] = useState(false);
+  // Step "2. Print" di indikator TTU/Kwitansi >Rp5jt — SEBELUMNYA gak
+  // pernah keupdate walau tombol print udah dipencet (ditemukan user
+  // 2026-10-14 lewat screenshot, step-nya diem di "1. Lihat" aja). Dilacak
+  // lokal (gak perlu disimpan ke server, cuma penanda visual) begitu
+  // window.print() beneran dipanggil dari tombol manapun di halaman ini.
+  const [sudahPrint, setSudahPrint] = useState(false);
+  function cetak() { setSudahPrint(true); window.print(); }
+
+  // Snapshot HTML BEKU (migration 227, dikonfirmasi user 2026-10-14:
+  // "walaupun next time format/nama paket/siapa yg ttd diubah, yang udah
+  // terkirim gabakal ikutan berubah") -- diambil dari DOM React yang UDAH
+  // KETERENDER di browser admin PERSIS abis kirim sukses (ReactDOMServer
+  // gak bisa dipakai di Route Handler App Router, lihat .../[id]/snapshot/
+  // route.js), bukan di-generate ulang server-side. `justSent` dipicu
+  // SEKALI doang abis setujui() sukses -- efeknya nunggu commit DOM dulu
+  // (nomor/terkirim yang baru keupdate) baru nangkep innerHTML-nya.
+  const sheetRef = useRef(null);
+  const [justSent, setJustSent] = useState(false);
+  useEffect(() => {
+    if (!justSent || !sheetRef.current || !dokumen?.id) return;
+    setJustSent(false);
+    fetch(`/api/admin/invoice-kwitansi/${dokumen.id}/snapshot`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html: sheetRef.current.innerHTML }),
+    }).catch(() => { /* gagal simpan snapshot jangan ganggu alur kirim yang udah sukses */ });
+  }, [justSent, dokumen?.id]);
 
   // Admin selalu boleh. Jamaah/pemesan JUGA boleh liat dokumen MILIKNYA
   // sendiri yang udah terkirim (dikonfirmasi user 2026-10-13 -- sebelumnya
@@ -125,13 +80,21 @@ export default function CetakInvoiceKwitansi() {
   // jm-travel-api). Cek Caddyfile.tahap2 di VPS kalau ternyata masih
   // keproxy ke Go.
   async function setujui() {
-    if (!confirm(`Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor}? Dokumen akan ditandai sudah dikirim.`)) return;
+    const pesanKonfirmasi = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
+      ? `Kirim ${JUDUL[dokumen.jenis]} ${dokumen.nomor || '(nomor baru akan dibuat)'} ke jamaah sekarang? Setelah dikirim, isi dokumen ini terkunci permanen.`
+      : `Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor || ''}? Dokumen akan ditandai sudah dikirim.`;
+    if (!confirm(pesanKonfirmasi)) return;
     setMenyetujui(true);
     try {
       const res = await fetch(`/api/admin/invoice-kwitansi/${dokumen.id}/setuju`, { method: 'POST' });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { alert(d.error || 'Gagal menyetujui'); return; }
-      setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: 'setuju', terkirim_at: d.terkirim_at }));
+      // Server nentuin metode beneran (TTU materai -> 'fisik', lainnya ->
+      // 'setuju') — jangan hardcode di client (dikonfirmasi user 2026-10-14).
+      // nomor ikut di-refresh -- buat dokumen yang gak wajib materai, nomor
+      // BARU dibakar di titik kirim ini (sebelumnya null/belum ada).
+      setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: d.terkirim_metode || 'setuju', terkirim_at: d.terkirim_at, nomor: d.nomor || prev.nomor }));
+      if (['tanda_terima', 'kwitansi'].includes(dokumen.jenis)) setJustSent(true);
     } catch { alert('Terjadi kesalahan'); }
     finally { setMenyetujui(false); }
   }
@@ -148,10 +111,13 @@ export default function CetakInvoiceKwitansi() {
 
   if (!dokumen) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Dokumen tidak ditemukan.</div>;
 
-  const judul = JUDUL[dokumen.jenis];
-  const punyaRincianBooking = booking?.total_harga != null;
-  const qtyJamaah = booking ? Number(booking.jumlah_jamaah || 1) : 1;
-  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+  // berfungsiTandaTerima/butuhMaterai dihitung ULANG di sini (SAMA PERSIS
+  // formula di DokumenCetak.jsx & POST .../setuju) -- dipakai buat gating UI
+  // tombol/banner di LUAR .sheet (materai, scan, step indicator), bukan buat
+  // render isi dokumennya sendiri (itu sekarang tanggung jawab DokumenCetak).
+  // Invoice itu TAGIHAN, bukan tanda terima (dikonfirmasi user 2026-10-14)
+  // -- gak pernah butuh materai, walau ditandai "Paid" manual.
+  const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || (dokumen.jenis === 'tanda_terima' && dokumen.status === 'paid');
   // UU Bea Meterai Pasal 3: "nilai nominal LEBIH DARI Rp5.000.000" — strictly
   // di atas, Rp5.000.000 persis TIDAK kena materai (dikonfirmasi user
   // 2026-10-13, sebelumnya salah pakai >=).
@@ -160,11 +126,11 @@ export default function CetakInvoiceKwitansi() {
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
-        <button onClick={() => window.print()}
+        <button onClick={cetak}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
           🖨️ Print / Save PDF
         </button>
-        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor} · di dialog print pilih &quot;Save as PDF&quot;</div>
+        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor || 'Nomor diberikan otomatis'} · di dialog print pilih &quot;Save as PDF&quot;</div>
       </div>
 
       {/* TTD digital & e-materai belum bisa dipakai (dikonfirmasi user 2026-10-04) — tombol
@@ -172,7 +138,7 @@ export default function CetakInvoiceKwitansi() {
           sesi digital lama (kalau ada) masih kelihatan. Admin-only -- jamaah yang lihat
           dokumen miliknya sendiri gak perlu/gak boleh liat aksi-aksi ini (dikonfirmasi
           user 2026-10-13). */}
-      {isAdmin && <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />}
+      {isAdmin && <DokumenSignatureAksi dokumen="invoice" refId={dokumen.id} onCetakFisik={cetak} hideCetakFisik hideKirimDigital />}
 
       {dokumen.terkirim ? (
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
@@ -180,7 +146,14 @@ export default function CetakInvoiceKwitansi() {
             ✅ {dokumen.terkirim_metode === 'setuju' ? 'Sudah disetujui' : `Sudah dikirim (${dokumen.terkirim_metode === 'fisik' ? 'fisik' : 'digital'})`}, {tgl(dokumen.terkirim_at)}
           </div>
           {isAdmin && dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, justifyContent: 'center' }}>
+              {/* Link langsung buka file scan -- SEBELUMNYA gak ada sama sekali,
+                  admin cuma bisa "lihat" scan secara gak langsung lewat tombol
+                  WA di bawah (ditemukan via pertanyaan user 2026-10-14). */}
+              <a href={dokumen.scan_fisik_path} target="_blank" rel="noopener noreferrer"
+                style={{ background: '#1A4FA0', color: '#fff', padding: '8px 16px', borderRadius: 20, fontWeight: 700, fontSize: 12, textDecoration: 'none' }}>
+                👁️ Lihat Scan
+              </a>
               <TombolWA nomor={booking?.pemesan_wa} label="Kirim Ulang Scan via WA"
                 pesan={pesanDokumenFisikTerkirim({
                   namaJamaah: dokumen.nama, jenis: dokumen.jenis, nomor: dokumen.nomor,
@@ -207,168 +180,79 @@ export default function CetakInvoiceKwitansi() {
             </div>
           )}
         </div>
-      ) : !isAdmin ? null : butuhMaterai ? (
-        // >= Rp5jt WAJIB materai asli (UU Bea Meterai No.10/2020) -- "Setuju"
-        // (self-certify tanpa materai) gak boleh dipakai buat nominal segini,
-        // cuma jalur fisik: print, tempel materai, TTD basah NEMBUS materai,
-        // stempel, scan, upload (dikonfirmasi user 2026-10-12).
-        <>
-        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 8 }}>
-          ⚠️ Nominal ≥ Rp5.000.000 — wajib materai asli. Print, tempel materai, TTD basah nembus materai, stempel, lalu unggah scan.
+      ) : !isAdmin ? null : ['tanda_terima', 'kwitansi'].includes(dokumen.jenis) ? (
+        // Tanda Terima Uang & Kwitansi (dikonfirmasi user 2026-10-14): "Kirim
+        // ke Jamaah" sekarang tombol TERPISAH dari upload scan — scan cuma
+        // nempelin file, kontennya baru DIBEKUKAN & jamaah baru DIBERITAHU
+        // pas tombol ini beneran diklik. >Rp5jt wajib lewat step scan dulu.
+        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
+          {butuhMaterai && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 10, fontSize: 11, color: '#666' }}>
+              {['1. Lihat', '2. Print', '3. Scan Materai+TTD', '4. Kirim'].map((label, i) => {
+                // "Print" ikut keitung selesai kalau scan udah ada juga
+                // (gak mungkin bisa scan tanpa print duluan) — jaga-jaga
+                // state lokal sudahPrint ilang kalau halaman di-reload
+                // abis print (ditemukan user 2026-10-14).
+                const selesai = i === 0 || (i === 1 && (sudahPrint || !!dokumen.scan_fisik_path)) || (i === 2 && !!dokumen.scan_fisik_path) || (i === 3 && !!dokumen.terkirim);
+                return (
+                  <span key={label} style={{ padding: '3px 8px', borderRadius: 12, fontWeight: 700, background: selesai ? '#dcfce7' : '#f3f4f6', color: selesai ? '#15803d' : '#666' }}>
+                    {selesai ? '✓ ' : ''}{label}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {butuhMaterai ? (
+            <>
+              <div style={{ fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 8, marginBottom: 10 }}>
+                ⚠️ Nominal ≥ Rp5.000.000 — wajib materai asli. Print, tempel materai, TTD basah nembus materai, stempel, lalu unggah scan sebelum bisa kirim.
+              </div>
+              <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
+                userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
+                onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path }))} />
+            </>
+          ) : (
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 10 }}>Nominal &lt; Rp5.000.000, gak perlu materai — tinggal kirim.</div>
+          )}
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 12, color: '#333', marginBottom: 10, cursor: 'pointer' }}>
+            <input type="checkbox" checked={nominalBenar} onChange={e => setNominalBenar(e.target.checked)} />
+            Nominal {rp(dokumen.nominal)} di atas sudah benar
+          </label>
+          <button onClick={setujui} disabled={menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
+            {menyetujui ? 'Mengirim...' : '📤 Kirim ke Jamaah'}
+          </button>
         </div>
-        <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
-          userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
-          onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path, terkirim: 1, terkirim_metode: 'fisik', terkirim_at: new Date().toISOString() }))} />
-        </>
       ) : (
-        // < Rp5jt -- gak perlu materai, TTD digital (PNG tanda tangan yang
-        // udah dirender di dokumen) cukup, tinggal "Setuju" (dikonfirmasi
-        // user 2026-10-12).
+        // Invoice -- TAGIHAN, bukan tanda terima (dikonfirmasi user
+        // 2026-10-14), jadi gak pernah butuh materai APAPUN nominalnya.
+        // butuhMaterai SELALU false buat jenis ini sekarang (lihat
+        // berfungsiTandaTerima di atas) -- cukup tombol Setuju polos,
+        // gak perlu info soal batas Rp5jt lagi (itu cuma relevan buat
+        // dokumen yang BENERAN jadi bukti penerimaan uang).
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
           <button onClick={setujui} disabled={menyetujui}
             style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: menyetujui ? 0.6 : 1 }}>
             {menyetujui ? 'Memproses...' : '✅ Setuju'}
           </button>
-          <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>Nominal &lt; Rp5.000.000, gak perlu materai — TTD digital cukup.</div>
         </div>
       )}
 
-      <div className="sheet" style={{ background: '#fff', width: 720, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
-        <KopSurat pengaturan={pengaturan} />
-
-        <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, letterSpacing: 0.5, color: '#0E2F6E' }}>{judul}</div>
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginBottom: 24 }}>No: {dokumen.nomor}</div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: booking ? 10 : 20 }}>
-          <div>Kepada Yth.<br /><b>{dokumen.nama}</b></div>
-          <div style={{ textAlign: 'right' }}>Tanggal: {tgl(dokumen.tanggal)}</div>
+      {/* Dokumen UDAH TERKIRIM & punya html_snapshot (migration 227) --
+          tampilin APA ADANYA, hasil render BEKU pas tombol Kirim diklik
+          dulu, BUKAN render ulang DokumenCetak dari data terkini (biar
+          format/paket/TTD-nya gak ikut berubah kalau komponennya kena
+          bugfix/redesign belakangan, dikonfirmasi user 2026-10-14). Dokumen
+          lama yang terkirim SEBELUM fitur ini ada (html_snapshot kosong)
+          fallback ke render live seperti biasa -- gak bisa dibekukan
+          retroaktif, itu batasnya. */}
+      {dokumen.terkirim && dokumen.html_snapshot ? (
+        <div dangerouslySetInnerHTML={{ __html: dokumen.html_snapshot }} />
+      ) : (
+        <div ref={sheetRef}>
+          <DokumenCetak dokumen={dokumen} booking={booking} payment={payment} pengaturan={pengaturan} />
         </div>
-
-        {booking && (
-          <div style={{ fontSize: 12, background: '#f8f9fd', border: '1px solid #e0e8f0', borderRadius: 6, padding: '10px 12px', marginBottom: 16, lineHeight: 1.8 }}>
-            <div><b>Booking ID:</b> {booking.id}</div>
-            {booking.prog_name && <div><b>Program:</b> {booking.prog_name}</div>}
-            {booking.tanggal_berangkat && <div><b>Tanggal Keberangkatan:</b> {tgl(booking.tanggal_berangkat)}</div>}
-          </div>
-        )}
-
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
-          <thead>
-            <tr>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'left' }}>Keterangan</th>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'center', width: 50 }}>Qty</th>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 120 }}>Satuan</th>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 130 }}>Jumlah</th>
-            </tr>
-          </thead>
-          <tbody>
-            {punyaRincianBooking ? (
-              <>
-                <BarisPaket booking={booking} />
-
-                {booking.opsi_tambahan_total > 0 && (
-                  <BarisItem
-                    label={booking.opsi_tambahan_nama?.length > 0 ? `Opsi Tambahan: ${booking.opsi_tambahan_nama.join(', ')}` : 'Opsi Tambahan'}
-                    jumlah={booking.opsi_tambahan_total}
-                  />
-                )}
-
-                {dokumen.jenis === 'invoice' && (
-                  <>
-                    <BarisItem label={dokumen.judul} qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
-                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                    {booking.sisa_pembayaran > 0 && (
-                      <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
-                    )}
-                  </>
-                )}
-
-                {dokumen.jenis === 'kwitansi' && dokumen.nominal_dp != null && (
-                  <>
-                    <BarisItem label="Uang Muka (DP) — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_dp, qtyJamaah)} jumlah={dokumen.nominal_dp} />
-                    {dokumen.status === 'paid' ? (
-                      <BarisItem label="Pelunasan — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_pelunasan, qtyJamaah)} jumlah={dokumen.nominal_pelunasan} />
-                    ) : (
-                      <BarisCatatan>Pelunasan: <i>belum dibayar</i></BarisCatatan>
-                    )}
-                    <BarisItem label={dokumen.status === 'paid' ? 'TOTAL PAID (diterima)' : 'Total Diterima Sejauh Ini'} jumlah={dokumen.nominal} tebal />
-                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                  </>
-                )}
-
-                {dokumen.jenis === 'tanda_terima' && (
-                  <>
-                    <BarisItem label={`${LABEL_TIPE_PEMBAYARAN[payment?.type] || 'Pembayaran'} — diterima`}
-                      qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
-                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <BarisItem label={dokumen.jenis === 'invoice' ? dokumen.judul : LABEL_BARIS[dokumen.jenis]} jumlah={dokumen.nominal} tebal />
-                <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-              </>
-            )}
-          </tbody>
-        </table>
-
-        {dokumen.keterangan && dokumen.is_manual ? (
-          <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>Catatan: {dokumen.keterangan}</div>
-        ) : null}
-
-        {BUTUH_REKENING.includes(dokumen.jenis) && dokumen.status !== 'paid' && (pengaturan.bank_nama || pengaturan.bank_rekening) && (
-          <div style={{ fontSize: 12, border: '1px dashed #1A4FA0', borderRadius: 6, padding: '10px 12px', marginBottom: 20, background: '#F5F8FE' }}>
-            <div style={{ fontWeight: 700, color: '#0E2F6E', marginBottom: 4 }}>Silakan transfer ke rekening berikut:</div>
-            <div>{pengaturan.bank_nama} — {pengaturan.bank_rekening}</div>
-            <div>a.n. {pengaturan.bank_atas_nama}</div>
-          </div>
-        )}
-
-        {/* Stempel PAID: satu kolom status buat semua jenis dokumen. Kwitansi
-            statusnya di-set otomatis tiap generateOrUpdateKwitansi/
-            syncKwitansiDariInvoice jalan (paid begitu nominal_pelunasan
-            keisi); Invoice DP/Pelunasan ngikut kolom status yang sama (auto-
-            generate langsung paid krn emang tanda terima; manual bisa
-            ditandai paid belakangan lewat halaman daftar). */}
-        {dokumen.status === 'paid' && (
-          <div style={{ display: 'inline-block', border: '3px solid #16a34a', color: '#16a34a', fontWeight: 800, fontSize: 16, padding: '4px 20px', transform: 'rotate(-6deg)', marginBottom: 16 }}>
-            PAID
-          </div>
-        )}
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 40 }}>
-          <div style={{ textAlign: 'center', fontSize: 12, position: 'relative' }}>
-            {tgl(dokumen.tanggal)}
-            <div style={{ height: butuhMaterai ? 110 : 70, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-              {/* Cap perusahaan — ditaruh agak ke kiri, nyerempet area TTD,
-                  transparan dikit biar kesan cap stempel asli. */}
-              {pengaturan.cap_perusahaan_path && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={pengaturan.cap_perusahaan_path} alt="Cap Perusahaan"
-                  style={{ position: 'absolute', left: -75, top: '50%', transform: 'translateY(-50%) rotate(-10deg)', width: 95, opacity: 0.85 }} />
-              )}
-              {/* Placeholder materai FISIK — tempel materai Rp10.000 asli di
-                  sini, tanda tangan nembus materainya kayak biasa. Belum ada
-                  integrasi e-Meterai digital (butuh akun Peruri dulu). */}
-              {butuhMaterai && (
-                <div style={{ border: '1px dashed #999', color: '#999', fontSize: 11, width: 110, height: 85, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1.4, transform: 'rotate(-6deg)' }}>
-                  Materai<br />Rp10.000
-                </div>
-              )}
-              {/* TTD digital — nimpa di atas materai (persis kayak tanda
-                  tangan asli yang nembus materai fisik). */}
-              {pengaturan.ttd_penandatangan_keuangan_path && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={pengaturan.ttd_penandatangan_keuangan_path} alt="Tanda Tangan"
-                  style={{ position: 'absolute', height: 65, objectFit: 'contain' }} />
-              )}
-            </div>
-            <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{pengaturan.nama_penandatangan_keuangan || pengaturan.nama_penandatangan || '-'}</div>
-            <div style={{ color: '#666' }}>{pengaturan.jabatan_penandatangan_keuangan || pengaturan.jabatan_penandatangan || '-'}</div>
-          </div>
-        </div>
-      </div>
+      )}
 
       <style>{`
         @media print {

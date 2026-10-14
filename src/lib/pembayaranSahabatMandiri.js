@@ -42,32 +42,25 @@ export async function cekDanFinalisasiLunasSahabat(pool, bookingId, actor) {
 
   await pool.query("UPDATE bookings SET pelunasan_status = 'paid' WHERE id = ?", [bookingId]);
 
-  let paymentId = bayar?.id;
-  if (!paymentId) {
+  if (!bayar?.id) {
     // Saldo nutup penuh, gak ada transfer pribadi sama sekali — sintesis 1
     // baris `payments` (langsung 'confirmed', gak ada bukti buat diverifikasi
-    // karena emang gak ada transfer) biar generateTandaTerimaUntukPayment
-    // (yang butuh payment.id) tetap punya jejak, konsisten sama booking lain.
-    // payments.id itu UUID (DEFAULT uuid()), bukan auto_increment — gak ada
-    // insertId yang bisa dipakai, jadi query balik row-nya abis insert.
+    // karena emang gak ada transfer) biar booking ini tetap punya jejak
+    // pelunasan di tabel payments, konsisten sama booking lain (dipakai
+    // list Konfirmasi Pembayaran admin, dll) — TTU-nya sendiri sengaja
+    // udah gak dibuat lagi buat payment ini (lihat komentar di bawah).
     const [[u]] = await pool.query('SELECT name FROM users WHERE id = ?', [booking.user_id]);
     await pool.query(
       `INSERT INTO payments (booking_id, user_id, nama, type, amount, kode_unik, status)
        VALUES (?, ?, ?, 'lunas', ?, 0, 'confirmed')`,
       [bookingId, booking.user_id, u?.name || null, booking.total_harga]
     );
-    const [[ins]] = await pool.query(
-      "SELECT id FROM payments WHERE booking_id = ? AND type = 'lunas' ORDER BY created_at DESC LIMIT 1",
-      [bookingId]
-    );
-    paymentId = ins.id;
   }
 
-  try {
-    await generateTandaTerimaUntukPayment(pool, paymentId, actor.id);
-  } catch (e) {
-    console.error('Gagal auto-generate tanda terima (sahabat mandiri):', e);
-  }
+  // TTU SENGAJA DISKIP buat pelunasan (dikonfirmasi user 2026-10-14) --
+  // Kwitansi di bawah ini SELALU ikut kebuat bareng buat payment type='lunas'
+  // yang sama persis, TTU jadi dokumen kembar yang gak pernah perlu
+  // dikirim sendiri (sama alasan kayak PATCH /api/payments).
   try {
     await generateOrUpdateKwitansi(pool, bookingId, actor.id);
     // generateOrUpdateKwitansi jumlahin payments type dp+lunas confirmed —

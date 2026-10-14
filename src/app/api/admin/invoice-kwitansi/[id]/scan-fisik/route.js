@@ -6,14 +6,20 @@ import { wajibRole } from '@/lib/auth';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 const MAKS = 10 * 1024 * 1024; // 10MB — bisa scan multi-halaman
+const JENIS_LOCK_ON_SEND = ['tanda_terima', 'kwitansi'];
 
 // POST /api/admin/invoice-kwitansi/[id]/scan-fisik  (multipart: file, user_id)
 // Unggah scan/foto Invoice/Kwitansi/Tanda Terima Uang yang sudah dicetak +
-// dimaterai asli + ditandatangani fisik di kantor — dokumen langsung ditandai
-// "terkirim" (dipakai reminder cluster "TTU Belum Dikirim") begitu scan
-// tersimpan, biar hasilnya juga bisa dibagikan ulang lewat WA kapan saja.
+// dimaterai asli + ditandatangani fisik di kantor.
 // `user_id` di form field ikut konvensi UploadScanDokumen (komponen dipakai
 // generik lintas jenis dokumen) — di sini nilainya invoice_kwitansi.id.
+//
+// Tanda Terima Uang & Kwitansi (dikonfirmasi user 2026-10-14): upload scan
+// di sini CUMA nempelin filenya, TIDAK langsung nandain "terkirim" lagi —
+// itu sekarang tombol TERPISAH "Kirim ke Jamaah" (POST .../setuju), biar
+// admin bisa unggah scan dulu, cek lagi, baru BENERAN kirim (kontennya
+// dibekukan PAS diklik kirim, bukan pas scan). Invoice TETAP perilaku lama
+// (auto-terkirim begitu scan diunggah) — di luar scope, dibahas terpisah.
 export async function POST(request, { params }) {
   const auth = wajibRole(request, ['admin', 'super_admin']);
   if (auth.error) return auth.error;
@@ -33,7 +39,7 @@ export async function POST(request, { params }) {
       return Response.json({ error: 'Ukuran file maksimal 10MB' }, { status: 400 });
     }
 
-    const [rows] = await pool.query('SELECT id FROM invoice_kwitansi WHERE id = ?', [id]);
+    const [rows] = await pool.query('SELECT id, jenis FROM invoice_kwitansi WHERE id = ?', [id]);
     if (rows.length === 0) {
       return Response.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
     }
@@ -46,13 +52,20 @@ export async function POST(request, { params }) {
     await writeFile(path.join(dir, nama), Buffer.from(await file.arrayBuffer()));
 
     const publicPath = `/api/dokumen/invoice-kwitansi-scan/${nama}`;
-    await pool.query(
-      `UPDATE invoice_kwitansi
-       SET scan_fisik_path = ?, scan_fisik_uploaded_at = NOW(),
-           terkirim = 1, terkirim_metode = 'fisik', terkirim_at = NOW()
-       WHERE id = ?`,
-      [publicPath, id]
-    );
+    if (JENIS_LOCK_ON_SEND.includes(rows[0].jenis)) {
+      await pool.query(
+        `UPDATE invoice_kwitansi SET scan_fisik_path = ?, scan_fisik_uploaded_at = NOW() WHERE id = ?`,
+        [publicPath, id]
+      );
+    } else {
+      await pool.query(
+        `UPDATE invoice_kwitansi
+         SET scan_fisik_path = ?, scan_fisik_uploaded_at = NOW(),
+             terkirim = 1, terkirim_metode = 'fisik', terkirim_at = NOW()
+         WHERE id = ?`,
+        [publicPath, id]
+      );
+    }
 
     return Response.json({ message: 'Scan berhasil diunggah!', path: publicPath });
   } catch (error) {

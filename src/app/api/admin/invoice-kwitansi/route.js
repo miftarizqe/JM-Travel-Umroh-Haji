@@ -104,21 +104,45 @@ export async function PATCH(request) {
   const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
   try {
-    const { id, status } = await request.json();
+    const { id, status, bukti_path, bukti_nama } = await request.json();
     if (!id || !['unpaid', 'paid'].includes(status)) {
       return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     }
     const [[existing]] = await pool.query('SELECT * FROM invoice_kwitansi WHERE id = ?', [id]);
     if (!existing) return Response.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
 
-    await pool.query('UPDATE invoice_kwitansi SET status = ? WHERE id = ?', [status, id]);
+    // Invoice yang UDAH Paid gak bisa diutak-atik lagi (one-way lock) --
+    // sama nandain Paid WAJIB nyertain bukti transfer (dikonfirmasi user
+    // 2026-10-14: "jangan sampai bisa orang asal-asalan bikin itu lunas,
+    // kalo udah di-paid-in seharusnya jangan pernah bisa dibalikin lagi").
+    // Kwitansi TETAP bebas ditoggle manual (statusnya normalnya auto-
+    // managed dari pembayaran asli, override ini cuma escape hatch yang
+    // udah ada dari awal, beda kasus dari Invoice).
+    if (existing.jenis === 'invoice') {
+      if (existing.status === 'paid') {
+        return Response.json({ error: 'Invoice yang sudah Paid tidak bisa diubah lagi.' }, { status: 400 });
+      }
+      if (status === 'paid' && !bukti_path) {
+        return Response.json({ error: 'Bukti transfer/pembayaran wajib dilampirkan untuk menandai Paid.' }, { status: 400 });
+      }
+    }
+
+    await pool.query(
+      'UPDATE invoice_kwitansi SET status = ?, bukti_lunas_path = COALESCE(?, bukti_lunas_path), bukti_lunas_nama = COALESCE(?, bukti_lunas_nama) WHERE id = ?',
+      [status, bukti_path || null, bukti_nama || null, id]
+    );
 
     // Ditandai 'paid' -> ikut sinkronin ke Kwitansi Pembayaran booking ini
     // (dibuat kalau belum ada, di-update kalau udah) — biar gak perlu
-    // digenerate manual terpisah tiap invoice ditandai lunas.
+    // digenerate manual terpisah tiap invoice ditandai lunas. `sync` dibalikin
+    // ke client biar bisa nyaranin dokumen yang relevan (dikonfirmasi user
+    // 2026-10-14): non-null -> booking udah lunas total, saranin Kwitansi;
+    // null -> belum lunas total (atau invoice ini gak nempel booking manapun),
+    // saranin Tanda Terima Uang manual buat pembayaran yang baru ditandai ini.
+    let sync = null;
     if (status === 'paid') {
       try {
-        await syncKwitansiDariInvoice(pool, id);
+        sync = await syncKwitansiDariInvoice(pool, id);
       } catch (e) {
         console.error('Gagal sinkron kwitansi dari invoice:', e);
       }
@@ -132,7 +156,7 @@ export async function PATCH(request) {
       keterangan: `${existing.nomor} — ${existing.status} → ${status}`,
     });
 
-    return Response.json({ message: 'Status diperbarui!' });
+    return Response.json({ message: 'Status diperbarui!', kwitansi: sync });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

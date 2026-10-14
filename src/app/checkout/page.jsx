@@ -472,26 +472,20 @@ function CheckoutPageInner() {
     <Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat program...</div></Layout>
   );
 
-  // Akun belum terverifikasi (semua role) atau perwakilan/sahabat yang
-  // belum di-ACC admin belum boleh checkout — blokir di awal, jangan
-  // biarkan isi form dulu baru gagal di submit akhir (cekPemesanBolehOrder
-  // di server nolak hal yang sama, ini cuma UX lebih awal / jaring
-  // pengaman kalau halaman ini diakses langsung lewat URL, bukan lewat
-  // tombol "Daftar Program Ini Sekarang" yang udah ngeblok duluan).
+  // Perwakilan/sahabat yang belum di-ACC admin belum boleh checkout —
+  // blokir di awal, jangan biarkan isi form dulu baru gagal di submit akhir
+  // (cekPemesanBolehOrder di server nolak hal yang sama, ini cuma UX lebih
+  // awal / jaring pengaman kalau halaman ini diakses langsung lewat URL,
+  // bukan lewat tombol "Daftar Program Ini Sekarang" yang udah ngeblok
+  // duluan).
+  //
+  // Verifikasi akun jamaah (terverifikasi) SENGAJA TIDAK lagi ngeblok di
+  // sini (dikonfirmasi user 2026-10-14, dicabut — sebelumnya jamaah yang
+  // mau langsung bayar DP kena blokir nunggu admin verifikasi dulu, bikin
+  // lead dingin & kehilangan minat). Samain sama server di cekPemesanBolehOrder.
   if (!statusTerkini) return (
     <Layout><div className="flex items-center justify-center py-20 text-gray-400">Memuat program...</div></Layout>
   );
-  if (!statusTerkini.terverifikasi) {
-    return (
-      <Layout title="🛒 Checkout" backHref="/programs">
-        <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-6 text-center">
-          <div className="text-3xl mb-2">⏳</div>
-          <h3 className="font-bold text-yellow-800 mb-1">Akun Anda Belum Diverifikasi Admin</h3>
-          <p className="text-sm text-yellow-700">Akun Anda masih menunggu verifikasi admin. Anda belum bisa checkout sampai akun ini terverifikasi.</p>
-        </div>
-      </Layout>
-    );
-  }
   if (['perwakilan', 'sahabat_baitullah'].includes(user?.role) && statusTerkini.status !== 'active') {
     return (
       <Layout title="🛒 Checkout" backHref="/programs">

@@ -29,6 +29,10 @@ function PelunasanPageInner() {
   const [buktiPath, setBuktiPath] = useState(null);
   const [buktiNama, setBuktiNama] = useState(null);
   const [loading, setLoading] = useState(false);
+  // Cicilan pelunasan (dikonfirmasi user 2026-10-14): jamaah pilih mau
+  // bayar SISA PENUH atau nominal custom (biar bisa dicicil beberapa kali).
+  const [modeBayar, setModeBayar] = useState('sisa'); // 'sisa' | 'custom'
+  const [nominalCustom, setNominalCustom] = useState('');
 
   // Udah cek voucher atau upload bukti — sayang kalau ilang
   const isDirty = !!voucher || !!buktiPath;
@@ -38,7 +42,21 @@ function PelunasanPageInner() {
   const dp = booking?.dp_amount || 0;
   const total = booking?.total_harga || 0;
   const diskon = voucher?.potongan || 0;
-  const sisaBayar = total - dp - diskon;
+  // Sisa SEBENARNYA dari server (total_harga - dp_amount - SEMUA lunas yang
+  // udah confirmed, lihat hitungSisaBayar di src/lib/pelunasan.js) — BUKAN
+  // dihitung ulang dari total-dp doang, biar cicilan yang udah pernah
+  // dibayar sebelumnya ikut kepotong (dikonfirmasi user 2026-10-14).
+  const sisaSebenarnya = booking ? Number(booking.sisa_bayar ?? (total - dp)) : 0;
+  const cicilanSudahDibayar = (booking?.lunas_payments || [])
+    .filter(p => p.status === 'confirmed')
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const adaLunasPending = (booking?.lunas_payments || []).some(p => p.status === 'pending');
+  const maksBayarSekarang = Math.max(0, sisaSebenarnya - diskon);
+  const sisaBayar = modeBayar === 'custom'
+    ? Math.max(0, Number(nominalCustom) || 0)
+    : maksBayarSekarang;
+  const nominalCustomValid = modeBayar !== 'custom'
+    || (Number(nominalCustom) > 0 && Number(nominalCustom) <= maksBayarSekarang);
 
   useEffect(() => {
     if (!user) return;
@@ -75,7 +93,8 @@ function PelunasanPageInner() {
           amount: sisaBayar,
           bukti_path: buktiPath,
           bukti_nama: buktiNama,
-          kode_unik: 0
+          kode_unik: 0,
+          voucher_kode: voucher?.kode || undefined,
         })
       });
       if (res.ok) {
@@ -89,10 +108,15 @@ function PelunasanPageInner() {
             });
           } catch { /* abaikan, pelunasan tetap sukses */ }
         }
-        alert('Bukti pelunasan terkirim! Menunggu konfirmasi admin.');
+        alert(
+          modeBayar === 'custom' && sisaBayar < maksBayarSekarang
+            ? 'Bukti cicilan pelunasan terkirim! Menunggu konfirmasi admin.'
+            : 'Bukti pelunasan terkirim! Menunggu konfirmasi admin.'
+        );
         router.push('/dashboard/jamaah');
       } else {
-        alert('Gagal mengirim bukti pelunasan');
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Gagal mengirim bukti pelunasan');
       }
     } catch (e) {
       alert('Terjadi kesalahan');
@@ -200,12 +224,19 @@ function PelunasanPageInner() {
           </div>
         </div>
 
+        {adaLunasPending && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-700">
+            ⏳ Ada pembayaran pelunasan/cicilan yang masih menunggu konfirmasi admin. Tunggu diproses dulu sebelum kirim lagi.
+          </div>
+        )}
+
         {/* Invoice */}
         <div className="bg-[#E8F0FB] rounded-xl p-5 space-y-2">
           <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0] mb-3">📋 Invoice Pelunasan</div>
           {[
             { label: 'Total harga paket', val: 'Rp ' + total.toLocaleString('id-ID'), normal: true },
             { label: 'DP sudah dibayar', val: '− Rp ' + dp.toLocaleString('id-ID'), green: true },
+            ...(cicilanSudahDibayar > 0 ? [{ label: 'Cicilan sudah dibayar', val: '− Rp ' + cicilanSudahDibayar.toLocaleString('id-ID'), green: true }] : []),
             ...(diskon > 0 ? [{ label: 'Diskon voucher', val: '− Rp ' + diskon.toLocaleString('id-ID'), red: true }] : []),
           ].map(r => (
             <div key={r.label} className="flex justify-between text-sm text-gray-500">
@@ -214,10 +245,50 @@ function PelunasanPageInner() {
             </div>
           ))}
           <div className="border-t border-blue-200 pt-2 flex justify-between font-bold text-base">
-            <span className="text-sm">Sisa Pelunasan</span>
-            <span className="text-red-600">Rp {sisaBayar.toLocaleString('id-ID')}</span>
+            <span className="text-sm">Sisa Tagihan</span>
+            <span className="text-red-600">Rp {maksBayarSekarang.toLocaleString('id-ID')}</span>
           </div>
         </div>
+
+        {/* Pilihan nominal bayar sekarang — cicilan pelunasan (dikonfirmasi
+            user 2026-10-14): boleh langsung lunasin sisa, atau nyicil pakai
+            nominal custom yang diisi sendiri. */}
+        {!adaLunasPending && (
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
+            <div className="font-bold text-[#0E2F6E]">💵 Jumlah yang Akan Dibayar Sekarang</div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setModeBayar('sisa')}
+                className={`rounded-xl p-3 text-left border-2 transition-colors ${modeBayar === 'sisa' ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <div className="text-xs font-bold text-[#0E2F6E]">💰 Bayar Sisanya</div>
+                <div className="text-sm font-bold text-[#1A4FA0] mt-0.5">Rp {maksBayarSekarang.toLocaleString('id-ID')}</div>
+              </button>
+              <button onClick={() => setModeBayar('custom')}
+                className={`rounded-xl p-3 text-left border-2 transition-colors ${modeBayar === 'custom' ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <div className="text-xs font-bold text-[#0E2F6E]">🔢 Bayar Nominal Lain</div>
+                <div className="text-sm text-gray-400 mt-0.5">Cicil sebagian</div>
+              </button>
+            </div>
+            {modeBayar === 'custom' && (
+              <div>
+                <input type="number" min="1" max={maksBayarSekarang}
+                  value={nominalCustom}
+                  onChange={e => setNominalCustom(e.target.value)}
+                  placeholder={`Maks Rp ${maksBayarSekarang.toLocaleString('id-ID')}`}
+                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
+                {!nominalCustomValid && nominalCustom !== '' && (
+                  <div className="text-xs text-red-500 mt-1">
+                    Nominal harus lebih dari 0 dan tidak melebihi sisa tagihan (Rp {maksBayarSekarang.toLocaleString('id-ID')}).
+                  </div>
+                )}
+                {nominalCustomValid && Number(nominalCustom) > 0 && Number(nominalCustom) < maksBayarSekarang && (
+                  <div className="text-xs text-amber-600 mt-1">
+                    ⚠️ Ini baru sebagian — sisa Rp {(maksBayarSekarang - Number(nominalCustom)).toLocaleString('id-ID')} masih perlu dicicil lagi nanti.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Rekening */}
         <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-5 space-y-3">
@@ -238,9 +309,10 @@ function PelunasanPageInner() {
             label="Klik untuk upload bukti pelunasan"
           />
 
-        <button onClick={submitPelunasan} disabled={!buktiPath || loading || formBelumLengkap || perjanjianBelumSelesai || adaPenyesuaianPending}
+        <button onClick={submitPelunasan}
+          disabled={!buktiPath || loading || formBelumLengkap || perjanjianBelumSelesai || adaPenyesuaianPending || adaLunasPending || !nominalCustomValid || sisaBayar <= 0}
           className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          {loading ? 'Memproses...' : 'Kirim Bukti Pelunasan →'}
+          {loading ? 'Memproses...' : modeBayar === 'custom' ? 'Kirim Bukti Cicilan →' : 'Kirim Bukti Pelunasan →'}
         </button>
 
       </div>

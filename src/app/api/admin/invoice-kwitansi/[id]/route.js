@@ -1,6 +1,13 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
-import { ringkasanPaketKamar } from '@/lib/jamaahHarga';
+import { ringkasanPaketKamar, resolveJamaahHarga } from '@/lib/jamaahHarga';
+import { hitungJamaahBreakdownTtu, pastikanNomorDokumen } from '@/lib/invoiceKwitansi';
+import { hitungSisaBayar } from '@/lib/pelunasan';
+
+// Sama persis BATAS_MATERAI/butuhMaterai di halaman cetak
+// (/admin/cetak-invoice/[id]/page.jsx) & POST .../setuju — JANGAN diubah
+// sendiri2, kalau salah satu berubah yang lain ikut.
+const BATAS_MATERAI = 5_000_000;
 
 // GET /api/admin/invoice-kwitansi/[id] — detail 1 dokumen buat halaman cetak.
 // Admin selalu boleh. Pemilik booking-nya (jamaah) JUGA boleh, HANYA kalau
@@ -20,6 +27,22 @@ export async function GET(request, { params }) {
     if (!dokumen) return Response.json({ error: 'Dokumen tidak ditemukan' }, { status: 404 });
 
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
+
+    // Nomor TTU/Kwitansi yang WAJIB materai dibakar PAS PERTAMA KALI admin
+    // buka halaman cetak ini (dikonfirmasi user 2026-10-14) — dari titik
+    // itu dokumennya udah bisa langsung diprint fisik, jadi nomornya harus
+    // udah final SEBELUM itu kejadian (beda dari yang gak wajib materai,
+    // nomornya baru dibakar pas tombol "Kirim ke Jamaah" diklik, lihat
+    // POST .../setuju — gerbangnya sekarang checkbox "Nominal sudah benar",
+    // dikonfirmasi user 2026-10-14). Idempotent — gak ngulang generate
+    // kalau udah ada.
+    if (isAdmin && ['tanda_terima', 'kwitansi'].includes(dokumen.jenis) && !dokumen.nomor) {
+      const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+      const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
+      if (butuhMaterai) {
+        dokumen.nomor = await pastikanNomorDokumen(pool, dokumen);
+      }
+    }
 
     // Tanda Terima Uang nempel ke 1 payment spesifik — ambil tipe pembayaran
     // (dp/lunas) buat ditampilin di cetakan ("Pembayaran diterima — DP", dst).
@@ -76,6 +99,40 @@ export async function GET(request, { params }) {
         const rpk = ringkasanPaketKamar({ ...b, jamaah_data: jamaahParsed });
         if (rpk.campuran) { b.paket = 'Campuran'; b.kamar = 'Campuran'; }
 
+        // jamaah_breakdown = daftar {nama, paket, kamar, hargaJual} per
+        // jamaah AKTIF (dibatalkan di-skip) — sumber tunggal buat halaman
+        // cetak nampilin rincian PER ORANG kalau paket/kamar mereka beda-beda
+        // (dikonfirmasi user 2026-10-14, "jangan ditulis campuran, rinci per
+        // jamaah kalau emang beda"). resolveJamaahHarga ngasih kombo per
+        // entry (eksplisit kalau pernah diedit admin, else fallback rata-rata
+        // booking-level — sama logic yang dipakai ringkasanPaketKamar di atas).
+        const jamaahBreakdown = jamaahParsed
+          .filter(j => j?.status_jamaah !== 'dibatalkan')
+          .map(j => {
+            const r = resolveJamaahHarga({ ...b, jamaah_data: jamaahParsed }, j);
+            return { nama: j.nama || '-', paket: r.paket, kamar: r.kamar, hargaJual: r.hargaJual };
+          });
+
+        // Breakdown khusus Tanda Terima Uang & Kwitansi — begitu dokumen
+        // ini UDAH DIKIRIM, kontennya WAJIB diambil dari
+        // jamaah_breakdown_snapshot yang dibekukan PERSIS pas tombol "Kirim
+        // ke Jamaah" diklik (lihat POST .../setuju & migration 224) — TIDAK
+        // dihitung ulang lagi, biar dokumen yang udah terkirim gak keliatan
+        // "berubah" kalau booking-nya berubah belakangan (dikonfirmasi user
+        // 2026-10-14, "kalo udah gue click kirim itu otomatis kelock").
+        // Sebelum dikirim (masih preview/draft), dihitung LIVE via
+        // hitungJamaahBreakdownTtu biar admin lihat data terkini.
+        let jamaahBreakdownPembayaran = jamaahBreakdown;
+        if (['tanda_terima', 'kwitansi'].includes(dokumen.jenis)) {
+          if (dokumen.terkirim && dokumen.jamaah_breakdown_snapshot) {
+            let snap = dokumen.jamaah_breakdown_snapshot;
+            if (typeof snap === 'string') { try { snap = JSON.parse(snap); } catch { snap = null; } }
+            if (Array.isArray(snap)) jamaahBreakdownPembayaran = snap;
+          } else {
+            jamaahBreakdownPembayaran = await hitungJamaahBreakdownTtu(pool, dokumen);
+          }
+        }
+
         // Opsi tambahan (addon di luar paket dasar) — kalau ada isinya,
         // dipakai sbg baris "item lain" tambahan di halaman cetak, format
         // sama kayak baris Paket.
@@ -93,25 +150,37 @@ export async function GET(request, { params }) {
           [dokumen.booking_id]
         );
 
-        // Sisa Pembayaran = total_harga - SEMUA invoice (jenis 'invoice') yang
-        // pernah digenerate buat booking ini, TERMASUK dokumen ini sendiri —
-        // "sisa tagihan", bukan "sisa yang belum beneran dibayar" (itu udah
-        // dicover Tanda Terima/Kwitansi yang narik dari payments asli).
+        // Sisa Pembayaran = sisa BENERAN yang belum dibayar (total_harga -
+        // dp_amount - semua cicilan lunas confirmed, lihat hitungSisaBayar)
+        // DIKURANGI nominal invoice ini sendiri (asumsinya invoice ini bakal
+        // dilunasi) — bukan lagi "total_harga dikurangi SEMUA Invoice yang
+        // pernah dibuat" (bug ditemukan user 2026-10-14, "lo belom motong
+        // yang udah dibayar" — booking yang DP-nya lunas lewat alur normal
+        // TANPA pernah ada Invoice sebelumnya bakal keliatan sisa penuh lagi
+        // padahal DP-nya udah kepotong beneran, sama root cause kayak bug
+        // saranInvoice yang udah dibenerin). SATU sumber kebenaran sama
+        // saranInvoice (src/app/admin/invoice-kwitansi/page.jsx) & PATCH
+        // /api/payments.
+        // Sudah Dibayarkan = total_harga - sisa SEBELUM invoice ini (=
+        // dp_amount + semua cicilan lunas confirmed, sumber kebenaran sama
+        // persis hitungSisaBayar) — dipakai breakdown bersih di halaman
+        // cetak Invoice (Total Tagihan / Sudah Dibayarkan / [Judul] /
+        // Sisa), dikonfirmasi user 2026-10-14.
         let sisaPembayaran = null;
+        let sudahDibayar = null;
         if (dokumen.jenis === 'invoice') {
-          const [[{ totalInvoiced }]] = await pool.query(
-            `SELECT COALESCE(SUM(nominal), 0) AS totalInvoiced FROM invoice_kwitansi
-             WHERE booking_id = ? AND jenis = 'invoice'`,
-            [dokumen.booking_id]
-          );
-          sisaPembayaran = Number(b.total_harga || 0) - Number(totalInvoiced);
+          const sisaSebelumInvoiceIni = await hitungSisaBayar(pool, dokumen.booking_id);
+          sisaPembayaran = Math.max(0, sisaSebelumInvoiceIni - Number(dokumen.nominal || 0));
+          sudahDibayar = Math.max(0, Number(b.total_harga || 0) - sisaSebelumInvoiceIni);
         }
 
         booking = {
           ...b, jamaah_data: undefined, jamaah_nama: jamaahNama,
+          jamaah_breakdown: jamaahBreakdown, jamaah_breakdown_pembayaran: jamaahBreakdownPembayaran,
           opsi_tambahan_data: undefined, opsi_tambahan_nama: opsiTambahanNama,
           dp_dibayar_tanggal: bayarDp?.created_at || null,
           sisa_pembayaran: sisaPembayaran,
+          sudah_dibayar: sudahDibayar,
         };
       }
     } else if (!isAdmin) {

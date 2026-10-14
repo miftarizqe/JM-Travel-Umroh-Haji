@@ -3,6 +3,7 @@ import { wajibLogin } from '@/lib/auth';
 import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
 import { SQL_STATUS_LUNAS_TERAKHIR } from '@/lib/bookingPerluTindakan';
+import { ambilDpPaymentsBatch, ambilLunasPaymentsBatch } from '@/lib/dpPayments';
 
 export async function GET(request) {
   const auth = wajibLogin(request);
@@ -55,6 +56,33 @@ export async function GET(request) {
        WHERE b.user_id = ? OR b.ordered_by = ? ORDER BY b.created_at DESC`,
       [userId, userId]
     );
+
+    // Riwayat SEMUA payment type='dp' per booking (DP awal, DP pax
+    // tambahan, resubmit setelah ditolak) — dilampirkan ke SEMUA booking
+    // (bukan cuma yang dp_status='confirmed'), soalnya booking yang DP
+    // AWALNYA ditolak (masih stage 1) justru paling butuh ini buat
+    // nunjukin tombol "Upload Ulang" (dikonfirmasi user 2026-10-14, lihat
+    // src/lib/dpPayments.js).
+    const dpPaymentsMap = await ambilDpPaymentsBatch(pool, bookings.map(b => b.id));
+    for (const b of bookings) {
+      b.dp_payments = dpPaymentsMap.get(b.id) || [];
+    }
+
+    // Riwayat SEMUA payment type='lunas' per booking (cicilan pelunasan,
+    // dikonfirmasi user 2026-10-14 — bisa lebih dari 1 gelombang sebelum
+    // beneran lunas total) + sisa_bayar yang BENERAN kurang (total_harga -
+    // dp_amount - SEMUA lunas yang udah confirmed) — dipakai /pelunasan
+    // buat nampilin sisa yang akurat & /dashboard/jamaah buat riwayat
+    // cicilan. SAMA PERSIS formula hitungSisaBayar (src/lib/pelunasan.js),
+    // dihitung di sini langsung dari batch yang udah di-query biar gak N+1.
+    const lunasPaymentsMap = await ambilLunasPaymentsBatch(pool, bookings.map(b => b.id));
+    for (const b of bookings) {
+      b.lunas_payments = lunasPaymentsMap.get(b.id) || [];
+      const lunasConfirmedSum = b.lunas_payments
+        .filter(p => p.status === 'confirmed')
+        .reduce((s, p) => s + Number(p.amount || 0), 0);
+      b.sisa_bayar = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0) - lunasConfirmedSum);
+    }
 
     // Status perlengkapan per jamaah (WMS) — cuma relevan begitu DP confirmed,
     // dilampirkan di sini biar dashboard jamaah gak perlu fetch endpoint
@@ -122,27 +150,12 @@ export async function GET(request) {
         nominal: r.refund_nominal, persen: r.refund_persen, status: r.refund_status, bukti_path: r.bukti_refund_path,
       }]));
 
-      // DP TAMBAHAN (pax baru lewat "Tambah Jamaah") yang masih nunggu ACC
-      // admin — booking.dp_status itu SATU nilai (udah 'confirmed' dari DP
-      // AWAL), jadi badge "DP: Dikonfirmasi" di dashboard tetap nunjukin
-      // confirmed meski ada payment DP KEDUA yang masih pending, nyesatin
-      // (dikonfirmasi user 2026-10-13). Dicek terpisah di sini biar FE bisa
-      // nunjukin "ada DP tambahan nunggu ACC" di samping status DP awal.
-      const [dpPendingRows] = await pool.query(
-        `SELECT booking_id, SUM(amount) AS total FROM payments
-         WHERE booking_id IN (${bookingIdsDpConfirmed.map(() => '?').join(',')}) AND type = 'dp' AND status = 'pending'
-         GROUP BY booking_id`,
-        bookingIdsDpConfirmed
-      );
-      const dpPendingMap = new Map(dpPendingRows.map(r => [String(r.booking_id), Number(r.total)]));
-
       for (const b of bookings) {
         if (b.dp_status !== 'confirmed') continue;
         b.perjanjian_sig = sigMap.get(String(b.id)) || null;
         b.penyesuaian_pending = penyesuaianMap.get(String(b.id)) || null;
         b.manasik = manasikMap.get(String(b.prog_id)) || null;
         b.refund = refundMap.get(String(b.id)) || null;
-        b.dp_tambahan_pending = dpPendingMap.get(String(b.id)) || null;
       }
     }
 

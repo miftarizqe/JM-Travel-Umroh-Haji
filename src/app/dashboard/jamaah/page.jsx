@@ -7,8 +7,9 @@ import DokumenSayaList from '@/app/components/DokumenSayaList';
 import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import { formLengkap, getStage, pembayaranSudahDiAcc } from '@/lib/bookingStage';
+import { formLengkap, getStage, perjanjianSelesai, pembayaranSudahDiAcc } from '@/lib/bookingStage';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
+import { dpPerluResubmit } from '@/lib/dpPayments';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
 
 export default function DashboardJamaah() {
@@ -184,22 +185,78 @@ export default function DashboardJamaah() {
                       {/* Progress 5 tahap — komponen sama dengan admin */}
                       <BookingProgressBar booking={b} className="mb-4" />
 
-                      {/* Status DP */}
-                      <div className="text-sm text-gray-500 mb-2">
-                        DP: <strong>{b.dp_status === 'confirmed' ? '✅ Dikonfirmasi' : b.dp_status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}</strong>
-                      </div>
-
-                      {/* DP jamaah tambahan (dari "Tambah Jamaah") yang
-                          masih nunggu ACC admin TERPISAH dari DP awal di
-                          atas — booking.dp_status cuma 1 nilai buat DP awal,
-                          jadi badge di atas tetap "Dikonfirmasi" walau ada
-                          DP kedua ini yang belum di-ACC (dikonfirmasi user
-                          2026-10-13, awalnya nyesatin keliatan udah beres semua). */}
-                      {b.dp_tambahan_pending > 0 && (
-                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full mb-2">
-                          ⏳ DP jamaah tambahan Rp {Number(b.dp_tambahan_pending).toLocaleString('id-ID')} masih menunggu konfirmasi admin
+                      {/* Status DP — 1 booking bisa punya LEBIH dari 1 payment
+                          DP (DP awal, DP pax tambahan, resubmit abis
+                          ditolak), masing-masing ditampilin sendiri-sendiri
+                          sebagai "DP 1"/"DP 2"/dst (dikonfirmasi user
+                          2026-10-14, lihat src/lib/dpPayments.js) — booking.dp_status
+                          cuma 1 nilai buat DP AWAL doang, gak cukup buat
+                          nunjukin status semuanya. */}
+                      {Array.isArray(b.dp_payments) && b.dp_payments.length > 0 && (
+                        <div className="text-sm text-gray-500 mb-2 space-y-0.5">
+                          {b.dp_payments.map(dp => (
+                            <div key={dp.id} className="flex items-center justify-between">
+                              <span>{b.dp_payments.length > 1 ? `DP ${dp.urutan}` : 'DP'}</span>
+                              <strong>
+                                {dp.status === 'confirmed' ? '✅ Dikonfirmasi' : dp.status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}
+                              </strong>
+                            </div>
+                          ))}
                         </div>
                       )}
+
+                      {/* Riwayat pelunasan/cicilan — sama pola kayak DP di
+                          atas (dikonfirmasi user 2026-10-14, cicilan bisa
+                          lebih dari 1 gelombang sebelum lunas total). */}
+                      {Array.isArray(b.lunas_payments) && b.lunas_payments.length > 0 && (
+                        <div className="text-sm text-gray-500 mb-2 space-y-0.5">
+                          {b.lunas_payments.map(lp => (
+                            <div key={lp.id} className="flex items-center justify-between">
+                              <span>{b.lunas_payments.length > 1 ? `Pelunasan ${lp.urutan}` : 'Pelunasan'}</span>
+                              <strong>
+                                {lp.status === 'confirmed' ? '✅ Dikonfirmasi' : lp.status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}
+                              </strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {(() => {
+                        const dpResubmit = dpPerluResubmit(b.dp_payments);
+                        if (!dpResubmit) return null;
+                        return (
+                          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-2">
+                            <div className="text-xs text-red-600 mb-1.5">
+                              DP {dpResubmit.urutan} ditolak: {dpResubmit.reject_reason || 'Tidak ada alasan spesifik.'}
+                            </div>
+                            <button onClick={() => router.push(`/bayar-dp?booking_id=${b.id}`)}
+                              className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-full transition-colors">
+                              Upload Bukti DP Baru →
+                            </button>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Pelunasan/cicilan ditolak — SEBELUMNYA gak ada jalur
+                          benerin sama sekali (ditemukan via audit notifikasi
+                          2026-10-14, cuma DP yang punya ini). Pola SAMA
+                          PERSIS kayak DP di atas, dpPerluResubmit generik
+                          dipakai bareng. */}
+                      {(() => {
+                        const lunasResubmit = dpPerluResubmit(b.lunas_payments);
+                        if (!lunasResubmit) return null;
+                        return (
+                          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-2">
+                            <div className="text-xs text-red-600 mb-1.5">
+                              Pelunasan ke-{lunasResubmit.urutan} ditolak: {lunasResubmit.reject_reason || 'Tidak ada alasan spesifik.'}
+                            </div>
+                            <button onClick={() => router.push(`/bayar-pelunasan?booking_id=${b.id}`)}
+                              className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-full transition-colors">
+                              Upload Bukti Pelunasan Baru →
+                            </button>
+                          </div>
+                        );
+                      })()}
 
                       {/* Reminder materai+TTD fisik — begitu setuju_pks
                           dicentang, jamaah udah boleh lanjut pelunasan
@@ -290,7 +347,32 @@ export default function DashboardJamaah() {
                         </button>
                       )}
 
-                      {stage === 5 && (
+                      {/* stage===5 cuma berarti pelunasan_status='paid' --
+                          BUKAN jaminan form/perjanjian beneran udah kelar
+                          (ditemukan user 2026-10-14, "dia gabisa ubah apa2
+                          lagi": booking yang lunas lewat jalur Invoice-paid-
+                          override di admin, gak lewat gerbang form/
+                          perjanjian normal, nyangkut di "stage 5" tanpa
+                          tombol aksi apa pun karena SEMUA tombol lain cuma
+                          dirender buat stage 2/3/4). Dicek independen di
+                          sini, sama pola kayak BookingProgressBar. */}
+                      {stage === 5 && !formLengkap(b) && (
+                        <button
+                          onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
+                          className="w-full bg-[#1A4FA0] text-white text-sm font-bold py-2 rounded-full hover:bg-[#0E2F6E] transition-colors"
+                        >
+                          Isi Formulir Jamaah ({b.form_filled}/{b.form_total}) →
+                        </button>
+                      )}
+                      {stage === 5 && formLengkap(b) && !perjanjianSelesai(b) && (
+                        <button
+                          onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${b.id}`)}
+                          className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"
+                        >
+                          📜 Baca & Setujui Perjanjian →
+                        </button>
+                      )}
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && (
                         <div className="bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
                           ✅ Lunas — Selamat menunaikan ibadah!
                         </div>
