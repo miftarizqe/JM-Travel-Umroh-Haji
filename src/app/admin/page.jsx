@@ -2112,22 +2112,11 @@ function AdminPageInner() {
                           <button onClick={() => window.open(`/admin/cetak-perjanjian/${b.id}`, '_blank')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
                             📜 Cetak Surat Perjanjian
                           </button>
-                          {/* Invoice sekarang selalu manual (judul+nominal
-                              admin, bisa DP/Pelunasan/cicilan) — tombol ini
-                              cuma nge-link ke halaman Invoice & Kwitansi
-                              dengan booking ini udah pre-filled. Program
-                              Eksklusif Sahabat Baitullah (checkout mandiri)
-                              gak PERNAH punya tahap DP/cicilan terpisah —
-                              langsung lunas total sekali bayar dari saldo
-                              (lihat cekDanFinalisasiLunasSahabat) — jadi
-                              Invoice gak relevan buat program ini, tombolnya
-                              disembunyikan, cukup Kwitansi di bawah
-                              (dikonfirmasi user 2026-10-13). */}
-                          {b.dp_status === 'confirmed' && openProgram?.publish_type !== 'sahabat_baitullah' && (
-                            <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${b.id}`, '_blank')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
-                              🧾 Buat Invoice
-                            </button>
-                          )}
+                          {/* Tombol "Buat Invoice" DIPINDAH ke blok sc.kind===
+                              'belum-lunas' di bawah (dikonfirmasi user
+                              2026-10-14) — sebelumnya ada DUA tombol Buat
+                              Invoice nongol bareng kalau form lengkap + DP
+                              confirmed + belum lunas, sekarang cuma 1. */}
                           {/* Kwitansi cuma keluar begitu LUNAS TOTAL. */}
                           {b.pelunasan_status === 'paid' && (
                             <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
@@ -2208,11 +2197,20 @@ function AdminPageInner() {
                                   cuma dipasang di sini juga. Muncul terus selama
                                   booking ini belum lunas (sc.kind==='belum-lunas'
                                   persis sama syaratnya kayak reminder WA di bawah),
-                                  ilang otomatis begitu pelunasan_status jadi 'paid'. */}
-                              <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${b.id}`, '_blank')}
-                                className="w-full inline-flex items-center justify-center gap-1.5 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full">
-                                📄 Buat Invoice
-                              </button>
+                                  ilang otomatis begitu pelunasan_status jadi 'paid'.
+                                  Gerbang dp_status+sahabat_baitullah SAMA PERSIS
+                                  kayak tombol lama yang DIHAPUS di atas (dulu ada
+                                  2 tombol Buat Invoice nongol bareng, ditemukan
+                                  user 2026-10-14) — Invoice baru relevan begitu DP
+                                  confirmed, & Program Sahabat Baitullah checkout
+                                  mandiri gak pernah punya tahap DP/cicilan
+                                  terpisah (dikonfirmasi user 2026-10-13). */}
+                              {b.dp_status === 'confirmed' && openProgram?.publish_type !== 'sahabat_baitullah' && (
+                                <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${b.id}`, '_blank')}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full">
+                                  📄 Buat Invoice
+                                </button>
+                              )}
                               <div className="text-[10px] text-gray-400">⏳ Belum lunas — sisa {rp(sisaBayar)}. Kirim reminder pelunasan:</div>
                               {b.pemesan_wa ? (
                                 <TombolWA nomor={b.pemesan_wa}
