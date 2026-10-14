@@ -1,6 +1,8 @@
 // status_akun: satu nilai siap-tampil (badge) turunan dari users.status + users.terverifikasi,
 // dikirim API supaya frontend tidak menghitung sendiri. Kolom DB TIDAK berubah: status tetap
-// mengatur login, terverifikasi tetap mengatur order (lihat cekPemesanBolehOrder).
+// mengatur login. terverifikasi SUDAH TIDAK mengatur order lagi sejak 2026-10-14
+// (dikonfirmasi user, cekPemesanBolehOrder gak ngecek ini lagi) — kolom ini sekarang murni
+// buat badge/daftar admin "Menunggu Verifikasi", bukan gerbang checkout.
 // Harus sama dengan StatusAkun() di jm-travel-api (internal/account/status_akun.go).
 //
 //   rejected -> 'ditolak', nonaktif -> 'nonaktif', pending -> 'pending'

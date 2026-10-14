@@ -53,9 +53,20 @@ export async function kombinasiHargaTersedia(conn, booking) {
   return hasil;
 }
 
-// Gerbang: perwakilan/sahabat yang belum di-ACC admin, atau akun belum
-// terverifikasi, tidak boleh order jamaah. Dipakai di awal route sebelum
-// memproses booking apapun (single maupun batch).
+// Gerbang: perwakilan/sahabat yang belum di-ACC admin tidak boleh order
+// jamaah. Dipakai di awal route sebelum memproses booking apapun (single
+// maupun batch).
+//
+// Verifikasi akun jamaah (`terverifikasi`) SENGAJA TIDAK lagi jadi gerbang
+// di sini (dikonfirmasi user 2026-10-14, dicabut — sebelumnya jamaah yang
+// mau langsung bayar DP kena blokir nunggu admin verifikasi dulu, bikin
+// lead dingin & kehilangan minat). Jamaah baru (role='jamaah') tetap
+// start `terverifikasi=0` pas daftar (lihat /api/auth/register) buat
+// keperluan lain (badge admin "Menunggu Verifikasi", dsb — lihat
+// src/lib/statusAkun.js), cuma gak lagi dipakai buat nolak checkout.
+// perwakilan/sahabat_baitullah TETAP butuh status='active' (gerbang di
+// bawah) — itu akun reseller/kemitraan dengan implikasi komisi, beda
+// kategori dari sekadar "akun jamaah baru daftar".
 export async function cekPemesanBolehOrder(conn, userId) {
   const [pemesan] = await conn.query(
     'SELECT name, role, status, terverifikasi, agama FROM users WHERE id = ?', [userId]
@@ -64,9 +75,6 @@ export async function cekPemesanBolehOrder(conn, userId) {
     throw errStatus('User tidak ditemukan', 404);
   }
   const me = pemesan[0];
-  if (!me.terverifikasi) {
-    throw errStatus('Akun Anda masih menunggu verifikasi admin. Anda belum bisa melakukan order.', 403);
-  }
   if (['perwakilan', 'sahabat_baitullah'].includes(me.role) && me.status !== 'active') {
     throw errStatus('Akun Anda belum dikonfirmasi admin. Anda belum bisa melakukan order jamaah.', 403);
   }
