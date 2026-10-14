@@ -107,7 +107,16 @@ export async function generateOrUpdateKwitansi(pool, bookingId, actorUserId) {
     `SELECT COALESCE(SUM(amount), 0) AS amount FROM payments WHERE booking_id = ? AND type = 'lunas' AND status = 'confirmed'`,
     [bookingId]
   );
-  const nominalPelunasan = Number(bayarLunas?.amount ?? (Number(booking.total_harga || 0) - nominalDp));
+  // Math.max, bukan langsung pakai SUM payments doang (bug ditemukan user
+  // 2026-10-14, "nominal kwitansi cuma 15 juta padahal udah semua
+  // pelunasan") -- booking yang lunas-nya SEBAGIAN lewat Invoice-paid-
+  // override (uang gak pernah masuk tabel payments sama sekali, lihat
+  // syncKwitansiDariInvoice) bakal nunjukin SUM payments yang KURANG dari
+  // seharusnya. Fungsi ini CUMA kepanggil begitu pelunasan_status UDAH
+  // dipastikan 'paid' (dicek di atas) -- jadi total HARUS persis
+  // total_harga, "Pelunasan" minimal nutup selisihnya, SUM payments asli
+  // dipakai kalau itu udah cukup/lebih (lebih granular, lebih akurat).
+  const nominalPelunasan = Math.max(Number(bayarLunas?.amount || 0), Number(booking.total_harga || 0) - nominalDp);
   const nominal = nominalDp + nominalPelunasan;
 
   const [[existing]] = await pool.query(
@@ -206,7 +215,13 @@ export async function syncKwitansiDariInvoice(pool, invoiceId) {
     `SELECT COALESCE(SUM(amount), 0) AS amount FROM payments WHERE booking_id = ? AND type = 'lunas' AND status = 'confirmed'`,
     [inv.booking_id]
   );
-  const nominalPelunasan = Number(bayarLunas?.amount ?? (Number(booking.total_harga || 0) - nominalDp));
+  // Math.max — sama fix kayak generateOrUpdateKwitansi (bug "nominal
+  // kwitansi kurang" ditemukan user 2026-10-14) -- di fungsi INI malah
+  // lebih sering kena, karena dipicu justru dari Invoice yang DI-PAID-IN
+  // (sumber duit yang gak pernah masuk payments). Total HARUS persis
+  // total_harga begitu sampai sini (sisaDariPembayaranAsli - totalInvoicePaid
+  // udah dipastikan <= 0 di atas).
+  const nominalPelunasan = Math.max(Number(bayarLunas?.amount || 0), Number(booking.total_harga || 0) - nominalDp);
   const nominal = nominalDp + nominalPelunasan;
 
   const [[existingKwt]] = await pool.query(

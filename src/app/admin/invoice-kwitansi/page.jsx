@@ -229,22 +229,6 @@ function InvoiceKwitansiPageInner() {
     setShowForm(true);
   }
 
-  // Buka form Buat Kwitansi — treatment SAMA kyk Buat Invoice (pop-up
-  // pre-filled), bukan auto-generate langsung. Nominal SENGAJA gak disaranin
-  // (Kwitansi dokumen final, adminlah yang tau persis berapa yang beneran
-  // diterima) — admin isi manual.
-  function bukaFormKwitansi(b) {
-    // Nominal langsung total_harga (dikonfirmasi user 2026-10-14, "kwitansi
-    // total bayar seluruhnya") -- Kwitansi dokumen final per booking, kalau
-    // udah lunas ya nominalnya emang total_harga, admin tetap bebas ubah.
-    setForm({ ...formKosong('kwitansi'), booking_id: b.id, nama: b.pemesan_nama || '', nominal: String(Number(b.total_harga || 0)) });
-    setTotalHargaForm(Number(b.total_harga || 0));
-    setDetailBookingForm(b);
-    setTab('kwitansi');
-    setBookingDipilih(null);
-    setShowForm(true);
-  }
-
   async function simpanManual() {
     if (!form.nama.trim() || !form.nominal || Number(form.nominal) <= 0 || !form.tanggal) {
       alert('Nama, nominal, dan tanggal wajib diisi'); return;
@@ -412,9 +396,20 @@ function InvoiceKwitansiPageInner() {
                     ditawarin kalau belum pernah dibuat (1 booking = 1
                     Kwitansi). Begitu lunas total DAN Kwitansi udah ada,
                     dua-duanya ilang. */}
+                {/* Pakai jalur SAMA PERSIS kayak yang auto-trigger dari
+                    PATCH /api/payments (generateOrUpdateKwitansi) -- BUKAN
+                    form manual isi nominal sendiri lagi (dikonfirmasi user
+                    2026-10-14, "samain aja kayak skenario dari section
+                    pembayaran, biar terintegritas jangan beda-beda"). Form
+                    manual sebelumnya gak ngisi nominal_dp/nominal_pelunasan
+                    sama sekali (NULL), bikin breakdown DP/Pelunasan di
+                    cetakan gak muncul -- beda struktur dari Kwitansi yang
+                    auto-generate. */}
                 {b.pelunasan_status === 'paid' && !kwitansiAda && (
-                  <button onClick={() => bukaFormKwitansi(b)}
-                    className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full">🧾 Buat Kwitansi</button>
+                  <button onClick={() => buatDariRekomendasi('kwitansi', 'booking_id', b.id)} disabled={rekomBusyId === b.id}
+                    className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full disabled:opacity-50">
+                    {rekomBusyId === b.id ? '...' : '🧾 Buat Kwitansi'}
+                  </button>
                 )}
                 {b.pelunasan_status === 'paid' && kwitansiAda && (
                   <div className="text-xs text-gray-400 py-2">✅ Invoice & Kwitansi booking ini sudah lengkap.</div>
