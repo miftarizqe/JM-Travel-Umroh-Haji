@@ -170,6 +170,14 @@ export async function syncKwitansiDariInvoice(pool, invoiceId) {
   );
   if (Number(totalInvoicePaid) < Number(booking.total_harga || 0)) return null; // belum nutup total_harga, belum lunas total
 
+  // bookings.pelunasan_status DIIKUT-UPDATE di sini (ditemukan user
+  // 2026-10-14: "udah paid-in invoice-nya tapi di Kelola Program masih
+  // belum lunas") -- sebelumnya fungsi ini cuma bikin/update Kwitansi,
+  // GAK PERNAH nyentuh pelunasan_status, padahal itu kolom yang dibaca
+  // statusClosing()/Kelola Program/dashboard buat nentuin "udah lunas apa
+  // belum". Kwitansi kebuat tapi booking-nya keliatan masih belum lunas.
+  await pool.query("UPDATE bookings SET pelunasan_status = 'paid' WHERE id = ? AND pelunasan_status != 'paid'", [inv.booking_id]);
+
   // SUM — sama alasan kayak generateOrUpdateKwitansi di atas, 1 booking bisa
   // punya lebih dari 1 payment DP confirmed sejak fitur "Tambah Jamaah".
   const [[bayarDp]] = await pool.query(
