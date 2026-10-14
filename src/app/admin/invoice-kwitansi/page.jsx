@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import InputTanggal from '@/app/components/InputTanggal';
 import { useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
+import UploadBukti from '@/app/components/UploadBukti';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
@@ -48,6 +49,12 @@ function InvoiceKwitansiPageInner() {
   // tinggal buka), belum -> saranin bikin Tanda Terima Uang manual buat
   // pembayaran yang baru ditandai paid ini.
   const [rekomendasiSetelahPaid, setRekomendasiSetelahPaid] = useState(null);
+  // Modal "Tandai Paid" Invoice -- wajib upload bukti dulu, gak langsung
+  // toggle (dikonfirmasi user 2026-10-14).
+  const [modalTandaiPaid, setModalTandaiPaid] = useState(null);
+  const [buktiLunasPath, setBuktiLunasPath] = useState(null);
+  const [buktiLunasNama, setBuktiLunasNama] = useState(null);
+  const [submittingBuktiLunas, setSubmittingBuktiLunas] = useState(false);
   const [tab, setTab] = useState('invoice');
   // Deep-link dari cluster "Tindak Lanjut" dashboard admin (dikonfirmasi user
   // 2026-10-14) — ?tab=tanda_terima&belum_dikirim=1 buka tab yang bener +
@@ -268,6 +275,19 @@ function InvoiceKwitansiPageInner() {
   }
 
   async function toggleStatus(d) {
+    // Invoice: one-way lock + wajib bukti (dikonfirmasi user 2026-10-14,
+    // "jangan sampai bisa orang asal-asalan bikin itu lunas") -- udah
+    // Paid gak ada aksi apa-apa lagi, belum Paid buka modal upload bukti
+    // dulu (lihat konfirmasiTandaiPaid), BUKAN langsung toggle. Kwitansi
+    // TETAP bebas ditoggle manual kayak sebelumnya (beda kasus, lihat
+    // komentar di PATCH route).
+    if (d.jenis === 'invoice') {
+      if (d.status === 'paid') return;
+      setModalTandaiPaid(d);
+      setBuktiLunasPath(null);
+      setBuktiLunasNama(null);
+      return;
+    }
     const statusBaru = d.status === 'paid' ? 'unpaid' : 'paid';
     if (!confirm(`Tandai ${d.nomor} sebagai "${statusBaru === 'paid' ? 'Paid' : 'Unpaid'}"?`)) return;
     const res = await fetch('/api/admin/invoice-kwitansi', {
@@ -276,13 +296,31 @@ function InvoiceKwitansiPageInner() {
     });
     const j = await res.json();
     if (!res.ok) { alert(j.error || 'Gagal mengubah status'); return; }
-    // Saran dokumen relevan CUMA pas nandain Invoice jadi Paid (bukan
-    // Unpaid, bukan jenis lain) & nempel ke booking (dikonfirmasi user
-    // 2026-10-14).
-    if (d.jenis === 'invoice' && statusBaru === 'paid' && d.booking_id) {
-      setRekomendasiSetelahPaid({ bookingId: d.booking_id, nama: d.nama, nominal: d.nominal, kwitansi: j.kwitansi || null });
-    }
     muat(q);
+  }
+
+  async function konfirmasiTandaiPaid() {
+    if (!modalTandaiPaid || !buktiLunasPath) return;
+    setSubmittingBuktiLunas(true);
+    try {
+      const res = await fetch('/api/admin/invoice-kwitansi', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: modalTandaiPaid.id, status: 'paid', bukti_path: buktiLunasPath, bukti_nama: buktiLunasNama }),
+      });
+      const j = await res.json();
+      if (!res.ok) { alert(j.error || 'Gagal menandai Paid'); return; }
+      // Saran dokumen relevan (dikonfirmasi user 2026-10-14) -- lunas total
+      // -> saranin buka Kwitansi, belum -> saranin buat Tanda Terima Uang.
+      if (modalTandaiPaid.booking_id) {
+        setRekomendasiSetelahPaid({ bookingId: modalTandaiPaid.booking_id, nama: modalTandaiPaid.nama, nominal: modalTandaiPaid.nominal, kwitansi: j.kwitansi || null });
+      }
+      setModalTandaiPaid(null);
+      muat(q);
+    } catch {
+      alert('Terjadi kesalahan');
+    } finally {
+      setSubmittingBuktiLunas(false);
+    }
   }
 
   if (!user) return null;
@@ -497,6 +535,16 @@ function InvoiceKwitansiPageInner() {
                         diterima — statusnya selalu Paid, gak perlu toggle. */}
                     {d.jenis === 'tanda_terima' ? (
                       <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">✅ Paid</span>
+                    ) : d.jenis === 'invoice' && d.status === 'paid' ? (
+                      // One-way lock (dikonfirmasi user 2026-10-14) -- udah
+                      // Paid gak bisa diklik/diutak-atik lagi sama sekali.
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">✅ Paid</span>
+                        {d.bukti_lunas_path && (
+                          <a href={d.bukti_lunas_path} target="_blank" rel="noopener noreferrer"
+                            className="text-[#1A4FA0] hover:underline text-xs">📎 Bukti</a>
+                        )}
+                      </div>
                     ) : (
                       <button onClick={() => toggleStatus(d)}
                         className={`text-xs font-bold px-2 py-1 rounded-full ${d.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -510,9 +558,7 @@ function InvoiceKwitansiPageInner() {
                         booking ini, gak ada hubungan data sama sekali sama
                         Invoice spesifik yang lagi dilihat (cuma kebetulan
                         sama-sama nempel booking yang sama), jadi suka gak
-                        nyambung. Saran dokumen yang BENERAN relevan sekarang
-                        muncul pas admin nge-toggle status ke Paid (lihat
-                        rekomendasiSetelahPaid di bawah). */}
+                        nyambung. */}
                     <div className="flex gap-2 flex-wrap">
                       <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
                         className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Cetak</button>
@@ -524,6 +570,25 @@ function InvoiceKwitansiPageInner() {
                         <a href={d.scan_fisik_path} target="_blank" rel="noopener noreferrer"
                           className="text-[#1A4FA0] font-bold hover:underline text-xs">👁️ Scan</a>
                       )}
+                      {/* Saran dokumen PERSISTEN di baris -- toast
+                          rekomendasiSetelahPaid cuma muncul SEKALI pas toggle
+                          & ilang kalau di-close (dikonfirmasi user 2026-10-14,
+                          "kalo diclose gue gabisa liat lagi"). Ini dihitung
+                          ULANG tiap render dari data terkini, jadi tetap ada
+                          walau toast-nya udah lama ditutup/di-refresh. */}
+                      {d.jenis === 'invoice' && d.status === 'paid' && d.booking_id && (() => {
+                        const kwitansiBooking = dokumen.find(x => x.jenis === 'kwitansi' && x.booking_id === d.booking_id);
+                        return kwitansiBooking ? (
+                          <button onClick={() => window.open(`/admin/cetak-invoice/${kwitansiBooking.id}`, '_blank')}
+                            className="text-green-700 font-bold hover:underline text-xs">🧾 Kwitansi</button>
+                        ) : (
+                          <button onClick={() => {
+                            setForm({ ...formKosong('tanda_terima'), booking_id: d.booking_id, nama: d.nama, nominal: String(d.nominal) });
+                            setTab('tanda_terima');
+                            setShowForm(true);
+                          }} className="text-amber-700 font-bold hover:underline text-xs">📝 Buat TTU</button>
+                        );
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -558,6 +623,31 @@ function InvoiceKwitansiPageInner() {
               </button>
             </>
           )}
+        </div>
+      )}
+      {modalTandaiPaid && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setModalTandaiPaid(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-[#0E2F6E] mb-1">Tandai {modalTandaiPaid.nomor} sebagai Paid</h3>
+            <div className="text-xs text-gray-400 mb-4">
+              {modalTandaiPaid.nama} — {rp(modalTandaiPaid.nominal)}. Gak bisa dibatalkan lagi setelah ditandai Paid —
+              lampirkan bukti transfer/pembayaran dulu sebelum konfirmasi.
+            </div>
+            <UploadBukti
+              onUploaded={(path, nama) => { setBuktiLunasPath(path); setBuktiLunasNama(nama); }}
+              label="Klik untuk upload bukti transfer/pembayaran"
+            />
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setModalTandaiPaid(null)}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2 rounded-xl text-sm">
+                Batal
+              </button>
+              <button onClick={konfirmasiTandaiPaid} disabled={!buktiLunasPath || submittingBuktiLunas}
+                className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                {submittingBuktiLunas ? 'Memproses...' : '✅ Konfirmasi Paid'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

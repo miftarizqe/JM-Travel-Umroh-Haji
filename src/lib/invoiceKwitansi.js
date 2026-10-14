@@ -1,5 +1,6 @@
 import { generateNomorInvoice, generateNomorKwitansi, generateNomorTandaTerima } from './nomorInvoiceKwitansi';
 import { resolveJamaahHarga } from './jamaahHarga';
+import { hitungSisaBayar } from './pelunasan';
 
 const fmtTgl = (d) => new Date(d).toISOString().slice(0, 10);
 
@@ -163,12 +164,24 @@ export async function syncKwitansiDariInvoice(pool, invoiceId) {
   );
   if (!booking) return null;
 
+  // Sisa BENERAN = sisa dari pembayaran ASLI (hitungSisaBayar — dp+lunas
+  // confirmed di tabel payments) DIKURANGI semua Invoice yang udah
+  // ditandai Paid manual (bug ditemukan user 2026-10-14: "invoice sisa
+  // 111jt ditandai paid tapi tetap bilang belum lunas total"). Invoice-
+  // paid merepresentasikan uang yang DITERIMA DI LUAR sistem (cash/
+  // transfer manual, gak pernah ada baris di tabel payments) — sebelumnya
+  // dicek CUMA dari SUM(invoice.nominal) doang, jadi DP yang udah dibayar
+  // beneran lewat alur normal (gak pernah punya dokumen Invoice-nya sama
+  // sekali) gak pernah ketung, bikin booking keliatan "belum nutup
+  // total_harga" padahal gabungan DP asli + Invoice yang baru di-paid-in
+  // ini udah pas/lebih.
+  const sisaDariPembayaranAsli = await hitungSisaBayar(pool, inv.booking_id);
   const [[{ totalInvoicePaid }]] = await pool.query(
     `SELECT COALESCE(SUM(nominal), 0) AS totalInvoicePaid FROM invoice_kwitansi
      WHERE booking_id = ? AND jenis = 'invoice' AND status = 'paid'`,
     [inv.booking_id]
   );
-  if (Number(totalInvoicePaid) < Number(booking.total_harga || 0)) return null; // belum nutup total_harga, belum lunas total
+  if (sisaDariPembayaranAsli - Number(totalInvoicePaid) > 0) return null; // belum nutup total_harga, belum lunas total
 
   // bookings.pelunasan_status DIIKUT-UPDATE di sini (ditemukan user
   // 2026-10-14: "udah paid-in invoice-nya tapi di Kelola Program masih
