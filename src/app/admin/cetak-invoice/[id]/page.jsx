@@ -458,18 +458,22 @@ export default function CetakInvoiceKwitansi() {
           <div style={{ textAlign: 'center', fontSize: 12, position: 'relative' }}>
             {tgl(dokumen.tanggal)}
             <div style={{ height: butuhMaterai ? 110 : 70, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-              {/* Cap perusahaan — ditaruh agak ke kiri, nyerempet area TTD,
-                  transparan dikit biar kesan cap stempel asli. */}
-              {pengaturan.cap_perusahaan_path && (
+              {/* Cap perusahaan — SAMA kayak TTD digital, cuma buat dokumen
+                  yang GAK wajib materai (dikonfirmasi user 2026-10-14).
+                  Dokumen >Rp5jt dikosongin total, cap fisik asli yang
+                  distempel tangan pas proses materai+TTD basah. */}
+              {!butuhMaterai && pengaturan.cap_perusahaan_path && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={pengaturan.cap_perusahaan_path} alt="Cap Perusahaan"
                   style={{ position: 'absolute', left: -75, top: '50%', transform: 'translateY(-50%) rotate(-10deg)', width: 95, opacity: 0.85 }} />
               )}
               {/* Placeholder materai FISIK — tempel materai Rp10.000 asli di
                   sini, tanda tangan nembus materainya kayak biasa. Belum ada
-                  integrasi e-Meterai digital (butuh akun Peruri dulu). */}
+                  integrasi e-Meterai digital (butuh akun Peruri dulu). Polos
+                  tanpa kotak/rotasi (dikonfirmasi user 2026-10-14) — cuma
+                  teks penanda lokasi, bukan elemen dekoratif. */}
               {butuhMaterai && (
-                <div style={{ border: '1px dashed #999', color: '#999', fontSize: 11, width: 110, height: 85, display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', lineHeight: 1.4, transform: 'rotate(-6deg)' }}>
+                <div style={{ color: '#999', fontSize: 11, textAlign: 'center', lineHeight: 1.4 }}>
                   Materai<br />Rp10.000
                 </div>
               )}
