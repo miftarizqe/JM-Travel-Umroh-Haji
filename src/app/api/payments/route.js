@@ -28,7 +28,7 @@ export async function GET(request) {
     // Pembayaran tanpa admin perlu buka tiap dokumen satu-satu (dikonfirmasi
     // user 2026-10-14).
     let query = `
-      SELECT p.*, COALESCE(u.name, p.nama) AS nama,
+      SELECT p.*, COALESCE(u.name, p.nama) AS nama, u.wa AS pemesan_wa,
              b.prog_name, b.jamaah_data, b.jumlah_jamaah, b.total_harga, b.dp_amount,
              b.referral_perw_id, b.referral_kode,
              ref.name AS referral_nama, ref.wa AS referral_wa,

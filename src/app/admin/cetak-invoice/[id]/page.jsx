@@ -144,7 +144,14 @@ export default function CetakInvoiceKwitansi() {
             ✅ {dokumen.terkirim_metode === 'setuju' ? 'Sudah disetujui' : `Sudah dikirim (${dokumen.terkirim_metode === 'fisik' ? 'fisik' : 'digital'})`}, {tgl(dokumen.terkirim_at)}
           </div>
           {isAdmin && dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 8, display: 'flex', gap: 8, justifyContent: 'center' }}>
+              {/* Link langsung buka file scan -- SEBELUMNYA gak ada sama sekali,
+                  admin cuma bisa "lihat" scan secara gak langsung lewat tombol
+                  WA di bawah (ditemukan via pertanyaan user 2026-10-14). */}
+              <a href={dokumen.scan_fisik_path} target="_blank" rel="noopener noreferrer"
+                style={{ background: '#1A4FA0', color: '#fff', padding: '8px 16px', borderRadius: 20, fontWeight: 700, fontSize: 12, textDecoration: 'none' }}>
+                👁️ Lihat Scan
+              </a>
               <TombolWA nomor={booking?.pemesan_wa} label="Kirim Ulang Scan via WA"
                 pesan={pesanDokumenFisikTerkirim({
                   namaJamaah: dokumen.nama, jenis: dokumen.jenis, nomor: dokumen.nomor,

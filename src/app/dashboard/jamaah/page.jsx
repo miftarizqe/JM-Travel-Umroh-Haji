@@ -205,6 +205,22 @@ export default function DashboardJamaah() {
                         </div>
                       )}
 
+                      {/* Riwayat pelunasan/cicilan — sama pola kayak DP di
+                          atas (dikonfirmasi user 2026-10-14, cicilan bisa
+                          lebih dari 1 gelombang sebelum lunas total). */}
+                      {Array.isArray(b.lunas_payments) && b.lunas_payments.length > 0 && (
+                        <div className="text-sm text-gray-500 mb-2 space-y-0.5">
+                          {b.lunas_payments.map(lp => (
+                            <div key={lp.id} className="flex items-center justify-between">
+                              <span>{b.lunas_payments.length > 1 ? `Pelunasan ${lp.urutan}` : 'Pelunasan'}</span>
+                              <strong>
+                                {lp.status === 'confirmed' ? '✅ Dikonfirmasi' : lp.status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}
+                              </strong>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
                       {(() => {
                         const dpResubmit = dpPerluResubmit(b.dp_payments);
                         if (!dpResubmit) return null;
@@ -216,6 +232,27 @@ export default function DashboardJamaah() {
                             <button onClick={() => router.push(`/bayar-dp?booking_id=${b.id}`)}
                               className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-full transition-colors">
                               Upload Bukti DP Baru →
+                            </button>
+                          </div>
+                        );
+                      })()}
+
+                      {/* Pelunasan/cicilan ditolak — SEBELUMNYA gak ada jalur
+                          benerin sama sekali (ditemukan via audit notifikasi
+                          2026-10-14, cuma DP yang punya ini). Pola SAMA
+                          PERSIS kayak DP di atas, dpPerluResubmit generik
+                          dipakai bareng. */}
+                      {(() => {
+                        const lunasResubmit = dpPerluResubmit(b.lunas_payments);
+                        if (!lunasResubmit) return null;
+                        return (
+                          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-2">
+                            <div className="text-xs text-red-600 mb-1.5">
+                              Pelunasan ke-{lunasResubmit.urutan} ditolak: {lunasResubmit.reject_reason || 'Tidak ada alasan spesifik.'}
+                            </div>
+                            <button onClick={() => router.push(`/bayar-pelunasan?booking_id=${b.id}`)}
+                              className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-full transition-colors">
+                              Upload Bukti Pelunasan Baru →
                             </button>
                           </div>
                         );

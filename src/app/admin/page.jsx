@@ -1495,24 +1495,35 @@ function AdminPageInner() {
                         booking dalam grup ini (termasuk yang gak bikin akun sendiri,
                         dipesankan admin/perwakilan) + ke perwakilan perekrutnya kalau ada. */}
                     {statusGroup === 'confirmed' && g.members.map(p => {
+                      // Pemilik akun = kontak UTAMA (dikonfirmasi user 2026-10-14,
+                      // sama alasan kayak reminder pelunasan) — WA-nya udah pasti
+                      // ada, beda sama WA jamaah yang sering belum keisi. Per-jamaah
+                      // cuma opsi tambahan kalau kebetulan ada.
                       const jamaahList = parseJamaahData(p.jamaah_data).filter(j => j.wa);
                       const ctx = {
                         progName: p.prog_name, totalHarga: p.total_harga, dpAmount: p.dp_amount,
                         namaKantor: pengaturan.nama_perusahaan,
                       };
+                      const pesanUntuk = (nama) => p.type === 'lunas'
+                        ? pesanPelunasanDikonfirmasi({ namaJamaah: nama, ...ctx })
+                        : pesanDpDikonfirmasi({ namaJamaah: nama, ...ctx });
                       return (
                         <div key={p.id} className="pt-2 border-t border-gray-200 mt-2 space-y-1.5">
                           <div className="text-gray-400 text-xs mb-1">Kirim Info via WhatsApp — {p.booking_id}</div>
-                          {jamaahList.length === 0 && (
-                            <div className="text-[11px] text-gray-400">Belum ada nomor WA jamaah tercatat untuk booking ini.</div>
+                          {p.pemesan_wa ? (
+                            <TombolWA nomor={p.pemesan_wa}
+                              label={`Kirim WA ke ${p.nama || 'Pemilik Akun'}`}
+                              className="w-full inline-flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded-full"
+                              pesan={pesanUntuk(p.nama)}
+                            />
+                          ) : (
+                            <div className="text-[11px] text-gray-400">Belum ada nomor WA pemilik akun tercatat untuk booking ini.</div>
                           )}
                           {jamaahList.map((j, i) => (
                             <TombolWA key={i} nomor={j.wa}
-                              label={`Kirim WA ke ${j.nama || 'Jamaah'}`}
-                              className="w-full inline-flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-3 py-2 rounded-full"
-                              pesan={p.type === 'lunas'
-                                ? pesanPelunasanDikonfirmasi({ namaJamaah: j.nama, ...ctx })
-                                : pesanDpDikonfirmasi({ namaJamaah: j.nama, ...ctx })}
+                              label={`Kirim WA ke ${j.nama || 'Jamaah'} (langsung)`}
+                              className="w-full inline-flex items-center justify-center gap-1.5 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold px-3 py-2 rounded-full"
+                              pesan={pesanUntuk(j.nama)}
                             />
                           ))}
                           {p.referral_perw_id && p.referral_wa && (
@@ -2165,6 +2176,14 @@ function AdminPageInner() {
                           return <div className="text-center text-xs text-red-500 py-1 mt-1">🚫 Ada pengajuan pembatalan aktif.</div>;
                         }
                         if (sc.kind === 'belum-lunas') {
+                          // Pemilik akun = kontak UTAMA buat info administratif kayak
+                          // reminder pelunasan (dikonfirmasi user 2026-10-14) — WA-nya
+                          // udah pasti ada (wajib diisi pas daftar akun), beda sama WA
+                          // jamaah yang sering kosong (baru keisi kalau mereka sendiri
+                          // yang isi formulir). Per-jamaah cuma jadi opsi TAMBAHAN kalau
+                          // kebetulan ada (mis. keluarga beda nomor), bukan yang utama.
+                          // Manasik tetap per-jamaah (beda konteks, dikonfirmasi user
+                          // 2026-10-14) — TIDAK diubah di sini.
                           const jamaahWa = (b.jamaah || []).filter(j => j.wa);
                           // Cicilan pelunasan (dikonfirmasi user 2026-10-14) — sisa yang
                           // ditawarkan reminder WA ini juga perlu dikurangi cicilan yang
@@ -2174,18 +2193,27 @@ function AdminPageInner() {
                             .filter(p => p.booking_id === b.id && p.type === 'lunas' && p.status === 'confirmed')
                             .reduce((s, p) => s + Number(p.amount || 0), 0);
                           const sisaBayar = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0) - lunasSudahConfirmed);
+                          const pesanUntuk = (nama) => pesanReminderPelunasan({
+                            namaJamaah: nama, progName: b.prog_name, sisaBayar,
+                            namaBank: pengaturan.bank_nama, noRekening: pengaturan.bank_rekening, atasNama: pengaturan.bank_atas_nama,
+                          });
                           return (
                             <div className="border-t border-gray-100 mt-2 pt-2 space-y-1.5">
                               <div className="text-[10px] text-gray-400">⏳ Belum lunas — sisa {rp(sisaBayar)}. Kirim reminder pelunasan:</div>
-                              {jamaahWa.length === 0 && <div className="text-[11px] text-gray-400">Belum ada nomor WA jamaah tercatat untuk booking ini.</div>}
+                              {b.pemesan_wa ? (
+                                <TombolWA nomor={b.pemesan_wa}
+                                  label={`Reminder Pelunasan ke ${b.pemesan_nama || 'Pemilik Akun'}`}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-full"
+                                  pesan={pesanUntuk(b.pemesan_nama)}
+                                />
+                              ) : (
+                                <div className="text-[11px] text-gray-400">Belum ada nomor WA pemilik akun tercatat untuk booking ini.</div>
+                              )}
                               {jamaahWa.map((j, i) => (
                                 <TombolWA key={i} nomor={j.wa}
-                                  label={`Reminder Pelunasan ke ${j.nama || 'Jamaah'}`}
-                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-full"
-                                  pesan={pesanReminderPelunasan({
-                                    namaJamaah: j.nama, progName: b.prog_name, sisaBayar,
-                                    namaBank: pengaturan.bank_nama, noRekening: pengaturan.bank_rekening, atasNama: pengaturan.bank_atas_nama,
-                                  })}
+                                  label={`Reminder Pelunasan ke ${j.nama || 'Jamaah'} (langsung)`}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold px-3 py-2 rounded-full"
+                                  pesan={pesanUntuk(j.nama)}
                                 />
                               ))}
                             </div>

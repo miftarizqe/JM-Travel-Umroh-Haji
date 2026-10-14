@@ -494,8 +494,18 @@ function InvoiceKwitansiPageInner() {
                         ))}
                       </div>
                     ) : (
-                      <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
-                        className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Cetak</button>
+                      <div className="flex gap-2 flex-wrap">
+                        <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
+                          className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Cetak</button>
+                        {/* Link langsung ke scan materai+TTD -- SEBELUMNYA list ini
+                            sama sekali gak nunjukin ada scan apa enggak, admin harus
+                            buka halaman detail dulu (ditemukan via pertanyaan user
+                            2026-10-14). */}
+                        {d.scan_fisik_path && (
+                          <a href={d.scan_fisik_path} target="_blank" rel="noopener noreferrer"
+                            className="text-[#1A4FA0] font-bold hover:underline text-xs">👁️ Scan</a>
+                        )}
+                      </div>
                     )}
                   </td>
                 </tr>
