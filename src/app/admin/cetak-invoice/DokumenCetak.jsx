@@ -223,28 +223,6 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
               )}
               <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
             </>
-          ) : dokumen.jenis === 'invoice' ? (
-            // Invoice: breakdown pembayaran bersih -- Total Tagihan, Sudah
-            // Dibayarkan, [Judul] (yang ditagih SEKARANG, gak perlu
-            // qty/satuan), Sisa kalau masih ada (dikonfirmasi user
-            // 2026-10-14, "cukup total tagihan, sudah dibayar, mau
-            // dibayar, sisanya") -- SENGAJA gak pakai BarisPaket (gak
-            // perlu rincian paket/nama jamaah di sini, beda dari Kwitansi/
-            // TTU). booking null (invoice manual tanpa booking_id) ->
-            // baris Total Tagihan/Sudah Dibayar/Sisa otomatis gak muncul.
-            <>
-              {booking?.total_harga != null && (
-                <BarisItem label="Total Tagihan Paket" jumlah={booking.total_harga} />
-              )}
-              {booking?.sudah_dibayar > 0 && (
-                <BarisItem label="Sudah Dibayarkan" jumlah={-booking.sudah_dibayar} />
-              )}
-              <BarisItem label={dokumen.judul} jumlah={dokumen.nominal} tebal />
-              <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-              {booking?.sisa_pembayaran > 0 && (
-                <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
-              )}
-            </>
           ) : punyaRincianBooking ? (
             <>
               <BarisPaket booking={booking} listOverride={dokumen.jenis === 'kwitansi' ? jamaahUntukPembayaran : undefined} />
@@ -254,6 +232,26 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
                   label={booking.opsi_tambahan_nama?.length > 0 ? `Opsi Tambahan: ${booking.opsi_tambahan_nama.join(', ')}` : 'Opsi Tambahan'}
                   jumlah={booking.opsi_tambahan_total}
                 />
+              )}
+
+              {dokumen.jenis === 'invoice' && (
+                // Breakdown pembayaran TAMBAHAN di bawah rincian paket di atas
+                // (dikonfirmasi user 2026-10-14 -- "detail dll kayak yang awal
+                // tetap ada, cuma bagian ini tambahannya", BUKAN pengganti
+                // BarisPaket seperti yang sempat salah saya buat). Total
+                // Tagihan, Sudah Dibayarkan, [Judul] (yang ditagih SEKARANG,
+                // gak perlu qty/satuan), Sisa kalau masih ada.
+                <>
+                  <BarisItem label="Total Tagihan Paket" jumlah={booking.total_harga} />
+                  {booking.sudah_dibayar > 0 && (
+                    <BarisItem label="Sudah Dibayarkan" jumlah={-booking.sudah_dibayar} />
+                  )}
+                  <BarisItem label={dokumen.judul} jumlah={dokumen.nominal} tebal />
+                  <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+                  {booking.sisa_pembayaran > 0 && (
+                    <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
+                  )}
+                </>
               )}
 
               {dokumen.jenis === 'kwitansi' && dokumen.nominal_dp != null && (
@@ -270,8 +268,10 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
               )}
             </>
           ) : (
+            // Fallback dokumen manual TANPA booking_id (gak ada rincian paket
+            // buat ditampilin) — Invoice tetap pakai dokumen.judul sendiri.
             <>
-              <BarisItem label={LABEL_BARIS[dokumen.jenis]} jumlah={dokumen.nominal} tebal />
+              <BarisItem label={dokumen.jenis === 'invoice' ? dokumen.judul : LABEL_BARIS[dokumen.jenis]} jumlah={dokumen.nominal} tebal />
               <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
             </>
           )}

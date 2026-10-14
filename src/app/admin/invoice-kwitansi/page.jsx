@@ -301,6 +301,16 @@ function InvoiceKwitansiPageInner() {
   const sudahDibayarForm = (dpConfirmedForm ? Number(detailBookingForm?.dp_amount || 0) : 0) + lunasConfirmedForm;
   const sisaSetelahIni = totalHargaForm != null ? totalHargaForm - sudahDibayarForm - Number(form.nominal || 0) : null;
 
+  // Warning kalau booking ini udah punya Invoice LAIN yang belum ditandai
+  // paid (dikonfirmasi user 2026-10-14) — admin bisa aja lupa udah pernah
+  // bikin sebelumnya terus bikin lagi buat tagihan yang sama, jamaah jadi
+  // dapet 2 tagihan buat utang yang sama. SENGAJA cuma warning (gak di-
+  // block) — kadang emang sah bikin invoice baru walau yang lama masih
+  // unpaid (mis. invoice lama udah gak relevan/mau diganti nominalnya).
+  const invoiceLainBelumLunas = form.jenis === 'invoice' && form.booking_id.trim()
+    ? dokumen.filter(d => d.jenis === 'invoice' && d.booking_id === form.booking_id.trim() && d.status !== 'paid')
+    : [];
+
   return (
     <Layout title="🧾 Invoice & Kwitansi" backHref="/admin">
       {/* Generate dari booking yang sudah ada — cari by ID/nama, lalu tombol
@@ -551,6 +561,17 @@ function InvoiceKwitansiPageInner() {
                   placeholder="JMT-XXXXXX (kosongkan kalau gak nempel ke booking)"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 {mencariBookingForm && <div className="text-[11px] text-gray-400 mt-1">Mencari data booking...</div>}
+                {invoiceLainBelumLunas.length > 0 && (
+                  <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                    ⚠️ Booking ini udah punya {invoiceLainBelumLunas.length} Invoice lain yang belum ditandai Paid:
+                    <ul className="mt-1 ml-4 list-disc">
+                      {invoiceLainBelumLunas.map(d => (
+                        <li key={d.id}>{d.nomor || '(belum dikirim)'} — {d.judul || '-'} — {rp(d.nominal)}</li>
+                      ))}
+                    </ul>
+                    Pastikan ini bukan dobel tagihan buat utang yang sama.
+                  </div>
+                )}
                 {/* Detail booking — biar admin bisa MAKE SURE ini booking yang
                     bener sebelum generate, bukan cuma nebak dari ID/nama. */}
                 {detailBookingForm && (
