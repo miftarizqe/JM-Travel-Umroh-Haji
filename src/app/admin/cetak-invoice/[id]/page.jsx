@@ -108,8 +108,16 @@ function BarisPaket({ booking, listOverride }) {
 function KeteranganPembayaran({ list }) {
   if (!list || list.length === 0) return null;
   const uniform = uniformCombo(list);
+  const first = list[0];
   return (
     <div style={{ marginTop: 4 }}>
+      {/* Seragam -- nama paket ditulis SEKALI di sini (bukan diulang per
+          orang) (ditemukan user 2026-10-14, sebelumnya kasus seragam malah
+          GAK nulis paket sama sekali — cuma kasus campuran yang kebagian
+          label paket per-nama di bawah). */}
+      {uniform && first?.paket && (
+        <div><b>Paket:</b> {PAKET_LABEL[first.paket] || first.paket}{first.kamar ? ` · ${first.kamar}` : ''}</div>
+      )}
       <b>Atas Nama Jamaah:</b>
       <ol style={{ margin: '4px 0 0 20px', padding: 0 }}>
         {list.map((j, i) => (
