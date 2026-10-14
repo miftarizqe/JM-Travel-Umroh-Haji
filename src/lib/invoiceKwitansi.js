@@ -1,6 +1,48 @@
 import { generateNomorKwitansi, generateNomorTandaTerima } from './nomorInvoiceKwitansi';
+import { resolveJamaahHarga } from './jamaahHarga';
 
 const fmtTgl = (d) => new Date(d).toISOString().slice(0, 10);
+
+/**
+ * Daftar {nama, paket, kamar, hargaJual} jamaah yang BENERAN ditutup 1
+ * dokumen Tanda Terima Uang — SATU sumber dipakai bareng GET
+ * /api/admin/invoice-kwitansi/[id] (preview, sebelum dikirim) & POST
+ * .../setuju (freeze snapshot PAS dikirim, lihat migration 224). Payment
+ * DP yang punya jamaah_data_snapshot sendiri (lihat src/lib/booking.js)
+ * dipakai PERSIS itu — bukan jamaah_data booking TERKINI, biar TTU buat
+ * gelombang DP tertentu gak ikut narik jamaah dari gelombang lain
+ * (dikonfirmasi user 2026-10-14). Payment 'lunas' / DP lama tanpa snapshot
+ * fallback ke SEMUA jamaah aktif booking (lunas emang nutup semuanya).
+ */
+export async function hitungJamaahBreakdownTtu(pool, dokumen) {
+  if (!dokumen.booking_id) return [];
+  const [[b]] = await pool.query(
+    `SELECT jamaah_data, paket, kamar, total_harga, opsi_tambahan_total, voucher_nominal FROM bookings WHERE id = ?`,
+    [dokumen.booking_id]
+  );
+  if (!b) return [];
+  let jd = b.jamaah_data;
+  if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+  const aktif = (Array.isArray(jd) ? jd : []).filter(j => j?.status_jamaah !== 'dibatalkan');
+
+  let payment = null;
+  if (dokumen.payment_id) {
+    const [[p]] = await pool.query('SELECT type, jamaah_data_snapshot FROM payments WHERE id = ?', [dokumen.payment_id]);
+    payment = p || null;
+  }
+
+  if (dokumen.jenis === 'tanda_terima' && payment?.type === 'dp' && payment.jamaah_data_snapshot) {
+    let snap = payment.jamaah_data_snapshot;
+    if (typeof snap === 'string') { try { snap = JSON.parse(snap); } catch { snap = null; } }
+    if (Array.isArray(snap) && snap.length > 0) {
+      return snap.map(j => ({ nama: j.nama || '-', paket: j.paket, kamar: j.kamar, hargaJual: Number(j.harga_jual) || 0 }));
+    }
+  }
+  return aktif.map(j => {
+    const r = resolveJamaahHarga({ ...b, jamaah_data: aktif }, j);
+    return { nama: j.nama || '-', paket: r.paket, kamar: r.kamar, hargaJual: r.hargaJual };
+  });
+}
 
 /**
  * Kwitansi Pembayaran = dokumen FINAL 1x per booking, cuma terbit begitu

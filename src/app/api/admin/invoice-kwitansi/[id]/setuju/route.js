@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { kirimNotifikasi } from '@/lib/notifikasi';
+import { hitungJamaahBreakdownTtu } from '@/lib/invoiceKwitansi';
 
 const JENIS_LABEL = { invoice: 'Invoice', kwitansi: 'Kwitansi Pembayaran', tanda_terima: 'Tanda Terima Uang' };
 
@@ -40,7 +41,24 @@ export async function POST(request, { params }) {
 
     const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
     const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
-    if (butuhMaterai) {
+
+    // Tanda Terima Uang (dikonfirmasi user 2026-10-14): ini SEKARANG tombol
+    // "Kirim ke Jamaah" satu-satunya — gak lagi auto-terkirim pas scan
+    // diunggah (lihat scan-fisik/route.js). Nominal >Rp5jt WAJIB udah ada
+    // scan fisik (materai+TTD) dulu sebelum boleh kirim; kalau belum,
+    // ditolak di sini juga (bukan cuma disembunyikan di tombol UI).
+    // Nominal <=Rp5jt boleh langsung kirim tanpa materai (self-certify).
+    if (dokumen.jenis === 'tanda_terima') {
+      if (butuhMaterai && !dokumen.scan_fisik_path) {
+        return Response.json(
+          { error: `Nominal Rp${Number(dokumen.nominal).toLocaleString('id-ID')} wajib materai asli — unggah scan fisik (materai+TTD) dulu sebelum kirim ke jamaah.` },
+          { status: 400 }
+        );
+      }
+    } else if (butuhMaterai) {
+      // Invoice/Kwitansi: perilaku LAMA gak diubah (di luar scope — fokus
+      // Tanda Terima Uang dulu, dikonfirmasi user 2026-10-14) — tetap
+      // hard-block, satu-satunya jalur tetap scan-fisik (auto-terkirim).
       return Response.json(
         { error: `Nominal Rp${Number(dokumen.nominal).toLocaleString('id-ID')} wajib materai asli — tidak bisa disetujui tanpa materai. Cetak fisik, tempel materai, TTD basah, lalu unggah scan.` },
         { status: 400 }
@@ -48,9 +66,19 @@ export async function POST(request, { params }) {
     }
 
     const terkirimAt = new Date();
+    // Snapshot konten TTU dibekukan PERSIS di sini, saat tombol kirim
+    // beneran diklik (dikonfirmasi user 2026-10-14) — GET /api/admin/
+    // invoice-kwitansi/[id] pakai ini terus sesudahnya, gak ngitung ulang
+    // lagi biar dokumen yang udah dikirim gak "berubah" walau booking-nya
+    // berubah belakangan (nambah jamaah, dst).
+    let jamaahBreakdownSnapshot = null;
+    if (dokumen.jenis === 'tanda_terima') {
+      jamaahBreakdownSnapshot = JSON.stringify(await hitungJamaahBreakdownTtu(pool, dokumen));
+    }
+    const metode = dokumen.jenis === 'tanda_terima' && butuhMaterai ? 'fisik' : 'setuju';
     await pool.query(
-      "UPDATE invoice_kwitansi SET terkirim = 1, terkirim_metode = 'setuju', terkirim_at = ? WHERE id = ?",
-      [terkirimAt, id]
+      "UPDATE invoice_kwitansi SET terkirim = 1, terkirim_metode = ?, terkirim_at = ?, jamaah_breakdown_snapshot = COALESCE(?, jamaah_breakdown_snapshot) WHERE id = ?",
+      [metode, terkirimAt, jamaahBreakdownSnapshot, id]
     );
 
     // Notifikasi in-app ke pemilik booking -- sebelumnya "Setuju" CUMA
@@ -77,7 +105,7 @@ export async function POST(request, { params }) {
       }
     }
 
-    return Response.json({ message: 'Dokumen disetujui.', terkirim_at: terkirimAt.toISOString() });
+    return Response.json({ message: 'Dokumen disetujui.', terkirim_at: terkirimAt.toISOString(), terkirim_metode: metode });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

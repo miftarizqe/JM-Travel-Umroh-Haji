@@ -174,13 +174,18 @@ export default function CetakInvoiceKwitansi() {
   // jm-travel-api). Cek Caddyfile.tahap2 di VPS kalau ternyata masih
   // keproxy ke Go.
   async function setujui() {
-    if (!confirm(`Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor}? Dokumen akan ditandai sudah dikirim.`)) return;
+    const pesanKonfirmasi = dokumen.jenis === 'tanda_terima'
+      ? `Kirim ${JUDUL[dokumen.jenis]} ${dokumen.nomor} ke jamaah sekarang? Setelah dikirim, isi dokumen ini terkunci permanen.`
+      : `Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor}? Dokumen akan ditandai sudah dikirim.`;
+    if (!confirm(pesanKonfirmasi)) return;
     setMenyetujui(true);
     try {
       const res = await fetch(`/api/admin/invoice-kwitansi/${dokumen.id}/setuju`, { method: 'POST' });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { alert(d.error || 'Gagal menyetujui'); return; }
-      setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: 'setuju', terkirim_at: d.terkirim_at }));
+      // Server nentuin metode beneran (TTU materai -> 'fisik', lainnya ->
+      // 'setuju') — jangan hardcode di client (dikonfirmasi user 2026-10-14).
+      setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: d.terkirim_metode || 'setuju', terkirim_at: d.terkirim_at }));
     } catch { alert('Terjadi kesalahan'); }
     finally { setMenyetujui(false); }
   }
@@ -262,11 +267,45 @@ export default function CetakInvoiceKwitansi() {
             </div>
           )}
         </div>
-      ) : !isAdmin ? null : butuhMaterai ? (
-        // >= Rp5jt WAJIB materai asli (UU Bea Meterai No.10/2020) -- "Setuju"
-        // (self-certify tanpa materai) gak boleh dipakai buat nominal segini,
-        // cuma jalur fisik: print, tempel materai, TTD basah NEMBUS materai,
-        // stempel, scan, upload (dikonfirmasi user 2026-10-12).
+      ) : !isAdmin ? null : dokumen.jenis === 'tanda_terima' ? (
+        // Tanda Terima Uang (dikonfirmasi user 2026-10-14): "Kirim ke
+        // Jamaah" sekarang tombol TERPISAH dari upload scan — scan cuma
+        // nempelin file, kontennya baru DIBEKUKAN & jamaah baru DIBERITAHU
+        // pas tombol ini beneran diklik. >Rp5jt wajib lewat step scan dulu.
+        <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
+          {butuhMaterai && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 10, fontSize: 11, color: '#666' }}>
+              {['1. Lihat', '2. Print', '3. Scan Materai+TTD', '4. Kirim'].map((label, i) => {
+                const selesai = i === 0 || (i === 1 && !!dokumen.scan_fisik_path) || (i === 2 && !!dokumen.scan_fisik_path);
+                return (
+                  <span key={label} style={{ padding: '3px 8px', borderRadius: 12, fontWeight: 700, background: selesai ? '#dcfce7' : '#f3f4f6', color: selesai ? '#15803d' : '#666' }}>
+                    {selesai ? '✓ ' : ''}{label}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {butuhMaterai ? (
+            <>
+              <div style={{ fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 8, marginBottom: 10 }}>
+                ⚠️ Nominal ≥ Rp5.000.000 — wajib materai asli. Print, tempel materai, TTD basah nembus materai, stempel, lalu unggah scan sebelum bisa kirim.
+              </div>
+              <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
+                userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
+                onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path }))} />
+            </>
+          ) : (
+            <div style={{ fontSize: 11, color: '#666', marginBottom: 10 }}>Nominal &lt; Rp5.000.000, gak perlu materai — tinggal kirim.</div>
+          )}
+          <button onClick={setujui} disabled={menyetujui || (butuhMaterai && !dokumen.scan_fisik_path)}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
+            {menyetujui ? 'Mengirim...' : '📤 Kirim ke Jamaah'}
+          </button>
+        </div>
+      ) : butuhMaterai ? (
+        // Invoice/Kwitansi: perilaku LAMA gak diubah (di luar scope — fokus
+        // Tanda Terima Uang dulu, dikonfirmasi user 2026-10-14). >= Rp5jt
+        // WAJIB materai asli, cuma jalur fisik (upload scan = auto-terkirim).
         <>
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 8 }}>
           ⚠️ Nominal ≥ Rp5.000.000 — wajib materai asli. Print, tempel materai, TTD basah nembus materai, stempel, lalu unggah scan.
@@ -307,74 +346,88 @@ export default function CetakInvoiceKwitansi() {
           </div>
         )}
 
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
-          <thead>
-            <tr>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'left' }}>Keterangan</th>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'center', width: 50 }}>Qty</th>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 120 }}>Satuan</th>
-              <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 130 }}>Jumlah</th>
-            </tr>
-          </thead>
-          <tbody>
-            {punyaRincianBooking ? (
-              <>
-                {/* BarisPaket (rangkuman paket + total_harga SELURUH booking)
-                    DISKIP buat tanda_terima — dokumen ini nutup 1 payment
-                    SPESIFIK (bisa cuma sebagian jamaah/sebagian total), baris
-                    rangkuman booking penuh di sini cuma bikin bingung ada 2
-                    angka beda tampil bareng. "Atas Nama Jamaah"-nya udah
-                    dicover KeteranganPembayaran di baris pembayaran di bawah
-                    (dikonfirmasi user 2026-10-14). */}
-                {dokumen.jenis !== 'tanda_terima' && <BarisPaket booking={booking} />}
+        {dokumen.jenis === 'tanda_terima' ? (
+          // Tanda Terima Uang DISEDERHANAKAN (dikonfirmasi user 2026-10-14):
+          // ini bukti TERIMA UANG, bukan invoice berisi qty/satuan — cukup
+          // "diterima dari siapa" + "jumlah diterima berapa". Pelunasan
+          // (bukan DP) dikasih rincian Total Harga - DP sudah dibayar, biar
+          // kebaca sisa yang DILUNASI dihitung dari apa.
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ border: '1px solid #000', borderRadius: 6, padding: '14px 16px', fontSize: 13 }}>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>
+                {LABEL_TIPE_PEMBAYARAN[payment?.type] || 'Pembayaran'} — Diterima
+              </div>
+              <KeteranganPembayaran list={jamaahUntukPembayaran} />
+              {payment?.type === 'lunas' && booking?.total_harga != null && (
+                <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed #999', fontSize: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Total Harga Program</span><span>{rp(booking.total_harga)}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>DP Sudah Dibayar</span><span>− {rp(booking.dp_amount)}</span>
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '2px solid #000', display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 15 }}>
+                <span>Jumlah Diterima</span><span>{rp(dokumen.nominal)}</span>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#666', marginTop: 6 }}>Terbilang: <i>{terbilang(dokumen.nominal)}</i></div>
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 20 }}>
+            <thead>
+              <tr>
+                <th style={{ ...td, background: '#f0f0f0', textAlign: 'left' }}>Keterangan</th>
+                <th style={{ ...td, background: '#f0f0f0', textAlign: 'center', width: 50 }}>Qty</th>
+                <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 120 }}>Satuan</th>
+                <th style={{ ...td, background: '#f0f0f0', textAlign: 'right', width: 130 }}>Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              {punyaRincianBooking ? (
+                <>
+                  <BarisPaket booking={booking} />
 
-                {dokumen.jenis !== 'tanda_terima' && booking.opsi_tambahan_total > 0 && (
-                  <BarisItem
-                    label={booking.opsi_tambahan_nama?.length > 0 ? `Opsi Tambahan: ${booking.opsi_tambahan_nama.join(', ')}` : 'Opsi Tambahan'}
-                    jumlah={booking.opsi_tambahan_total}
-                  />
-                )}
+                  {booking.opsi_tambahan_total > 0 && (
+                    <BarisItem
+                      label={booking.opsi_tambahan_nama?.length > 0 ? `Opsi Tambahan: ${booking.opsi_tambahan_nama.join(', ')}` : 'Opsi Tambahan'}
+                      jumlah={booking.opsi_tambahan_total}
+                    />
+                  )}
 
-                {dokumen.jenis === 'invoice' && (
-                  <>
-                    <BarisItem label={dokumen.judul} qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
-                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                    {booking.sisa_pembayaran > 0 && (
-                      <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
-                    )}
-                  </>
-                )}
+                  {dokumen.jenis === 'invoice' && (
+                    <>
+                      <BarisItem label={dokumen.judul} qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
+                      <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+                      {booking.sisa_pembayaran > 0 && (
+                        <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
+                      )}
+                    </>
+                  )}
 
-                {dokumen.jenis === 'kwitansi' && dokumen.nominal_dp != null && (
-                  <>
-                    <BarisItem label="Uang Muka (DP) — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_dp, qtyJamaah)} jumlah={dokumen.nominal_dp} />
-                    {dokumen.status === 'paid' ? (
-                      <BarisItem label="Pelunasan — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_pelunasan, qtyJamaah)} jumlah={dokumen.nominal_pelunasan} />
-                    ) : (
-                      <BarisCatatan>Pelunasan: <i>belum dibayar</i></BarisCatatan>
-                    )}
-                    <BarisItem label={dokumen.status === 'paid' ? 'TOTAL PAID (diterima)' : 'Total Diterima Sejauh Ini'} jumlah={dokumen.nominal} tebal />
-                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                  </>
-                )}
-
-                {dokumen.jenis === 'tanda_terima' && (
-                  <>
-                    <BarisItem label={`${LABEL_TIPE_PEMBAYARAN[payment?.type] || 'Pembayaran'} — diterima`}
-                      sub={<KeteranganPembayaran list={jamaahUntukPembayaran} />}
-                      qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
-                    <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <BarisItem label={dokumen.jenis === 'invoice' ? dokumen.judul : LABEL_BARIS[dokumen.jenis]} jumlah={dokumen.nominal} tebal />
-                <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-              </>
-            )}
-          </tbody>
-        </table>
+                  {dokumen.jenis === 'kwitansi' && dokumen.nominal_dp != null && (
+                    <>
+                      <BarisItem label="Uang Muka (DP) — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_dp, qtyJamaah)} jumlah={dokumen.nominal_dp} />
+                      {dokumen.status === 'paid' ? (
+                        <BarisItem label="Pelunasan — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_pelunasan, qtyJamaah)} jumlah={dokumen.nominal_pelunasan} />
+                      ) : (
+                        <BarisCatatan>Pelunasan: <i>belum dibayar</i></BarisCatatan>
+                      )}
+                      <BarisItem label={dokumen.status === 'paid' ? 'TOTAL PAID (diterima)' : 'Total Diterima Sejauh Ini'} jumlah={dokumen.nominal} tebal />
+                      <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <BarisItem label={dokumen.jenis === 'invoice' ? dokumen.judul : LABEL_BARIS[dokumen.jenis]} jumlah={dokumen.nominal} tebal />
+                  <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+                </>
+              )}
+            </tbody>
+          </table>
+        )}
 
         {dokumen.keterangan && dokumen.is_manual ? (
           <div style={{ fontSize: 11, color: '#666', marginBottom: 8 }}>Catatan: {dokumen.keterangan}</div>

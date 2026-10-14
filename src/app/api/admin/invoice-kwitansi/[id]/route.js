@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { ringkasanPaketKamar, resolveJamaahHarga } from '@/lib/jamaahHarga';
+import { hitungJamaahBreakdownTtu } from '@/lib/invoiceKwitansi';
 
 // GET /api/admin/invoice-kwitansi/[id] — detail 1 dokumen buat halaman cetak.
 // Admin selalu boleh. Pemilik booking-nya (jamaah) JUGA boleh, HANYA kalau
@@ -22,14 +23,10 @@ export async function GET(request, { params }) {
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
 
     // Tanda Terima Uang nempel ke 1 payment spesifik — ambil tipe pembayaran
-    // (dp/lunas) buat ditampilin di cetakan ("Pembayaran diterima — DP", dst),
-    // + jamaah_data_snapshot (jamaah yang BENERAN ditutup payment DP ini,
-    // lihat migration 223 & src/lib/booking.js) buat Keterangan yang akurat
-    // (dikonfirmasi user 2026-10-14 — sebelumnya narik jamaah_data booking
-    // TERKINI, salah kalau udah ada pax tambahan sesudahnya).
+    // (dp/lunas) buat ditampilin di cetakan ("Pembayaran diterima — DP", dst).
     let payment = null;
     if (dokumen.payment_id) {
-      const [[p]] = await pool.query('SELECT type, jamaah_data_snapshot FROM payments WHERE id = ?', [dokumen.payment_id]);
+      const [[p]] = await pool.query('SELECT type FROM payments WHERE id = ?', [dokumen.payment_id]);
       payment = p || null;
     }
 
@@ -94,20 +91,23 @@ export async function GET(request, { params }) {
             return { nama: j.nama || '-', paket: r.paket, kamar: r.kamar, hargaJual: r.hargaJual };
           });
 
-        // Buat dokumen 'tanda_terima' type DP yang punya jamaah_data_snapshot
-        // (payment BARU, pasca migration 223) — breakdown KHUSUS payment ini
-        // dipakai, BUKAN breakdown booking penuh di atas (biar DP pax
-        // tambahan gak ikut narik jamaah yang DP-nya udah confirmed di
-        // payment lain). Lunas & payment lama tanpa snapshot tetap pakai
-        // breakdown booking penuh (lunas emang nutup SEMUA jamaah aktif).
+        // Breakdown khusus "Tanda Terima Uang" — begitu dokumen ini UDAH
+        // DIKIRIM, kontennya WAJIB diambil dari jamaah_breakdown_snapshot
+        // yang dibekukan PERSIS pas tombol "Kirim ke Jamaah" diklik (lihat
+        // POST .../setuju & migration 224) — TIDAK dihitung ulang lagi,
+        // biar TTU yang udah terkirim gak keliatan "berubah" kalau
+        // booking-nya berubah belakangan (dikonfirmasi user 2026-10-14,
+        // "kalo udah gue click kirim itu otomatis kelock"). Sebelum
+        // dikirim (masih preview/draft), dihitung LIVE via
+        // hitungJamaahBreakdownTtu biar admin lihat data terkini.
         let jamaahBreakdownPembayaran = jamaahBreakdown;
-        if (dokumen.jenis === 'tanda_terima' && payment?.type === 'dp' && payment.jamaah_data_snapshot) {
-          let snap = payment.jamaah_data_snapshot;
-          if (typeof snap === 'string') { try { snap = JSON.parse(snap); } catch { snap = null; } }
-          if (Array.isArray(snap) && snap.length > 0) {
-            jamaahBreakdownPembayaran = snap.map(j => ({
-              nama: j.nama || '-', paket: j.paket, kamar: j.kamar, hargaJual: Number(j.harga_jual) || 0,
-            }));
+        if (dokumen.jenis === 'tanda_terima') {
+          if (dokumen.terkirim && dokumen.jamaah_breakdown_snapshot) {
+            let snap = dokumen.jamaah_breakdown_snapshot;
+            if (typeof snap === 'string') { try { snap = JSON.parse(snap); } catch { snap = null; } }
+            if (Array.isArray(snap)) jamaahBreakdownPembayaran = snap;
+          } else {
+            jamaahBreakdownPembayaran = await hitungJamaahBreakdownTtu(pool, dokumen);
           }
         }
 
