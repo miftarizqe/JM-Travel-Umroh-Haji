@@ -3,7 +3,7 @@ import { wajibLogin } from '@/lib/auth';
 import { cekPemesanBolehOrder, buatSatuBooking } from '@/lib/booking';
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
 import { SQL_STATUS_LUNAS_TERAKHIR } from '@/lib/bookingPerluTindakan';
-import { ambilDpPaymentsBatch } from '@/lib/dpPayments';
+import { ambilDpPaymentsBatch, ambilLunasPaymentsBatch } from '@/lib/dpPayments';
 
 export async function GET(request) {
   const auth = wajibLogin(request);
@@ -66,6 +66,22 @@ export async function GET(request) {
     const dpPaymentsMap = await ambilDpPaymentsBatch(pool, bookings.map(b => b.id));
     for (const b of bookings) {
       b.dp_payments = dpPaymentsMap.get(b.id) || [];
+    }
+
+    // Riwayat SEMUA payment type='lunas' per booking (cicilan pelunasan,
+    // dikonfirmasi user 2026-10-14 — bisa lebih dari 1 gelombang sebelum
+    // beneran lunas total) + sisa_bayar yang BENERAN kurang (total_harga -
+    // dp_amount - SEMUA lunas yang udah confirmed) — dipakai /pelunasan
+    // buat nampilin sisa yang akurat & /dashboard/jamaah buat riwayat
+    // cicilan. SAMA PERSIS formula hitungSisaBayar (src/lib/pelunasan.js),
+    // dihitung di sini langsung dari batch yang udah di-query biar gak N+1.
+    const lunasPaymentsMap = await ambilLunasPaymentsBatch(pool, bookings.map(b => b.id));
+    for (const b of bookings) {
+      b.lunas_payments = lunasPaymentsMap.get(b.id) || [];
+      const lunasConfirmedSum = b.lunas_payments
+        .filter(p => p.status === 'confirmed')
+        .reduce((s, p) => s + Number(p.amount || 0), 0);
+      b.sisa_bayar = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0) - lunasConfirmedSum);
     }
 
     // Status perlengkapan per jamaah (WMS) — cuma relevan begitu DP confirmed,

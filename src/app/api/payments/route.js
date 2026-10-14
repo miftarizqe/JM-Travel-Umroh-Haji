@@ -7,6 +7,7 @@ import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { potongKuotaSeatDp } from '@/lib/booking';
+import { hitungSisaBayar } from '@/lib/pelunasan';
 
 // GET — payments (admin/booking), termasuk bukti transfer
 export async function GET(request) {
@@ -63,7 +64,7 @@ export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
   try {
-    const { booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama } = await request.json();
+    const { booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, voucher_kode } = await request.json();
 
     if (!booking_id || !user_id || !type || !amount) {
       return Response.json({ error: 'Field wajib tidak lengkap' }, { status: 400 });
@@ -107,14 +108,60 @@ export async function POST(request) {
       );
     }
 
+    // Cicilan pelunasan (dikonfirmasi user 2026-10-14): jamaah boleh bayar
+    // SEBAGIAN sisa tagihan, gak harus sekali lunas total — nominal cuma
+    // divalidasi gak boleh 0/minus atau NGELEBIHIN sisa yang beneran
+    // kurang (dihitung dari total_harga - dp_amount - SEMUA lunas yang
+    // udah confirmed, lihat hitungSisaBayar). Submission kedua ditolak
+    // selagi masih ada 1 yang pending, biar gak numpuk bukti yang
+    // belum diproses admin satu per satu.
+    // Voucher dipakai PAS PELUNASAN (beda dari voucher checkout yang udah
+    // kepotong di total_harga sejak awal) — nominalnya cuma mengecilkan
+    // `amount` yang disetor, JADI harus disimpan di payment ini biar admin
+    // approve nanti bisa ngurangin total_harga booking senilai yang sama
+    // (migration 226). Kalau enggak, hitungSisaBayar bakal nganggep ada
+    // sisa senilai diskon SELAMANYA karena dari sisi total_harga emang
+    // gak pernah berkurang (ditemukan & diperbaiki 2026-10-14, bareng
+    // cicilan pelunasan).
+    let diskonVoucher = 0;
+    if (type === 'lunas' && voucher_kode) {
+      const [[v]] = await pool.query('SELECT * FROM vouchers WHERE kode = ?', [voucher_kode.toUpperCase()]);
+      if (!v) return Response.json({ error: 'Voucher tidak ditemukan' }, { status: 400 });
+      if (v.used) return Response.json({ error: 'Voucher sudah digunakan' }, { status: 400 });
+      if (new Date(v.valid_until) < new Date()) return Response.json({ error: 'Voucher sudah kadaluarsa' }, { status: 400 });
+      if (v.for_user && v.for_user !== user_id) return Response.json({ error: 'Voucher tidak berlaku untuk akun ini' }, { status: 400 });
+      diskonVoucher = Number(v.potongan || 0);
+    }
+
+    if (type === 'lunas') {
+      const sisa = await hitungSisaBayar(pool, booking_id);
+      if (sisa <= 0) {
+        return Response.json({ error: 'Booking ini sudah lunas, tidak ada sisa tagihan.' }, { status: 400 });
+      }
+      if (Number(amount) <= 0) {
+        return Response.json({ error: 'Nominal pembayaran harus lebih dari 0.' }, { status: 400 });
+      }
+      if (Number(amount) + diskonVoucher > sisa) {
+        return Response.json({ error: `Nominal melebihi sisa tagihan (Rp${sisa.toLocaleString('id-ID')}).` }, { status: 400 });
+      }
+      const [[pendingLunas]] = await pool.query(
+        `SELECT id FROM payments WHERE booking_id = ? AND type = 'lunas' AND status = 'pending'`,
+        [booking_id]
+      );
+      if (pendingLunas) {
+        return Response.json({ error: 'Masih ada pembayaran pelunasan yang menunggu konfirmasi admin. Tunggu diproses dulu sebelum kirim lagi.' }, { status: 400 });
+      }
+    }
+
     const [users] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
     const nama = users.length ? users[0].name : null;
 
     await pool.query(
       `INSERT INTO payments
-       (booking_id, user_id, nama, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'pending')`,
-      [booking_id, user_id, nama, type, amount, kode_unik || 0, bukti_path, bukti_nama || null]
+       (booking_id, user_id, nama, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status, voucher_kode, diskon_voucher)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'pending', ?, ?)`,
+      [booking_id, user_id, nama, type, amount, kode_unik || 0, bukti_path, bukti_nama || null,
+       diskonVoucher > 0 ? voucher_kode.toUpperCase() : null, diskonVoucher > 0 ? diskonVoucher : null]
     );
 
     if (type === 'lunas') {
@@ -227,23 +274,46 @@ export async function PATCH(request) {
              AND p.publish_type != 'sahabat_baitullah'`,
           [payment.booking_id]
         );
-      } else if (payment.type === 'lunas' && !punyaDebitSaldo) {
-        await pool.query("UPDATE bookings SET pelunasan_status = 'paid' WHERE id = ?", [payment.booking_id]);
       }
 
-      // Tanda Terima Uang digenerate OTOMATIS buat DP confirmed — 1 dokumen
-      // per payment DP, bukti uang itu spesifik diterima (fungsi ini
-      // idempotent, aman dipanggil kapan pun). Gagal generate JANGAN sampai
-      // gagalin approve pembayarannya sendiri — makanya try/catch.
+      // Voucher pelunasan (migration 226) — nominalnya cuma ngecilin amount
+      // yang disetor, JADI total_harga booking harus dikurangi senilai yang
+      // sama DI SINI (pas beneran di-ACC, bukan pas submit) biar
+      // hitungSisaBayar di bawah bisa bener-bener nutup ke 0, bukan
+      // nyangkut selamanya senilai diskon (ditemukan & diperbaiki
+      // 2026-10-14, bareng cicilan pelunasan — lihat src/lib/pelunasan.js).
+      if (payment.type === 'lunas' && Number(payment.diskon_voucher) > 0) {
+        await pool.query(
+          'UPDATE bookings SET total_harga = GREATEST(0, total_harga - ?) WHERE id = ?',
+          [payment.diskon_voucher, payment.booking_id]
+        );
+      }
+
+      // Cicilan pelunasan (dikonfirmasi user 2026-10-14): 1 payment type=
+      // 'lunas' TIDAK OTOMATIS berarti lunas total lagi — dicek beneran
+      // nutup SISA tagihan apa belum (hitungSisaBayar jumlahin SEMUA lunas
+      // confirmed TERMASUK yang baru aja di-UPDATE confirmed di atas).
+      // Belum nutup -> balik ke 'unpaid' (BUKAN 'paid'), jamaah masih bisa
+      // kirim cicilan berikutnya dari /pelunasan kayak biasa.
+      let lunasSelesai = false;
+      if (payment.type === 'lunas' && !punyaDebitSaldo) {
+        const sisaSetelahIni = await hitungSisaBayar(pool, payment.booking_id);
+        lunasSelesai = sisaSetelahIni <= 0;
+        await pool.query("UPDATE bookings SET pelunasan_status = ? WHERE id = ?", [lunasSelesai ? 'paid' : 'unpaid', payment.booking_id]);
+      }
+
+      // Tanda Terima Uang digenerate OTOMATIS buat DP confirmed ATAU
+      // cicilan pelunasan yang BELUM nutup semua sisa — 1 dokumen per
+      // payment, bukti uang itu spesifik diterima (fungsi ini idempotent,
+      // aman dipanggil kapan pun). Gagal generate JANGAN sampai gagalin
+      // approve pembayarannya sendiri — makanya try/catch.
       //
-      // type='lunas' SENGAJA DISKIP (dikonfirmasi user 2026-10-14, "gausah
-      // TTU, bisa aja langsung kwitansi") — pembayaran lunas SELALU
-      // langsung bikin booking.pelunasan_status='paid' di atas, yang
-      // SELALU memicu Kwitansi (generateOrUpdateKwitansi di bawah) buat
-      // payment yang sama persis. TTU buat lunas jadi dokumen kembar yang
-      // gak pernah perlu dikirim sendiri — cuma numpuk notif "TTU belum
-      // dikirim" yang gak akan pernah selesai karena emang gak relevan.
-      if (payment.type !== 'lunas') {
+      // Cuma di-SKIP kalau payment INI yang bikin pelunasan_status jadi
+      // 'paid' (dikonfirmasi user 2026-10-14, "gausah TTU, bisa aja
+      // langsung kwitansi") — payment itu SELALU ikut memicu Kwitansi
+      // (generateOrUpdateKwitansi di bawah), jadi TTU-nya jadi dokumen
+      // kembar yang gak pernah perlu dikirim sendiri.
+      if (!(payment.type === 'lunas' && lunasSelesai)) {
         try {
           await generateTandaTerimaUntukPayment(pool, payment.id, auth.user.id);
         } catch (e) {
@@ -259,10 +329,15 @@ export async function PATCH(request) {
         } catch (e) {
           console.error('Gagal finalisasi lunas sahabat mandiri:', e);
         }
-      } else if (payment.type === 'lunas') {
-        // Kwitansi Pembayaran cuma digenerate/di-update begitu LUNAS TOTAL
-        // (payment.type 'lunas' confirmed) — bukan dari DP. Nomor dibekukan
-        // pas lunas total pertama kali.
+      } else if (payment.type === 'lunas' && lunasSelesai) {
+        // Kwitansi Pembayaran & auto-settle Invoice cuma jalan begitu
+        // BENERAN lunas total (lunasSelesai, bukan cuma 1 cicilan
+        // confirmed — dikonfirmasi user 2026-10-14). generateOrUpdateKwitansi
+        // sendiri udah ada gerbang internal (pelunasan_status!=='paid' ->
+        // null), tapi auto-settle Invoice di bawah ini GAK PUNYA gerbang
+        // serupa — makanya kondisi lunasSelesai WAJIB dicek di sini juga,
+        // kalau enggak Invoice bisa ke-tandain "paid" padahal baru dicicil
+        // sebagian. Nomor Kwitansi dibekukan pas lunas total pertama kali.
         try {
           await generateOrUpdateKwitansi(pool, payment.booking_id, auth.user.id);
         } catch (e) {
@@ -290,12 +365,16 @@ export async function PATCH(request) {
       // sendiri, TAPI CUMA kalau beneran udah lunas 2-2nya (biar jamaah gak
       // dapet notif "lunas" padahal masih nunggu acc saldo).
       if (!(payment.type === 'lunas' && punyaDebitSaldo)) {
+        // Wording beda buat cicilan (belum nutup semua sisa) vs pelunasan
+        // beneran tuntas (dikonfirmasi user 2026-10-14) — jamaah perlu tau
+        // ini baru SEBAGIAN, bukan udah kelar semua.
+        const labelLunas = payment.type === 'lunas' ? (lunasSelesai ? 'Pelunasan' : 'Cicilan Pelunasan') : 'DP';
         for (const uid of penerimaNotif) {
           await kirimNotifikasi(pool, {
             user_id: uid,
-            tipe: payment.type === 'lunas' ? 'pelunasan_confirmed' : 'dp_confirmed',
-            judul: payment.type === 'lunas' ? 'Pelunasan Dikonfirmasi' : 'DP Dikonfirmasi',
-            pesan: `${payment.type === 'lunas' ? 'Pelunasan' : 'DP'} booking ${booking?.prog_name || payment.booking_id} sudah dikonfirmasi admin.`,
+            tipe: payment.type === 'lunas' ? (lunasSelesai ? 'pelunasan_confirmed' : 'cicilan_confirmed') : 'dp_confirmed',
+            judul: `${labelLunas} Dikonfirmasi`,
+            pesan: `${labelLunas} booking ${booking?.prog_name || payment.booking_id} sudah dikonfirmasi admin.${payment.type === 'lunas' && !lunasSelesai ? ' Masih ada sisa tagihan yang belum dibayar.' : ''}`,
             link: '/dashboard/jamaah',
           });
         }

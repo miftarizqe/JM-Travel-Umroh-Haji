@@ -97,9 +97,13 @@ export async function generateOrUpdateKwitansi(pool, bookingId, actorUserId) {
   );
   const nominalDp = Number(bayarDp?.amount ?? booking.dp_amount ?? 0);
 
+  // SUM juga — cicilan pelunasan (dikonfirmasi user 2026-10-14) bisa lebih
+  // dari 1 payment type='lunas' confirmed per booking (gak lagi 1x bayar
+  // langsung lunas total). Ambil cuma yang terakhir bakal nunjukin
+  // "Pelunasan" di Kwitansi cuma sebesar cicilan PALING AKHIR doang,
+  // bukan total semua cicilan yang beneran masuk.
   const [[bayarLunas]] = await pool.query(
-    `SELECT amount FROM payments WHERE booking_id = ? AND type = 'lunas' AND status = 'confirmed'
-     ORDER BY created_at DESC LIMIT 1`,
+    `SELECT COALESCE(SUM(amount), 0) AS amount FROM payments WHERE booking_id = ? AND type = 'lunas' AND status = 'confirmed'`,
     [bookingId]
   );
   const nominalPelunasan = Number(bayarLunas?.amount ?? (Number(booking.total_harga || 0) - nominalDp));
@@ -174,9 +178,11 @@ export async function syncKwitansiDariInvoice(pool, invoiceId) {
   );
   const nominalDp = Number(bayarDp?.amount ?? booking.dp_amount ?? 0);
 
+  // SUM juga — cicilan pelunasan (dikonfirmasi user 2026-10-14) bisa lebih
+  // dari 1 payment type='lunas' confirmed per booking, bukan cuma yang
+  // terakhir (lihat komentar sama di generateOrUpdateKwitansi).
   const [[bayarLunas]] = await pool.query(
-    `SELECT amount FROM payments WHERE booking_id = ? AND type = 'lunas' AND status = 'confirmed'
-     ORDER BY created_at DESC LIMIT 1`,
+    `SELECT COALESCE(SUM(amount), 0) AS amount FROM payments WHERE booking_id = ? AND type = 'lunas' AND status = 'confirmed'`,
     [inv.booking_id]
   );
   const nominalPelunasan = Number(bayarLunas?.amount ?? (Number(booking.total_harga || 0) - nominalDp));

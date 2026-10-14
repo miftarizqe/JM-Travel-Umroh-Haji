@@ -645,20 +645,22 @@ function AdminPageInner() {
     window.open(`/admin/cetak-formulir/${bookingId}`, '_blank');
   }
 
-  // Label "DP 1"/"DP 2"/dst — 1 booking bisa punya lebih dari 1 payment
-  // type='dp' (DP awal, DP pax tambahan, resubmit abis ditolak, lihat
-  // src/lib/dpPayments.js). Dihitung dari urutan created_at SEMUA payment
-  // dp milik booking yang sama di state `payments` ini (dikonfirmasi user
-  // 2026-10-14) — biar admin gak bingung ngeliat 2 kartu "DP" buat booking
-  // yang sama dikira dobel/salah input.
+  // Label "DP 1"/"DP 2"/dst ATAU "Lunas 1"/"Lunas 2"/dst — 1 booking bisa
+  // punya lebih dari 1 payment type='dp' (DP awal, DP pax tambahan, resubmit
+  // abis ditolak) ATAUPUN type='lunas' (cicilan pelunasan, dikonfirmasi user
+  // 2026-10-14 — lihat src/lib/dpPayments.js). Dihitung dari urutan
+  // created_at SEMUA payment jenis yang sama milik booking yang sama di
+  // state `payments` ini — biar admin gak bingung ngeliat beberapa kartu
+  // "DP"/"Lunas" buat booking yang sama dikira dobel/salah input.
   function labelJenisPayment(p) {
-    if (p.type !== 'dp') return (p.type || '').toUpperCase();
-    const dpSebookingAsc = payments
-      .filter(x => x.booking_id === p.booking_id && x.type === 'dp')
+    if (p.type !== 'dp' && p.type !== 'lunas') return (p.type || '').toUpperCase();
+    const label = p.type === 'dp' ? 'DP' : 'Lunas';
+    const sebookingAsc = payments
+      .filter(x => x.booking_id === p.booking_id && x.type === p.type)
       .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-    if (dpSebookingAsc.length <= 1) return 'DP';
-    const urutan = dpSebookingAsc.findIndex(x => x.id === p.id) + 1;
-    return `DP ${urutan}`;
+    if (sebookingAsc.length <= 1) return label;
+    const urutan = sebookingAsc.findIndex(x => x.id === p.id) + 1;
+    return `${label} ${urutan}`;
   }
 
   // Cetak invoice/kwitansi OTOMATIS — server yang validasi syarat (DP/pelunasan
@@ -2159,7 +2161,14 @@ function AdminPageInner() {
                         }
                         if (sc.kind === 'belum-lunas') {
                           const jamaahWa = (b.jamaah || []).filter(j => j.wa);
-                          const sisaBayar = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0));
+                          // Cicilan pelunasan (dikonfirmasi user 2026-10-14) — sisa yang
+                          // ditawarkan reminder WA ini juga perlu dikurangi cicilan yang
+                          // udah confirmed, bukan cuma DP, biar gak minta jamaah transfer
+                          // lagi nominal penuh padahal udah pernah bayar sebagian.
+                          const lunasSudahConfirmed = payments
+                            .filter(p => p.booking_id === b.id && p.type === 'lunas' && p.status === 'confirmed')
+                            .reduce((s, p) => s + Number(p.amount || 0), 0);
+                          const sisaBayar = Math.max(0, Number(b.total_harga || 0) - Number(b.dp_amount || 0) - lunasSudahConfirmed);
                           return (
                             <div className="border-t border-gray-100 mt-2 pt-2 space-y-1.5">
                               <div className="text-[10px] text-gray-400">⏳ Belum lunas — sisa {rp(sisaBayar)}. Kirim reminder pelunasan:</div>
@@ -2880,7 +2889,7 @@ function AdminPageInner() {
                           <div key={p.id} className="bg-white rounded-lg p-3 space-y-2 border border-amber-200">
                             <div className="flex justify-between items-start gap-2 text-sm">
                               <div>
-                                <div className="font-bold text-[#0E2F6E]">{p.type === 'lunas' ? '💰 Pelunasan' : `💳 ${labelJenisPayment(p)}`} menunggu konfirmasi</div>
+                                <div className="font-bold text-[#0E2F6E]">{p.type === 'lunas' ? `💰 ${labelJenisPayment(p) === 'Lunas' ? 'Pelunasan' : 'Cicilan ' + labelJenisPayment(p)}` : `💳 ${labelJenisPayment(p)}`} menunggu konfirmasi</div>
                                 <div className="text-xs text-gray-500">{rp(p.amount)} · dikirim {tgl(p.bukti_uploaded_at || p.created_at)}{p.batch_id ? ' · bagian dari 1 transfer keranjang' : ''}</div>
                               </div>
                               {p.bukti_path ? (
