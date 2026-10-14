@@ -20,15 +20,24 @@ export async function GET(request) {
     // JOIN bookings + referral perwakilan — dipakai buat nyusun pesan
     // WhatsApp ke jamaah (jamaah_data punya wa per orang) & ke perwakilan
     // yang refer booking ini (notifikasi ada closing baru pakai kode mereka).
+    // JOIN invoice_kwitansi 2x — ttu (Tanda Terima Uang, PER PAYMENT lewat
+    // payment_id, relevan buat type='dp') & kw (Kwitansi, PER BOOKING karena
+    // 1 booking cuma punya 1 Kwitansi final, relevan buat type='lunas') —
+    // dipakai nunjukin penanda "udah dikirim apa belum" di list Konfirmasi
+    // Pembayaran tanpa admin perlu buka tiap dokumen satu-satu (dikonfirmasi
+    // user 2026-10-14).
     let query = `
       SELECT p.*, COALESCE(u.name, p.nama) AS nama,
              b.prog_name, b.jamaah_data, b.jumlah_jamaah, b.total_harga, b.dp_amount,
              b.referral_perw_id, b.referral_kode,
-             ref.name AS referral_nama, ref.wa AS referral_wa
+             ref.name AS referral_nama, ref.wa AS referral_wa,
+             ttu.terkirim AS ttu_terkirim, kw.terkirim AS kwitansi_terkirim
       FROM payments p
       LEFT JOIN users u ON u.id = p.user_id
       LEFT JOIN bookings b ON b.id = p.booking_id
       LEFT JOIN users ref ON ref.id = b.referral_perw_id
+      LEFT JOIN invoice_kwitansi ttu ON ttu.payment_id = p.id AND ttu.jenis = 'tanda_terima'
+      LEFT JOIN invoice_kwitansi kw ON kw.booking_id = p.booking_id AND kw.jenis = 'kwitansi'
     `;
     const params = [];
 

@@ -1404,9 +1404,26 @@ function AdminPageInner() {
                     </div>
                     <div className="text-xs text-gray-400">{labelJenisPayment(first)} · {tgl(first.created_at)} · {rp(g.totalAmount)}</div>
                   </div>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    statusGroup==='confirmed'?'bg-green-100 text-green-700':statusGroup==='rejected'?'bg-red-100 text-red-600':statusGroup==='campuran'?'bg-amber-100 text-amber-700':'bg-yellow-100 text-yellow-700'
-                  }`}>{statusGroup==='confirmed'?'✅ Confirmed':statusGroup==='rejected'?'❌ Rejected':statusGroup==='campuran'?'⚠️ Sebagian diproses':'⏳ Pending'}</span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      statusGroup==='confirmed'?'bg-green-100 text-green-700':statusGroup==='rejected'?'bg-red-100 text-red-600':statusGroup==='campuran'?'bg-amber-100 text-amber-700':'bg-yellow-100 text-yellow-700'
+                    }`}>{statusGroup==='confirmed'?'✅ Confirmed':statusGroup==='rejected'?'❌ Rejected':statusGroup==='campuran'?'⚠️ Sebagian diproses':'⏳ Pending'}</span>
+                    {/* Penanda TTU/Kwitansi udah dikirim apa belum (dikonfirmasi
+                        user 2026-10-14) — DP pakai Tanda Terima Uang (per-payment,
+                        lihat ttu_terkirim), Pelunasan pakai Kwitansi (per-booking,
+                        lihat kwitansi_terkirim). Cuma relevan buat payment yang
+                        udah confirmed. */}
+                    {first.status === 'confirmed' && first.type === 'dp' && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${first.ttu_terkirim ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {first.ttu_terkirim ? '📤 TTU Terkirim' : '📝 TTU Belum Dikirim'}
+                      </span>
+                    )}
+                    {first.status === 'confirmed' && first.type === 'lunas' && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${first.kwitansi_terkirim ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {first.kwitansi_terkirim ? '📤 Kwitansi Terkirim' : '📝 Kwitansi Belum Dibuat'}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Detail saat diklik */}
