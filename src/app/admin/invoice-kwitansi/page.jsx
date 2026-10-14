@@ -287,15 +287,19 @@ function InvoiceKwitansiPageInner() {
     .filter(d => TAB_JENIS[tab].includes(d.jenis))
     .filter(d => !filterBelumDikirim || !d.terkirim);
 
-  // Sisa live di form manual: total_harga booking dikurangi SEMUA Invoice
-  // yang pernah dibuat buat booking ini (termasuk yang lagi diketik sekarang)
-  // — "sisa tagihan", bukan "sisa yang beneran belum dibayar" (soal duit
-  // yang beneran diterima ada di Kwitansi/Tanda Terima, narik dari payments).
-  const bidForm = form.booking_id.trim();
-  const totalInvoicedLain = bidForm
-    ? dokumen.filter(d => d.jenis === 'invoice' && d.booking_id === bidForm).reduce((s, d) => s + Number(d.nominal), 0)
-    : 0;
-  const sisaSetelahIni = totalHargaForm != null ? totalHargaForm - totalInvoicedLain - Number(form.nominal || 0) : null;
+  // Sisa live di form manual: total_harga booking dikurangi yang BENERAN
+  // udah dibayar (dp_status confirmed + semua cicilan lunas confirmed,
+  // sama formula saranInvoice) dikurangi nominal yang lagi diketik sekarang
+  // — SAMA SUMBER kebenaran sama saranInvoice (dibenerin bareng 2026-10-14,
+  // sebelumnya dihitung dari histori Invoice yang pernah dibuat, bukan dari
+  // pembayaran beneran, bug yang sama persis "invoice DP lagi padahal udah
+  // lunas DP").
+  const dpConfirmedForm = detailBookingForm?.dp_status === 'confirmed';
+  const lunasConfirmedForm = (detailBookingForm?.pembayaran || [])
+    .filter(p => p.type === 'lunas')
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const sudahDibayarForm = (dpConfirmedForm ? Number(detailBookingForm?.dp_amount || 0) : 0) + lunasConfirmedForm;
+  const sisaSetelahIni = totalHargaForm != null ? totalHargaForm - sudahDibayarForm - Number(form.nominal || 0) : null;
 
   return (
     <Layout title="🧾 Invoice & Kwitansi" backHref="/admin">
