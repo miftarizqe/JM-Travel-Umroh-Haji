@@ -1369,7 +1369,14 @@ function AdminPageInner() {
           {(() => {
             const filtered = payments
               .filter(p => cocok(searchPayments, p.nama, p.booking_id))
-              .filter(p => !filterPaymentStatus || p.status === filterPaymentStatus);
+              .filter(p => !filterPaymentStatus || p.status === filterPaymentStatus)
+              // DP Rp0 (khusus checkout mandiri Program Eksklusif Sahabat
+              // Baitullah — auto-confirmed pas checkout, bukan lewat approve
+              // admin, lihat src/app/api/sahabat/checkout-mandiri/route.js)
+              // gak pernah butuh tindakan admin & gak ada duitnya buat
+              // di-"Tanda Terima"-in — cuma noise di list ini (dikonfirmasi
+              // user 2026-10-14).
+              .filter(p => !(p.type === 'dp' && Number(p.amount) === 0));
             if (filtered.length === 0) {
               return <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">Tidak ada pembayaran yang cocok.</div>;
             }
