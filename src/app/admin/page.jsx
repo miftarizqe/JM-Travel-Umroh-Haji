@@ -2199,6 +2199,20 @@ function AdminPageInner() {
                           });
                           return (
                             <div className="border-t border-gray-100 mt-2 pt-2 space-y-1.5">
+                              {/* Shortcut langsung ke form Buat Invoice, booking_id
+                                  udah ke-pre-fill (dikonfirmasi user 2026-10-14) —
+                                  sebelumnya admin harus pindah ke /admin/invoice-
+                                  kwitansi terus copy-paste Booking ID manual.
+                                  Deep-link ?booking_id= ini pola yang UDAH ADA
+                                  (dipakai tombol "Cetak Invoice" di tempat lain),
+                                  cuma dipasang di sini juga. Muncul terus selama
+                                  booking ini belum lunas (sc.kind==='belum-lunas'
+                                  persis sama syaratnya kayak reminder WA di bawah),
+                                  ilang otomatis begitu pelunasan_status jadi 'paid'. */}
+                              <button onClick={() => window.open(`/admin/invoice-kwitansi?booking_id=${b.id}`, '_blank')}
+                                className="w-full inline-flex items-center justify-center gap-1.5 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-2 rounded-full">
+                                📄 Buat Invoice
+                              </button>
                               <div className="text-[10px] text-gray-400">⏳ Belum lunas — sisa {rp(sisaBayar)}. Kirim reminder pelunasan:</div>
                               {b.pemesan_wa ? (
                                 <TombolWA nomor={b.pemesan_wa}
