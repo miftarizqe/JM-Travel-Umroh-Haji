@@ -645,6 +645,22 @@ function AdminPageInner() {
     window.open(`/admin/cetak-formulir/${bookingId}`, '_blank');
   }
 
+  // Label "DP 1"/"DP 2"/dst — 1 booking bisa punya lebih dari 1 payment
+  // type='dp' (DP awal, DP pax tambahan, resubmit abis ditolak, lihat
+  // src/lib/dpPayments.js). Dihitung dari urutan created_at SEMUA payment
+  // dp milik booking yang sama di state `payments` ini (dikonfirmasi user
+  // 2026-10-14) — biar admin gak bingung ngeliat 2 kartu "DP" buat booking
+  // yang sama dikira dobel/salah input.
+  function labelJenisPayment(p) {
+    if (p.type !== 'dp') return (p.type || '').toUpperCase();
+    const dpSebookingAsc = payments
+      .filter(x => x.booking_id === p.booking_id && x.type === 'dp')
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    if (dpSebookingAsc.length <= 1) return 'DP';
+    const urutan = dpSebookingAsc.findIndex(x => x.id === p.id) + 1;
+    return `DP ${urutan}`;
+  }
+
   // Cetak invoice/kwitansi OTOMATIS — server yang validasi syarat (DP/pelunasan
   // harus sudah confirmed) & idempotensi nomor (klik ulang gak bikin nomor baru).
   async function cetakInvoiceOtomatis(bookingId, jenis) {
@@ -1386,7 +1402,7 @@ function AdminPageInner() {
                     <div className="font-bold text-[#0E2F6E] text-sm">
                       {first.nama || 'User'} — {g.members.length > 1 ? `${g.members.length} booking dalam 1 transaksi` : first.booking_id}
                     </div>
-                    <div className="text-xs text-gray-400">{(first.type||'').toUpperCase()} · {tgl(first.created_at)} · {rp(g.totalAmount)}</div>
+                    <div className="text-xs text-gray-400">{labelJenisPayment(first)} · {tgl(first.created_at)} · {rp(g.totalAmount)}</div>
                   </div>
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${
                     statusGroup==='confirmed'?'bg-green-100 text-green-700':statusGroup==='rejected'?'bg-red-100 text-red-600':statusGroup==='campuran'?'bg-amber-100 text-amber-700':'bg-yellow-100 text-yellow-700'
@@ -1397,7 +1413,7 @@ function AdminPageInner() {
                 {openPayment === g.key && (
                   <div className="border-t border-gray-100 p-4 bg-gray-50 text-sm space-y-2">
                     <div className="flex justify-between"><span className="text-gray-400">Pemesan</span><span className="font-semibold">{first.nama||'-'}</span></div>
-                    <div className="flex justify-between"><span className="text-gray-400">Jenis</span><span className="font-semibold">{(first.type||'').toUpperCase()}</span></div>
+                    <div className="flex justify-between"><span className="text-gray-400">Jenis</span><span className="font-semibold">{labelJenisPayment(first)}</span></div>
                     <div className="flex justify-between"><span className="text-gray-400">Total ({g.members.length} booking)</span><span className="font-semibold">{rp(g.totalAmount)}</span></div>
 
                     {/* Rincian per booking — cuma buat dilihat detailnya, aksinya digabung */}
@@ -2840,7 +2856,7 @@ function AdminPageInner() {
                           <div key={p.id} className="bg-white rounded-lg p-3 space-y-2 border border-amber-200">
                             <div className="flex justify-between items-start gap-2 text-sm">
                               <div>
-                                <div className="font-bold text-[#0E2F6E]">{p.type === 'lunas' ? '💰 Pelunasan' : '💳 DP'} menunggu konfirmasi</div>
+                                <div className="font-bold text-[#0E2F6E]">{p.type === 'lunas' ? '💰 Pelunasan' : `💳 ${labelJenisPayment(p)}`} menunggu konfirmasi</div>
                                 <div className="text-xs text-gray-500">{rp(p.amount)} · dikirim {tgl(p.bukti_uploaded_at || p.created_at)}{p.batch_id ? ' · bagian dari 1 transfer keranjang' : ''}</div>
                               </div>
                               {p.bukti_path ? (

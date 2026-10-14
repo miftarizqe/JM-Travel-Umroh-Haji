@@ -1,19 +1,22 @@
 import { parseJamaahData, DOC_KEYS } from '@/lib/dokumenPendukung';
+import { ambilDpPaymentsBatch, dpPerluResubmit } from '@/lib/dpPayments';
 
 // Daftar tindakan yang masih harus dibereskan pemilik booking — SATU sumber
 // buat badge "Booking Saya" di sidebar jamaah & Sahabat Baitullah (lihat
 // hitungBookingPerluTindakan di bawah) DAN badge per kartu "📦 Booking Aktif"
 // di /dashboard/jamaah (dikonfirmasi user 2026-10-12). Pure function (aman
 // dipakai client), `b` = baris bookings + `prog_publish_type` +
-// `status_lunas_terakhir` (status payments type='lunas' terbaru). Kriteria:
+// `status_lunas_terakhir` (status payments type='lunas' terbaru) +
+// `dp_payments` (array dari src/lib/dpPayments.js). Kriteria:
 //   - formulir jamaah belum lengkap (bisa diisi sejak DP masih menunggu)
 //   - formulir lengkap + DP confirmed tapi Perjanjian Jamaah belum disetujui
 //     (bukan program eksklusif Sahabat — gak punya tahap perjanjian, lihat
 //     perjanjianSelesai() di bookingStage.js)
 //   - ada dokumen pendukung yang DITOLAK admin (perlu diganti)
 //   - pembayaran pelunasan terakhir DITOLAK admin (perlu kirim ulang)
-// DP ditolak SENGAJA gak dihitung — belum ada jalur unggah ulang DP dari sisi
-// jamaah, badge-nya bakal nyangkut tanpa bisa ditindaklanjuti.
+//   - DP (wave manapun) DITOLAK admin & belum ada submission baru (perlu
+//     upload ulang lewat /bayar-dp, dikonfirmasi user 2026-10-14 — dulu
+//     sengaja gak dihitung karena belum ada jalur unggah ulangnya).
 export function alasanPerluTindakan(b) {
   if (!b || b.status !== 'active') return [];
   // Lunas = data & dokumen dikunci (dikonfirmasi user 2026-10-12), gak ada
@@ -31,6 +34,9 @@ export function alasanPerluTindakan(b) {
   }
   if (b.pelunasan_status === 'unpaid' && b.status_lunas_terakhir === 'rejected') {
     alasan.push('Pelunasan ditolak, kirim ulang');
+  }
+  if (dpPerluResubmit(b.dp_payments)) {
+    alasan.push('DP ditolak, upload bukti baru');
   }
   return alasan;
 }
@@ -53,5 +59,7 @@ export async function hitungBookingPerluTindakan(pool, userId) {
      WHERE (b.user_id = ? OR b.ordered_by = ?) AND b.status = 'active'`,
     [userId, userId]
   );
+  const dpMap = await ambilDpPaymentsBatch(pool, rows.map(r => r.id));
+  for (const r of rows) r.dp_payments = dpMap.get(r.id) || [];
   return rows.filter(b => alasanPerluTindakan(b).length > 0).length;
 }

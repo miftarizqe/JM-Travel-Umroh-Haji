@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { formLengkap, getStage, pembayaranSudahDiAcc } from '@/lib/bookingStage';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
+import { dpPerluResubmit } from '@/lib/dpPayments';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
 
 export default function DashboardJamaah() {
@@ -184,22 +185,41 @@ export default function DashboardJamaah() {
                       {/* Progress 5 tahap — komponen sama dengan admin */}
                       <BookingProgressBar booking={b} className="mb-4" />
 
-                      {/* Status DP */}
-                      <div className="text-sm text-gray-500 mb-2">
-                        DP: <strong>{b.dp_status === 'confirmed' ? '✅ Dikonfirmasi' : b.dp_status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}</strong>
-                      </div>
-
-                      {/* DP jamaah tambahan (dari "Tambah Jamaah") yang
-                          masih nunggu ACC admin TERPISAH dari DP awal di
-                          atas — booking.dp_status cuma 1 nilai buat DP awal,
-                          jadi badge di atas tetap "Dikonfirmasi" walau ada
-                          DP kedua ini yang belum di-ACC (dikonfirmasi user
-                          2026-10-13, awalnya nyesatin keliatan udah beres semua). */}
-                      {b.dp_tambahan_pending > 0 && (
-                        <div className="bg-yellow-50 text-yellow-700 text-xs text-center py-2 rounded-full mb-2">
-                          ⏳ DP jamaah tambahan Rp {Number(b.dp_tambahan_pending).toLocaleString('id-ID')} masih menunggu konfirmasi admin
+                      {/* Status DP — 1 booking bisa punya LEBIH dari 1 payment
+                          DP (DP awal, DP pax tambahan, resubmit abis
+                          ditolak), masing-masing ditampilin sendiri-sendiri
+                          sebagai "DP 1"/"DP 2"/dst (dikonfirmasi user
+                          2026-10-14, lihat src/lib/dpPayments.js) — booking.dp_status
+                          cuma 1 nilai buat DP AWAL doang, gak cukup buat
+                          nunjukin status semuanya. */}
+                      {Array.isArray(b.dp_payments) && b.dp_payments.length > 0 && (
+                        <div className="text-sm text-gray-500 mb-2 space-y-0.5">
+                          {b.dp_payments.map(dp => (
+                            <div key={dp.id} className="flex items-center justify-between">
+                              <span>{b.dp_payments.length > 1 ? `DP ${dp.urutan}` : 'DP'}</span>
+                              <strong>
+                                {dp.status === 'confirmed' ? '✅ Dikonfirmasi' : dp.status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}
+                              </strong>
+                            </div>
+                          ))}
                         </div>
                       )}
+
+                      {(() => {
+                        const dpResubmit = dpPerluResubmit(b.dp_payments);
+                        if (!dpResubmit) return null;
+                        return (
+                          <div className="bg-red-50 border border-red-200 rounded-xl p-3 mb-2">
+                            <div className="text-xs text-red-600 mb-1.5">
+                              DP {dpResubmit.urutan} ditolak: {dpResubmit.reject_reason || 'Tidak ada alasan spesifik.'}
+                            </div>
+                            <button onClick={() => router.push(`/bayar-dp?booking_id=${b.id}`)}
+                              className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded-full transition-colors">
+                              Upload Bukti DP Baru →
+                            </button>
+                          </div>
+                        );
+                      })()}
 
                       {/* Reminder materai+TTD fisik — begitu setuju_pks
                           dicentang, jamaah udah boleh lanjut pelunasan
