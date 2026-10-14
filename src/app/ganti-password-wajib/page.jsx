@@ -57,7 +57,7 @@ export default function GantiPasswordWajibPage() {
   async function keluar() {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
     localStorage.removeItem('user');
-    router.replace('/login');
+    window.location.replace('/login'); // navigasi penuh, lihat logout() di Layout.jsx
   }
 
   const inp = "w-full px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";

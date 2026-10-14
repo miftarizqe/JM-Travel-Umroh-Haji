@@ -460,15 +460,17 @@ export default function DatabaseJamaahPage() {
     setSaving(false);
   }
 
-  // Edit NIK/bank/no_rekening/nama_pemilik_rekening/rekening BSI/tabungan
-  // umroh — SEKARANG ADMIN-ONLY (dikonfirmasi user 2026-08-30, dibalik dari
-  // self-service Fase 1 karena "ngaruh kemana2"). Reuse PATCH /api/profil
-  // yang sama (lolos guard di situ karena actor di sini admin/super_admin).
+  // Edit rekening tabungan umroh — ADMIN-ONLY (dikonfirmasi user 2026-08-30,
+  // dibalik dari self-service Fase 1 karena "ngaruh kemana2"). Reuse PATCH
+  // /api/profil yang sama (lolos guard di situ karena actor di sini
+  // admin/super_admin). Sahabat cuma punya 1 rekening (Tabungan Umroh, selalu
+  // BSI) — field generik bank/no_rekening/nama_pemilik_rekening (punya
+  // perwakilan) & rekening BSI biasa (alurnya udah dihapus) SENGAJA gak ada
+  // di sini lagi karena redundan (dikonfirmasi user 2026-10-14).
   function mulaiEditData(j) {
     setEditingData(j.user_id);
     setFormData({
-      bank: j.bank || '', no_rekening: j.no_rekening || '', nama_pemilik_rekening: j.nama_pemilik_rekening || '',
-      no_rekening_bsi_biasa: j.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: j.no_rekening_tabungan_umroh || '',
+      no_rekening_tabungan_umroh: j.no_rekening_tabungan_umroh || '',
       nama_pemilik_rekening_umroh: j.nama_pemilik_rekening_umroh || '',
     });
   }
@@ -776,27 +778,7 @@ export default function DatabaseJamaahPage() {
                             beda dari rekening yang memang wajar berubah. */}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-gray-400 mb-0.5">Bank</label>
-                            <input value={formData.bank} onChange={e => setFormData(f => ({ ...f, bank: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">No. Rekening</label>
-                            <input value={formData.no_rekening} onChange={e => setFormData(f => ({ ...f, no_rekening: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">Nama Pemilik Rekening</label>
-                            <input value={formData.nama_pemilik_rekening} onChange={e => setFormData(f => ({ ...f, nama_pemilik_rekening: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">Rek. BSI Biasa</label>
-                            <input value={formData.no_rekening_bsi_biasa} onChange={e => setFormData(f => ({ ...f, no_rekening_bsi_biasa: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">Rek. Tabungan Umroh</label>
+                            <label className="block text-gray-400 mb-0.5">No. Rek. Tabungan Umroh (BSI)</label>
                             <input value={formData.no_rekening_tabungan_umroh} onChange={e => setFormData(f => ({ ...f, no_rekening_tabungan_umroh: e.target.value }))}
                               className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
                           </div>
@@ -816,21 +798,14 @@ export default function DatabaseJamaahPage() {
                     ) : (
                       <div className="grid grid-cols-2 gap-2 text-gray-500">
                         <div>WA: <b className="text-gray-700">{j.wa}</b></div>
-                        {/* NIK & semua rekening (bank biasa + BSI biasa +
-                            tabungan umroh) — PRIVASI, cuma admin/super_admin
-                            yang boleh tau, siapapun lain (HoP, dst) enggak
-                            (dikonfirmasi user 2026-10-05). */}
+                        {/* NIK & rekening tabungan umroh — PRIVASI, cuma
+                            admin/super_admin yang boleh tau, siapapun lain
+                            (HoP, dst) enggak (dikonfirmasi user 2026-10-05). */}
                         {!isHop && (
                           <>
                             <div>NIK: <b className="text-gray-700">{j.nik}</b></div>
-                            <div>Bank: <b className="text-gray-700">{j.bank} - {j.no_rekening}</b></div>
-                            <div>Rek. BSI Biasa: <b className="text-gray-700">{j.no_rekening_bsi_biasa || '-'}</b></div>
-                          </>
-                        )}
-                        {!isHop && (
-                          <>
-                            <div>Rek. Tabungan Umroh: <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
-                            <div>Nama Pemilik Rek. Umroh: <b className="text-gray-700">{j.nama_pemilik_rekening_umroh || '-'}</b></div>
+                            <div>Rek. Tabungan Umroh (BSI): <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
+                            <div className="col-span-2">Nama Pemilik Rek. Umroh: <b className="text-gray-700">{j.nama_pemilik_rekening_umroh || '-'}</b></div>
                           </>
                         )}
                         {j.bantuan_bsi_manual_disetujui_at && !j.no_rekening_tabungan_umroh && !isHop && (

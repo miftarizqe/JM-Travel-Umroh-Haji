@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
+import { isRuteTerlindungi } from '@/lib/ruteTerlindungi';
 
 function bacaLocalStorage() {
   if (typeof window === 'undefined') return null;
@@ -42,8 +43,56 @@ function bacaLocalStorage() {
 // client yang benar, gak ada dampak fungsional ke user. Ini jauh lebih
 // aman drpd bug redirect-keluar yang sebelumnya beneran ngusir user dari
 // halamannya sendiri.
+// Cache `user` di localStorage cuma "tebakan" — sumber kebenaran sesi itu
+// cookie httpOnly yang gak kebaca JS. Kalau cookie-nya udah gak berlaku
+// (sesi 4 jam habis, cache lama tanpa sesi_berakhir_at, logout di perangkat/
+// tab lain, dst) cache-nya bisa nyangkut: nama masih nongol di navbar
+// landing page padahal klik Dashboard dilempar ke /login (bug 2026-10-14).
+// Jadi tiap page load, kalau ada cache, tanya server SEKALI (dibagi ke
+// semua pemakai hook ini) — sesi gak aktif -> cache dibuang, tampil mode tamu.
+let cekSesiPromise = null;
+const pendengarCache = new Set();
+
+function buangCacheUser() {
+  try { localStorage.removeItem('user'); } catch {}
+  for (const fn of pendengarCache) fn(null);
+}
+
+function cekSesiServer() {
+  if (!cekSesiPromise) {
+    cekSesiPromise = fetch('/api/auth/sesi', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null); // offline/error -> jangan buang apa-apa
+  }
+  return cekSesiPromise;
+}
+
+// Return [user, sesiTerkonfirmasi]. `user` = cache localStorage (langsung
+// ada dari render pertama, dipakai guard & prefill). `sesiTerkonfirmasi` =
+// server udah bilang cookie sesinya masih aktif — dipakai tampilan publik
+// (navbar landing page) biar nama akun yang terakhir login di perangkat ini
+// gak nongol SAMA SEKALI (bahkan sekilas) begitu sesi 4 jam-nya habis
+// (dikonfirmasi user 2026-10-14).
 export function useCurrentUser() {
   const [raw, setRaw] = useState(bacaLocalStorage);
+  const [sesiTerkonfirmasi, setSesiTerkonfirmasi] = useState(false);
+  useEffect(() => {
+    pendengarCache.add(setRaw);
+    return () => { pendengarCache.delete(setRaw); };
+  }, []);
+  useEffect(() => {
+    if (!raw) return;
+    let batal = false;
+    cekSesiServer().then(d => {
+      if (batal || !d) return;
+      if (d.aktif) { setSesiTerkonfirmasi(true); return; }
+      // Cache keburu diganti (mis. barusan login) -> jangan dibuang.
+      let sekarang = null;
+      try { sekarang = localStorage.getItem('user'); } catch {}
+      if (sekarang === raw) buangCacheUser();
+    });
+    return () => { batal = true; };
+  }, [raw]);
   // Storage event cuma nembak antar-TAB (login/logout di tab lain) — bukan
   // pengganti baca awal di atas, cuma jaga-jaga biar tetap sinkron kalau
   // ada perubahan dari luar komponen ini.
@@ -62,24 +111,26 @@ export function useCurrentUser() {
       return null;
     }
   }, [raw]);
-  // Tab lagi kebuka pas sesinya habis -> bersihin cache & langsung arahkan
-  // ke login (bukan nunggu klik yang gagal 401).
+  // Tab lagi kebuka pas sesinya habis -> bersihin cache. Di halaman privat
+  // langsung arahkan ke login (bukan nunggu klik yang gagal 401); di halaman
+  // publik (landing page, dst) cukup balik ke mode tamu (dikonfirmasi user
+  // 2026-10-14).
   useEffect(() => {
     let u = null;
     try { u = raw ? JSON.parse(raw) : null; } catch { u = null; }
     if (!u?.sesi_berakhir_at) return;
     const habiskan = () => {
-      try { localStorage.removeItem('user'); } catch {}
-      setRaw(null);
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.href = `/login?sesi=habis&from=${encodeURIComponent(window.location.pathname)}`;
+      buangCacheUser();
+      const path = window.location.pathname;
+      if (isRuteTerlindungi(path)) {
+        window.location.href = `/login?sesi=habis&from=${encodeURIComponent(path)}`;
       }
     };
     // setTimeout maks ~24.8 hari, sesi 4 jam aman.
     const t = setTimeout(habiskan, Math.max(0, u.sesi_berakhir_at - Date.now()));
     return () => clearTimeout(t);
   }, [raw]);
-  return [user];
+  return [user, !!user && sesiTerkonfirmasi];
 }
 
 // Pasangan `useCurrentUser` buat halaman yang render "Loading..." selagi

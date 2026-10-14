@@ -377,7 +377,9 @@ function RegisterPageInner() {
 
       // OTP dihapus (2026-09-23) — langsung ke upload-foto (langkah wajib
       // berikutnya yang dulu dituju /verifikasi setelah kode benar).
-      router.push(redirect ? `/upload-foto?redirect=${encodeURIComponent(redirect)}` : '/upload-foto');
+      // Navigasi penuh, bukan router.push — alasan sama kayak login/page.jsx
+      // (Client Cache bisa nyimpen redirect proxy lama ke /login).
+      window.location.assign(redirect ? `/upload-foto?redirect=${encodeURIComponent(redirect)}` : '/upload-foto');
     } catch (e) {
       setError('Terjadi kesalahan, coba lagi.');
     } finally {

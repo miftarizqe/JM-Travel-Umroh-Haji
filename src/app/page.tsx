@@ -131,7 +131,11 @@ function IconFacebook({ className }: { className?: string }) {
 
 export default function Home() {
   const router = useRouter();
-  const [user] = useCurrentUser();
+  // Navbar/CTA landing page cuma nampilin akun kalau server udah konfirmasi
+  // sesinya masih aktif — cache localStorage doang gak cukup, biar nama akun
+  // yang sesinya udah habis (4 jam) gak nongol walau sekilas (2026-10-14).
+  const [userCache, sesiAktif] = useCurrentUser();
+  const user = sesiAktif ? userCache : null;
   const [programs, setPrograms] = useState<Program[]>([]);
   const [modal, setModal] = useState<null | 'perwakilan'>(null);
   const [galeriBatches, setGaleriBatches] = useState<GaleriBatch[]>([]);

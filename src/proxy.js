@@ -1,27 +1,6 @@
 import { NextResponse } from 'next/server';
 import { semuaTokenDariHeader, headerHapusTokenLama, headerCookieToken } from '@/lib/auth';
-
-// Halaman yang butuh login
-const protectedRoutes = [
-  '/dashboard',
-  '/checkout',
-  '/form-jamaah',
-  '/pelunasan',
-  '/admin',
-  '/upgrade-paket',
-  '/upload-foto',
-  '/pks',
-  '/daftar-agen',
-  '/daftar-perwakilan',
-  '/status-pendaftaran',
-  '/profil',
-  '/perwakilan',
-  '/agen/harga', // BUKAN '/agen' — '/agen/[kode]' itu halaman publik (referral)
-  '/voucher',
-  '/ajukan-custom-harga',
-  '/ganti-password-wajib',
-  '/perbaiki-data-akun',
-];
+import { isRuteTerlindungi } from '@/lib/ruteTerlindungi';
 
 /**
  * Token dianggap SAH hanya jika ada isinya dan berbentuk JWT.
@@ -95,7 +74,7 @@ export function proxy(request) {
   // Sesi lewat 4 jam -> buang cookie; halaman privat diarahkan ke login
   // dengan keterangan sesi habis.
   if (!aktif.length && berbentukJwt.length) {
-    const isProtectedHabis = protectedRoutes.some(route => pathname.startsWith(route));
+    const isProtectedHabis = isRuteTerlindungi(pathname);
     let res;
     if (isProtectedHabis) {
       const url = new URL('/login', request.url);
@@ -122,7 +101,7 @@ export function proxy(request) {
   // bersihkan varian lama (cookie resmi Path=/ dibiarkan).
   const adaSisaLama = semua.length > 1;
 
-  const isProtected = protectedRoutes.some(route => pathname.startsWith(route));
+  const isProtected = isRuteTerlindungi(pathname);
 
   // Halaman privat tanpa login -> ke login
   if (isProtected && !login) {

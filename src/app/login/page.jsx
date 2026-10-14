@@ -21,12 +21,16 @@ function LoginPageInner() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   // Diarahkan ke sini karena sesi 4 jam habis (src/proxy.js /
-  // useCurrentUser) — buang cache data user lama & kasih tau alasannya.
+  // useCurrentUser) — kasih tau alasannya.
   const sesiHabis = searchParams.get('sesi') === 'habis';
+  // Halaman ini cuma bisa kebuka kalau GAK ada sesi aktif (proxy ngelempar
+  // yang masih login ke `/`), jadi cache data user apa pun di sini pasti
+  // basi — buang SELALU, bukan cuma pas ?sesi=habis. Dulu cache tanpa
+  // sesi_berakhir_at (login sebelum aturan 4 jam) gak pernah kebuang:
+  // nama tetap nongol di navbar walau udah gak login (bug 2026-10-14).
   useEffect(() => {
-    if (!sesiHabis) return;
     try { localStorage.removeItem('user'); } catch {}
-  }, [sesiHabis]);
+  }, []);
 
   async function handleLogin() {
     // Validasi sebelum kirim — mencegah tombol "seolah tidak bereaksi"
@@ -37,6 +41,7 @@ function LoginPageInner() {
 
     setError('');
     setLoading(true);
+    let berhasil = false;
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -59,17 +64,23 @@ function LoginPageInner() {
       const role = data.user.role;
       // Kalau datang dari tombol Booking (ada ?redirect=), balik ke sana
       const redirect = searchParams.get('redirect') || searchParams.get('from');
-      if (data.user.perlu_perbaikan_akun) {
-        router.push('/perbaiki-data-akun');
-      } else if (redirect) {
-        router.push(redirect);
-      } else router.push(dashboardPathForRole(role));
+      // Navigasi PENUH (bukan router.push): Client Cache Next nyimpen hasil
+      // navigasi halaman statis sampai 5 menit — termasuk redirect proxy
+      // `/dashboard` -> `/login` waktu sesi tadi habis. router.push pakai
+      // cache itu, jadi habis login sukses malah mantul balik ke /login;
+      // user coba lagi terus sampai kena rate limit (bug 2026-10-14).
+      // Navigasi penuh juga mastiin cookie baru ikut terkirim ke proxy.
+      const tujuan = data.user.perlu_perbaikan_akun
+        ? '/perbaiki-data-akun'
+        : (redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : dashboardPathForRole(role));
+      berhasil = true;
+      window.location.assign(tujuan);
     } catch (e) {
       setError('Terjadi kesalahan, coba lagi.');
     } finally {
-      // BUG FIX: dulu setLoading(false) tidak dipanggil saat sukses,
-      // sehingga tombol tetap disabled dan tampak "tidak bisa dipencet".
-      setLoading(false);
+      // Gagal -> tombol aktif lagi. Sukses -> tetap "Memproses..." sampai
+      // halaman tujuan kebuka (navigasi penuh), biar gak kepencet dobel.
+      if (!berhasil) setLoading(false);
     }
   }
 

@@ -33,7 +33,7 @@ export default function ProfilPage() {
   const [editingRekening, setEditingRekening] = useState(false);
   const [formRekening, setFormRekening] = useState({
     nik: '', bank: '', no_rekening: '', nama_pemilik_rekening: '', no_paspor: '',
-    no_rekening_bsi_biasa: '', no_rekening_tabungan_umroh: '', nama_pemilik_rekening_umroh: '',
+    no_rekening_tabungan_umroh: '', nama_pemilik_rekening_umroh: '',
   });
   const [savingRekening, setSavingRekening] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
@@ -47,7 +47,7 @@ export default function ProfilPage() {
   const [loadingRiwayat, setLoadingRiwayat] = useState(false);
   const [generatingPdfSkCif, setGeneratingPdfSkCif] = useState(false);
 
-  const FIELD_SENSITIF_REKENING = ['nik', 'bank', 'no_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
+  const FIELD_SENSITIF_REKENING = ['nik', 'bank', 'no_rekening', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
   const isAdminSelf = ['admin', 'super_admin'].includes(user?.role);
 
   const isDirty = editing && user && (
@@ -74,7 +74,7 @@ export default function ProfilPage() {
             nik: d.user.nik || '', bank: d.user.bank || '',
             no_rekening: d.user.no_rekening || '', nama_pemilik_rekening: d.user.nama_pemilik_rekening || '',
             no_paspor: d.user.no_paspor || '',
-            no_rekening_bsi_biasa: d.user.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: d.user.no_rekening_tabungan_umroh || '',
+            no_rekening_tabungan_umroh: d.user.no_rekening_tabungan_umroh || '',
             nama_pemilik_rekening_umroh: d.user.nama_pemilik_rekening_umroh || '',
           });
           // Segarkan cache lokal
@@ -203,7 +203,7 @@ export default function ProfilPage() {
     // Cookie token httpOnly hanya bisa dihapus oleh server
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
     localStorage.removeItem('user');
-    router.push('/');
+    window.location.assign('/'); // navigasi penuh, lihat logout() di Layout.jsx
   }
 
   if (loading || !user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
@@ -515,12 +515,6 @@ export default function ProfilPage() {
                 <label className={lbl}>No. Paspor <span className="text-gray-400 font-normal">(opsional, boleh menyusul)</span></label>
                 <input value={formRekening.no_paspor} onChange={e => setFormRekening({...formRekening, no_paspor: e.target.value})} className={inp}/>
               </div>
-              {isAdminSelf && user.role === 'sahabat_baitullah' && user.no_rekening_bsi_biasa && (
-                <div>
-                  <label className={lbl}>No. Rekening BSI Biasa</label>
-                  <input value={formRekening.no_rekening_bsi_biasa} onChange={e => setFormRekening({...formRekening, no_rekening_bsi_biasa: e.target.value})} className={inp}/>
-                </div>
-              )}
               {isAdminSelf && user.role === 'sahabat_baitullah' && user.no_rekening_tabungan_umroh && (
                 <>
                   <div>
@@ -537,7 +531,6 @@ export default function ProfilPage() {
                 <button onClick={() => { setEditingRekening(false); setFormRekening({
                     nik: user.nik||'', bank: user.bank||'', no_rekening: user.no_rekening||'',
                     nama_pemilik_rekening: user.nama_pemilik_rekening||'', no_paspor: user.no_paspor||'',
-                    no_rekening_bsi_biasa: user.no_rekening_bsi_biasa||'',
                     no_rekening_tabungan_umroh: user.no_rekening_tabungan_umroh||'',
                     nama_pemilik_rekening_umroh: user.nama_pemilik_rekening_umroh||'',
                   }); }}

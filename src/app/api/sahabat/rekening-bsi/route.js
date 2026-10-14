@@ -2,12 +2,11 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 
 const FIELD_KE_STATUS = {
-  no_rekening_bsi_biasa: { statusKolom: 'akun_bsi_status', waktuKolom: 'akun_bsi_updated_at' },
   no_rekening_tabungan_umroh: { statusKolom: 'tabungan_haji_status', waktuKolom: 'tabungan_haji_updated_at' },
 };
 
 // PATCH /api/sahabat/rekening-bsi  body: { field, no_rekening, nama_pemilik? }
-// Self-service — anggota sahabat isi sendiri nomor rekening BSI biasa /
+// Self-service — anggota sahabat isi sendiri nomor rekening
 // tabungan umroh begitu beneran udah dibuka (2026-08-30, gantiin toggle
 // manual admin lama yang gak ada cara diverifikasi selain nunggu info luar
 // sistem). Begitu keisi, status terkait OTOMATIS jadi aktif — TANPA aksi
