@@ -315,7 +315,20 @@ export async function PATCH(request) {
       // kembar yang gak pernah perlu dikirim sendiri.
       if (!(payment.type === 'lunas' && lunasSelesai)) {
         try {
-          await generateTandaTerimaUntukPayment(pool, payment.id, auth.user.id);
+          const ttu = await generateTandaTerimaUntukPayment(pool, payment.id, auth.user.id);
+          // Reminder ke admin biar dokumen keuangan gak "nyangkut" kelewat
+          // dikirim (dikonfirmasi user 2026-10-14, "hal2 riskan kyk
+          // pembayaran2 gini" wajib ada notifikasi) — sebelumnya cuma ada
+          // notif pas bukti BARU masuk, gak ada reminder begitu udah
+          // di-approve tapi TTU-nya belum dikirim ke jamaah.
+          if (ttu?.id) {
+            await kirimNotifikasiAdmin(pool, {
+              tipe: 'dokumen_perlu_dikirim',
+              judul: 'Tanda Terima Uang Perlu Dikirim',
+              pesan: `${payment.type === 'lunas' ? 'Cicilan pelunasan' : 'DP'} booking ${booking?.prog_name || payment.booking_id} sudah dikonfirmasi — Tanda Terima Uang perlu dicek & dikirim ke jamaah.`,
+              link: `/admin/cetak-invoice/${ttu.id}`,
+            });
+          }
         } catch (e) {
           console.error('Gagal auto-generate tanda terima:', e);
         }
@@ -339,7 +352,18 @@ export async function PATCH(request) {
         // kalau enggak Invoice bisa ke-tandain "paid" padahal baru dicicil
         // sebagian. Nomor Kwitansi dibekukan pas lunas total pertama kali.
         try {
-          await generateOrUpdateKwitansi(pool, payment.booking_id, auth.user.id);
+          const kw = await generateOrUpdateKwitansi(pool, payment.booking_id, auth.user.id);
+          // Sama kayak reminder TTU di atas — Kwitansi juga masih butuh
+          // tombol "Kirim ke Jamaah" manual (JENIS_LOCK_ON_SEND), gak
+          // otomatis terkirim cuma karena di-generate di sini.
+          if (kw?.id) {
+            await kirimNotifikasiAdmin(pool, {
+              tipe: 'dokumen_perlu_dikirim',
+              judul: 'Kwitansi Pembayaran Perlu Dikirim',
+              pesan: `Booking ${booking?.prog_name || payment.booking_id} sudah lunas total — Kwitansi Pembayaran perlu dicek & dikirim ke jamaah.`,
+              link: `/admin/cetak-invoice/${kw.id}`,
+            });
+          }
         } catch (e) {
           console.error('Gagal auto-generate kwitansi:', e);
         }

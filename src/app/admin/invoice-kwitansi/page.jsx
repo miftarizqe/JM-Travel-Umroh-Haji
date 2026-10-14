@@ -51,6 +51,12 @@ function InvoiceKwitansiPageInner() {
   const [rekomTandaTerima, setRekomTandaTerima] = useState([]);
   const [rekomBusyId, setRekomBusyId] = useState(null);
   const [tab, setTab] = useState('invoice');
+  // Deep-link dari cluster "Tindak Lanjut" dashboard admin (dikonfirmasi user
+  // 2026-10-14) — ?tab=tanda_terima&belum_dikirim=1 buka tab yang bener +
+  // filter cuma yang belum dikirim, BUKAN langsung lompat ke 1 dokumen
+  // spesifik kayak sebelumnya (admin gak liat dokumen lain yang sama2 perlu
+  // ditindaklanjuti).
+  const [filterBelumDikirim, setFilterBelumDikirim] = useState(false);
   const [q, setQ] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(formKosong('invoice'));
@@ -109,6 +115,13 @@ function InvoiceKwitansiPageInner() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) muat();
   }, [user]);
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (tabParam && TAB_JENIS[tabParam]) setTab(tabParam);
+    if (searchParams.get('belum_dikirim') === '1') setFilterBelumDikirim(true);
+  }, [searchParams]);
 
   // Cari 1 booking persis by ID lewat endpoint /cari-booking (yang udah
   // ikut sertakan jamaah_nama, tanggal_berangkat, referral_nama) — dipakai
@@ -260,7 +273,9 @@ function InvoiceKwitansiPageInner() {
 
   if (!user) return null;
 
-  const dokumenTab = dokumen.filter(d => TAB_JENIS[tab].includes(d.jenis));
+  const dokumenTab = dokumen
+    .filter(d => TAB_JENIS[tab].includes(d.jenis))
+    .filter(d => !filterBelumDikirim || !d.terkirim);
 
   // Sisa live di form manual: total_harga booking dikurangi SEMUA Invoice
   // yang pernah dibuat buat booking ini (termasuk yang lagi diketik sekarang)
@@ -366,9 +381,17 @@ function InvoiceKwitansiPageInner() {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && muat(q)}
-          placeholder="Cari nama / booking ID / nomor..."
-          className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-64" />
+        <div className="flex flex-wrap items-center gap-3">
+          <input value={q} onChange={e => setQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && muat(q)}
+            placeholder="Cari nama / booking ID / nomor..."
+            className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-64" />
+          {(tab === 'tanda_terima' || tab === 'kwitansi') && (
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 cursor-pointer select-none">
+              <input type="checkbox" checked={filterBelumDikirim} onChange={e => setFilterBelumDikirim(e.target.checked)} />
+              Cuma yang belum dikirim
+            </label>
+          )}
+        </div>
         <button onClick={() => { setForm(formKosong(tab)); setTotalHargaForm(null); setDetailBookingForm(null); setShowForm(true); }}
           className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-4 py-2 rounded-xl">
           + Buat Manual

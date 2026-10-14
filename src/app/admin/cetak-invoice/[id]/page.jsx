@@ -200,8 +200,8 @@ export default function CetakInvoiceKwitansi() {
       if (!res.ok) { alert(d.error || 'Gagal menyetujui'); return; }
       // Server nentuin metode beneran (TTU materai -> 'fisik', lainnya ->
       // 'setuju') — jangan hardcode di client (dikonfirmasi user 2026-10-14).
-      // nomor ikut di-refresh -- buat dokumen yang gak wajib materai, nomor
-      // BARU dibakar di titik kirim ini (sebelumnya null/belum ada).
+      // nomor ikut di-refresh dari respons server (seharusnya udah ada dari
+      // GET pas halaman ini pertama dibuka — ini cuma jaring pengaman).
       setDokumen(prev => ({ ...prev, terkirim: 1, terkirim_metode: d.terkirim_metode || 'setuju', terkirim_at: d.terkirim_at, nomor: d.nomor || prev.nomor }));
     } catch { alert('Terjadi kesalahan'); }
     finally { setMenyetujui(false); }

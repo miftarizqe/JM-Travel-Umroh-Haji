@@ -1163,7 +1163,7 @@ function AdminPageInner() {
                               else if (c.key==='custom_harga') pindahTab('customharga');
                               else if (c.key==='perlengkapan' && c.items[0]) router.push(`/admin/perlengkapan-pengiriman/${encodeURIComponent(c.items[0].prog_name)}`);
                               else if (c.key==='kalkulator_lead') router.push('/admin/kalkulator-leads');
-                              else if (c.key==='ttu_belum_dikirim' && c.items[0]) router.push(`/admin/cetak-invoice/${c.items[0].id}`);
+                              else if (c.key==='ttu_belum_dikirim') router.push('/admin/invoice-kwitansi?tab=tanda_terima&belum_dikirim=1');
                               else if (c.key==='perjanjian_belum_selesai' && c.items[0]) router.push(`/admin/cetak-perjanjian/${c.items[0].id}`);
                               else if (c.key==='penyesuaian_harga_pending' && c.items[0]) openBookingDetail(c.items[0].booking_id);
                               else if (c.key==='refund_belum_ditransfer' && c.items[0]) { pindahTab('pembatalan'); setOpenPembatalan(c.items[0].id); }
@@ -1475,7 +1475,12 @@ function AdminPageInner() {
 
                     {g.members.some(m => m.status === 'pending') && (
                       <div className="flex gap-2 pt-2">
-                        <button onClick={() => Promise.all(g.members.filter(m => m.status === 'pending').map(m => patchPayment(m.id, 'approve', { skipReload: true }))).then(() => { loadAll(); setOpenPayment(null); })}
+                        {/* Abis approve, section JANGAN langsung ketutup (dikonfirmasi
+                            user 2026-10-14) — biar admin langsung liat tombol "Lihat &
+                            Kirim Tanda Terima Uang"/Kwitansi di bawah tanpa harus buka
+                            lagi manual, soalnya itu kerjaan lanjutan yang masih perlu
+                            dilakuin. Beda sama Tolak, yang emang udah selesai sampai situ. */}
+                        <button onClick={() => Promise.all(g.members.filter(m => m.status === 'pending').map(m => patchPayment(m.id, 'approve', { skipReload: true }))).then(() => { loadAll(); setOpenPayment(g.key); })}
                           className="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 rounded-full">
                           ✅ Approve {g.members.length > 1 ? `Semua (${g.members.length})` : ''}
                         </button>
