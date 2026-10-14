@@ -7,7 +7,7 @@ import DokumenSayaList from '@/app/components/DokumenSayaList';
 import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import { formLengkap, getStage, pembayaranSudahDiAcc } from '@/lib/bookingStage';
+import { formLengkap, getStage, perjanjianSelesai, pembayaranSudahDiAcc } from '@/lib/bookingStage';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
 import { dpPerluResubmit } from '@/lib/dpPayments';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
@@ -347,7 +347,32 @@ export default function DashboardJamaah() {
                         </button>
                       )}
 
-                      {stage === 5 && (
+                      {/* stage===5 cuma berarti pelunasan_status='paid' --
+                          BUKAN jaminan form/perjanjian beneran udah kelar
+                          (ditemukan user 2026-10-14, "dia gabisa ubah apa2
+                          lagi": booking yang lunas lewat jalur Invoice-paid-
+                          override di admin, gak lewat gerbang form/
+                          perjanjian normal, nyangkut di "stage 5" tanpa
+                          tombol aksi apa pun karena SEMUA tombol lain cuma
+                          dirender buat stage 2/3/4). Dicek independen di
+                          sini, sama pola kayak BookingProgressBar. */}
+                      {stage === 5 && !formLengkap(b) && (
+                        <button
+                          onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
+                          className="w-full bg-[#1A4FA0] text-white text-sm font-bold py-2 rounded-full hover:bg-[#0E2F6E] transition-colors"
+                        >
+                          Isi Formulir Jamaah ({b.form_filled}/{b.form_total}) →
+                        </button>
+                      )}
+                      {stage === 5 && formLengkap(b) && !perjanjianSelesai(b) && (
+                        <button
+                          onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${b.id}`)}
+                          className="w-full bg-[#C9952A] text-white text-sm font-bold py-2 rounded-full hover:bg-yellow-600 transition-colors"
+                        >
+                          📜 Baca & Setujui Perjanjian →
+                        </button>
+                      )}
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && (
                         <div className="bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
                           ✅ Lunas — Selamat menunaikan ibadah!
                         </div>

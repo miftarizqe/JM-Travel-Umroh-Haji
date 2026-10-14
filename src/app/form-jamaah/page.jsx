@@ -459,8 +459,15 @@ function FormJamaahPageInner() {
   );
 
   // Lunas -> formulir cuma bisa dilihat (dikonfirmasi user 2026-10-12),
-  // admin tetap bisa koreksi. Server juga nolak (PATCH /api/bookings/[id]).
-  const terkunci = booking.pelunasan_status === 'paid' && !['admin', 'super_admin'].includes(user.role);
+  // admin tetap bisa koreksi. TAPI cuma kalau formulirnya emang UDAH
+  // LENGKAP duluan -- booking yang lunas lewat jalur Invoice-paid-override
+  // admin (gak lewat gerbang form) sebelum formulir sempat diisi TETAP
+  // boleh diisi jamaah (ditemukan user 2026-10-14, "dia gabisa ubah apa2
+  // lagi" — sebelumnya terkunci unconditional cuma dari pelunasan_status,
+  // gak ngecek form udah lengkap apa belum). Server SAMA PERSIS kondisinya
+  // (PATCH /api/bookings/[id]) — jangan hitung ulang beda logic.
+  const formSudahLengkap = (booking.form_filled || 0) >= (booking.form_total || 0);
+  const terkunci = booking.pelunasan_status === 'paid' && formSudahLengkap && !['admin', 'super_admin'].includes(user.role);
 
   const isFirst = currentJ === 0;
   const isLast = currentJ === jamaahList.length - 1;
