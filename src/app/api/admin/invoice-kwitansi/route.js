@@ -115,10 +115,15 @@ export async function PATCH(request) {
 
     // Ditandai 'paid' -> ikut sinkronin ke Kwitansi Pembayaran booking ini
     // (dibuat kalau belum ada, di-update kalau udah) — biar gak perlu
-    // digenerate manual terpisah tiap invoice ditandai lunas.
+    // digenerate manual terpisah tiap invoice ditandai lunas. `sync` dibalikin
+    // ke client biar bisa nyaranin dokumen yang relevan (dikonfirmasi user
+    // 2026-10-14): non-null -> booking udah lunas total, saranin Kwitansi;
+    // null -> belum lunas total (atau invoice ini gak nempel booking manapun),
+    // saranin Tanda Terima Uang manual buat pembayaran yang baru ditandai ini.
+    let sync = null;
     if (status === 'paid') {
       try {
-        await syncKwitansiDariInvoice(pool, id);
+        sync = await syncKwitansiDariInvoice(pool, id);
       } catch (e) {
         console.error('Gagal sinkron kwitansi dari invoice:', e);
       }
@@ -132,7 +137,7 @@ export async function PATCH(request) {
       keterangan: `${existing.nomor} — ${existing.status} → ${status}`,
     });
 
-    return Response.json({ message: 'Status diperbarui!' });
+    return Response.json({ message: 'Status diperbarui!', kwitansi: sync });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

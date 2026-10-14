@@ -24,14 +24,6 @@ const TAB_JENIS = {
   tanda_terima: ['tanda_terima'],
 };
 
-// Semua dokumen Tanda Terima buat 1 booking (biasanya maks 2: DP & lunas,
-// krn payments.type cuma dp/lunas) — ditampilin sbg link "Cetak Tanda
-// Terima" di baris Invoice booking itu begitu ada Invoice yang Paid.
-function cariTandaTerimaBooking(semuaDokumen, bookingId) {
-  if (!bookingId) return [];
-  return semuaDokumen.filter(x => x.jenis === 'tanda_terima' && x.booking_id === bookingId);
-}
-
 const formKosong = (jenisDefault) => ({ jenis: jenisDefault, booking_id: '', nama: '', nominal: '', judul: '', keterangan: '', tanggal: new Date().toISOString().slice(0, 10) });
 
 export default function InvoiceKwitansiPage() {
@@ -50,6 +42,12 @@ function InvoiceKwitansiPageInner() {
   const [rekomKwitansi, setRekomKwitansi] = useState([]);
   const [rekomTandaTerima, setRekomTandaTerima] = useState([]);
   const [rekomBusyId, setRekomBusyId] = useState(null);
+  // Saran dokumen relevan begitu admin nge-toggle Invoice ke Paid
+  // (dikonfirmasi user 2026-10-14, ganti link "TT [jenis]" yang gak
+  // nyambung sebelumnya) -- lunas total -> Kwitansi (udah auto-synced,
+  // tinggal buka), belum -> saranin bikin Tanda Terima Uang manual buat
+  // pembayaran yang baru ditandai paid ini.
+  const [rekomendasiSetelahPaid, setRekomendasiSetelahPaid] = useState(null);
   const [tab, setTab] = useState('invoice');
   // Deep-link dari cluster "Tindak Lanjut" dashboard admin (dikonfirmasi user
   // 2026-10-14) — ?tab=tanda_terima&belum_dikirim=1 buka tab yang bener +
@@ -278,6 +276,12 @@ function InvoiceKwitansiPageInner() {
     });
     const j = await res.json();
     if (!res.ok) { alert(j.error || 'Gagal mengubah status'); return; }
+    // Saran dokumen relevan CUMA pas nandain Invoice jadi Paid (bukan
+    // Unpaid, bukan jenis lain) & nempel ke booking (dikonfirmasi user
+    // 2026-10-14).
+    if (d.jenis === 'invoice' && statusBaru === 'paid' && d.booking_id) {
+      setRekomendasiSetelahPaid({ bookingId: d.booking_id, nama: d.nama, nominal: d.nominal, kwitansi: j.kwitansi || null });
+    }
     muat(q);
   }
 
@@ -501,41 +505,59 @@ function InvoiceKwitansiPageInner() {
                     )}
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {/* Unpaid = cuma bisa cetak Invoice (tagihan). Paid = ada
-                        2 opsi: Invoice (udah lunas, jadi tanda terima juga)
-                        ATAU Tanda Terima Uang punya invoice ini kalau ada
-                        (dokumen bukti terima yang auto-generate pas payment
-                        confirmed). */}
-                    {tab === 'invoice' && d.status === 'paid' ? (
-                      <div className="flex gap-2 flex-wrap">
-                        <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
-                          className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Invoice</button>
-                        {cariTandaTerimaBooking(dokumen, d.booking_id).map(tt => (
-                          <button key={tt.id} onClick={() => window.open(`/admin/cetak-invoice/${tt.id}`, '_blank')}
-                            className="text-[#1A4FA0] font-bold hover:underline text-xs">
-                            🧾 TT {LABEL_TIPE_PEMBAYARAN[tt.payment_type] || ''}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 flex-wrap">
-                        <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
-                          className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Cetak</button>
-                        {/* Link langsung ke scan materai+TTD -- SEBELUMNYA list ini
-                            sama sekali gak nunjukin ada scan apa enggak, admin harus
-                            buka halaman detail dulu (ditemukan via pertanyaan user
-                            2026-10-14). */}
-                        {d.scan_fisik_path && (
-                          <a href={d.scan_fisik_path} target="_blank" rel="noopener noreferrer"
-                            className="text-[#1A4FA0] font-bold hover:underline text-xs">👁️ Scan</a>
-                        )}
-                      </div>
-                    )}
+                    {/* Link "🧾 TT [jenis]" DIHAPUS (dikonfirmasi user
+                        2026-10-14) -- sebelumnya nunjukin SEMUA Tanda Terima
+                        booking ini, gak ada hubungan data sama sekali sama
+                        Invoice spesifik yang lagi dilihat (cuma kebetulan
+                        sama-sama nempel booking yang sama), jadi suka gak
+                        nyambung. Saran dokumen yang BENERAN relevan sekarang
+                        muncul pas admin nge-toggle status ke Paid (lihat
+                        rekomendasiSetelahPaid di bawah). */}
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
+                        className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Cetak</button>
+                      {/* Link langsung ke scan materai+TTD -- SEBELUMNYA list ini
+                          sama sekali gak nunjukin ada scan apa enggak, admin harus
+                          buka halaman detail dulu (ditemukan via pertanyaan user
+                          2026-10-14). */}
+                      {d.scan_fisik_path && (
+                        <a href={d.scan_fisik_path} target="_blank" rel="noopener noreferrer"
+                          className="text-[#1A4FA0] font-bold hover:underline text-xs">👁️ Scan</a>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+      {rekomendasiSetelahPaid && (
+        <div className="fixed bottom-4 right-4 z-50 bg-white border-2 border-[#1A4FA0] rounded-xl shadow-lg p-4 max-w-xs text-sm">
+          <button onClick={() => setRekomendasiSetelahPaid(null)} className="float-right text-gray-400 hover:text-gray-600 text-xs">✕</button>
+          {rekomendasiSetelahPaid.kwitansi ? (
+            <>
+              <div className="font-bold text-[#0E2F6E] mb-1">✅ Booking {rekomendasiSetelahPaid.bookingId} lunas total!</div>
+              <div className="text-xs text-gray-500 mb-2">Kwitansi Pembayaran {rekomendasiSetelahPaid.kwitansi.nomor || '(nomor baru dibuat)'} udah {rekomendasiSetelahPaid.kwitansi.isNew ? 'dibuat' : 'diupdate'} otomatis.</div>
+              <button onClick={() => { window.open(`/admin/cetak-invoice/${rekomendasiSetelahPaid.kwitansi.id}`, '_blank'); setRekomendasiSetelahPaid(null); }}
+                className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold py-2 rounded-full">
+                🧾 Buka Kwitansi
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="font-bold text-[#0E2F6E] mb-1">📝 Belum lunas total</div>
+              <div className="text-xs text-gray-500 mb-2">Mau buatkan Tanda Terima Uang buat pembayaran Rp{Number(rekomendasiSetelahPaid.nominal).toLocaleString('id-ID')} ini?</div>
+              <button onClick={() => {
+                setForm({ ...formKosong('tanda_terima'), booking_id: rekomendasiSetelahPaid.bookingId, nama: rekomendasiSetelahPaid.nama, nominal: String(rekomendasiSetelahPaid.nominal) });
+                setTab('tanda_terima');
+                setShowForm(true);
+                setRekomendasiSetelahPaid(null);
+              }} className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold py-2 rounded-full">
+                📝 Buat Tanda Terima Uang
+              </button>
+            </>
+          )}
         </div>
       )}
 
