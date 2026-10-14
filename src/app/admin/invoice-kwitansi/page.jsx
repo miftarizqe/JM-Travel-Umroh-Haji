@@ -176,10 +176,21 @@ function InvoiceKwitansiPageInner() {
   }
 
   // Begitu Booking ID di form manual diisi (blur), tarik data booking-nya
-  // dan auto-isi Nama + Nominal + Judul (saran DP/Pelunasan, lihat
-  // saranInvoice) + total_harga (buat basis hitung Sisa) + detail
-  // (jamaah/tanggal berangkat/referral, buat verifikasi) — cuma isi field
-  // yang MASIH KOSONG, biar gak nimpa yang udah diketik manual.
+  // dan auto-isi Nama + Nominal + Judul + total_harga (buat basis hitung
+  // Sisa) + detail (jamaah/tanggal berangkat/referral, buat verifikasi) —
+  // cuma isi field yang MASIH KOSONG, biar gak nimpa yang udah diketik
+  // manual. Saran nominal BEDA per jenis (dikonfirmasi user 2026-10-14,
+  // bug ditemukan: buka form Kwitansi buat booking yang udah lunas total
+  // malah kesaran nominal kecil kayak "15 juta" — karena SEBELUMNYA di
+  // sini saranInvoice() yang DP/Pelunasan-oriented ikut dipanggil
+  // walaupun lagi bikin Kwitansi, bukan Invoice):
+  // - Invoice -> saranInvoice (DP kalau belum, atau Pelunasan = sisa).
+  // - Kwitansi -> LANGSUNG total_harga (dokumen final, "kwitansi total
+  //   bayar seluruhnya" — gak perlu breakdown sisa/sudah-dibayar sama
+  //   sekali, itu logic buat Invoice doang).
+  // - Tanda Terima Uang -> gak disaranin (biasanya udah pre-filled dari
+  //   tombol "Buat TTU" di baris Invoice yang di-paid-in, lihat
+  //   rekomendasiSetelahPaid), admin isi manual kalau dibuka langsung.
   async function isiOtomatisDariBooking() {
     const bid = form.booking_id.trim();
     if (!bid) { setTotalHargaForm(null); setDetailBookingForm(null); return; }
@@ -189,7 +200,9 @@ function InvoiceKwitansiPageInner() {
       if (!b) { setTotalHargaForm(null); setDetailBookingForm(null); return; }
       setTotalHargaForm(Number(b.total_harga || 0));
       setDetailBookingForm(b);
-      const saran = saranInvoice(b);
+      const saran = form.jenis === 'invoice' ? saranInvoice(b)
+        : form.jenis === 'kwitansi' ? { nominal: String(Number(b.total_harga || 0)), judul: '' }
+        : { nominal: '', judul: '' };
       setForm(f => ({
         ...f,
         nama: f.nama.trim() ? f.nama : (b.pemesan_nama || f.nama),
@@ -221,7 +234,10 @@ function InvoiceKwitansiPageInner() {
   // (Kwitansi dokumen final, adminlah yang tau persis berapa yang beneran
   // diterima) — admin isi manual.
   function bukaFormKwitansi(b) {
-    setForm({ ...formKosong('kwitansi'), booking_id: b.id, nama: b.pemesan_nama || '' });
+    // Nominal langsung total_harga (dikonfirmasi user 2026-10-14, "kwitansi
+    // total bayar seluruhnya") -- Kwitansi dokumen final per booking, kalau
+    // udah lunas ya nominalnya emang total_harga, admin tetap bebas ubah.
+    setForm({ ...formKosong('kwitansi'), booking_id: b.id, nama: b.pemesan_nama || '', nominal: String(Number(b.total_harga || 0)) });
     setTotalHargaForm(Number(b.total_harga || 0));
     setDetailBookingForm(b);
     setTab('kwitansi');
@@ -274,29 +290,16 @@ function InvoiceKwitansiPageInner() {
     }
   }
 
-  async function toggleStatus(d) {
-    // Invoice: one-way lock + wajib bukti (dikonfirmasi user 2026-10-14,
-    // "jangan sampai bisa orang asal-asalan bikin itu lunas") -- udah
-    // Paid gak ada aksi apa-apa lagi, belum Paid buka modal upload bukti
-    // dulu (lihat konfirmasiTandaiPaid), BUKAN langsung toggle. Kwitansi
-    // TETAP bebas ditoggle manual kayak sebelumnya (beda kasus, lihat
-    // komentar di PATCH route).
-    if (d.jenis === 'invoice') {
-      if (d.status === 'paid') return;
-      setModalTandaiPaid(d);
-      setBuktiLunasPath(null);
-      setBuktiLunasNama(null);
-      return;
-    }
-    const statusBaru = d.status === 'paid' ? 'unpaid' : 'paid';
-    if (!confirm(`Tandai ${d.nomor} sebagai "${statusBaru === 'paid' ? 'Paid' : 'Unpaid'}"?`)) return;
-    const res = await fetch('/api/admin/invoice-kwitansi', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: d.id, status: statusBaru }),
-    });
-    const j = await res.json();
-    if (!res.ok) { alert(j.error || 'Gagal mengubah status'); return; }
-    muat(q);
+  // Cuma kepanggil buat Invoice yang masih Unpaid -- Kwitansi/TTU statusnya
+  // selalu Paid (badge statis, gak ada tombol), Invoice yang udah Paid
+  // one-way locked (gak ada tombol juga, lihat kolom status di tabel).
+  // Wajib bukti dulu (dikonfirmasi user 2026-10-14, "jangan sampai bisa
+  // orang asal-asalan bikin itu lunas") -- buka modal upload, BUKAN
+  // langsung toggle (lihat konfirmasiTandaiPaid).
+  function toggleStatus(d) {
+    setModalTandaiPaid(d);
+    setBuktiLunasPath(null);
+    setBuktiLunasNama(null);
   }
 
   async function konfirmasiTandaiPaid() {
@@ -531,11 +534,14 @@ function InvoiceKwitansiPageInner() {
                   <td className="px-3 py-2 whitespace-nowrap">{tgl(d.tanggal)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{d.is_manual ? 'Manual' : 'Otomatis'}</td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    {/* Tanda Terima cuma dibuat begitu uangnya beneran udah
-                        diterima — statusnya selalu Paid, gak perlu toggle. */}
-                    {d.jenis === 'tanda_terima' ? (
+                    {/* Tanda Terima & Kwitansi cuma dibuat begitu uangnya
+                        BENERAN udah diterima/lunas total — statusnya selalu
+                        Paid, gak ngaruh apa-apa buat ditoggle (dikonfirmasi
+                        user 2026-10-14) — dijadiin badge statis doang, biar
+                        gak ada yang kepencet gak sengaja ngubah isi cetakan. */}
+                    {d.jenis === 'tanda_terima' || d.jenis === 'kwitansi' ? (
                       <span className="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700">✅ Paid</span>
-                    ) : d.jenis === 'invoice' && d.status === 'paid' ? (
+                    ) : d.status === 'paid' ? (
                       // One-way lock (dikonfirmasi user 2026-10-14) -- udah
                       // Paid gak bisa diklik/diutak-atik lagi sama sekali.
                       <div className="flex items-center gap-1.5">

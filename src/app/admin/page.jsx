@@ -2148,6 +2148,16 @@ function AdminPageInner() {
                         if (sc.kind === 'selesai') {
                           return <div className="text-center text-xs text-green-600 font-bold py-1 mt-1">✅ Perjalanan Selesai — closing tercatat</div>;
                         }
+                        {/* Lunas TAPI formulir belum lengkap — SEBELUMNYA kosong
+                            total di sini (gak ada return sama sekali buat kind
+                            ini), keliatan kayak "udah semua beres" padahal masih
+                            ada yang perlu diselesaikan (ditemukan user 2026-10-14,
+                            "jangan dibablas seakan udah semua"). Tombol "Lengkapi
+                            Formulir" sendiri udah ada di atas (baris 2107-ish),
+                            ini nambahin penanda eksplisit di status ladder-nya. */}
+                        if (sc.kind === 'form-belum') {
+                          return <div className="text-center text-xs text-blue-600 font-bold py-1 mt-1">💰 Lunas — tinggal lengkapi formulir jamaah dulu sebelum siap closing.</div>;
+                        }
                         if (sc.kind === 'siap') {
                           return (
                             <button onClick={() => tandaiSelesai(b.id)} className="w-full mt-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 rounded-full">
