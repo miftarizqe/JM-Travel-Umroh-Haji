@@ -41,8 +41,36 @@ const BATAS_MATERAI = 5_000_000;
 
 const td = { border: '1px solid #000', padding: '6px 8px' };
 
+// Kombo paket+kamar sama persis buat SEMUA entry? Kalau enggak, baris
+// "Paket" dipecah per-orang (dikonfirmasi user 2026-10-14) — jangan cuma
+// nulis "Campuran" generik kalau datanya emang ada buat dirinci per orang.
+function uniformCombo(list) {
+  if (!list || list.length === 0) return true;
+  const first = list[0];
+  return list.every(j => j.paket === first.paket && j.kamar === first.kamar);
+}
+
 function BarisPaket({ booking }) {
-  const qty = Number(booking.jumlah_jamaah || 1);
+  const list = booking.jamaah_breakdown || [];
+  const qty = list.length || Number(booking.jumlah_jamaah || 1);
+
+  // Mixed combo & ada datanya — 1 baris PER ORANG, qty/satuan/jumlah masing2
+  // pakai harga_jual orang itu sendiri (pre-voucher, snapshot katalog —
+  // sama konvensi cetak-formulir).
+  if (list.length > 0 && !uniformCombo(list)) {
+    return list.map((j, i) => (
+      <tr key={i}>
+        <td style={td}>{j.nama} — {PAKET_LABEL[j.paket] || j.paket}{j.kamar ? ` · ${j.kamar}` : ''}</td>
+        <td style={{ ...td, textAlign: 'center' }}>1</td>
+        <td style={{ ...td, textAlign: 'right' }}>{rp(j.hargaJual)}</td>
+        <td style={{ ...td, textAlign: 'right' }}>{rp(j.hargaJual)}</td>
+      </tr>
+    ));
+  }
+
+  // Seragam (atau breakdown kosong, fallback) — 1 baris gabungan, PERSIS
+  // angka yang sama kayak sebelumnya (total_harga booking, bukan jumlah
+  // harga_jual per-orang, biar gak geser dari voucher/opsi tambahan).
   return (
     <tr>
       <td style={td}>
@@ -60,6 +88,27 @@ function BarisPaket({ booking }) {
       <td style={{ ...td, textAlign: 'right' }}>{rp(perUnit(booking.total_harga, qty))}</td>
       <td style={{ ...td, textAlign: 'right' }}>{rp(booking.total_harga)}</td>
     </tr>
+  );
+}
+
+// Daftar "Atas Nama Jamaah" buat baris DP/Pelunasan/Tanda Terima — SCOPED ke
+// jamaah yang BENERAN ditutup pembayaran itu (bukan seisi booking, lihat
+// jamaah_breakdown_pembayaran di API). Beda dari BarisPaket: amount-nya
+// SENGAJA gak dipecah per-orang di sini (DP itu flat per kepala, gak
+// tergantung paket — mencoba mecah proporsional cuma bikin angka ambigu),
+// cuma label namanya yang dikasih keterangan paket kalau emang campuran.
+function KeteranganPembayaran({ list }) {
+  if (!list || list.length === 0) return null;
+  const uniform = uniformCombo(list);
+  return (
+    <div style={{ marginTop: 4 }}>
+      <b>Atas Nama Jamaah:</b>
+      <ol style={{ margin: '4px 0 0 20px', padding: 0 }}>
+        {list.map((j, i) => (
+          <li key={i}>{j.nama}{!uniform ? ` — ${PAKET_LABEL[j.paket] || j.paket}${j.kamar ? ` · ${j.kamar}` : ''}` : ''}</li>
+        ))}
+      </ol>
+    </div>
   );
 }
 
@@ -150,7 +199,13 @@ export default function CetakInvoiceKwitansi() {
 
   const judul = JUDUL[dokumen.jenis];
   const punyaRincianBooking = booking?.total_harga != null;
-  const qtyJamaah = booking ? Number(booking.jumlah_jamaah || 1) : 1;
+  // tanda_terima SCOPED ke jamaah yang BENERAN ditutup payment itu (lihat
+  // jamaah_breakdown_pembayaran di API) — kwitansi/invoice tetap booking
+  // penuh (dikonfirmasi user 2026-10-14).
+  const jamaahUntukPembayaran = dokumen.jenis === 'tanda_terima'
+    ? (booking?.jamaah_breakdown_pembayaran || booking?.jamaah_breakdown || [])
+    : (booking?.jamaah_breakdown || []);
+  const qtyJamaah = jamaahUntukPembayaran.length || (booking ? Number(booking.jumlah_jamaah || 1) : 1);
   const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
   // UU Bea Meterai Pasal 3: "nilai nominal LEBIH DARI Rp5.000.000" — strictly
   // di atas, Rp5.000.000 persis TIDAK kena materai (dikonfirmasi user
@@ -264,9 +319,16 @@ export default function CetakInvoiceKwitansi() {
           <tbody>
             {punyaRincianBooking ? (
               <>
-                <BarisPaket booking={booking} />
+                {/* BarisPaket (rangkuman paket + total_harga SELURUH booking)
+                    DISKIP buat tanda_terima — dokumen ini nutup 1 payment
+                    SPESIFIK (bisa cuma sebagian jamaah/sebagian total), baris
+                    rangkuman booking penuh di sini cuma bikin bingung ada 2
+                    angka beda tampil bareng. "Atas Nama Jamaah"-nya udah
+                    dicover KeteranganPembayaran di baris pembayaran di bawah
+                    (dikonfirmasi user 2026-10-14). */}
+                {dokumen.jenis !== 'tanda_terima' && <BarisPaket booking={booking} />}
 
-                {booking.opsi_tambahan_total > 0 && (
+                {dokumen.jenis !== 'tanda_terima' && booking.opsi_tambahan_total > 0 && (
                   <BarisItem
                     label={booking.opsi_tambahan_nama?.length > 0 ? `Opsi Tambahan: ${booking.opsi_tambahan_nama.join(', ')}` : 'Opsi Tambahan'}
                     jumlah={booking.opsi_tambahan_total}
@@ -299,6 +361,7 @@ export default function CetakInvoiceKwitansi() {
                 {dokumen.jenis === 'tanda_terima' && (
                   <>
                     <BarisItem label={`${LABEL_TIPE_PEMBAYARAN[payment?.type] || 'Pembayaran'} — diterima`}
+                      sub={<KeteranganPembayaran list={jamaahUntukPembayaran} />}
                       qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
                     <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
                   </>

@@ -404,10 +404,15 @@ export async function buatSatuBooking(conn, params) {
   // terpisah per booking yang bukti transfernya keliatan berulang-ulang
   // padahal file-nya sama persis (dikonfirmasi user 2026-07-28: bikin admin
   // gampang lengah pas ngecek satu-satu).
+  // jamaah_data_snapshot = jamaahDataAwal (SAMA PERSIS isinya) — biar TTU/
+  // Invoice buat DP ini nanti kebaca jamaah siapa aja yang DP-nya beneran
+  // nutup, gak ikut narik jamaah tambahan yang ditambahin belakangan lewat
+  // Tambah Jamaah (dikonfirmasi user 2026-10-14, lihat GET
+  // /api/admin/invoice-kwitansi/[id]).
   await conn.query(
-    `INSERT INTO payments (booking_id, batch_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at)
-    VALUES (?,?,?,?,?,?,?,?,NOW())`,
-    [bookingId, batch_id || null, user_id, 'dp', dpAmount + (kode_unik_dp||0), kode_unik_dp||0, bukti_path||null, bukti_nama||null]
+    `INSERT INTO payments (booking_id, batch_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, jamaah_data_snapshot)
+    VALUES (?,?,?,?,?,?,?,?,NOW(),?)`,
+    [bookingId, batch_id || null, user_id, 'dp', dpAmount + (kode_unik_dp||0), kode_unik_dp||0, bukti_path||null, bukti_nama||null, jamaahDataAwal]
   );
 
   return { bookingId, dpAmount, totalHarga: totalSetelahVoucher };
@@ -567,10 +572,13 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
     [JSON.stringify(entriesFinal), jumlahJamaahBaru, formTotalBaru, totalHargaBaru, dpAmountBaru, bookingId]
   );
 
+  // jamaah_data_snapshot = CUMA pax yang baru ditambahkan (entriesBaru),
+  // BUKAN entriesFinal (yang lama ikut) — DP ini emang cuma buat orang baru
+  // ini, biar TTU-nya kebaca bener (dikonfirmasi user 2026-10-14).
   await conn.query(
-    `INSERT INTO payments (booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status)
-     VALUES (?,?,?,?,?,?,?,NOW(),'pending')`,
-    [bookingId, userId, 'dp', dpAmountTambahan, 0, buktiPath, buktiNama || null]
+    `INSERT INTO payments (booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status, jamaah_data_snapshot)
+     VALUES (?,?,?,?,?,?,?,NOW(),'pending',?)`,
+    [bookingId, userId, 'dp', dpAmountTambahan, 0, buktiPath, buktiNama || null, JSON.stringify(entriesBaru)]
   );
 
   return { jumlahTambahan: n, dpAmountTambahan, totalHargaBaru, perjanjianDireset: !!booking.setuju_pks };

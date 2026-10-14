@@ -1,6 +1,6 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
-import { ringkasanPaketKamar } from '@/lib/jamaahHarga';
+import { ringkasanPaketKamar, resolveJamaahHarga } from '@/lib/jamaahHarga';
 
 // GET /api/admin/invoice-kwitansi/[id] — detail 1 dokumen buat halaman cetak.
 // Admin selalu boleh. Pemilik booking-nya (jamaah) JUGA boleh, HANYA kalau
@@ -22,10 +22,14 @@ export async function GET(request, { params }) {
     const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
 
     // Tanda Terima Uang nempel ke 1 payment spesifik — ambil tipe pembayaran
-    // (dp/lunas) buat ditampilin di cetakan ("Pembayaran diterima — DP", dst).
+    // (dp/lunas) buat ditampilin di cetakan ("Pembayaran diterima — DP", dst),
+    // + jamaah_data_snapshot (jamaah yang BENERAN ditutup payment DP ini,
+    // lihat migration 223 & src/lib/booking.js) buat Keterangan yang akurat
+    // (dikonfirmasi user 2026-10-14 — sebelumnya narik jamaah_data booking
+    // TERKINI, salah kalau udah ada pax tambahan sesudahnya).
     let payment = null;
     if (dokumen.payment_id) {
-      const [[p]] = await pool.query('SELECT type FROM payments WHERE id = ?', [dokumen.payment_id]);
+      const [[p]] = await pool.query('SELECT type, jamaah_data_snapshot FROM payments WHERE id = ?', [dokumen.payment_id]);
       payment = p || null;
     }
 
@@ -76,6 +80,37 @@ export async function GET(request, { params }) {
         const rpk = ringkasanPaketKamar({ ...b, jamaah_data: jamaahParsed });
         if (rpk.campuran) { b.paket = 'Campuran'; b.kamar = 'Campuran'; }
 
+        // jamaah_breakdown = daftar {nama, paket, kamar, hargaJual} per
+        // jamaah AKTIF (dibatalkan di-skip) — sumber tunggal buat halaman
+        // cetak nampilin rincian PER ORANG kalau paket/kamar mereka beda-beda
+        // (dikonfirmasi user 2026-10-14, "jangan ditulis campuran, rinci per
+        // jamaah kalau emang beda"). resolveJamaahHarga ngasih kombo per
+        // entry (eksplisit kalau pernah diedit admin, else fallback rata-rata
+        // booking-level — sama logic yang dipakai ringkasanPaketKamar di atas).
+        const jamaahBreakdown = jamaahParsed
+          .filter(j => j?.status_jamaah !== 'dibatalkan')
+          .map(j => {
+            const r = resolveJamaahHarga({ ...b, jamaah_data: jamaahParsed }, j);
+            return { nama: j.nama || '-', paket: r.paket, kamar: r.kamar, hargaJual: r.hargaJual };
+          });
+
+        // Buat dokumen 'tanda_terima' type DP yang punya jamaah_data_snapshot
+        // (payment BARU, pasca migration 223) — breakdown KHUSUS payment ini
+        // dipakai, BUKAN breakdown booking penuh di atas (biar DP pax
+        // tambahan gak ikut narik jamaah yang DP-nya udah confirmed di
+        // payment lain). Lunas & payment lama tanpa snapshot tetap pakai
+        // breakdown booking penuh (lunas emang nutup SEMUA jamaah aktif).
+        let jamaahBreakdownPembayaran = jamaahBreakdown;
+        if (dokumen.jenis === 'tanda_terima' && payment?.type === 'dp' && payment.jamaah_data_snapshot) {
+          let snap = payment.jamaah_data_snapshot;
+          if (typeof snap === 'string') { try { snap = JSON.parse(snap); } catch { snap = null; } }
+          if (Array.isArray(snap) && snap.length > 0) {
+            jamaahBreakdownPembayaran = snap.map(j => ({
+              nama: j.nama || '-', paket: j.paket, kamar: j.kamar, hargaJual: Number(j.harga_jual) || 0,
+            }));
+          }
+        }
+
         // Opsi tambahan (addon di luar paket dasar) — kalau ada isinya,
         // dipakai sbg baris "item lain" tambahan di halaman cetak, format
         // sama kayak baris Paket.
@@ -109,6 +144,7 @@ export async function GET(request, { params }) {
 
         booking = {
           ...b, jamaah_data: undefined, jamaah_nama: jamaahNama,
+          jamaah_breakdown: jamaahBreakdown, jamaah_breakdown_pembayaran: jamaahBreakdownPembayaran,
           opsi_tambahan_data: undefined, opsi_tambahan_nama: opsiTambahanNama,
           dp_dibayar_tanggal: bayarDp?.created_at || null,
           sisa_pembayaran: sisaPembayaran,
