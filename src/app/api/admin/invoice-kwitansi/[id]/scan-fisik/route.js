@@ -6,6 +6,7 @@ import { wajibRole } from '@/lib/auth';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 const MAKS = 10 * 1024 * 1024; // 10MB — bisa scan multi-halaman
+const JENIS_LOCK_ON_SEND = ['tanda_terima', 'kwitansi'];
 
 // POST /api/admin/invoice-kwitansi/[id]/scan-fisik  (multipart: file, user_id)
 // Unggah scan/foto Invoice/Kwitansi/Tanda Terima Uang yang sudah dicetak +
@@ -13,13 +14,12 @@ const MAKS = 10 * 1024 * 1024; // 10MB — bisa scan multi-halaman
 // `user_id` di form field ikut konvensi UploadScanDokumen (komponen dipakai
 // generik lintas jenis dokumen) — di sini nilainya invoice_kwitansi.id.
 //
-// Tanda Terima Uang (dikonfirmasi user 2026-10-14): upload scan di sini
-// CUMA nempelin filenya, TIDAK langsung nandain "terkirim" lagi — itu
-// sekarang tombol TERPISAH "Kirim ke Jamaah" (POST .../setuju), biar
+// Tanda Terima Uang & Kwitansi (dikonfirmasi user 2026-10-14): upload scan
+// di sini CUMA nempelin filenya, TIDAK langsung nandain "terkirim" lagi —
+// itu sekarang tombol TERPISAH "Kirim ke Jamaah" (POST .../setuju), biar
 // admin bisa unggah scan dulu, cek lagi, baru BENERAN kirim (kontennya
-// dibekukan PAS diklik kirim, bukan pas scan). Invoice/Kwitansi TETAP
-// perilaku lama (auto-terkirim begitu scan diunggah) — di luar scope,
-// fokus Tanda Terima Uang dulu.
+// dibekukan PAS diklik kirim, bukan pas scan). Invoice TETAP perilaku lama
+// (auto-terkirim begitu scan diunggah) — di luar scope, dibahas terpisah.
 export async function POST(request, { params }) {
   const auth = wajibRole(request, ['admin', 'super_admin']);
   if (auth.error) return auth.error;
@@ -52,7 +52,7 @@ export async function POST(request, { params }) {
     await writeFile(path.join(dir, nama), Buffer.from(await file.arrayBuffer()));
 
     const publicPath = `/api/dokumen/invoice-kwitansi-scan/${nama}`;
-    if (rows[0].jenis === 'tanda_terima') {
+    if (JENIS_LOCK_ON_SEND.includes(rows[0].jenis)) {
       await pool.query(
         `UPDATE invoice_kwitansi SET scan_fisik_path = ?, scan_fisik_uploaded_at = NOW() WHERE id = ?`,
         [publicPath, id]

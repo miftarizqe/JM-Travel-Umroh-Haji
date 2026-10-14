@@ -50,8 +50,16 @@ function uniformCombo(list) {
   return list.every(j => j.paket === first.paket && j.kamar === first.kamar);
 }
 
-function BarisPaket({ booking }) {
-  const list = booking.jamaah_breakdown || [];
+function BarisPaket({ booking, listOverride }) {
+  // listOverride dipakai Kwitansi (dikonfirmasi user 2026-10-14) — begitu
+  // udah "Kirim ke Jamaah", daftar jamaah/qty di baris ini WAJIB ikut
+  // jamaah_breakdown_pembayaran yang udah dibekukan (lihat komponen
+  // pemanggil), bukan booking.jamaah_breakdown yang selalu dihitung LIVE —
+  // kalau enggak, baris ini bisa "berubah" walau nominal di bawahnya udah
+  // dikunci. Invoice (listOverride gak dikasih) tetap pakai data booking
+  // live seperti biasa, belum ikut lock.
+  const list = listOverride || booking.jamaah_breakdown || [];
+  const namaList = listOverride ? listOverride.map(j => j.nama) : (booking.jamaah_nama || []);
   const qty = list.length || Number(booking.jumlah_jamaah || 1);
 
   // Mixed combo & ada datanya — 1 baris PER ORANG, qty/satuan/jumlah masing2
@@ -75,11 +83,11 @@ function BarisPaket({ booking }) {
     <tr>
       <td style={td}>
         <div><b>Paket:</b> {PAKET_LABEL[booking.paket] || booking.paket}{booking.kamar ? ` · ${booking.kamar}` : ''}</div>
-        {booking.jamaah_nama?.length > 0 && (
+        {namaList.length > 0 && (
           <div style={{ marginTop: 4 }}>
             <b>Atas Nama Jamaah:</b>
             <ol style={{ margin: '4px 0 0 20px', padding: 0 }}>
-              {booking.jamaah_nama.map((nama, i) => <li key={i}>{nama}</li>)}
+              {namaList.map((nama, i) => <li key={i}>{nama}</li>)}
             </ol>
           </div>
         )}
@@ -174,7 +182,7 @@ export default function CetakInvoiceKwitansi() {
   // jm-travel-api). Cek Caddyfile.tahap2 di VPS kalau ternyata masih
   // keproxy ke Go.
   async function setujui() {
-    const pesanKonfirmasi = dokumen.jenis === 'tanda_terima'
+    const pesanKonfirmasi = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
       ? `Kirim ${JUDUL[dokumen.jenis]} ${dokumen.nomor} ke jamaah sekarang? Setelah dikirim, isi dokumen ini terkunci permanen.`
       : `Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor}? Dokumen akan ditandai sudah dikirim.`;
     if (!confirm(pesanKonfirmasi)) return;
@@ -204,10 +212,12 @@ export default function CetakInvoiceKwitansi() {
 
   const judul = JUDUL[dokumen.jenis];
   const punyaRincianBooking = booking?.total_harga != null;
-  // tanda_terima SCOPED ke jamaah yang BENERAN ditutup payment itu (lihat
-  // jamaah_breakdown_pembayaran di API) — kwitansi/invoice tetap booking
-  // penuh (dikonfirmasi user 2026-10-14).
-  const jamaahUntukPembayaran = dokumen.jenis === 'tanda_terima'
+  // tanda_terima & kwitansi pakai jamaah_breakdown_pembayaran — buat TTU itu
+  // SCOPED ke jamaah yang BENERAN ditutup payment itu, buat kwitansi isinya
+  // sama kayak booking penuh TAPI dibekukan begitu udah terkirim (lihat
+  // migration 224 & lock-on-send di POST .../setuju). Invoice tetap pakai
+  // breakdown booking LIVE, belum ikut lock (dikonfirmasi user 2026-10-14).
+  const jamaahUntukPembayaran = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
     ? (booking?.jamaah_breakdown_pembayaran || booking?.jamaah_breakdown || [])
     : (booking?.jamaah_breakdown || []);
   const qtyJamaah = jamaahUntukPembayaran.length || (booking ? Number(booking.jumlah_jamaah || 1) : 1);
@@ -267,9 +277,9 @@ export default function CetakInvoiceKwitansi() {
             </div>
           )}
         </div>
-      ) : !isAdmin ? null : dokumen.jenis === 'tanda_terima' ? (
-        // Tanda Terima Uang (dikonfirmasi user 2026-10-14): "Kirim ke
-        // Jamaah" sekarang tombol TERPISAH dari upload scan — scan cuma
+      ) : !isAdmin ? null : ['tanda_terima', 'kwitansi'].includes(dokumen.jenis) ? (
+        // Tanda Terima Uang & Kwitansi (dikonfirmasi user 2026-10-14): "Kirim
+        // ke Jamaah" sekarang tombol TERPISAH dari upload scan — scan cuma
         // nempelin file, kontennya baru DIBEKUKAN & jamaah baru DIBERITAHU
         // pas tombol ini beneran diklik. >Rp5jt wajib lewat step scan dulu.
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
@@ -303,9 +313,9 @@ export default function CetakInvoiceKwitansi() {
           </button>
         </div>
       ) : butuhMaterai ? (
-        // Invoice/Kwitansi: perilaku LAMA gak diubah (di luar scope — fokus
-        // Tanda Terima Uang dulu, dikonfirmasi user 2026-10-14). >= Rp5jt
-        // WAJIB materai asli, cuma jalur fisik (upload scan = auto-terkirim).
+        // Invoice: perilaku LAMA gak diubah (di luar scope — dibahas
+        // terpisah nanti, dikonfirmasi user 2026-10-14). >= Rp5jt WAJIB
+        // materai asli, cuma jalur fisik (upload scan = auto-terkirim).
         <>
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12, fontSize: 11, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 8 }}>
           ⚠️ Nominal ≥ Rp5.000.000 — wajib materai asli. Print, tempel materai, TTD basah nembus materai, stempel, lalu unggah scan.
@@ -379,7 +389,7 @@ export default function CetakInvoiceKwitansi() {
               </>
             ) : punyaRincianBooking ? (
               <>
-                <BarisPaket booking={booking} />
+                <BarisPaket booking={booking} listOverride={dokumen.jenis === 'kwitansi' ? jamaahUntukPembayaran : undefined} />
 
                 {booking.opsi_tambahan_total > 0 && (
                   <BarisItem

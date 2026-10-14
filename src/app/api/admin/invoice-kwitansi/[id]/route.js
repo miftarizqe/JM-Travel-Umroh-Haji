@@ -91,17 +91,17 @@ export async function GET(request, { params }) {
             return { nama: j.nama || '-', paket: r.paket, kamar: r.kamar, hargaJual: r.hargaJual };
           });
 
-        // Breakdown khusus "Tanda Terima Uang" — begitu dokumen ini UDAH
-        // DIKIRIM, kontennya WAJIB diambil dari jamaah_breakdown_snapshot
-        // yang dibekukan PERSIS pas tombol "Kirim ke Jamaah" diklik (lihat
-        // POST .../setuju & migration 224) — TIDAK dihitung ulang lagi,
-        // biar TTU yang udah terkirim gak keliatan "berubah" kalau
-        // booking-nya berubah belakangan (dikonfirmasi user 2026-10-14,
-        // "kalo udah gue click kirim itu otomatis kelock"). Sebelum
-        // dikirim (masih preview/draft), dihitung LIVE via
+        // Breakdown khusus Tanda Terima Uang & Kwitansi — begitu dokumen
+        // ini UDAH DIKIRIM, kontennya WAJIB diambil dari
+        // jamaah_breakdown_snapshot yang dibekukan PERSIS pas tombol "Kirim
+        // ke Jamaah" diklik (lihat POST .../setuju & migration 224) — TIDAK
+        // dihitung ulang lagi, biar dokumen yang udah terkirim gak keliatan
+        // "berubah" kalau booking-nya berubah belakangan (dikonfirmasi user
+        // 2026-10-14, "kalo udah gue click kirim itu otomatis kelock").
+        // Sebelum dikirim (masih preview/draft), dihitung LIVE via
         // hitungJamaahBreakdownTtu biar admin lihat data terkini.
         let jamaahBreakdownPembayaran = jamaahBreakdown;
-        if (dokumen.jenis === 'tanda_terima') {
+        if (['tanda_terima', 'kwitansi'].includes(dokumen.jenis)) {
           if (dokumen.terkirim && dokumen.jamaah_breakdown_snapshot) {
             let snap = dokumen.jamaah_breakdown_snapshot;
             if (typeof snap === 'string') { try { snap = JSON.parse(snap); } catch { snap = null; } }

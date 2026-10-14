@@ -5,6 +5,10 @@ import { hitungJamaahBreakdownTtu } from '@/lib/invoiceKwitansi';
 
 const JENIS_LABEL = { invoice: 'Invoice', kwitansi: 'Kwitansi Pembayaran', tanda_terima: 'Tanda Terima Uang' };
 
+// Tanda Terima Uang & Kwitansi pakai alur "Kirim" eksplisit + lock-on-send
+// (dikonfirmasi user 2026-10-14) — Invoice BELUM, dibahas terpisah nanti.
+const JENIS_LOCK_ON_SEND = ['tanda_terima', 'kwitansi'];
+
 // UU Bea Meterai No.10/2020 Pasal 3 — dokumen yang menyatakan PENERIMAAN
 // uang dengan nilai nominal LEBIH DARI Rp5.000.000 wajib materai Rp10.000
 // asli (strictly di atas, persis Rp5jt TIDAK kena, dikonfirmasi user
@@ -42,13 +46,14 @@ export async function POST(request, { params }) {
     const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
     const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
 
-    // Tanda Terima Uang (dikonfirmasi user 2026-10-14): ini SEKARANG tombol
-    // "Kirim ke Jamaah" satu-satunya — gak lagi auto-terkirim pas scan
-    // diunggah (lihat scan-fisik/route.js). Nominal >Rp5jt WAJIB udah ada
-    // scan fisik (materai+TTD) dulu sebelum boleh kirim; kalau belum,
-    // ditolak di sini juga (bukan cuma disembunyikan di tombol UI).
-    // Nominal <=Rp5jt boleh langsung kirim tanpa materai (self-certify).
-    if (dokumen.jenis === 'tanda_terima') {
+    // Tanda Terima Uang & Kwitansi (dikonfirmasi user 2026-10-14): ini
+    // SEKARANG tombol "Kirim ke Jamaah" satu-satunya — gak lagi auto-
+    // terkirim pas scan diunggah (lihat scan-fisik/route.js). Nominal
+    // >Rp5jt WAJIB udah ada scan fisik (materai+TTD) dulu sebelum boleh
+    // kirim; kalau belum, ditolak di sini juga (bukan cuma disembunyikan
+    // di tombol UI). Nominal <=Rp5jt boleh langsung kirim tanpa materai
+    // (self-certify).
+    if (JENIS_LOCK_ON_SEND.includes(dokumen.jenis)) {
       if (butuhMaterai && !dokumen.scan_fisik_path) {
         return Response.json(
           { error: `Nominal Rp${Number(dokumen.nominal).toLocaleString('id-ID')} wajib materai asli — unggah scan fisik (materai+TTD) dulu sebelum kirim ke jamaah.` },
@@ -56,8 +61,8 @@ export async function POST(request, { params }) {
         );
       }
     } else if (butuhMaterai) {
-      // Invoice/Kwitansi: perilaku LAMA gak diubah (di luar scope — fokus
-      // Tanda Terima Uang dulu, dikonfirmasi user 2026-10-14) — tetap
+      // Invoice: perilaku LAMA gak diubah (di luar scope — fokus Tanda
+      // Terima Uang & Kwitansi dulu, dikonfirmasi user 2026-10-14) — tetap
       // hard-block, satu-satunya jalur tetap scan-fisik (auto-terkirim).
       return Response.json(
         { error: `Nominal Rp${Number(dokumen.nominal).toLocaleString('id-ID')} wajib materai asli — tidak bisa disetujui tanpa materai. Cetak fisik, tempel materai, TTD basah, lalu unggah scan.` },
@@ -66,16 +71,18 @@ export async function POST(request, { params }) {
     }
 
     const terkirimAt = new Date();
-    // Snapshot konten TTU dibekukan PERSIS di sini, saat tombol kirim
-    // beneran diklik (dikonfirmasi user 2026-10-14) — GET /api/admin/
-    // invoice-kwitansi/[id] pakai ini terus sesudahnya, gak ngitung ulang
-    // lagi biar dokumen yang udah dikirim gak "berubah" walau booking-nya
-    // berubah belakangan (nambah jamaah, dst).
+    // Snapshot konten dibekukan PERSIS di sini, saat tombol kirim beneran
+    // diklik (dikonfirmasi user 2026-10-14) — GET /api/admin/invoice-
+    // kwitansi/[id] pakai ini terus sesudahnya, gak ngitung ulang lagi
+    // biar dokumen yang udah dikirim gak "berubah" walau booking-nya
+    // berubah belakangan (nambah jamaah, dst). hitungJamaahBreakdownTtu
+    // otomatis pakai breakdown SELURUH booking buat jenis selain
+    // tanda_terima+DP (Kwitansi emang nutup semua jamaah, gak per-payment).
     let jamaahBreakdownSnapshot = null;
-    if (dokumen.jenis === 'tanda_terima') {
+    if (JENIS_LOCK_ON_SEND.includes(dokumen.jenis)) {
       jamaahBreakdownSnapshot = JSON.stringify(await hitungJamaahBreakdownTtu(pool, dokumen));
     }
-    const metode = dokumen.jenis === 'tanda_terima' && butuhMaterai ? 'fisik' : 'setuju';
+    const metode = JENIS_LOCK_ON_SEND.includes(dokumen.jenis) && butuhMaterai ? 'fisik' : 'setuju';
     await pool.query(
       "UPDATE invoice_kwitansi SET terkirim = 1, terkirim_metode = ?, terkirim_at = ?, jamaah_breakdown_snapshot = COALESCE(?, jamaah_breakdown_snapshot) WHERE id = ?",
       [metode, terkirimAt, jamaahBreakdownSnapshot, id]
