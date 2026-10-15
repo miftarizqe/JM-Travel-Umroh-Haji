@@ -504,7 +504,7 @@ export default function DashboardJamaah() {
                         </div>
                       )}
 
-                      <DokumenSayaList bookingId={b.id} booking={b} />
+                      <DokumenSayaList bookingId={b.id} booking={b} onUpdated={muatBookings} />
 
                       {!pembayaranSudahDiAcc(b) && (
                         <button

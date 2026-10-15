@@ -21,9 +21,14 @@ function statusGabungan(list) {
 //    digabung ke sini (dikonfirmasi user 2026-10-01), daftarnya dilipat di
 //    balik tombol "Lihat Dokumen" biar kartunya gak kepanjangan.
 // `booking` opsional — tanpa itu cuma dokumen admin yang tampil.
-export default function DokumenSayaList({ bookingId, booking }) {
+// `onUpdated` opsional — dipanggil setelah jamaah berhasil ganti dokumen
+// yang ditolak (lihat GantiDitolak di bawah), biar parent refetch booking
+// (banner "Lunas" & step lain ikut nyadar statusnya balik 'menunggu').
+export default function DokumenSayaList({ bookingId, booking, onUpdated }) {
   const [dokumen, setDokumen] = useState(null);
   const [bukaPendukung, setBukaPendukung] = useState(false);
+  // Keyed `${idx}-${key}` -> 'uploading' | error string | undefined.
+  const [gantiState, setGantiState] = useState({});
 
   useEffect(() => {
     if (!bookingId) return;
@@ -33,12 +38,49 @@ export default function DokumenSayaList({ bookingId, booking }) {
       .catch(() => setDokumen([]));
   }, [bookingId]);
 
+  // Ganti 1 dokumen yang DITOLAK admin — 2 langkah: upload file baru (upload
+  // generik, gak kena lock booking), lalu simpan path-nya ke booking lewat
+  // endpoint sempit /api/bookings/[id]/dokumen-pendukung (CUMA bisa dipakai
+  // kalau status dokumen itu persis 'ditolak', lihat komentar di route-nya) —
+  // sengaja TERPISAH dari form-jamaah penuh biar jalan WALAU booking udah
+  // lunas, tanpa buka celah ubah field lain (dikonfirmasi user 2026-10-15).
+  async function gantiDokumen(p, file) {
+    const gKey = `${p.idx}-${p.key}`;
+    if (!file) return;
+    setGantiState(s => ({ ...s, [gKey]: 'uploading' }));
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('jenis', p.jenis);
+      const up = await fetch('/api/upload-dokumen-jamaah', { method: 'POST', body: fd }).then(r => r.json());
+      if (!up.path) throw new Error(up.error || 'Gagal mengunggah dokumen');
+
+      const simpan = await fetch(`/api/bookings/${bookingId}/dokumen-pendukung`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idx: p.idx, doc_key: p.key, path: up.path }),
+      }).then(r => r.json());
+      if (simpan.error) throw new Error(simpan.error);
+
+      if (simpan.path_lama) {
+        fetch('/api/upload-dokumen-jamaah', {
+          method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: simpan.path_lama }),
+        }).catch(() => {});
+      }
+
+      setGantiState(s => ({ ...s, [gKey]: undefined }));
+      onUpdated?.();
+    } catch (e) {
+      setGantiState(s => ({ ...s, [gKey]: e.message || 'Gagal mengganti dokumen' }));
+    }
+  }
+
   if (dokumen === null) return null;
 
   const jamaah = booking ? parseJamaahData(booking.jamaah_data) : [];
   const pendukung = jamaah.flatMap((j, idx) => DOC_LIST
     .filter(d => j?.[d.key])
-    .map(d => ({ idx, nama: j.nama || `Jamaah ${idx + 1}`, label: d.label, path: j[d.key], st: statusDokumen(j, d.key) })));
+    .map(d => ({ idx, key: d.key, jenis: d.jenis, nama: j.nama || `Jamaah ${idx + 1}`, label: d.label, path: j[d.key], st: statusDokumen(j, d.key) })));
   const infoGabungan = pendukung.length > 0 ? STATUS_DOKUMEN[statusGabungan(pendukung.map(p => p.st))] : null;
 
   // Scan fisik (materai + TTD) Perjanjian Jamaah — 1 PER JAMAAH sejak
@@ -79,6 +121,8 @@ export default function DokumenSayaList({ bookingId, booking }) {
                 <div className="mt-1.5 pl-2 border-l-2 border-[#e0e8f0] space-y-1">
                   {pendukung.map(p => {
                     const info = STATUS_DOKUMEN[p.st.status];
+                    const gKey = `${p.idx}-${p.key}`;
+                    const gState = gantiState[gKey];
                     return (
                       <div key={`${p.idx}-${p.path}`}>
                         <div className="flex items-center justify-between text-[11px] gap-2">
@@ -89,6 +133,21 @@ export default function DokumenSayaList({ bookingId, booking }) {
                           </div>
                         </div>
                         {p.st.status === 'ditolak' && p.st.alasan && <div className="text-[10px] text-red-600">Ditolak: {p.st.alasan}</div>}
+                        {/* Ganti file LANGSUNG di sini — kerja walau booking
+                            udah lunas (endpoint sempit, cuma buat dokumen
+                            yang statusnya 'ditolak', lihat gantiDokumen di
+                            atas), gak perlu buka form-jamaah penuh lagi.
+                            Cuma buat booking AKTIF -- booking yang udah
+                            selesai/dibatalkan gak relevan lagi buat dibenerin
+                            dokumennya. */}
+                        {p.st.status === 'ditolak' && ['active', 'menunggu_batal'].includes(booking?.status) && (
+                          <label className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer ${gState === 'uploading' ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>
+                            {gState === 'uploading' ? '⏳ Mengunggah…' : '📤 Unggah Ulang'}
+                            <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={gState === 'uploading'}
+                              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; gantiDokumen(p, f); }} />
+                          </label>
+                        )}
+                        {gState && gState !== 'uploading' && <div className="text-[10px] text-red-600 mt-0.5">{gState}</div>}
                       </div>
                     );
                   })}
