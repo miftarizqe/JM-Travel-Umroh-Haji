@@ -735,33 +735,40 @@ export default function DatabaseJamaahPage() {
                         </div>
                       ) : (
                       <>
-                        {/* Box "Total" sempat DIHAPUS total (2026-10-08),
-                            lalu sempat dimunculin lagi tapi SALAH itung
-                            (2026-10-09 awal, saldo_tabungan_umroh +
-                            saldo_pending -- pending ikut dijumlah, padahal
-                            itu belum tentu jadi duit beneran). Dikoreksi
-                            user 2026-10-09 sore: "Total Saldo Tabungan" =
-                            Ujroh Cair + Tabungan Mandiri, DUA-DUANYA
-                            confirmed -- itu PERSIS saldo_tabungan_umroh yang
-                            udah ada (field itu emang udah gabungan ujroh +
-                            setoran mandiri yang di-acc, lihat
-                            JENIS_SALDO_SAHABAT di saldoSahabat.js), BUKAN
-                            angka baru. Pending TETAP kotak terpisah, gak
-                            ikut dijumlah ke Total. HoP TETAP gak liat ini
-                            sama sekali (cabang isHop di atas, 3 kartu
-                            ujroh-only terpisah). */}
+                        {/* 3 kartu, FIX final (dikonfirmasi user 2026-10-15,
+                            revisi dari iterasi 2026-10-08/09 di bawah):
+                             - "Ujroh Cair" = ujroh DOANG (komisi_sahabat/
+                               closing_langsung_sahabat/
+                               referral_closing_reguler_sahabat/
+                               head_of_program_registrasi) yang dikonfirmasi_at
+                               -- JENIS_UJROH_SAHABAT, bukan JENIS_SALDO_SAHABAT.
+                             - "Ujroh Pending" = subset ujroh yang sama, belum
+                               dikonfirmasi_at.
+                             - "Saldo Tabungan" = Ujroh Cair + Tabungan Mandiri
+                               (setoran_mandiri_sahabat/tabungan_awal_sahabat/
+                               koreksi) - pemakaian, SEMUA confirmed -- ini
+                               tetap saldo_tabungan_umroh (JENIS_SALDO_SAHABAT),
+                               TIDAK berubah dari sebelumnya.
+                            Sebelum fix ini, "Sudah Cair" ikut nyampur
+                            tabungan_awal/setoran_mandiri_sahabat -- jamaah
+                            yang BELUM PERNAH closing tapi pernah setor
+                            mandiri kelihatan punya "ujroh cair" padahal itu
+                            duitnya sendiri (bug dilaporkan user). HoP TETAP
+                            gak liat ini sama sekali (cabang isHop di atas,
+                            3 kartu ujroh-only terpisah — sumbernya udah
+                            benar dari awal, lihat hitungLaporanUjroh). */}
                         <div className="grid grid-cols-3 gap-2">
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                            <div className="font-bold text-green-600">{fmtRp(j.saldo_tabungan_umroh)}</div>
-                            <div className="text-gray-400">Sudah Cair</div>
+                            <div className="font-bold text-green-600">{fmtRp(j.ujroh_cair)}</div>
+                            <div className="text-gray-400">Ujroh Cair</div>
                           </div>
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                            <div className="font-bold text-yellow-600">{fmtRp(j.saldo_pending)}</div>
-                            <div className="text-gray-400">Pending</div>
+                            <div className="font-bold text-yellow-600">{fmtRp(j.ujroh_pending)}</div>
+                            <div className="text-gray-400">Ujroh Pending</div>
                           </div>
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
                             <div className="font-bold text-[#0E2F6E]">{fmtRp(j.saldo_tabungan_umroh)}</div>
-                            <div className="text-gray-400">Total Saldo Tabungan</div>
+                            <div className="text-gray-400">Saldo Tabungan</div>
                           </div>
                         </div>
                         <button onClick={() => bukaRekap(j)} className="w-full text-[#1A4FA0] font-bold hover:underline text-center">
@@ -847,10 +854,20 @@ export default function DatabaseJamaahPage() {
                         className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100">
                         🌳 Jaringan
                       </button>
-                      <button onClick={() => router.push(`/dashboard/sahabat/riwayat?sahabat_id=${j.user_id}`)}
-                        className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E8F0FB] text-[#1A4FA0] hover:bg-blue-100">
-                        📜 Riwayat Lengkap
-                      </button>
+                      {/* HoP gak boleh liat riwayat lengkap tabungan (cashflow/
+                          setoran mandiri) punya sahabat lain (dikonfirmasi user
+                          2026-10-15, dicabut dari yang sempat dibolehin 2026-10-08)
+                          -- API-nya juga udah dikunci (lihat wajibPemilikAtauAdminHopSahabat
+                          di lib/hopAuth.js), tombol ini disembunyikan biar gak
+                          nunjuk ke endpoint yang bakal 403. Ringkasan ujroh-only
+                          dia TETAP ada lewat 3 kartu Ujroh Cair/Pending/Forecast
+                          di atas (cabang isHop, sumber beda: ujroh-ringkasan). */}
+                      {!isHop && (
+                        <button onClick={() => router.push(`/dashboard/sahabat/riwayat?sahabat_id=${j.user_id}`)}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E8F0FB] text-[#1A4FA0] hover:bg-blue-100">
+                          📜 Riwayat Lengkap
+                        </button>
+                      )}
                     </div>
 
                     {/* Voucher Rp1jt — HoP gak boleh tau (dikonfirmasi user 2026-10-05). */}
