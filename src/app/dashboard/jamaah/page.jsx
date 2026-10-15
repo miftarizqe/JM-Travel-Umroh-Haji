@@ -8,6 +8,7 @@ import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { formLengkap, getStage, perjanjianSelesai, pembayaranSudahDiAcc } from '@/lib/bookingStage';
+import { adaDokumenPendukungDitolak } from '@/lib/dokumenPendukung';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
 import { dpPerluResubmit } from '@/lib/dpPayments';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
@@ -184,6 +185,21 @@ export default function DashboardJamaah() {
                     <div className="p-4">
                       {/* Progress 5 tahap — komponen sama dengan admin */}
                       <BookingProgressBar booking={b} className="mb-4" />
+
+                      {/* Program Eksklusif Sahabat Baitullah: tahap Perjanjian
+                          otomatis ✓ (perjanjianSelesai() di bookingStage.js)
+                          karena perjanjiannya = SPK-AK yang ditandatangani
+                          SEKALI pas daftar Sahabat, bukan per-booking. Tetap
+                          kasih jalan buat lihat dokumennya (dikonfirmasi user
+                          2026-10-15) — PDF yang sama dengan di Profil. */}
+                      {b.prog_publish_type === 'sahabat_baitullah' && (
+                        <button
+                          onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
+                          className="w-full mb-3 border border-[#1A4FA0] text-[#1A4FA0] text-xs font-bold py-2 rounded-full hover:bg-[#E8F0FB] transition-colors"
+                        >
+                          📜 Lihat Perjanjian (SPK-AK Sahabat Baitullah)
+                        </button>
+                      )}
 
                       {/* Status DP — 1 booking bisa punya LEBIH dari 1 payment
                           DP (DP awal, DP pax tambahan, resubmit abis
@@ -372,7 +388,27 @@ export default function DashboardJamaah() {
                           📜 Baca & Setujui Perjanjian →
                         </button>
                       )}
-                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && (
+                      {/* Ada dokumen pendukung yang ditolak admin -> JANGAN
+                          nampilin "Lunas" polos ijo, nyesatin keliatan
+                          "beres semua" padahal masih ada yang wajib
+                          dibenerin (dikonfirmasi user 2026-10-15, bug
+                          ditemukan dari booking sahabat3: 5 dokumen, 1
+                          ditolak, tapi badge-nya tetep ijo "Selamat
+                          menunaikan ibadah"). Notif ke jamaah udah otomatis
+                          terkirim SAAT admin nolak dokumennya (lihat
+                          kirimNotifikasi di /api/admin/dokumen-pendukung),
+                          gak perlu notif tambahan di sini. Warna amber + copy
+                          positif (BUKAN merah/❌) — ini jamaah yang BARU AJA
+                          lunasin bayaran, bukan orang yang bikin kesalahan;
+                          nadanya jangan kayak nuduh/nolak (dikonfirmasi user
+                          2026-10-15, "jangan merah silang, bikin yang lebih
+                          manusiawi"). */}
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && adaDokumenPendukungDitolak(b.jamaah_data) && (
+                        <div className="bg-amber-50 text-amber-700 text-xs text-center py-2 rounded-full font-bold">
+                          📋 Lunas — tinggal lengkapi dokumen pendukung yang perlu diperbaiki di &ldquo;Dokumen Saya&rdquo; di bawah, ya.
+                        </div>
+                      )}
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && !adaDokumenPendukungDitolak(b.jamaah_data) && (
                         <div className="bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
                           ✅ Lunas — Selamat menunaikan ibadah!
                         </div>
@@ -473,7 +509,7 @@ export default function DashboardJamaah() {
                         </div>
                       )}
 
-                      <DokumenSayaList bookingId={b.id} booking={b} />
+                      <DokumenSayaList bookingId={b.id} booking={b} onUpdated={muatBookings} />
 
                       {!pembayaranSudahDiAcc(b) && (
                         <button

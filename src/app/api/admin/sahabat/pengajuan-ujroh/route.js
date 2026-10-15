@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
+import { JENIS_UJROH_SAHABAT as JENIS_UJROH } from '@/lib/saldoSahabat';
 
 // Jenis yang ikut pengajuan mingguan (SENGAJA gak termasuk
 // 'pemakaian_saldo_sahabat' — itu penyesuaian internal checkout mandiri,
@@ -15,7 +16,6 @@ import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
 // komisi-rekap TETAP menyertakannya di list-nya — dipakai juga buat nampilin
 // SNAPSHOT batch LAMA yang mungkin masih punya baris tabungan_awal dari
 // sebelum tanggal ini.
-const JENIS_UJROH = ['komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat', 'head_of_program_registrasi'];
 
 // GET /api/admin/sahabat/pengajuan-ujroh — daftar semua batch, dipakai
 // /admin/sahabat/pencairan.

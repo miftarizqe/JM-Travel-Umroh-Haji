@@ -3,9 +3,9 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibSuperAdmin } from '@/lib/auth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
-const MAKS = 3 * 1024 * 1024; // 3MB
 
 // POST /api/admin/metode-pembayaran/upload-qr  (multipart: file, id)
 // Unggah gambar QR code (mis. buat QRIS) buat 1 metode pembayaran.
@@ -25,8 +25,9 @@ export async function POST(request) {
     if (!TIPE_OK.includes(file.type)) {
       return Response.json({ error: 'Gambar QR harus JPG atau PNG' }, { status: 400 });
     }
-    if (file.size > MAKS) {
-      return Response.json({ error: 'Ukuran gambar maksimal 3MB' }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     const [rows] = await pool.query('SELECT id FROM metode_pembayaran WHERE id = ?', [id]);

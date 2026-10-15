@@ -3,9 +3,9 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
-const MAKS = 3 * 1024 * 1024; // 3MB
 // Whitelist kolom yang boleh diisi lewat endpoint ini — biar gak bisa
 // nimpa kolom sembarangan di tabel pengaturan cuma dari nama field kiriman.
 const KOLOM_OK = [
@@ -13,12 +13,10 @@ const KOLOM_OK = [
   'panduan_buka_rekening_bsi_path', 'panduan_buka_tabungan_umroh_path',
 ];
 // Panduan step-by-step (dikonfirmasi user 2026-09-20) boleh PDF juga — beda
-// dari TTD/cap yang emang selalu gambar. Ukuran maks dilonggarin (20MB,
-// dinaikkan dari 5MB 2026-09-30) karena panduan bergambar/scan banyak
-// halaman bisa lebih berat dari batas awal.
+// dari TTD/cap yang emang selalu gambar. Ukuran ikut batas global
+// (lib/batasUpload: gambar 3MB, PDF 5MB).
 const KOLOM_PANDUAN = ['panduan_buka_rekening_bsi_path', 'panduan_buka_tabungan_umroh_path'];
 const TIPE_OK_PANDUAN = [...TIPE_OK, 'application/pdf'];
-const MAKS_PANDUAN = 20 * 1024 * 1024;
 
 // POST /api/admin/pengaturan/upload-gambar (multipart: file, kolom)
 // Upload gambar TTD digital penandatangan keuangan ATAU cap perusahaan —
@@ -39,12 +37,12 @@ export async function POST(request) {
     }
     const isPanduan = KOLOM_PANDUAN.includes(kolom);
     const tipeOk = isPanduan ? TIPE_OK_PANDUAN : TIPE_OK;
-    const maks = isPanduan ? MAKS_PANDUAN : MAKS;
     if (!tipeOk.includes(file.type)) {
       return Response.json({ error: isPanduan ? 'File harus JPG, PNG, atau PDF' : 'Gambar harus JPG atau PNG' }, { status: 400 });
     }
-    if (file.size > maks) {
-      return Response.json({ error: `Ukuran file maksimal ${maks / (1024 * 1024)}MB` }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     const dir = path.join(process.cwd(), 'public', 'uploads', 'pengaturan');

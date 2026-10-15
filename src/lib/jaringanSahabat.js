@@ -40,6 +40,7 @@ export async function relasiSemuaSahabat(pool) {
       name: r.name,
       kode_unik: r.kode_unik,
       status: r.status,
+      perekrut_id: r.perekrut_id,
       status_pendaftaran: r.status_pendaftaran || null,
       created_at: r.created_at,
       gen,

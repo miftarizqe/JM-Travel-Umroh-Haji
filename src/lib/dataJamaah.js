@@ -26,16 +26,25 @@ const WA_REGEX = /^[0-9]{10,13}$/;
 export const PASPOR_MAKS = 9;
 const PASPOR_REGEX = /^[A-Z][A-Z0-9]{7,8}$/;
 
+// Tempat keluar paspor = nama kota/kantor imigrasi (mis. "Jakarta Selatan",
+// "Kanim Kelas I Bandung") — huruf, spasi & tanda baca nama tempat aja,
+// TANPA angka (dikonfirmasi user 2026-10-15).
+const TEMPAT_REGEX = /^[A-Za-z .,'()-]+$/;
+
 // Pembersih ketikan (FE): buang karakter yang gak boleh sebelum masuk state.
 export const hanyaAngka = (v, maks = WA_MAKS) => String(v || '').replace(/\D/g, '').slice(0, maks);
+export const bersihkanTempat = (v) => String(v || '').replace(/[^A-Za-z .,'()-]/g, '');
 export const bersihkanPaspor = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, PASPOR_MAKS);
 
 // Validasi 1 jamaah — balikin pesan error pertama, atau null kalau lolos.
 // Field kosong gak dicek di sini (wajib-isi dicek terpisah di form).
+export const tempatValid = (v) => !v || !String(v).trim() || TEMPAT_REGEX.test(String(v).trim());
+
 export function validasiIsianJamaah(j, label = 'Jamaah') {
   if (j.paspor && !PASPOR_REGEX.test(j.paspor)) {
     return `${label}: No. Paspor harus diawali huruf, lalu huruf/angka, total 8-9 karakter (contoh: C1234567).`;
   }
+  if (j.tkp && !TEMPAT_REGEX.test(j.tkp.trim())) return `${label}: Tempat Keluar Paspor hanya boleh huruf (tanpa angka).`;
   if (j.wa && !WA_REGEX.test(j.wa)) return `${label}: No. WhatsApp harus angka saja, 10-13 digit.`;
   if (j.kdwa && !WA_REGEX.test(j.kdwa)) return `${label}: No. WA Kontak Darurat harus angka saja, 10-13 digit.`;
   if (j.kdhub && !HUBUNGAN_KONTAK_DARURAT.includes(j.kdhub)) return `${label}: Hubungan Kontak Darurat tidak valid.`;

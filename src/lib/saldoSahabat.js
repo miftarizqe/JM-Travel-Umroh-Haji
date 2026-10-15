@@ -9,6 +9,19 @@ export const JENIS_SALDO_SAHABAT = [
   'setoran_mandiri_sahabat', 'koreksi_saldo_sahabat',
 ];
 
+// Subset JENIS_SALDO_SAHABAT yang BENERAN ujroh (komisi dari closing/rekrutan
+// lewat JM Travel) -- BEDA dari tabungan_awal_sahabat/setoran_mandiri_sahabat/
+// koreksi_saldo_sahabat yang itu duit jamaah sendiri (setoran mandiri),
+// bukan komisi. Dikonfirmasi user 2026-10-15: "Ujroh Cair" harus ujroh
+// doang, jangan nyampur sama tabungan mandiri (sebelumnya nyampur semua jadi
+// 1 kartu "Sudah Cair" di Database Anggota, bikin keliatan ada ujroh padahal
+// orangnya belum pernah closing). SAMA PERSIS JENIS_UJROH yang tadinya cuma
+// didefinisikan lokal di pengajuan-ujroh/route.js (itu literally "ujroh yang
+// diajukan buat dicairkan mingguan") -- dipromosikan ke sini biar 1 sumber.
+export const JENIS_UJROH_SAHABAT = [
+  'komisi_sahabat', 'closing_langsung_sahabat', 'referral_closing_reguler_sahabat', 'head_of_program_registrasi',
+];
+
 // 'pemakaian_saldo_sahabat' (nominal negatif, dicatat SAAT checkout mandiri
 // program eksklusif) langsung ikut kepotong TANPA nunggu dikonfirmasi_at
 // (dikonfirmasi user 2026-10-08) -- mirip hold otorisasi bank: begitu

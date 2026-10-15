@@ -19,11 +19,38 @@ import { pesanDpDikonfirmasi, pesanPelunasanDikonfirmasi, pesanReferralBaru, pes
 import { resolveJamaahHarga, ringkasanPaketKamar } from '@/lib/jamaahHarga';
 import { persenKesiapan, diBawahProgress } from '@/lib/kesiapanTabungan';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
+import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
   if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
   return Array.isArray(raw) ? raw : [];
+}
+
+// Ringkasan dokumen pendukung (paspor/KK/KTP/vaksin/foto) 1 booking —
+// "nempel" di kartu booking Kelola Program (dikonfirmasi user 2026-10-15)
+// biar admin gak perlu bolak-balik ke /admin/dokumen-pendukung buat tau
+// status tiap booking, cukup lihat badge-nya terus klik buat verifikasi
+// yang relevan aja.
+function ringkasDokumenPendukung(b) {
+  // `b` di sini sumbernya /api/admin/program-jamaah — jamaah_data UDAH
+  // di-parse server-side & dikirim sebagai `b.jamaah` (bukan `b.jamaah_data`
+  // mentah), lihat route.js-nya. Pakai parseJamaahData tetap aman buat
+  // jaga-jaga kalau kepanggil dari sumber lain yang masih raw.
+  const jamaah = Array.isArray(b.jamaah) ? b.jamaah : parseJamaahData(b.jamaah_data);
+  const slotTotal = jamaah.length * DOC_LIST.length;
+  let diunggah = 0, menunggu = 0, ditolak = 0, diverifikasi = 0;
+  for (const j of jamaah) {
+    for (const d of DOC_LIST) {
+      if (!j?.[d.key]) continue;
+      diunggah++;
+      const st = statusDokumen(j, d.key)?.status;
+      if (st === 'ditolak') ditolak++;
+      else if (st === 'diverifikasi') diverifikasi++;
+      else menunggu++;
+    }
+  }
+  return { slotTotal, diunggah, menunggu, ditolak, diverifikasi };
 }
 
 // Badge kolom Status tabel Jamaah/Perwakilan, per nilai status_akun dari /api/admin/users.
@@ -431,6 +458,28 @@ function AdminPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  // Auto-refresh tab Dashboard (dikonfirmasi user 2026-10-15) — dulu
+  // pendaftaran baru yang "Menunggu Verifikasi Admin" dkk baru muncul sesudah
+  // reload manual. Cek ulang ringkasan + antrian Sahabat/Perwakilan tiap 20
+  // detik selama tab kebuka & langsung pas tab browser balik difokus. Cuma
+  // data dashboard — bukan loadAll() (payments/users/programs bisa berat).
+  useEffect(() => {
+    if (activeTab !== 'dashboard' || !user) return;
+    const muat = () => {
+      fetch('/api/admin/dashboard')
+        .then(r => (r.ok ? r.json() : null))
+        .then(dash => { if (dash) setData(prev => ({ stat: {}, pending: {}, ...prev, ...dash })); })
+        .catch(() => {});
+      muatSahabatDash();
+      if (user.role !== 'hop') muatPerwakilanDash();
+    };
+    const id = setInterval(() => { if (document.visibilityState === 'visible') muat(); }, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') muat(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user]);
+
   async function approveSahabatVoucher(voucherId) {
     setBusySahabat(true);
     try {
@@ -445,22 +494,43 @@ function AdminPageInner() {
     setBusySahabat(false);
   }
 
+  // Pendaftaran Sahabat yang nunggu tindakan admin di /admin/sahabat —
+  // sebelumnya notif "Pendaftaran Siap Ditinjau"/"Pendaftar Baru" masuk tapi
+  // section Sahabat di dashboard gak nampilin antriannya sama sekali
+  // (ditemukan user 2026-10-15). Kriteria verifikasi = jamaah udah klik
+  // "Kirim Pendaftaran" & gak lagi diminta perbaiki (yang di-notif
+  // kirim-pendaftaran), mirror tahap "Menunggu ACC Admin" di /admin/sahabat.
+  const sahabatMenungguVerifikasi = useMemo(
+    () => sahabatPendaftaran.filter(p => p.status === 'menunggu_sk_cif' && p.diajukan_at && !p.perbaikan_diminta_at),
+    [sahabatPendaftaran]
+  );
+  const sahabatPendaftarBaru = useMemo(
+    () => sahabatPendaftaran.filter(p => p.status === 'pending'),
+    [sahabatPendaftaran]
+  );
   const sahabatVoucherPending = useMemo(
     () => sahabatPendaftaran.filter(p => p.voucher_kode && !p.voucher_disetujui_at),
     [sahabatPendaftaran]
   );
+  // Ketiga cluster di bawah ini ("mantau pergerakan saldo tabungan MENUJU
+  // TARGET") SEMUA exclude j.target_sudah_checkout (dikonfirmasi user
+  // 2026-10-15) -- begitu dia udah checkout ke program targetnya, target
+  // tabungannya beres, management gak perlu follow-up lagi soal progress
+  // nabung. Ujroh/komisi dia TETAP terus dipantau seperti biasa di tempat
+  // lain (itu duit JM Travel yang masih ngalir dari rekrutan, gak ada
+  // hubungannya sama status checkout target pribadinya).
   const sahabatSiapBerangkat = useMemo(() => sahabatJamaahDb.filter(j => {
-    if (j.status !== 'active') return false;
+    if (j.status !== 'active' || j.target_sudah_checkout) return false;
     const p = persenKesiapan(j.saldo_tabungan_umroh, j.target_estimasi_harga);
     return p !== null && p >= 80;
   }), [sahabatJamaahDb]);
   const sahabatDibawahProgress = useMemo(() => sahabatJamaahDb.filter(j =>
-    j.status === 'active' && diBawahProgress(j.saldo_tabungan_umroh, j.target_estimasi_harga, j.target_bulan, j.target_set_at)
+    j.status === 'active' && !j.target_sudah_checkout && diBawahProgress(j.saldo_tabungan_umroh, j.target_estimasi_harga, j.target_bulan, j.target_set_at)
   ), [sahabatJamaahDb]);
   // Catatan SYSTEM UJROH E3: jadwal target lewat (atau program dinonaktifkan)
   // sebelum target tercapai -> anggota wajib pilih program lain.
   const sahabatJadwalTerlewat = useMemo(() => sahabatJamaahDb.filter(j =>
-    j.status === 'active' && j.program_id && statusJadwalTarget({
+    j.status === 'active' && j.program_id && !j.target_sudah_checkout && statusJadwalTarget({
       tanggal_berangkat: j.target_tanggal_berangkat, program_aktif: !!j.target_program_aktif,
       saldo: j.saldo_tabungan_umroh, target: j.target_estimasi_harga,
     }).wajib_ganti
@@ -990,7 +1060,10 @@ function AdminPageInner() {
     {key:'refund_belum_ditransfer', label:'Refund Belum Ditransfer', icon:'💸', color:'border-red-200 bg-red-50', group:'pembatalan', items: pending.refund_belum_ditransfer||[]},
   ];
   const CLUSTER_GROUPS = [
-    {key:'akun_lead', label:'Akun & Lead Baru', icon:'🆕'},
+    // DISEMBUNYIKAN SEMENTARA (dikonfirmasi user 2026-10-15) — jangan dihapus,
+    // tinggal un-comment buat munculin lagi grup "🆕 Akun & Lead Baru"
+    // (cluster-nya di atas tetap ada, cuma gak dirender tanpa grup ini).
+    // {key:'akun_lead', label:'Akun & Lead Baru', icon:'🆕'},
     {key:'program_harga', label:'Program & Harga', icon:'🕌'},
     {key:'pembayaran_dokumen', label:'Pembayaran & Dokumen', icon:'💳'},
     {key:'operasional', label:'Operasional & Logistik', icon:'📦'},
@@ -1185,7 +1258,8 @@ function AdminPageInner() {
               (dikonfirmasi user 2026-09-06). Pendaftaran di sana sekarang
               murni funnel status; semua reminder lain (voucher/saldo/closing)
               digabung di sini biar 1 pintu. */}
-          <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">🤝 Sahabat Baitullah</h3>} defaultOpen={false}>
+          <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">🤝 Sahabat Baitullah</h3>} defaultOpen={false}
+            badge={sahabatMenungguVerifikasi.length > 0 ? `${sahabatMenungguVerifikasi.length} menunggu verifikasi` : undefined}>
             {loadingSahabatDash ? (
               <div className="text-center text-gray-400 py-6 text-sm">Memuat...</div>
             ) : (
@@ -1216,8 +1290,10 @@ function AdminPageInner() {
                   )}
                 </div>
 
-                {/* Siap Berangkat / Di Bawah Progress */}
+                {/* Pendaftaran baru (nunggu verifikasi/ACC admin) + Siap Berangkat / Di Bawah Progress */}
                 {[
+                  { key: 'verifikasi', icon: '🪪', color: 'border-purple-200 bg-purple-50', label: 'Pendaftaran Menunggu Verifikasi Admin', rows: sahabatMenungguVerifikasi, path: '/admin/sahabat', aksi: 'Verifikasi →' },
+                  { key: 'baru', icon: '📝', color: 'border-blue-200 bg-blue-50', label: 'Pendaftar Baru (belum upload bukti TF)', rows: sahabatPendaftarBaru, path: '/admin/sahabat', aksi: 'Detail →' },
                   { key: 'siap', icon: '🎯', color: 'border-amber-200 bg-amber-50', label: 'Siap Berangkat (≥80%)', rows: sahabatSiapBerangkat },
                   { key: 'bawah', icon: '⚠️', color: 'border-orange-200 bg-orange-50', label: 'Di Bawah Progress Tabungan', rows: sahabatDibawahProgress },
                   { key: 'jadwal', icon: '⏰', color: 'border-red-200 bg-red-50', label: 'Jadwal Target Terlewat (wajib pilih program lain)', rows: sahabatJadwalTerlewat },
@@ -1232,10 +1308,10 @@ function AdminPageInner() {
                         {c.rows.length === 0 ? (
                           <div className="text-xs text-gray-400">Gak ada.</div>
                         ) : c.rows.map(r => (
-                          <button key={r.id} onClick={() => router.push('/admin/sahabat/database')}
+                          <button key={r.id} onClick={() => router.push(c.path || '/admin/sahabat/database')}
                             className="w-full flex items-center justify-between bg-white/70 hover:bg-white rounded-lg px-3 py-2 text-left transition-colors">
-                            <div className="text-xs font-bold text-[#0E2F6E] truncate">{r.nama} <span className="text-gray-400 font-normal">({r.kode_unik})</span></div>
-                            <span className="text-gray-300 text-xs shrink-0">Database →</span>
+                            <div className="text-xs font-bold text-[#0E2F6E] truncate">{r.nama}{r.kode_unik && <span className="text-gray-400 font-normal"> ({r.kode_unik})</span>}</div>
+                            <span className="text-gray-300 text-xs shrink-0">{c.aksi || 'Database →'}</span>
                           </button>
                         ))}
                       </div>
@@ -2048,8 +2124,20 @@ function AdminPageInner() {
             <div className="space-y-3">
               {progJamaah.map(b => {
                 const isOpen = expandProgBooking === b.id;
+                // Kriteria SAMA PERSIS tindakan_total di kartu Program Aktif
+                // & badge sidebar Kelola Program — tombol yang jadi jalan
+                // nyelesaiinnya dikasih warna aksi (dikonfirmasi user
+                // 2026-10-15), biar gak sama kayak tombol reguler lain.
+                const aktif = b.status === 'active';
+                const dpPending = aktif && b.dp_status === 'pending';
+                const lunasPending = aktif && b.pelunasan_status === 'pending_confirm';
+                const formBelum = aktif && !b.form_lengkap;
+                const perluTindakan = dpPending || lunasPending || formBelum;
+                // Kuning = warning "perlu tindakan", BUKAN merah (merah = bahaya/error,
+                // dikonfirmasi user 2026-10-15).
+                const btnAksi = 'bg-amber-400 hover:bg-amber-500 text-amber-950 ring-2 ring-amber-200';
                 return (
-                <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] p-4">
+                <div key={b.id} className={`bg-white rounded-xl border p-4 ${perluTindakan ? 'border-amber-300 ring-2 ring-amber-100' : 'border-[#e0e8f0]'}`}>
                   <div className="flex items-center justify-between mb-2 cursor-pointer" onClick={() => setExpandProgBooking(isOpen ? null : b.id)}>
                     <div>
                       <div className="font-bold text-[#0E2F6E] text-sm">{b.pemesan_nama||'User'} — {b.id}</div>
@@ -2059,6 +2147,9 @@ function AdminPageInner() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
+                      {perluTindakan && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 whitespace-nowrap">⚡ Perlu tindakan</span>
+                      )}
                       <span className={`text-xs font-bold px-2 py-1 rounded-full ${b.dp_status==='confirmed'?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-700'}`}>
                         {b.dp_status==='confirmed'?'DP OK':'DP Pending'}
                       </span>
@@ -2066,6 +2157,13 @@ function AdminPageInner() {
                     </div>
                   </div>
                   {b.status === 'active' && <BookingProgressBar booking={b} className="mb-2" />}
+                  {perluTindakan && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {dpPending && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">💳 DP menunggu konfirmasi</span>}
+                      {lunasPending && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">💰 Pelunasan menunggu konfirmasi</span>}
+                      {formBelum && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">📝 Formulir belum lengkap ({b.form_filled}/{b.form_total})</span>}
+                    </div>
+                  )}
 
                   {isOpen && (
                     <>
@@ -2090,8 +2188,13 @@ function AdminPageInner() {
                         </div>
                       )}
 
-                      <button onClick={() => openBookingDetail(b.id)} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold py-2 rounded-full">
-                        🔍 Detail Lengkap Booking
+                      {/* Konfirmasi DP/pelunasan dilakukan di modal detail
+                          booking (lihat aksiPaymentDariModal). */}
+                      <button onClick={() => openBookingDetail(b.id)}
+                        className={`w-full mb-2 text-sm font-bold py-2 rounded-full ${dpPending || lunasPending ? btnAksi : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}>
+                        {dpPending || lunasPending
+                          ? `⚡ Konfirmasi ${[dpPending && 'DP', lunasPending && 'Pelunasan'].filter(Boolean).join(' & ')} — Buka Detail Booking`
+                          : '🔍 Detail Lengkap Booking'}
                       </button>
 
                       {/* Jalan pintas ke halaman form-jamaah (sudah admin-
@@ -2103,7 +2206,27 @@ function AdminPageInner() {
                         📎 Input Dokumen (dari WA)
                       </button>
 
-                      {/* Print hanya kalau form sudah lengkap */}
+                      {/* Ringkasan dokumen pendukung "nempel" di kartu
+                          (dikonfirmasi user 2026-10-15) — klik langsung ke
+                          /admin/dokumen-pendukung TERFILTER booking ini
+                          (deep-link ?booking_id=, lihat halaman tsb), gak
+                          perlu admin ngeraba-raba nyari di sidebar terpisah. */}
+                      {(() => {
+                        const rd = ringkasDokumenPendukung(b);
+                        if (rd.slotTotal === 0) return null;
+                        return (
+                          <button onClick={() => router.push(`/admin/dokumen-pendukung?booking_id=${b.id}`)}
+                            className="w-full mb-2 flex items-center justify-center gap-1.5 flex-wrap bg-gray-50 hover:bg-gray-100 border border-gray-200 text-[11px] font-bold py-1.5 rounded-full">
+                            <span className="text-gray-500">📎 Dokumen Pendukung ({rd.diunggah}/{rd.slotTotal})</span>
+                            {rd.ditolak > 0 && <span className={`px-1.5 py-0.5 rounded-full ${STATUS_DOKUMEN.ditolak.cls}`}>❌ {rd.ditolak}</span>}
+                            {rd.menunggu > 0 && <span className={`px-1.5 py-0.5 rounded-full ${STATUS_DOKUMEN.menunggu.cls}`}>⏳ {rd.menunggu}</span>}
+                            {rd.diverifikasi > 0 && <span className={`px-1.5 py-0.5 rounded-full ${STATUS_DOKUMEN.diverifikasi.cls}`}>✅ {rd.diverifikasi}</span>}
+                          </button>
+                        );
+                      })()}
+
+                      {/* Print Formulir/Perjanjian hanya kalau form sudah lengkap
+                          (butuh jamaah_data lengkap buat ngisi dokumennya). */}
                       {b.form_lengkap ? (
                         <div className="flex gap-2 flex-wrap">
                           <button onClick={() => printFormulir(b.id)} className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2 rounded-full">
@@ -2117,12 +2240,6 @@ function AdminPageInner() {
                               2026-10-14) — sebelumnya ada DUA tombol Buat
                               Invoice nongol bareng kalau form lengkap + DP
                               confirmed + belum lunas, sekarang cuma 1. */}
-                          {/* Kwitansi cuma keluar begitu LUNAS TOTAL. */}
-                          {b.pelunasan_status === 'paid' && (
-                            <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
-                              🧾 Kwitansi Pembayaran
-                            </button>
-                          )}
                           {/* Kenaikan harga tiket / force majeure — jamaah wajib
                               setuju eksplisit dulu sebelum bisa lanjut pelunasan
                               (lihat src/app/pelunasan/page.jsx). Gak relevan lagi
@@ -2134,9 +2251,37 @@ function AdminPageInner() {
                           )}
                         </div>
                       ) : (
-                        <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)} className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2 rounded-full">
-                          📋 Lengkapi Formulir ({b.form_filled}/{b.form_total})
+                        <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)} className={`w-full text-sm font-bold py-2 rounded-full ${formBelum ? btnAksi : 'bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white'}`}>
+                          {formBelum ? '⚡ ' : '📋 '}Lengkapi Formulir ({b.form_filled}/{b.form_total})
                         </button>
+                      )}
+
+                      {/* Kwitansi SENGAJA independen dari b.form_lengkap
+                          (dikonfirmasi user 2026-10-15) -- booking LUNAS
+                          berarti uangnya udah beneran diterima, admin harus
+                          tetap bisa cetak kwitansinya kapan pun, gak peduli
+                          progress formulir/perjanjian jamaah. Sebelumnya
+                          tombol ini numpang di blok form_lengkap, jadi ikut
+                          hilang kalau form belum diisi padahal udah lunas
+                          (server /api/admin/invoice-kwitansi/auto sendiri
+                          emang gak pernah syarat form_lengkap). */}
+                      {/* Penanda "udah terkirim apa belum" — tombol TETAP
+                          ada walau udah terkirim (dikonfirmasi user
+                          2026-10-15, "jangan ilang") biar admin tetap bisa
+                          buka/reprint; generateOrUpdateKwitansi idempotent,
+                          1 kwitansi per booking (nomor beku), klik ulang
+                          gak bikin dokumen baru. Badge-nya sama persis
+                          polanya kayak "📤 TTU Terkirim" di Konfirmasi
+                          Pembayaran (dikonfirmasi user 2026-10-14). */}
+                      {b.pelunasan_status === 'paid' && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
+                            🧾 {b.kwitansi_terkirim ? 'Lihat Kwitansi' : 'Kwitansi Pembayaran'}
+                          </button>
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${b.kwitansi_terkirim ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {b.kwitansi_terkirim ? '📤 Terkirim' : '📝 Belum Dikirim'}
+                          </span>
+                        </div>
                       )}
 
                       {/* Closing (ujroh terhitung) diproses otomatis begitu booking lunas, form

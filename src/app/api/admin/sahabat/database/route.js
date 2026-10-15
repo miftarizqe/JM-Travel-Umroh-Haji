@@ -2,9 +2,9 @@ import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
 import { persenKesiapan } from '@/lib/kesiapanTabungan';
+import { JENIS_SALDO_SAHABAT, JENIS_UJROH_SAHABAT } from '@/lib/saldoSahabat';
 
-// HoP gak berhak tau NIK & SEMUA rekening (bank biasa, BSI biasa, tabungan
-// umroh) — PRIVASI, cuma admin/super_admin (dikonfirmasi user 2026-10-05,
+// HoP gak berhak tau NIK & SEMUA rekening (bank biasa, tabungan umroh) — PRIVASI, cuma admin/super_admin (dikonfirmasi user 2026-10-05,
 // awalnya cuma rekening tabungan umroh, diperluas ke NIK & bank biasa juga).
 // Plus voucher Rp1jt & bukti TF Rp1jt (dikonfirmasi sebelumnya di sesi yang
 // sama). kode_unik/nama/dll TETAP ada, cuma field ini di-null-in biar gak
@@ -20,7 +20,7 @@ import { persenKesiapan } from '@/lib/kesiapanTabungan';
 function redaksiUntukHop(rows) {
   return rows.map(r => ({
     ...r,
-    nik: null, bank: null, no_rekening: null, no_rekening_bsi_biasa: null,
+    nik: null, bank: null, no_rekening: null,
     voucher_id: null, voucher_kode: null, voucher_used: null, voucher_aktif: null, voucher_disetujui_at: null,
     bukti_tf_path: null,
     no_rekening_tabungan_umroh: null, nama_pemilik_rekening_umroh: null,
@@ -29,8 +29,24 @@ function redaksiUntukHop(rows) {
 
 // Jenis komisi yang masuk hitungan "saldo tabungan umroh" — 1 sumber
 // dipakai di 2 tempat query di bawah (saldo per-baris & ringkasan), jangan
-// sampai kedua tempat itu diam-diam beda daftar jenis.
-const JENIS_SALDO = "'komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat'";
+// sampai kedua tempat itu diam-diam beda daftar jenis. Dari lib/saldoSahabat
+// (bukan literal lokal lagi) biar gak nyimpang dari saldoSahabat() yang
+// dipakai endpoint lain.
+const JENIS_SALDO = JENIS_SALDO_SAHABAT.map(j => `'${j}'`).join(',');
+// Subset yang BENERAN ujroh (bukan tabungan_awal/setoran_mandiri/koreksi —
+// itu duit jamaah sendiri) — dipakai pisahin kartu "Ujroh Cair"/"Ujroh
+// Pending" dari "Saldo Tabungan" di Database Anggota (dikonfirmasi user
+// 2026-10-15, lihat komentar di dekat pemakaiannya di bawah).
+const JENIS_UJROH = JENIS_UJROH_SAHABAT.map(j => `'${j}'`).join(',');
+
+// Replikasi PERSIS targetSudahDicheckout() (lib/targetImpian.js) -- 1 sumber
+// dipakai di 3 tempat di bawah (per-baris, filter siap_berangkat, ringkasan)
+// biar gak nyimpang. Begitu true, target tabungan dianggap BERES (udah
+// checkout beneran, bukan lagi dikejar) -- dikecualikan dari "Siap
+// Berangkat"/dari filter itu sendiri (dikonfirmasi user 2026-10-15).
+const TARGET_SUDAH_CHECKOUT_SQL = `EXISTS (
+  SELECT 1 FROM bookings bk WHERE bk.user_id = kp.user_id AND bk.prog_id = kp.program_id AND bk.status IN ('active','menunggu_batal','selesai')
+)`;
 
 const SORT_KOLOM = {
   kode: 'u.kode_unik',
@@ -92,7 +108,7 @@ export async function GET(request) {
     const params = [];
     if (userId) { where.push('kp.user_id = ?'); params.push(userId); }
     if (status !== 'semua') { where.push('u.status = ?'); params.push(status); }
-    if (siapBerangkat) { where.push('kp.target_estimasi_harga > 0 AND COALESCE(sl.saldo_tabungan_umroh, 0) >= kp.target_estimasi_harga * 0.8'); }
+    if (siapBerangkat) { where.push(`kp.target_estimasi_harga > 0 AND COALESCE(sl.saldo_tabungan_umroh, 0) >= kp.target_estimasi_harga * 0.8 AND NOT ${TARGET_SUDAH_CHECKOUT_SQL}`); }
     if (q) {
       where.push('(kp.nama LIKE ? OR u.kode_unik LIKE ? OR kp.wa LIKE ? OR kp.nik LIKE ?)');
       const like = `%${q}%`;
@@ -114,10 +130,18 @@ export async function GET(request) {
          -- gak kesubtract dari saldo_tabungan_umroh yang ditampilkan ke
          -- admin, keliatan kayak "saldo gak kepotong" padahal backend-nya
          -- sendiri udah bener motong buat nyegah dipakai checkout lain.
+         -- ujroh_cair/ujroh_pending (dikonfirmasi user 2026-10-15) -- subset
+         -- JENIS_UJROH doang (bukan tabungan_awal/setoran_mandiri/koreksi,
+         -- itu duit jamaah sendiri bukan komisi), biar kartu "Ujroh Cair"
+         -- gak keliatan ada angka buat jamaah yang belum pernah closing tapi
+         -- kebetulan udah setor mandiri -- bug dilaporkan sebelumnya (kartu
+         -- lama nyampur semua jadi "Sudah Cair").
          SELECT penerima_id,
                 COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NOT NULL OR jenis = 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_tabungan_umroh,
                 MAX(CASE WHEN dikonfirmasi_at IS NOT NULL THEN dikonfirmasi_at END) AS saldo_updated_at,
-                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NULL AND jenis != 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_pending
+                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NULL AND jenis != 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_pending,
+                COALESCE(SUM(CASE WHEN jenis IN (${JENIS_UJROH}) AND dikonfirmasi_at IS NOT NULL THEN nominal ELSE 0 END), 0) AS ujroh_cair,
+                COALESCE(SUM(CASE WHEN jenis IN (${JENIS_UJROH}) AND dikonfirmasi_at IS NULL THEN nominal ELSE 0 END), 0) AS ujroh_pending
          FROM komisi_ledger WHERE jenis IN (${JENIS_SALDO})
          GROUP BY penerima_id
        ) sl ON sl.penerima_id = kp.user_id
@@ -128,7 +152,7 @@ export async function GET(request) {
     `;
     const selectCols = `
        kp.*, u.kode_unik, u.role, u.role_kedua, u.status AS user_status, u.email AS user_email, u.wa AS user_wa,
-       u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.bantuan_bsi_manual_disetujui_at,
+       u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.bantuan_bsi_manual_disetujui_at,
        u.setuju_sk_cif_pemblokiran_at, u.setuju_pks,
        u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,
        u.dokumen_pemblokiran_fisik_diterima_at, u.dokumen_spk_ak_fisik_diterima_at,
@@ -139,7 +163,10 @@ export async function GET(request) {
        v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,
        COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh,
        sl.saldo_updated_at,
-       COALESCE(sl.saldo_pending, 0) AS saldo_pending
+       COALESCE(sl.saldo_pending, 0) AS saldo_pending,
+       COALESCE(sl.ujroh_cair, 0) AS ujroh_cair,
+       COALESCE(sl.ujroh_pending, 0) AS ujroh_pending,
+       ${TARGET_SUDAH_CHECKOUT_SQL} AS target_sudah_checkout
     `;
 
     // Ringkasan (total/aktif/proses/siap_berangkat) SELALU dihitung dari
@@ -147,7 +174,8 @@ export async function GET(request) {
     // perilaku lama, cuma sekarang lewat query agregat ringan, bukan
     // dari array penuh yang di-fetch ke client.
     const [ringkasanRows] = await pool.query(
-      `SELECT u.status AS user_status, u.kode_unik, kp.target_estimasi_harga, COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh
+      `SELECT u.status AS user_status, u.kode_unik, kp.target_estimasi_harga, COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh,
+              ${TARGET_SUDAH_CHECKOUT_SQL} AS target_sudah_checkout
        ${baseFrom}`
     );
     const ringkasan = { total: 0, aktif: 0, proses: 0, siap_berangkat: 0 };
@@ -158,8 +186,13 @@ export async function GET(request) {
       if (r.kode_unik) ringkasan.total++;
       if (r.user_status === 'active') ringkasan.aktif++;
       if (r.user_status === 'pending') ringkasan.proses++;
-      const p = persenKesiapan(r.saldo_tabungan_umroh, r.target_estimasi_harga);
-      if (p !== null && p >= 80) ringkasan.siap_berangkat++;
+      // Udah checkout ke program targetnya -> target beres, gak lagi
+      // dihitung "siap berangkat" (dikonfirmasi user 2026-10-15, itu
+      // cluster follow-up buat yang MASIH dikejar, bukan yang udah kelar).
+      if (!r.target_sudah_checkout) {
+        const p = persenKesiapan(r.saldo_tabungan_umroh, r.target_estimasi_harga);
+        if (p !== null && p >= 80) ringkasan.siap_berangkat++;
+      }
     }
 
     // Tanpa `page` -> balikin semua baris (konsumen: /api/admin/sahabat

@@ -18,7 +18,7 @@ import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 // TETAP self-service (tempat tinggal sekarang, wajar berubah) -- lihat
 // FIELD_UMUM & blok khusus di PATCH yang nyinkron ke kolom `alamat` biar
 // tempat lain yang baca kolom itu tetap ikut ke nilai domisili terbaru.
-const FIELD_ADMIN_ONLY = ['alamat', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
+const FIELD_ADMIN_ONLY = ['alamat', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 // email & wa — SAMA alasannya kayak NIK, ditambahin 2026-09-20 (dikonfirmasi
 // user, berlaku SEMUA role): begitu keisi pas registrasi/verifikasi awal,
 // gak boleh diganti sendiri lagi — nyegah orang "cuci" identitas lewat akun
@@ -31,7 +31,7 @@ const FIELD_ADMIN_ONLY = ['alamat', 'bank', 'no_rekening', 'nama_pemilik_rekenin
 // (admin-only, lihat FIELD_ADMIN_ONLY) — TIDAK termasuk nama/email/wa
 // (itu tetap lewat jalur wajib di bawah, sudah ada).
 const FIELD_UMUM = ['alamat_domisili', 'bank', 'no_rekening', 'nama_pemilik_rekening', 'no_paspor'];
-const FIELD_SAHABAT = ['no_rekening_bsi_biasa', 'no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
+const FIELD_SAHABAT = ['no_rekening_tabungan_umroh', 'nama_pemilik_rekening_umroh'];
 
 // GET /api/profil?user_id=xxx — ambil data user TERKINI dari DB
 // tempat_lahir/tanggal_lahir/nama_ayah/pekerjaan/pendidikan_terakhir/paspor
@@ -55,7 +55,7 @@ export async function GET(request) {
               u.alamat_ktp_jalan, u.alamat_ktp_no_rumah, u.alamat_ktp_rt, u.alamat_ktp_rw,
               u.alamat_ktp_kelurahan, u.alamat_ktp_kecamatan, u.alamat_ktp_kota, u.alamat_ktp_provinsi,
               u.alamat_ktp_negara, u.kode_pos,
-              u.no_rekening_bsi_biasa, u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.created_at,
+              u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
               u.kode_invite_perwakilan, u.tabungan_haji_status, u.agama,
@@ -251,7 +251,6 @@ export async function PATCH(request) {
       // yang biasanya nanganin ini), tetap ikut nyalain status terkait —
       // jangan sampai field keisi tapi status_bsi/tabungan_haji nyangkut 0.
       if (!sebelum[f] && nilaiBaru) {
-        if (f === 'no_rekening_bsi_biasa') { setKolom.push('akun_bsi_status = 1', 'akun_bsi_updated_at = NOW()'); }
         if (f === 'no_rekening_tabungan_umroh') { setKolom.push('tabungan_haji_status = 1', 'tabungan_haji_updated_at = NOW()'); }
       }
     }

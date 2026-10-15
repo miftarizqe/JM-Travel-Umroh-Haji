@@ -3,9 +3,9 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
-const MAKS = 5 * 1024 * 1024; // 5MB
 
 // GET /api/admin/berita — semua post + foto masing-masing, terbaru dulu
 export async function GET(request) {
@@ -58,8 +58,9 @@ export async function POST(request) {
         if (!TIPE_OK.includes(file.type)) {
           return Response.json({ error: `${file.name}: harus JPG atau PNG` }, { status: 400 });
         }
-        if (file.size > MAKS) {
-          return Response.json({ error: `${file.name}: ukuran maksimal 5MB` }, { status: 400 });
+        const errUkuran = pesanUkuranFile(file);
+        if (errUkuran) {
+          return Response.json({ error: errUkuran }, { status: 400 });
         }
         const ext = path.extname(file.name || '') || '.jpg';
         const nama = `berita_${beritaId}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;

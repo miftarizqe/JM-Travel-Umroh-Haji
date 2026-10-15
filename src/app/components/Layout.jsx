@@ -372,7 +372,9 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       // Cookie token httpOnly hanya bisa dihapus oleh server
       try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
       localStorage.removeItem('user');
-      router.push('/login');
+      // Navigasi penuh: buang Client Cache Next yang masih nyimpen
+      // halaman versi login (lihat login/page.jsx).
+      window.location.assign('/login');
     });
   }
 

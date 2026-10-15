@@ -2,9 +2,9 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import path from 'path';
 import { wajibLogin } from '@/lib/auth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_DIIZINKAN = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-const MAKS_UKURAN = 5 * 1024 * 1024; // 5MB
 
 // POST /api/upload-bukti  (multipart/form-data: file)
 // Menyimpan file ke private-uploads/bukti dan mengembalikan path-nya (dilindungi login, lihat /api/dokumen/[...slug]).
@@ -28,11 +28,9 @@ export async function POST(request) {
     }
 
     // Validasi ukuran
-    if (file.size > MAKS_UKURAN) {
-      return Response.json(
-        { error: 'Ukuran file maksimal 5MB.' },
-        { status: 400 }
-      );
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     // Siapkan folder tujuan

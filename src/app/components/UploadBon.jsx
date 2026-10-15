@@ -2,6 +2,7 @@
 import { useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg, rotateImage } from '@/lib/cropImage';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 /**
  * Upload bon/bukti — satu tombol, klik baru muncul pilihan (kamera vs
@@ -36,6 +37,10 @@ export default function UploadBon({ value, onChange, disabled }) {
 
   async function unggah(file) {
     if (!file) return;
+    // Input-nya opt-out dari guard global (foto mentah boleh >3MB karena masih
+    // di-crop/rotate dulu), jadi ukuran dicek di sini ke file final yg diunggah.
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) { alert(errUkuran); return; }
     setUploading(true);
     try {
       const fd = new FormData();
@@ -114,9 +119,9 @@ export default function UploadBon({ value, onChange, disabled }) {
 
   return (
     <div className="relative">
-      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" disabled={nonaktif}
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" disabled={nonaktif} data-cek-ukuran="off"
         onChange={e => { pilihFile(e.target.files?.[0]); e.target.value = ''; }} />
-      <input ref={fileRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={nonaktif}
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={nonaktif} data-cek-ukuran="off"
         onChange={e => { pilihFile(e.target.files?.[0]); e.target.value = ''; }} />
 
       <button type="button" disabled={nonaktif} onClick={() => setMenuOpen(v => !v)}

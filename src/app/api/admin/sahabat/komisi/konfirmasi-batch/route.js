@@ -6,9 +6,9 @@ import { wajibRole } from '@/lib/auth';
 import { saldoSahabat, catatPerubahanSaldo, JENIS_SALDO_SAHABAT } from '@/lib/saldoSahabat';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { catatRekening } from '@/lib/rekeningLedger';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-const MAKS = 10 * 1024 * 1024;
 const JENIS_TANPA_BUKTI = ['pemakaian_saldo_sahabat', 'setoran_mandiri_sahabat', 'koreksi_saldo_sahabat'];
 
 function fmtTgl(iso) {
@@ -81,8 +81,9 @@ export async function PATCH(request) {
       if (!TIPE_OK.includes(file.type)) {
         return Response.json({ error: 'File harus JPG, PNG, atau PDF' }, { status: 400 });
       }
-      if (file.size > MAKS) {
-        return Response.json({ error: 'Ukuran file maksimal 10MB' }, { status: 400 });
+      const errUkuran = pesanUkuranFile(file);
+      if (errUkuran) {
+        return Response.json({ error: errUkuran }, { status: 400 });
       }
       const dir = path.join(process.cwd(), 'private-uploads', 'bukti-tf-komisi');
       if (!existsSync(dir)) await mkdir(dir, { recursive: true });

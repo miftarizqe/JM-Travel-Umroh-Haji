@@ -11,25 +11,41 @@ import { DOC_LIST, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung
 //
 // Booking LUNAS -> data & dokumen dikunci (dikonfirmasi user 2026-10-12),
 // tombol diganti keterangan. Gerbang server-nya di PATCH /api/bookings/[id].
+// KECUALI ada dokumen yang DITOLAK (dikonfirmasi user 2026-10-15, bug
+// sebelumnya: pesan "data terkunci" nongol gitu aja walau ada dokumen
+// ditolak yang WAJIB diganti) — arahkan ke "Dokumen Saya" (DokumenSayaList),
+// yang punya endpoint sempit /api/bookings/[id]/dokumen-pendukung buat ganti
+// SATU dokumen ditolak itu TANPA buka kunci field lain.
 export default function DokumenPendukungStatus({ booking, onUnggah, onEdit }) {
+  const jamaah = parseJamaahData(booking.jamaah_data);
+  const ditolak = jamaah.some(j => DOC_LIST.some(d => statusDokumen(j, d.key)?.status === 'ditolak'));
+
   if (booking.pelunasan_status === 'paid') {
+    if (ditolak) {
+      // Amber + nada positif, bukan merah/❌ (dikonfirmasi user 2026-10-15,
+      // "jangan merah silang, bikin yang lebih manusiawi") -- jamaah ini
+      // udah lunas bayar, bukan lagi kesalahan dia yang perlu ditegur.
+      return (
+        <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          📋 Ada dokumen pendukung yang perlu diperbaiki — buka &ldquo;Dokumen Saya&rdquo; di bawah buat lihat alasannya & unggah ulang.
+        </div>
+      );
+    }
     return (
       <div className="mt-2 text-[11px] text-gray-500 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
         🔒 Booking sudah lunas — data jamaah & dokumen tidak bisa diubah lagi. Hubungi admin JM Travel jika ada yang perlu dikoreksi.
       </div>
     );
   }
-  const jamaah = parseJamaahData(booking.jamaah_data);
   const total = jamaah.length * DOC_LIST.length;
   const terunggah = jamaah.reduce((n, j) => n + DOC_LIST.filter(d => j?.[d.key]).length, 0);
   const belumLengkap = total === 0 || terunggah < total;
-  const ditolak = jamaah.some(j => DOC_LIST.some(d => statusDokumen(j, d.key)?.status === 'ditolak'));
 
   return (
     <div className="mt-2 space-y-2">
       {ditolak && (
-        <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-          ❌ Ada dokumen pendukung yang ditolak admin — lihat alasannya di "Dokumen Saya", lalu ganti lewat Edit.
+        <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          📋 Ada dokumen pendukung yang perlu diperbaiki — lihat alasannya di &ldquo;Dokumen Saya&rdquo;, lalu ganti lewat Edit.
         </div>
       )}
       <div className={`grid gap-2 ${belumLengkap ? 'grid-cols-2' : 'grid-cols-1'}`}>

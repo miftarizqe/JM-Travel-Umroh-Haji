@@ -5,18 +5,19 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, useMounted } from '@/lib/useCurrentUser';
-import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
+import { AddressFields } from '@/app/components/AddressFields';
 import { hargaTermurahProgram } from '@/lib/harga';
 import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
+import { bersihkanTempat } from '@/lib/dataJamaah';
 
 const emptyForm = () => ({
-  // Default Tanggal Lahir diisi persis tgl termuda yang masih valid (17
-  // tahun dari hari ini, dikonfirmasi user 2026-10-08) — biar date picker
-  // gak nongol tahun sekarang yang jelas-jelas gak valid pas pertama
-  // dibuka, jamaah tinggal mundur dari situ.
-  nama:'', nik:'', tempat_lahir:'', tl: maksTglLahir17Tahun(), jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
+  // Tanggal Lahir & Jenis Kelamin SENGAJA kosong (dikonfirmasi user
+  // 2026-10-15) — dulu di-autofill (tgl persis 17 tahun lalu & "Laki-Laki"),
+  // gampang kelewat gak diganti jadi data salah. Batas minimal 17 tahun
+  // tetap lewat `max` date picker + validStep() + server.
+  nama:'', nik:'', tempat_lahir:'', tl:'', jk:'', ibu:'', ayah:'', foto_ktp_path:'',
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   sama_ktp: true,
   jalan_dom:'', norumah_dom:'', rt_dom:'', rw_dom:'', kp_dom:'', kel_dom:'', kec_dom:'', kota_dom:'', provinsi_dom:'', negara_dom:'Indonesia',
@@ -65,11 +66,34 @@ export default function DaftarSahabatPage() {
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim();
   useUnsavedGuard(isDirty);
 
-  const setF = (k,v) => setForm(p => ({...p, [k]: v}));
+  // Field wajib yang belum valid pas klik Lanjut -> { field: pesan }, dikasih
+  // border merah + pesan di bawahnya (dikonfirmasi user 2026-10-15, dulu
+  // cuma alert browser 1 per 1). Error field ilang begitu diisi.
+  const [errors, setErrors] = useState({});
+  const setF = (k,v) => {
+    setForm(p => ({...p, [k]: v}));
+    setErrors(e => {
+      if (!e[k]) return e;
+      const rest = { ...e };
+      delete rest[k];
+      return rest;
+    });
+  };
 
   useEffect(() => {
     if (!user) return;
-    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => { if (d.user) setProfil(d.user); }).catch(()=>{});
+    // Prefill data akun (read-only) dari data TERKINI server — lazy init
+    // useState di atas kebagian `user` undefined kalau halaman dibuka lewat
+    // page load penuh (lihat hydration di useCurrentUser.js).
+    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => {
+      if (!d.user) return;
+      setProfil(d.user);
+      setForm(f => ({
+        ...f,
+        nama: f.nama || d.user.name || '', nik: f.nik || d.user.nik || '',
+        wa: f.wa || d.user.wa || '', email: f.email || d.user.email || '',
+      }));
+    }).catch(()=>{});
     // Target Impian (step 3) dipilih dari Program Eksklusif yang admin
     // tandai khusus Sahabat Baitullah (publish_type='sahabat_baitullah',
     // dikonfirmasi user 2026-09-20) — bukan lagi teks bebas. /api/programs
@@ -138,33 +162,47 @@ export default function DaftarSahabatPage() {
     setUploadingPaspor(false);
   }
 
-  function validStep() {
+  function cariErrorStep() {
+    const e = {};
+    const wajib = (k, pesan) => { if (!String(form[k] || '').trim()) e[k] = pesan; };
     if (step === 1) {
-      if (!form.nama.trim()) return alert('Nama wajib diisi!') || false;
-      if (!/^\d{16}$/.test(form.nik.trim())) return alert('NIK harus 16 digit angka!') || false;
-      if (!form.tempat_lahir.trim()) return alert('Tempat lahir wajib diisi!') || false;
-      if (!form.tl) return alert('Tanggal lahir wajib diisi!') || false;
-      if ((hitungUmur(form.tl) ?? 0) < 17) return alert('Pendaftar Sahabat Baitullah wajib minimal berusia 17 tahun!') || false;
-      if (!form.ibu.trim()) return alert('Nama ibu kandung wajib diisi!') || false;
-      if (!form.ayah.trim()) return alert('Nama ayah kandung wajib diisi!') || false;
-      if (!form.wa.trim()) return alert('No. WhatsApp wajib diisi!') || false;
-      if (!form.pendidikan) return alert('Pendidikan terakhir wajib diisi!') || false;
-      if (!form.foto_ktp_path) return alert('Foto KTP wajib diunggah!') || false;
+      wajib('nama', 'Nama wajib diisi');
+      if (!/^\d{16}$/.test(String(form.nik || '').trim())) e.nik = 'NIK belum valid — hubungi admin untuk koreksi';
+      wajib('tempat_lahir', 'Tempat lahir wajib diisi');
+      if (!form.tl) e.tl = 'Tanggal lahir wajib diisi';
+      else if ((hitungUmur(form.tl) ?? 0) < 17) e.tl = 'Pendaftar wajib minimal berusia 17 tahun';
+      wajib('jk', 'Jenis kelamin wajib dipilih');
+      wajib('ibu', 'Nama ibu kandung wajib diisi');
+      wajib('ayah', 'Nama ayah kandung wajib diisi');
+      if (!String(form.wa || '').trim()) e.wa = 'No. WhatsApp belum ada — hubungi admin';
+      wajib('pendidikan', 'Pendidikan terakhir wajib dipilih');
+      wajib('foto_ktp_path', 'Foto KTP wajib diunggah');
     }
     if (step === 2) {
-      if (!alamatLengkap(form, ''))
-        return alert('Alamat KTP wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
-      if (!form.sama_ktp && !alamatLengkap(form, '_dom'))
-        return alert('Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
+      // Sama persis aturan alamatLengkap() (Kode Pos opsional).
+      const FIELD_ALAMAT = ['provinsi', 'kota', 'kec', 'kel', 'jalan', 'norumah', 'rt', 'rw', 'negara'];
+      for (const f of FIELD_ALAMAT) wajib(f, 'Wajib diisi');
+      if (!form.sama_ktp) for (const f of FIELD_ALAMAT) wajib(`${f}_dom`, 'Wajib diisi');
     }
     if (step === 3) {
-      if (!form.target_program_id) return alert('Target Impian (Program) wajib dipilih!') || false;
+      if (!form.target_program_id) e.target_program_id = 'Target Impian (Program) wajib dipilih';
       // Program yang harga paketnya belum diisi admin bikin target Rp 0 —
       // nanti nominal blokir rekening ikut 0 & jamaah mentok di step blokir.
-      if (!(Number(form.target_estimasi_harga) > 0))
-        return alert('Harga program ini belum tersedia. Pilih program lain atau hubungi admin JM Travel.') || false;
+      else if (!(Number(form.target_estimasi_harga) > 0))
+        e.target_program_id = 'Harga program ini belum tersedia. Pilih program lain atau hubungi admin JM Travel.';
     }
-    return true;
+    return e;
+  }
+
+  function validStep() {
+    const e = cariErrorStep();
+    setErrors(e);
+    if (Object.keys(e).length === 0) return true;
+    // Gulir ke field merah pertama biar langsung keliatan.
+    requestAnimationFrame(() => {
+      document.querySelector('[data-err="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+    return false;
   }
 
   // Data diri (step 1-3) disimpan lewat POST /api/daftar-sahabat, LALU ke
@@ -205,6 +243,12 @@ export default function DaftarSahabatPage() {
 
   const inp = "w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
   const lbl = "block text-xs font-semibold text-[#0E2F6E] mb-1";
+  const inpErr = inp.replace('border-gray-200', 'border-red-400 bg-red-50');
+  const c = (f) => (errors[f] ? inpErr : inp);
+  const err = (f) => errors[f]
+    ? <div data-err="true" className="text-[11px] text-red-600 mt-1">{errors[f]}</div>
+    : null;
+  const jumlahError = Object.keys(errors).length;
 
   return (
     <Layout title="🤝 Pendaftaran Sahabat Baitullah" showBack confirmLeave={isDirty && !sudahKirim}
@@ -239,29 +283,30 @@ export default function DaftarSahabatPage() {
           {step === 1 && (<>
             <div className="font-bold text-[#0E2F6E]">👤 Data Diri</div>
             <div><label className={lbl}>Nama Lengkap *</label>
-              <input value={form.nama} onChange={e=>setF('nama',e.target.value)} className={inp}/></div>
+              <input value={form.nama} onChange={e=>setF('nama',e.target.value)} className={c('nama')}/>{err('nama')}</div>
             {/* NIK/WA/Email dikunci begitu sampai sini (dikonfirmasi user
                 2026-09-20) — udah jadi data verifikasi awal pas akun
                 dibuat, gak boleh diubah sendiri lagi (cegah "cuci" identitas
                 lewat akun yang udah terverifikasi). Koreksi cuma lewat admin. */}
             <div><label className={lbl}>NIK (16 digit) *</label>
-              <div className={`${inp} bg-gray-50 text-gray-400`}>{form.nik || '-'}</div></div>
+              <div className={`${c('nik')} bg-gray-50 text-gray-400`}>{form.nik || '-'}</div>{err('nik')}</div>
             <div><label className={lbl}>Tempat Lahir *</label>
-              <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={inp}/></div>
+              <input value={form.tempat_lahir} onChange={e=>setF('tempat_lahir',e.target.value)} className={c('tempat_lahir')}/>{err('tempat_lahir')}</div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>Tanggal Lahir * <span className="text-gray-400 font-normal">(minimal 17 tahun)</span></label>
-                <InputTanggal max={maksTanggalLahir17Tahun} value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
+                <InputTanggal max={maksTanggalLahir17Tahun} value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={c('tl')}/>{err('tl')}</div>
               <div><label className={lbl}>Jenis Kelamin *</label>
-                <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={inp}>
-                  <option>Laki-Laki</option><option>Perempuan</option></select></div>
+                <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={c('jk')}>
+                  <option value="">— Pilih —</option>
+                  <option>Laki-Laki</option><option>Perempuan</option></select>{err('jk')}</div>
             </div>
             <div><label className={lbl}>Nama Ibu Kandung *</label>
-              <input value={form.ibu} onChange={e=>setF('ibu',e.target.value)} className={inp}/></div>
+              <input value={form.ibu} onChange={e=>setF('ibu',e.target.value)} className={c('ibu')}/>{err('ibu')}</div>
             <div><label className={lbl}>Nama Ayah Kandung *</label>
-              <input value={form.ayah} onChange={e=>setF('ayah',e.target.value)} className={inp}/></div>
+              <input value={form.ayah} onChange={e=>setF('ayah',e.target.value)} className={c('ayah')}/>{err('ayah')}</div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. WhatsApp *</label>
-                <div className={`${inp} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div></div>
+                <div className={`${c('wa')} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div>{err('wa')}</div>
               <div><label className={lbl}>Email</label>
                 <div className={`${inp} bg-gray-50 text-gray-400`}>{form.email || '-'}</div></div>
             </div>
@@ -271,10 +316,10 @@ export default function DaftarSahabatPage() {
             <div><label className={lbl}>Pekerjaan</label>
               <input value={form.pkj} onChange={e=>setF('pkj',e.target.value)} className={inp}/></div>
             <div><label className={lbl}>Pendidikan Terakhir *</label>
-              <select value={form.pendidikan} onChange={e=>setF('pendidikan',e.target.value)} className={inp}>
+              <select value={form.pendidikan} onChange={e=>setF('pendidikan',e.target.value)} className={c('pendidikan')}>
                 <option value="">— Pilih —</option>
                 {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
-              </select></div>
+              </select>{err('pendidikan')}</div>
 
             <div>
               <label className={lbl}>Foto KTP *</label>
@@ -288,12 +333,13 @@ export default function DaftarSahabatPage() {
                   </label>
                 </div>
               ) : (
-                <label className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer ${uploadingKtp ? 'border-gray-200 text-gray-400' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
+                <label className={`block border-2 border-dashed rounded-lg p-4 text-center cursor-pointer ${uploadingKtp ? 'border-gray-200 text-gray-400' : errors.foto_ktp_path ? 'border-red-400 bg-red-50 text-red-600' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
                   {uploadingKtp ? 'Mengunggah...' : '📷 Klik untuk unggah foto KTP (JPG/PNG, maks 3MB)'}
                   <input type="file" accept="image/jpeg,image/png" className="hidden" disabled={uploadingKtp}
                     onChange={e=>pilihFotoKtp(e.target.files?.[0])}/>
                 </label>
               )}
+              {err('foto_ktp_path')}
             </div>
 
             <div className="pt-2 border-t border-gray-100">
@@ -306,7 +352,7 @@ export default function DaftarSahabatPage() {
 
             {form.no_paspor.trim() && (<>
               <div><label className={lbl}>Tempat Keluar Paspor</label>
-                <input value={form.tempat_keluar_paspor} onChange={e=>setF('tempat_keluar_paspor',e.target.value)} className={inp}/></div>
+                <input value={form.tempat_keluar_paspor} onChange={e=>setF('tempat_keluar_paspor',bersihkanTempat(e.target.value))} placeholder="Contoh: Jakarta Selatan" className={inp}/></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={lbl}>Masa Berlaku Dari</label>
                   <InputTanggal value={form.masa_berlaku_paspor_dari} onChange={e=>setF('masa_berlaku_paspor_dari',e.target.value)} className={inp}/></div>
@@ -337,7 +383,7 @@ export default function DaftarSahabatPage() {
 
           {step === 2 && (<>
             <div className="font-bold text-[#0E2F6E]">🏠 Alamat KTP</div>
-            <AddressFields form={form} setF={setF} suffix="" inp={inp} lbl={lbl}/>
+            <AddressFields form={form} setF={setF} suffix="" inp={inp} lbl={lbl} errors={errors}/>
             <div className="pt-3 border-t border-gray-100">
               <label className="flex items-center gap-2 cursor-pointer mb-2">
                 <input type="checkbox" checked={form.sama_ktp} onChange={e=>setF('sama_ktp',e.target.checked)}
@@ -349,7 +395,7 @@ export default function DaftarSahabatPage() {
                 {perbaikan?.alamat_domisili_lama && (
                   <div className="text-[11px] text-gray-500 bg-gray-50 rounded-lg px-3 py-2">Alamat domisili sebelumnya: {perbaikan.alamat_domisili_lama}</div>
                 )}
-                <AddressFields form={form} setF={setF} suffix="_dom" inp={inp} lbl={lbl}/>
+                <AddressFields form={form} setF={setF} suffix="_dom" inp={inp} lbl={lbl} errors={errors}/>
               </>)}
             </div>
           </>)}
@@ -372,14 +418,16 @@ export default function DaftarSahabatPage() {
                     target_minat: prog?.name || '',
                     target_estimasi_harga: prog ? String(hargaTermurahProgram(prog)) : '',
                   }));
+                  setErrors(er => { const rest = { ...er }; delete rest.target_program_id; return rest; });
                 }}
-                className={inp}
+                className={c('target_program_id')}
               >
                 <option value="">— Pilih Program —</option>
                 {programEksklusif.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
               </select>
+              {err('target_program_id')}
               {programEksklusif.length === 0 && (
                 <div className="text-[10px] text-gray-400 mt-1">Belum ada Program Eksklusif Sahabat Baitullah yang tersedia saat ini — hubungi admin.</div>
               )}
@@ -393,9 +441,15 @@ export default function DaftarSahabatPage() {
             </div>
           </>)}
 
+          {jumlahError > 0 && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-3 py-2">
+              ⚠️ Masih ada {jumlahError} isian wajib yang belum lengkap — cek kolom yang ditandai merah di atas.
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             {step > 1 && (
-              <button onClick={()=>setStep(step-1)}
+              <button onClick={()=>{ setErrors({}); setStep(step-1); }}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">
                 ← Kembali
               </button>

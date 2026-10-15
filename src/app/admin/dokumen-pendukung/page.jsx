@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { STATUS_DOKUMEN } from '@/lib/dokumenPendukung';
@@ -36,12 +36,20 @@ const isGambar = (path) => /\.(jpe?g|png|webp|gif)$/i.test(path || '');
 // Data tetap 1x fetch status=semua, dikelompokkan di sini.
 export default function AdminDokumenPendukungPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user] = useCurrentUser();
-  const [filter, setFilter] = useState('menunggu');
+  // Deep-link dari kartu booking di Kelola Program (dikonfirmasi user
+  // 2026-10-15, "nempel di masing-masing programnya") — ?booking_id=xxx
+  // isi awal `cari` (booking_id ikut dicocokkan di filter pencarian yang
+  // udah ada di bawah) + default filter 'semua' biar yang udah diverifikasi/
+  // ditolak ikut kebaca, gak kepotong default 'menunggu'. Lazy initializer
+  // (bukan useEffect+setState) biar gak kena cascading-render lint error.
+  const bookingIdDeepLink = searchParams.get('booking_id') || '';
+  const [filter, setFilter] = useState(() => bookingIdDeepLink ? 'semua' : 'menunggu');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
-  const [cari, setCari] = useState('');
+  const [cari, setCari] = useState(() => bookingIdDeepLink);
   const [pilih, setPilih] = useState(null); // kunciJamaah yang lagi dibuka
 
   function muat() {

@@ -38,10 +38,15 @@ export async function GET(request) {
     // Pending Pendaftaran Program Umroh — kriteria persis cluster
     // program_umroh di /api/admin/dashboard (booking aktif yang form
     // jamaahnya belum lengkap ATAU DP masih pending), dikonfirmasi user
-    // 2026-10-08. Dibuka admin lewat tab Kelola Program.
+    // 2026-10-08. Dibuka admin lewat tab Kelola Program. Pelunasan
+    // menunggu konfirmasi ikut dihitung (dikonfirmasi user 2026-10-15) —
+    // SAMA PERSIS tindakan_total di kartu Program Aktif (GET
+    // /api/admin/programs); dulu ketinggalan, jadi kartu nampilin badge
+    // "💰 pelunasan menunggu konfirmasi" tapi sidebar-nya kosong.
     hitung('/admin?tab=programs', () => count(
       `SELECT COUNT(*) AS n FROM bookings
-       WHERE status = 'active' AND (form_filled < form_total OR dp_status = 'pending')`)),
+       WHERE status = 'active'
+         AND (dp_status = 'pending' OR pelunasan_status = 'pending_confirm' OR form_filled < form_total)`)),
 
     // Pembatalan: ajuan baru + refund udah disetujui tapi bukti TF belum
     // diunggah (lihat daftarRefundBelumDitransfer di src/lib/perjanjianJamaah.js).

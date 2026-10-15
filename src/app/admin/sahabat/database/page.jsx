@@ -460,15 +460,17 @@ export default function DatabaseJamaahPage() {
     setSaving(false);
   }
 
-  // Edit NIK/bank/no_rekening/nama_pemilik_rekening/rekening BSI/tabungan
-  // umroh — SEKARANG ADMIN-ONLY (dikonfirmasi user 2026-08-30, dibalik dari
-  // self-service Fase 1 karena "ngaruh kemana2"). Reuse PATCH /api/profil
-  // yang sama (lolos guard di situ karena actor di sini admin/super_admin).
+  // Edit rekening tabungan umroh — ADMIN-ONLY (dikonfirmasi user 2026-08-30,
+  // dibalik dari self-service Fase 1 karena "ngaruh kemana2"). Reuse PATCH
+  // /api/profil yang sama (lolos guard di situ karena actor di sini
+  // admin/super_admin). Sahabat cuma punya 1 rekening (Tabungan Umroh, selalu
+  // BSI) — field generik bank/no_rekening/nama_pemilik_rekening (punya
+  // perwakilan) & rekening BSI biasa (alurnya udah dihapus) SENGAJA gak ada
+  // di sini lagi karena redundan (dikonfirmasi user 2026-10-14).
   function mulaiEditData(j) {
     setEditingData(j.user_id);
     setFormData({
-      bank: j.bank || '', no_rekening: j.no_rekening || '', nama_pemilik_rekening: j.nama_pemilik_rekening || '',
-      no_rekening_bsi_biasa: j.no_rekening_bsi_biasa || '', no_rekening_tabungan_umroh: j.no_rekening_tabungan_umroh || '',
+      no_rekening_tabungan_umroh: j.no_rekening_tabungan_umroh || '',
       nama_pemilik_rekening_umroh: j.nama_pemilik_rekening_umroh || '',
     });
   }
@@ -654,6 +656,16 @@ export default function DatabaseJamaahPage() {
                   ) : (
                     <div className="mt-2.5">
                       {j.target_estimasi_harga ? (
+                        j.target_sudah_checkout ? (
+                          // Udah checkout (ada booking active/menunggu_batal/
+                          // selesai) ke program targetnya -- sama kayak logic
+                          // dashboard jamaah (targetSudahDicheckout, lib/
+                          // targetImpian.js) yang nyembunyiin kartu Progress
+                          // Tabungan begitu ini true. Progress bar % gak lagi
+                          // relevan, dia udah beneran beli bukan masih
+                          // ngumpulin (dikonfirmasi user 2026-10-15).
+                          <div className="text-[10px] text-green-600 font-bold">✅ Target Beres — Sudah Checkout</div>
+                        ) : (
                         <>
                           <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
                             <span>{j.target_minat || 'Target belum diberi nama'} — {fmtRp(j.target_estimasi_harga)}{j.target_bulan ? ` · ${j.target_bulan} bulan` : ''}</span>
@@ -676,6 +688,7 @@ export default function DatabaseJamaahPage() {
                             <div className="mt-1.5 text-[10px] text-green-600 font-bold">✅ Sudah dibuatkan Program Eksklusif</div>
                           )}
                         </>
+                        )
                       ) : (
                         <div className="text-[10px] text-gray-400">Belum ada target program.</div>
                       )}
@@ -733,33 +746,40 @@ export default function DatabaseJamaahPage() {
                         </div>
                       ) : (
                       <>
-                        {/* Box "Total" sempat DIHAPUS total (2026-10-08),
-                            lalu sempat dimunculin lagi tapi SALAH itung
-                            (2026-10-09 awal, saldo_tabungan_umroh +
-                            saldo_pending -- pending ikut dijumlah, padahal
-                            itu belum tentu jadi duit beneran). Dikoreksi
-                            user 2026-10-09 sore: "Total Saldo Tabungan" =
-                            Ujroh Cair + Tabungan Mandiri, DUA-DUANYA
-                            confirmed -- itu PERSIS saldo_tabungan_umroh yang
-                            udah ada (field itu emang udah gabungan ujroh +
-                            setoran mandiri yang di-acc, lihat
-                            JENIS_SALDO_SAHABAT di saldoSahabat.js), BUKAN
-                            angka baru. Pending TETAP kotak terpisah, gak
-                            ikut dijumlah ke Total. HoP TETAP gak liat ini
-                            sama sekali (cabang isHop di atas, 3 kartu
-                            ujroh-only terpisah). */}
+                        {/* 3 kartu, FIX final (dikonfirmasi user 2026-10-15,
+                            revisi dari iterasi 2026-10-08/09 di bawah):
+                             - "Ujroh Cair" = ujroh DOANG (komisi_sahabat/
+                               closing_langsung_sahabat/
+                               referral_closing_reguler_sahabat/
+                               head_of_program_registrasi) yang dikonfirmasi_at
+                               -- JENIS_UJROH_SAHABAT, bukan JENIS_SALDO_SAHABAT.
+                             - "Ujroh Pending" = subset ujroh yang sama, belum
+                               dikonfirmasi_at.
+                             - "Saldo Tabungan" = Ujroh Cair + Tabungan Mandiri
+                               (setoran_mandiri_sahabat/tabungan_awal_sahabat/
+                               koreksi) - pemakaian, SEMUA confirmed -- ini
+                               tetap saldo_tabungan_umroh (JENIS_SALDO_SAHABAT),
+                               TIDAK berubah dari sebelumnya.
+                            Sebelum fix ini, "Sudah Cair" ikut nyampur
+                            tabungan_awal/setoran_mandiri_sahabat -- jamaah
+                            yang BELUM PERNAH closing tapi pernah setor
+                            mandiri kelihatan punya "ujroh cair" padahal itu
+                            duitnya sendiri (bug dilaporkan user). HoP TETAP
+                            gak liat ini sama sekali (cabang isHop di atas,
+                            3 kartu ujroh-only terpisah — sumbernya udah
+                            benar dari awal, lihat hitungLaporanUjroh). */}
                         <div className="grid grid-cols-3 gap-2">
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                            <div className="font-bold text-green-600">{fmtRp(j.saldo_tabungan_umroh)}</div>
-                            <div className="text-gray-400">Sudah Cair</div>
+                            <div className="font-bold text-green-600">{fmtRp(j.ujroh_cair)}</div>
+                            <div className="text-gray-400">Ujroh Cair</div>
                           </div>
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
-                            <div className="font-bold text-yellow-600">{fmtRp(j.saldo_pending)}</div>
-                            <div className="text-gray-400">Pending</div>
+                            <div className="font-bold text-yellow-600">{fmtRp(j.ujroh_pending)}</div>
+                            <div className="text-gray-400">Ujroh Pending</div>
                           </div>
                           <div className="bg-white rounded-lg p-2 border border-gray-100 text-center">
                             <div className="font-bold text-[#0E2F6E]">{fmtRp(j.saldo_tabungan_umroh)}</div>
-                            <div className="text-gray-400">Total Saldo Tabungan</div>
+                            <div className="text-gray-400">Saldo Tabungan</div>
                           </div>
                         </div>
                         <button onClick={() => bukaRekap(j)} className="w-full text-[#1A4FA0] font-bold hover:underline text-center">
@@ -776,27 +796,7 @@ export default function DatabaseJamaahPage() {
                             beda dari rekening yang memang wajar berubah. */}
                         <div className="grid grid-cols-2 gap-2">
                           <div>
-                            <label className="block text-gray-400 mb-0.5">Bank</label>
-                            <input value={formData.bank} onChange={e => setFormData(f => ({ ...f, bank: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">No. Rekening</label>
-                            <input value={formData.no_rekening} onChange={e => setFormData(f => ({ ...f, no_rekening: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">Nama Pemilik Rekening</label>
-                            <input value={formData.nama_pemilik_rekening} onChange={e => setFormData(f => ({ ...f, nama_pemilik_rekening: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">Rek. BSI Biasa</label>
-                            <input value={formData.no_rekening_bsi_biasa} onChange={e => setFormData(f => ({ ...f, no_rekening_bsi_biasa: e.target.value }))}
-                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
-                          </div>
-                          <div>
-                            <label className="block text-gray-400 mb-0.5">Rek. Tabungan Umroh</label>
+                            <label className="block text-gray-400 mb-0.5">No. Rek. Tabungan Umroh (BSI)</label>
                             <input value={formData.no_rekening_tabungan_umroh} onChange={e => setFormData(f => ({ ...f, no_rekening_tabungan_umroh: e.target.value }))}
                               className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
                           </div>
@@ -816,21 +816,14 @@ export default function DatabaseJamaahPage() {
                     ) : (
                       <div className="grid grid-cols-2 gap-2 text-gray-500">
                         <div>WA: <b className="text-gray-700">{j.wa}</b></div>
-                        {/* NIK & semua rekening (bank biasa + BSI biasa +
-                            tabungan umroh) — PRIVASI, cuma admin/super_admin
-                            yang boleh tau, siapapun lain (HoP, dst) enggak
-                            (dikonfirmasi user 2026-10-05). */}
+                        {/* NIK & rekening tabungan umroh — PRIVASI, cuma
+                            admin/super_admin yang boleh tau, siapapun lain
+                            (HoP, dst) enggak (dikonfirmasi user 2026-10-05). */}
                         {!isHop && (
                           <>
                             <div>NIK: <b className="text-gray-700">{j.nik}</b></div>
-                            <div>Bank: <b className="text-gray-700">{j.bank} - {j.no_rekening}</b></div>
-                            <div>Rek. BSI Biasa: <b className="text-gray-700">{j.no_rekening_bsi_biasa || '-'}</b></div>
-                          </>
-                        )}
-                        {!isHop && (
-                          <>
-                            <div>Rek. Tabungan Umroh: <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
-                            <div>Nama Pemilik Rek. Umroh: <b className="text-gray-700">{j.nama_pemilik_rekening_umroh || '-'}</b></div>
+                            <div>Rek. Tabungan Umroh (BSI): <b className="text-gray-700">{j.no_rekening_tabungan_umroh || '-'}</b></div>
+                            <div className="col-span-2">Nama Pemilik Rek. Umroh: <b className="text-gray-700">{j.nama_pemilik_rekening_umroh || '-'}</b></div>
                           </>
                         )}
                         {j.bantuan_bsi_manual_disetujui_at && !j.no_rekening_tabungan_umroh && !isHop && (
@@ -872,10 +865,20 @@ export default function DatabaseJamaahPage() {
                         className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100">
                         🌳 Jaringan
                       </button>
-                      <button onClick={() => router.push(`/dashboard/sahabat/riwayat?sahabat_id=${j.user_id}`)}
-                        className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E8F0FB] text-[#1A4FA0] hover:bg-blue-100">
-                        📜 Riwayat Lengkap
-                      </button>
+                      {/* HoP gak boleh liat riwayat lengkap tabungan (cashflow/
+                          setoran mandiri) punya sahabat lain (dikonfirmasi user
+                          2026-10-15, dicabut dari yang sempat dibolehin 2026-10-08)
+                          -- API-nya juga udah dikunci (lihat wajibPemilikAtauAdminHopSahabat
+                          di lib/hopAuth.js), tombol ini disembunyikan biar gak
+                          nunjuk ke endpoint yang bakal 403. Ringkasan ujroh-only
+                          dia TETAP ada lewat 3 kartu Ujroh Cair/Pending/Forecast
+                          di atas (cabang isHop, sumber beda: ujroh-ringkasan). */}
+                      {!isHop && (
+                        <button onClick={() => router.push(`/dashboard/sahabat/riwayat?sahabat_id=${j.user_id}`)}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E8F0FB] text-[#1A4FA0] hover:bg-blue-100">
+                          📜 Riwayat Lengkap
+                        </button>
+                      )}
                     </div>
 
                     {/* Voucher Rp1jt — HoP gak boleh tau (dikonfirmasi user 2026-10-05). */}

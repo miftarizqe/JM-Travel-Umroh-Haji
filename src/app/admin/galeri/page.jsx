@@ -105,7 +105,7 @@ export default function AdminGaleriPage() {
               className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
           </div>
         </div>
-        <label className="block text-xs font-semibold text-gray-500 mb-1">Foto (bisa pilih banyak sekaligus, JPG/PNG maks 5MB)</label>
+        <label className="block text-xs font-semibold text-gray-500 mb-1">Foto (bisa pilih banyak sekaligus, JPG/PNG maks 3MB)</label>
         <input type="file" accept=".jpg,.jpeg,.png" multiple onChange={e => setFiles(e.target.files)}
           className="w-full text-sm mb-3" />
         <button onClick={upload} disabled={uploading}

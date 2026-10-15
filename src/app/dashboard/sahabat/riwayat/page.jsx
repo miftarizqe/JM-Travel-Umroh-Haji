@@ -91,6 +91,9 @@ function RiwayatSaldoContent() {
   const [buktiNamaSetoran, setBuktiNamaSetoran] = useState(null);
   const [submittingSetoran, setSubmittingSetoran] = useState(false);
   const [pengajuanSaya, setPengajuanSaya] = useState([]);
+  // Rekening tabungan umroh milik user + alasan form dikunci (null = boleh
+  // ajukan) — dari GET /api/sahabat/setoran-mandiri-pengajuan.
+  const [infoSetoran, setInfoSetoran] = useState(null);
   const [uploadKeySetoran, setUploadKeySetoran] = useState(0);
   const [expandBatch, setExpandBatch] = useState(null);
 
@@ -125,18 +128,21 @@ function RiwayatSaldoContent() {
   }, [data]);
 
   const paramId = searchParams.get('sahabat_id');
-  // HoP ikut diizinin liat riwayat sahabat lain (dikonfirmasi user
-  // 2026-10-08, sebelumnya role 'hop' gak masuk daftar ini sama sekali --
-  // tombol "Riwayat Lengkap" di Database Sahabat jadi nge-redirect HoP ke
-  // /dashboard/jamaah lewat guard di bawah, bukan nampilin riwayat).
-  const isAdmin = user && ['admin', 'super_admin', 'hop'].includes(user.role);
-  const targetId = (paramId && isAdmin) ? paramId : user?.id;
-  const lihatOrangLain = isAdmin && paramId && paramId !== user?.id;
+  // HoP SEMPAT diizinin liat riwayat lengkap tabungan sahabat LAIN
+  // (dikonfirmasi user 2026-10-08) -- DICABUT (dikonfirmasi user 2026-10-15,
+  // lihat wajibPemilikAtauAdminHopSahabat di lib/hopAuth.js, API-nya udah
+  // 403 buat HoP yang nyoba liat punya orang lain). `role 'hop'` SENGAJA
+  // gak diikutkan lagi di `bolehLihatOrangLain` -- kalau paramId tetep ke-pass
+  // (mis. HoP ngetik URL manual), targetId jatuh balik ke akun sendiri,
+  // BUKAN error, biar tetap nampilin riwayat miliknya sendiri.
+  const bolehLihatOrangLain = user && ['admin', 'super_admin'].includes(user.role);
+  const targetId = (paramId && bolehLihatOrangLain) ? paramId : user?.id;
+  const lihatOrangLain = bolehLihatOrangLain && paramId && paramId !== user?.id;
 
   function muatPengajuanSaya() {
     fetch('/api/sahabat/setoran-mandiri-pengajuan')
       .then(r => r.json())
-      .then(d => setPengajuanSaya(d.pengajuan || []))
+      .then(d => { setPengajuanSaya(d.pengajuan || []); setInfoSetoran(d); })
       .catch(() => {});
   }
 
@@ -268,26 +274,50 @@ function RiwayatSaldoContent() {
       {!lihatOrangLain && user.role === 'sahabat_baitullah' && (
         <div className="bg-white rounded-xl border-2 border-emerald-200 p-4 mb-4">
           <div className="font-bold text-emerald-700 text-sm mb-1">💵 Ajukan Setoran Mandiri</div>
-          <div className="text-xs text-gray-400 mb-3">Sudah menabung ke rekening tabungan umroh Anda sendiri? Unggah bukti transfernya di sini — admin akan cocokkan dengan mutasi rekening & menambah saldo Anda.</div>
-          <div className="space-y-2 mb-3">
-            <input value={nominalSetoran} onChange={e => setNominalSetoran(e.target.value.replace(/\D/g, ''))}
-              placeholder="Nominal setoran (Rp)" inputMode="numeric"
-              className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-emerald-400 focus:outline-none" />
-            <UploadBukti key={uploadKeySetoran}
-              onUploaded={(path, nama) => { setBuktiPathSetoran(path); setBuktiNamaSetoran(nama); }}
-              label="Klik untuk upload bukti transfer setoran" />
-          </div>
-          <button onClick={ajukanSetoranMandiri} disabled={submittingSetoran}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold py-2.5 rounded-full">
-            {submittingSetoran ? 'Mengajukan...' : 'Ajukan Setoran Mandiri'}
-          </button>
+          <div className="text-xs text-gray-700 mb-3">Sudah menabung ke rekening tabungan umroh Anda sendiri? Unggah bukti transfernya di sini — admin akan cocokkan dengan mutasi rekening & menambah saldo Anda.</div>
+          {!infoSetoran ? (
+            <div className="text-xs text-gray-500 mb-3">Memuat...</div>
+          ) : infoSetoran.alasan_terkunci ? (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-xs text-amber-800">
+              <div className="font-bold mb-1">🔒 Setoran mandiri belum bisa diajukan</div>
+              <div>{infoSetoran.alasan_terkunci}</div>
+              {!infoSetoran.no_rekening_tabungan_umroh && (
+                <button onClick={() => router.push('/status-pendaftaran-sahabat')}
+                  className="mt-2 font-bold text-amber-900 underline">Isi nomor rekening →</button>
+              )}
+            </div>
+          ) : (<>
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2 mb-3">
+              <div className="text-[11px] font-semibold text-emerald-800">Rekening Tabungan Umroh Anda</div>
+              <div className="font-mono font-bold text-base text-[#0E2F6E] tracking-wide">{infoSetoran.no_rekening_tabungan_umroh}</div>
+              {infoSetoran.nama_pemilik_rekening_umroh && (
+                <div className="text-xs text-gray-700">a.n. {infoSetoran.nama_pemilik_rekening_umroh}</div>
+              )}
+            </div>
+            <div className="space-y-2 mb-3">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-gray-700">Rp</span>
+                <input value={nominalSetoran ? Number(nominalSetoran).toLocaleString('id-ID') : ''}
+                  onChange={e => setNominalSetoran(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Nominal setoran, mis. 1.000.000" inputMode="numeric"
+                  className="w-full pl-10 pr-3 py-2 rounded-lg border-2 border-gray-200 text-sm text-gray-900 font-semibold focus:border-emerald-400 focus:outline-none" />
+              </div>
+              <UploadBukti key={uploadKeySetoran}
+                onUploaded={(path, nama) => { setBuktiPathSetoran(path); setBuktiNamaSetoran(nama); }}
+                label="Klik untuk upload bukti transfer setoran" />
+            </div>
+            <button onClick={ajukanSetoranMandiri} disabled={submittingSetoran}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-sm font-bold py-2.5 rounded-full">
+              {submittingSetoran ? 'Mengajukan...' : 'Ajukan Setoran Mandiri'}
+            </button>
+          </>)}
 
           {pengajuanSaya.length > 0 && (
             <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
-              <div className="text-[10px] text-gray-400">Riwayat pengajuan Anda:</div>
+              <div className="text-[11px] font-semibold text-gray-700">Riwayat pengajuan Anda:</div>
               {pengajuanSaya.map(p => (
                 <div key={p.id} className="flex items-center justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
-                  <span className="font-semibold text-gray-600">{fmtRp(p.nominal)}</span>
+                  <span className="font-semibold text-gray-800">{fmtRp(p.nominal)}</span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
                     p.status === 'disetujui' ? 'bg-green-100 text-green-700' :
                     p.status === 'ditolak' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-700'

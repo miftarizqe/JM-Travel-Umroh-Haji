@@ -3,9 +3,9 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
-const MAKS = 3 * 1024 * 1024; // 3MB
 
 // POST /api/upload-paspor  (multipart: file)
 // Foto/scan paspor — OPSIONAL, cuma relevan kalau jamaah udah isi No.
@@ -27,8 +27,9 @@ export async function POST(request) {
     if (!TIPE_OK.includes(file.type)) {
       return Response.json({ error: 'Foto paspor harus JPG atau PNG' }, { status: 400 });
     }
-    if (file.size > MAKS) {
-      return Response.json({ error: 'Ukuran foto maksimal 3MB' }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     const dir = path.join(process.cwd(), 'private-uploads', 'paspor');

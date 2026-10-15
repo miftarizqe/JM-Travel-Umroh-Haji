@@ -87,7 +87,7 @@ export default function AdminBeritaPage() {
           className={`${inp} mb-3`} />
         <label className={lbl}>Tanggal (kosongkan kalau gak spesifik)</label>
         <InputTanggal value={tanggal} onChange={e => setTanggal(e.target.value)} className={`${inp} mb-3`} />
-        <label className={lbl}>Foto (opsional, bisa pilih banyak sekaligus, JPG/PNG maks 5MB)</label>
+        <label className={lbl}>Foto (opsional, bisa pilih banyak sekaligus, JPG/PNG maks 3MB)</label>
         <input type="file" accept=".jpg,.jpeg,.png" multiple onChange={e => setFiles(e.target.files)}
           className="w-full text-sm mb-3" />
         <button onClick={pasang} disabled={saving}

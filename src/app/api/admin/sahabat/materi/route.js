@@ -6,14 +6,13 @@ import { promisify } from 'util';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const execFileAsync = promisify(execFile);
 
 // PDF, bukan lagi upload gambar per-slide satu-satu (dikonfirmasi user
 // 2026-09-29 — presentasi biasanya banyak slide, export manual jadi gambar
-// tiap slide ngerepotin). Batas dinaikkan jauh dari 8MB/slide yang lama
-// (itu batas PER GAMBAR, ini batas PDF UTUH isi puluhan slide).
-const MAKS_PDF = 100 * 1024 * 1024; // 100MB
+// tiap slide ngerepotin). Ukuran PDF ikut batas global lib/batasUpload (5MB).
 const RESOLUSI_DPI = 150; // cukup tajam buat dibaca di layar, gak bikin file per-slide raksasa
 
 // Folder SENGAJA di luar public/ — lihat catatan di migration-materi-koperasi.sql.
@@ -70,7 +69,8 @@ export async function POST(request) {
     if (!judul) return Response.json({ error: 'Judul wajib diisi' }, { status: 400 });
     if (!file || typeof file === 'string') return Response.json({ error: 'File PDF materi wajib diunggah' }, { status: 400 });
     if (file.type !== 'application/pdf') return Response.json({ error: 'File harus berformat PDF' }, { status: 400 });
-    if (file.size > MAKS_PDF) return Response.json({ error: `Ukuran file maksimal ${MAKS_PDF / (1024 * 1024)}MB` }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) return Response.json({ error: errUkuran }, { status: 400 });
 
     if (!existsSync(DIR)) await mkdir(DIR, { recursive: true });
 

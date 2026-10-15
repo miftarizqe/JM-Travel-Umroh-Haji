@@ -424,197 +424,228 @@ export async function PATCH(request) {
         }
       }
 
-      await pool.query('UPDATE sahabat_pendaftaran SET status = ?, catatan_admin = ? WHERE id = ?', [status_baru, body.catatan_admin || null, p.id]);
-      await pool.query(
-        "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, ?, ?)",
-        [user_id, status_baru, body.catatan_admin || null]
-      );
-
-      if (status_baru === 'active') {
-        await pool.query(
-          "UPDATE users SET status = 'active', perekrut_id = COALESCE(perekrut_id, ?) WHERE id = ?",
-          [p.perekrut_id || null, user_id]
-        );
-        // Kode undangan rekrut-sahabat-baru — digenerate sekali di sini
-        // (gerbang wajib pendaftaran akun Sahabat Baitullah baru, mirror
-        // kode_invite_perwakilan, dikonfirmasi user 2026-09-03), no-op
-        // kalau sudah pernah punya.
-        await pastikanKodeInviteSahabat(pool, user_id);
-        // Kode unik (SBJMxxxx) — baru dijatah SEKARANG, akun beneran aktif
-        // (dikonfirmasi user 2026-09-07), bukan pas daftar.
-        await pastikanKodeUnik(pool, user_id, 'sahabat_baitullah');
-
-        // Program "Sahabat Baitullah": setoran Rp1jt jemaah baru dipecah jadi
-        // ujroh 5 generasi ke atas rantai referral + tabungan awal jemaah
-        // sendiri + komisi Head of Program (registrasi) — SEMUA dipicu di
-        // titik yang sama ini (status jadi 'active'), gantiin komisi flat
-        // sekali-per-rekrutan yang lama. Guard sekali di awal (bukan per
-        // baris) biar gak dobel kalau endpoint ini kepanggil ulang.
-        const [[sudahAda]] = await pool.query(
-          "SELECT 1 AS ada FROM komisi_ledger WHERE ref_id = ? AND jenis IN ('komisi_sahabat','tabungan_awal_sahabat')",
-          [user_id]
-        );
-        if (!sudahAda) {
-          const [[pengaturan]] = await pool.query(
-            `SELECT sahabat_gen1_nominal, sahabat_gen2_nominal, sahabat_gen3_nominal, sahabat_gen4_nominal, sahabat_gen5_nominal,
-                    sahabat_tabungan_awal_nominal, sahabat_head_of_program_nominal, head_of_program_user_id
-             FROM pengaturan WHERE id = 1`
-          );
-          const genNominal = [
-            pengaturan?.sahabat_gen1_nominal, pengaturan?.sahabat_gen2_nominal, pengaturan?.sahabat_gen3_nominal,
-            pengaturan?.sahabat_gen4_nominal, pengaturan?.sahabat_gen5_nominal,
-          ];
-
-          // Jalan ke ATAS rantai perekrut_id maks 5 hop (kebalikan
-          // apakahDalamJaringan di src/lib/jaringan.js yang jalan ke atas
-          // buat VALIDASI — di sini beneran buat NGUMPULIN daftar ancestor).
-          //
-          // 3 kasus jatah gen JANGAN dibayar ke ancestor, dialihkan ke
-          // operasional_sahabat:
-          //  1. Rantai abis sebelum 5 hop (gak ada lagi perekrut di atas) —
-          //     dulu jatah gen yang gak kebagian ini SAMA SEKALI gak
-          //     tercatat kemana pun, sekarang wajib balik ke operasional,
-          //     bukan hilang (dikonfirmasi user 2026-09-06).
-          //  2. Ancestor di posisi itu kebetulan Head of Program — HOP
-          //     SELALU cuma dapet flat Rp100rb (jatah registrasi di bawah)
-          //     gak peduli posisinya di rantai, biar gak dibayar dobel
-          //     (dikonfirmasi user 2026-09-06).
-          //  3. Ancestor-nya admin/super_admin — akun ini direkrut LANGSUNG
-          //     manajemen JM Travel lewat link referral admin (lihat
-          //     /api/admin/kode-invite), bukan rantai member-ke-member,
-          //     jadi gak ada ujroh yang dibagi-bagi ke "atasan" (admin
-          //     bukan penerima ujroh) — SELURUH rantai di atas titik ini pun
-          //     ikut mati (chain-nya emang berhenti di situ, admin gak
-          //     punya perekrut_id sendiri) — dikonfirmasi user 2026-09-19.
-          //  4. Ancestor TIDAK AKTIF (akun bukan status 'active', mis. sudah
-          //     dinonaktifkan) — jatah level itu ke operasional; upline di
-          //     atasnya TETAP dapat jatah level masing-masing (bukan
-          //     dinaikkan/dikompresi). Aturan "6 bulan tanpa Gen1 baru"
-          //     SEMPAT ada (lib/keaktifanSahabat.js, 2026-10-02) tapi
-          //     DICABUT TOTAL (dikonfirmasi user 2026-10-12) — sahabat
-          //     sekarang selalu dapat ujroh Gen1-5 selama akunnya aktif,
-          //     gak peduli kapan terakhir rekrut.
-          const hopUserId = pengaturan?.head_of_program_user_id || null;
-          let operasionalTambahan = 0;
-          let current = p.perekrut_id;
-          let rantaiAbis = false;
-          for (let gen = 0; gen < 5; gen++) {
-            const nominal = Number(genNominal[gen] || 0);
-            let ancestor = null;
-            if (!rantaiAbis && current) {
-              const [[found]] = await pool.query('SELECT id, name, role, status, perekrut_id FROM users WHERE id = ?', [current]);
-              if (found) { ancestor = found; current = found.perekrut_id; }
-              else rantaiAbis = true;
-            } else {
-              rantaiAbis = true;
-            }
-            // HoP role 'hop' = management (2026-10-03), diperlakukan sama seperti admin.
-            const ancestorManajemen = ancestor && ['admin', 'super_admin', 'hop'].includes(ancestor.role);
-            if (nominal > 0) {
-              const ancestorAktif = ancestor && !ancestorManajemen && !(hopUserId && ancestor.id === hopUserId)
-                && ancestor.status === 'active';
-              if (ancestorAktif) {
-                await pool.query(
-                  `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, level)
-                   VALUES (NULL, ?, ?, ?, 'komisi_sahabat', 1, ?, ?, ?)`,
-                  [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (Kode Agen: ${u.kode_unik || '-'})`, gen + 1]
-                );
-              } else {
-                operasionalTambahan += nominal;
-              }
-            }
-            if (ancestorManajemen) { current = null; rantaiAbis = true; }
-          }
-
-          // Tabungan awal jemaah baru itu sendiri — LANGSUNG dikonfirmasi_at
-          // (dikonfirmasi user 2026-09-30, bukan lagi kewajiban TF JM Travel:
-          // jemaah buka rekening sendiri & setor Rp100rb sendiri ke rekening
-          // tabungan umroh mereka). Beda dari komisi_sahabat/HOP di atas yang
-          // beneran uang JM Travel keluar & masih lewat approval/TF mingguan
-          // — baris ini SENGAJA gak masuk JENIS_UJROH (pengajuan-ujroh/
-          // route.js) biar gak nyangkut nunggu ACC bos buat sesuatu yang
-          // gak pernah butuh TF beneran.
-          const tabunganAwal = Number(pengaturan?.sahabat_tabungan_awal_nominal || 0);
-          if (tabunganAwal > 0) {
-            const saldoSebelum = await saldoSahabat(pool, user_id);
-            const [insTabungan] = await pool.query(
-              `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, dikonfirmasi_at)
-               VALUES (NULL, ?, ?, ?, 'tabungan_awal_sahabat', 1, ?, ?, NOW())`,
-              [user_id, user_id, p.nama, tabunganAwal, 'Saldo awal tabungan umroh — pendaftaran Sahabat Baitullah (setor mandiri jemaah)']
-            );
-            await catatPerubahanSaldo(pool, {
-              actor: auth.user, userId: user_id, saldoSebelum,
-              aksi: 'sahabat_tabungan_awal', target_type: 'komisi_ledger', target_id: String(insTabungan.insertId),
-              keterangan: `Saldo awal tabungan Rp${tabunganAwal.toLocaleString('id-ID')} saat akun ${p.nama} diaktifkan`,
-            });
-          }
-
-          // Komisi Head of Program (registrasi) — cuma kalau akunnya udah
-          // ditunjuk lewat pengaturan.
-          const hopNominal = Number(pengaturan?.sahabat_head_of_program_nominal || 0);
-          // Jatah HoP cuma "terpakai" kalau HoP beneran sudah ditunjuk. Kalau
-          // belum, jatahnya MASUK ke Operasional Management di bawah — bukan
-          // ikut dipotong lalu gak tercatat di mana pun (bug 2026-10-01:
-          // pendaftaran adit 30 Sep cuma tercatat Rp900rb dari Rp1jt).
-          const hopTerpakai = (pengaturan?.head_of_program_user_id && hopNominal > 0) ? hopNominal : 0;
-          if (hopTerpakai > 0) {
-            const [[hop]] = await pool.query('SELECT name FROM users WHERE id = ?', [pengaturan.head_of_program_user_id]);
-            await pool.query(
-              `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
-               VALUES (NULL, ?, ?, ?, 'head_of_program_registrasi', 1, ?, ?)`,
-              [user_id, pengaturan.head_of_program_user_id, hop?.name || null, hopNominal, `Komisi registrasi dari ${p.nama}`]
-            );
-          }
-
-          // Saldo operasional management — sisa dari Rp1.000.000 setelah
-          // Gen1-5 + HOP + tabungan awal (dikonfirmasi user 2026-09-06,
-          // sebelumnya potongan ini SAMA SEKALI gak ada baris ledger-nya,
-          // cuma "tersirat" di selisih rekening_ledger). DITAMBAH jatah gen
-          // yang gak kebagian ke ancestor beneran (lihat loop Gen1-5 di
-          // atas) — baik karena rantai perekrut abis sebelum 5 hop, maupun
-          // karena ancestor-nya kebetulan Head of Program (yang tetap cuma
-          // dapet flat 100rb) — dua-duanya balik kesini, bukan hilang.
-          const sumGenNominal = genNominal.reduce((s, n) => s + Number(n || 0), 0);
-          const operasionalFlat = Math.max(0, 1000000 - sumGenNominal - hopTerpakai - tabunganAwal);
-          const operasionalTotal = operasionalFlat + operasionalTambahan;
-          if (operasionalTotal > 0) {
-            await pool.query(
-              `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
-               VALUES (NULL, ?, 'operasional_sahabat', 'Operasional Management', 'operasional_sahabat', 1, ?, ?)`,
-              [
-                user_id, operasionalTotal,
-                operasionalTambahan > 0
-                  ? `Sisa pendaftaran ${p.nama} (Rp${operasionalFlat.toLocaleString('id-ID')}) + jatah gen yang gak kebagian ke ancestor beneran (Rp${operasionalTambahan.toLocaleString('id-ID')}) — rantai perekrut abis, kena HOP, dan/atau upline tidak aktif (status akun bukan 'active')`
-                  : `Sisa pendaftaran Sahabat Baitullah — atas nama ${p.nama} (Kode Agen: ${u.kode_unik || '-'})`,
-              ]
-            );
-
-            // Rekening — SEBELUMNYA dicatat keluar LALU masuk lagi (2 baris
-            // netral) biar kelihatan "titik" alokasi di riwayat rekening ini.
-            // DIHAPUS 2026-10-05 (dikonfirmasi user) -- dananya emang gak
-            // pernah kemana-mana (netral ke saldo), tapi pasangan keluar+masuk
-            // ini bikin total Masuk & Keluar bulanan di halaman Rekening
-            // 3-Bank sama-sama kegedean secara artifisial padahal gak ada
-            // uang yang beneran bergerak. komisi_ledger di atas TETAP ada
-            // (itu yang dipakai buat laporan komisi/alokasi), cuma baris
-            // rekening_ledger-nya yang dibuang.
-          }
-
-          // Voucher Rp1jt AUTO-generate SEKALIGUS AUTO-APPROVE begitu akun
-          // aktif (disetujui_at langsung diisi NOW(), bukan NULL lagi —
-          // dikonfirmasi user 2026-09-27/28, gerbang ACC manual admin
-          // dicabut: titik "Aktifkan" akun ITU SENDIRI udah jadi review
-          // manual admin, ACC voucher terpisah cuma nambah 1 klik yang gak
-          // perlu & dulu bikin jamaah mentok di checkout). Lihat
-          // cariVoucherValid() di src/lib/voucher.js buat gate pemakaiannya.
-          // Kode pakai user_id penuh (VARCHAR(36), unik by construction) biar
-          // gak perlu cek duplikat kayak voucher manual admin.
-          await pool.query(
-            `INSERT INTO vouchers (kode, potongan, kuota, terpakai, aktif, disetujui_at, for_user, akses_role, tampil, catatan, used)
-             VALUES (?, 1000000, 1, 0, 1, NOW(), ?, 'akun', 0, ?, 0)`,
-            [`SAHABAT-${user_id}`, user_id, `Voucher Rp1.000.000 — auto-generate & auto-approve pendaftaran Sahabat Baitullah`]
-          );
+      // SEMUA tulisan di bawah (status, log, users aktif, kode, ujroh Gen1-5,
+      // tabungan awal, HoP, operasional, voucher) dalam SATU transaksi
+      // (dikonfirmasi user 2026-10-15) — sebelumnya status di-UPDATE duluan
+      // tanpa transaksi, jadi kalau langkah belakangan error (mis. kolom
+      // komisi_ledger.level belum ada) admin dapet "Terjadi kesalahan" TAPI
+      // akun udah terlanjur 'active' tanpa ujroh/voucher, & klik ulang mentok
+      // "sudah Aktif, tidak bisa dimajukan lagi". Sekarang gagal = rollback
+      // utuh, admin tinggal klik ulang. Baris pendaftaran dikunci FOR UPDATE
+      // biar dobel-klik gak bikin ujroh/voucher dobel.
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        const [[kunci]] = await conn.query('SELECT status FROM sahabat_pendaftaran WHERE id = ? FOR UPDATE', [p.id]);
+        if (kunci?.status !== p.status) {
+          await conn.rollback();
+          return Response.json({ error: 'Status pendaftaran baru saja berubah. Muat ulang halaman.' }, { status: 409 });
         }
+
+        await conn.query('UPDATE sahabat_pendaftaran SET status = ?, catatan_admin = ? WHERE id = ?', [status_baru, body.catatan_admin || null, p.id]);
+        await conn.query(
+          "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('sahabat_baitullah', ?, ?, ?)",
+          [user_id, status_baru, body.catatan_admin || null]
+        );
+
+        if (status_baru === 'active') {
+          await conn.query(
+            "UPDATE users SET status = 'active', perekrut_id = COALESCE(perekrut_id, ?) WHERE id = ?",
+            [p.perekrut_id || null, user_id]
+          );
+          // Kode undangan rekrut-sahabat-baru — digenerate sekali di sini
+          // (gerbang wajib pendaftaran akun Sahabat Baitullah baru, mirror
+          // kode_invite_perwakilan, dikonfirmasi user 2026-09-03), no-op
+          // kalau sudah pernah punya.
+          await pastikanKodeInviteSahabat(conn, user_id);
+          // Kode unik (SBJMxxxx) — baru dijatah SEKARANG, akun beneran aktif
+          // (dikonfirmasi user 2026-09-07), bukan pas daftar. `u.kode_unik`
+          // di atas kebaca SEBELUM baris ini jalan (masih NULL) — pakai nilai
+          // return-nya langsung di bawah (bukan u.kode_unik) biar baris ledger
+          // Gen1-5/operasional gak permanen nyimpen "Kode Agen: -" (bug
+          // dilaporkan 2026-10-15, kode_unik baru digenerate tapi `u` gak
+          // pernah di-refresh).
+          const kodeUnikBaru = await pastikanKodeUnik(conn, user_id, 'sahabat_baitullah');
+
+          // Program "Sahabat Baitullah": setoran Rp1jt jemaah baru dipecah jadi
+          // ujroh 5 generasi ke atas rantai referral + tabungan awal jemaah
+          // sendiri + komisi Head of Program (registrasi) — SEMUA dipicu di
+          // titik yang sama ini (status jadi 'active'), gantiin komisi flat
+          // sekali-per-rekrutan yang lama. Guard sekali di awal (bukan per
+          // baris) biar gak dobel kalau endpoint ini kepanggil ulang.
+          const [[sudahAda]] = await conn.query(
+            "SELECT 1 AS ada FROM komisi_ledger WHERE ref_id = ? AND jenis IN ('komisi_sahabat','tabungan_awal_sahabat')",
+            [user_id]
+          );
+          if (!sudahAda) {
+            const [[pengaturan]] = await conn.query(
+              `SELECT sahabat_gen1_nominal, sahabat_gen2_nominal, sahabat_gen3_nominal, sahabat_gen4_nominal, sahabat_gen5_nominal,
+                      sahabat_tabungan_awal_nominal, sahabat_head_of_program_nominal, head_of_program_user_id
+               FROM pengaturan WHERE id = 1`
+            );
+            const genNominal = [
+              pengaturan?.sahabat_gen1_nominal, pengaturan?.sahabat_gen2_nominal, pengaturan?.sahabat_gen3_nominal,
+              pengaturan?.sahabat_gen4_nominal, pengaturan?.sahabat_gen5_nominal,
+            ];
+
+            // Jalan ke ATAS rantai perekrut_id maks 5 hop (kebalikan
+            // apakahDalamJaringan di src/lib/jaringan.js yang jalan ke atas
+            // buat VALIDASI — di sini beneran buat NGUMPULIN daftar ancestor).
+            //
+            // 3 kasus jatah gen JANGAN dibayar ke ancestor, dialihkan ke
+            // operasional_sahabat:
+            //  1. Rantai abis sebelum 5 hop (gak ada lagi perekrut di atas) —
+            //     dulu jatah gen yang gak kebagian ini SAMA SEKALI gak
+            //     tercatat kemana pun, sekarang wajib balik ke operasional,
+            //     bukan hilang (dikonfirmasi user 2026-09-06).
+            //  2. Ancestor di posisi itu kebetulan Head of Program — HOP
+            //     SELALU cuma dapet flat Rp100rb (jatah registrasi di bawah)
+            //     gak peduli posisinya di rantai, biar gak dibayar dobel
+            //     (dikonfirmasi user 2026-09-06).
+            //  3. Ancestor-nya admin/super_admin — akun ini direkrut LANGSUNG
+            //     manajemen JM Travel lewat link referral admin (lihat
+            //     /api/admin/kode-invite), bukan rantai member-ke-member,
+            //     jadi gak ada ujroh yang dibagi-bagi ke "atasan" (admin
+            //     bukan penerima ujroh) — SELURUH rantai di atas titik ini pun
+            //     ikut mati (chain-nya emang berhenti di situ, admin gak
+            //     punya perekrut_id sendiri) — dikonfirmasi user 2026-09-19.
+            //  4. Ancestor TIDAK AKTIF (akun bukan status 'active', mis. sudah
+            //     dinonaktifkan) — jatah level itu ke operasional; upline di
+            //     atasnya TETAP dapat jatah level masing-masing (bukan
+            //     dinaikkan/dikompresi). Aturan "6 bulan tanpa Gen1 baru"
+            //     SEMPAT ada (lib/keaktifanSahabat.js, 2026-10-02) tapi
+            //     DICABUT TOTAL (dikonfirmasi user 2026-10-12) — sahabat
+            //     sekarang selalu dapat ujroh Gen1-5 selama akunnya aktif,
+            //     gak peduli kapan terakhir rekrut.
+            const hopUserId = pengaturan?.head_of_program_user_id || null;
+            let operasionalTambahan = 0;
+            let current = p.perekrut_id;
+            let rantaiAbis = false;
+            for (let gen = 0; gen < 5; gen++) {
+              const nominal = Number(genNominal[gen] || 0);
+              let ancestor = null;
+              if (!rantaiAbis && current) {
+                const [[found]] = await conn.query('SELECT id, name, role, status, perekrut_id FROM users WHERE id = ?', [current]);
+                if (found) { ancestor = found; current = found.perekrut_id; }
+                else rantaiAbis = true;
+              } else {
+                rantaiAbis = true;
+              }
+              // HoP role 'hop' = management (2026-10-03), diperlakukan sama seperti admin.
+              const ancestorManajemen = ancestor && ['admin', 'super_admin', 'hop'].includes(ancestor.role);
+              if (nominal > 0) {
+                const ancestorAktif = ancestor && !ancestorManajemen && !(hopUserId && ancestor.id === hopUserId)
+                  && ancestor.status === 'active';
+                if (ancestorAktif) {
+                  await conn.query(
+                    `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, level)
+                     VALUES (NULL, ?, ?, ?, 'komisi_sahabat', 1, ?, ?, ?)`,
+                    [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (Kode Agen: ${kodeUnikBaru || '-'})`, gen + 1]
+                  );
+                } else {
+                  operasionalTambahan += nominal;
+                }
+              }
+              if (ancestorManajemen) { current = null; rantaiAbis = true; }
+            }
+
+            // Tabungan awal jemaah baru itu sendiri — LANGSUNG dikonfirmasi_at
+            // (dikonfirmasi user 2026-09-30, bukan lagi kewajiban TF JM Travel:
+            // jemaah buka rekening sendiri & setor Rp100rb sendiri ke rekening
+            // tabungan umroh mereka). Beda dari komisi_sahabat/HOP di atas yang
+            // beneran uang JM Travel keluar & masih lewat approval/TF mingguan
+            // — baris ini SENGAJA gak masuk JENIS_UJROH (pengajuan-ujroh/
+            // route.js) biar gak nyangkut nunggu ACC bos buat sesuatu yang
+            // gak pernah butuh TF beneran.
+            const tabunganAwal = Number(pengaturan?.sahabat_tabungan_awal_nominal || 0);
+            if (tabunganAwal > 0) {
+              const saldoSebelum = await saldoSahabat(conn, user_id);
+              const [insTabungan] = await conn.query(
+                `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, dikonfirmasi_at)
+                 VALUES (NULL, ?, ?, ?, 'tabungan_awal_sahabat', 1, ?, ?, NOW())`,
+                [user_id, user_id, p.nama, tabunganAwal, 'Saldo awal tabungan umroh — pendaftaran Sahabat Baitullah (setor mandiri jemaah)']
+              );
+              await catatPerubahanSaldo(conn, {
+                actor: auth.user, userId: user_id, saldoSebelum,
+                aksi: 'sahabat_tabungan_awal', target_type: 'komisi_ledger', target_id: String(insTabungan.insertId),
+                keterangan: `Saldo awal tabungan Rp${tabunganAwal.toLocaleString('id-ID')} saat akun ${p.nama} diaktifkan`,
+              });
+            }
+
+            // Komisi Head of Program (registrasi) — cuma kalau akunnya udah
+            // ditunjuk lewat pengaturan.
+            const hopNominal = Number(pengaturan?.sahabat_head_of_program_nominal || 0);
+            // Jatah HoP cuma "terpakai" kalau HoP beneran sudah ditunjuk. Kalau
+            // belum, jatahnya MASUK ke Operasional Management di bawah — bukan
+            // ikut dipotong lalu gak tercatat di mana pun (bug 2026-10-01:
+            // pendaftaran adit 30 Sep cuma tercatat Rp900rb dari Rp1jt).
+            const hopTerpakai = (pengaturan?.head_of_program_user_id && hopNominal > 0) ? hopNominal : 0;
+            if (hopTerpakai > 0) {
+              const [[hop]] = await conn.query('SELECT name FROM users WHERE id = ?', [pengaturan.head_of_program_user_id]);
+              await conn.query(
+                `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
+                 VALUES (NULL, ?, ?, ?, 'head_of_program_registrasi', 1, ?, ?)`,
+                [user_id, pengaturan.head_of_program_user_id, hop?.name || null, hopNominal, `Komisi registrasi dari ${p.nama}`]
+              );
+            }
+
+            // Saldo operasional management — sisa dari Rp1.000.000 setelah
+            // Gen1-5 + HOP + tabungan awal (dikonfirmasi user 2026-09-06,
+            // sebelumnya potongan ini SAMA SEKALI gak ada baris ledger-nya,
+            // cuma "tersirat" di selisih rekening_ledger). DITAMBAH jatah gen
+            // yang gak kebagian ke ancestor beneran (lihat loop Gen1-5 di
+            // atas) — baik karena rantai perekrut abis sebelum 5 hop, maupun
+            // karena ancestor-nya kebetulan Head of Program (yang tetap cuma
+            // dapet flat 100rb) — dua-duanya balik kesini, bukan hilang.
+            const sumGenNominal = genNominal.reduce((s, n) => s + Number(n || 0), 0);
+            const operasionalFlat = Math.max(0, 1000000 - sumGenNominal - hopTerpakai - tabunganAwal);
+            const operasionalTotal = operasionalFlat + operasionalTambahan;
+            if (operasionalTotal > 0) {
+              await conn.query(
+                `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan)
+                 VALUES (NULL, ?, 'operasional_sahabat', 'Operasional Management', 'operasional_sahabat', 1, ?, ?)`,
+                [
+                  user_id, operasionalTotal,
+                  operasionalTambahan > 0
+                    ? `Sisa pendaftaran ${p.nama} (Rp${operasionalFlat.toLocaleString('id-ID')}) + jatah gen yang gak kebagian ke ancestor beneran (Rp${operasionalTambahan.toLocaleString('id-ID')}) — rantai perekrut abis, kena HOP, dan/atau upline tidak aktif (status akun bukan 'active')`
+                    : `Sisa pendaftaran Sahabat Baitullah — atas nama ${p.nama} (Kode Agen: ${kodeUnikBaru || '-'})`,
+                ]
+              );
+
+              // Rekening — SEBELUMNYA dicatat keluar LALU masuk lagi (2 baris
+              // netral) biar kelihatan "titik" alokasi di riwayat rekening ini.
+              // DIHAPUS 2026-10-05 (dikonfirmasi user) -- dananya emang gak
+              // pernah kemana-mana (netral ke saldo), tapi pasangan keluar+masuk
+              // ini bikin total Masuk & Keluar bulanan di halaman Rekening
+              // 3-Bank sama-sama kegedean secara artifisial padahal gak ada
+              // uang yang beneran bergerak. komisi_ledger di atas TETAP ada
+              // (itu yang dipakai buat laporan komisi/alokasi), cuma baris
+              // rekening_ledger-nya yang dibuang.
+            }
+
+            // Voucher Rp1jt AUTO-generate SEKALIGUS AUTO-APPROVE begitu akun
+            // aktif (disetujui_at langsung diisi NOW(), bukan NULL lagi —
+            // dikonfirmasi user 2026-09-27/28, gerbang ACC manual admin
+            // dicabut: titik "Aktifkan" akun ITU SENDIRI udah jadi review
+            // manual admin, ACC voucher terpisah cuma nambah 1 klik yang gak
+            // perlu & dulu bikin jamaah mentok di checkout). Lihat
+            // cariVoucherValid() di src/lib/voucher.js buat gate pemakaiannya.
+            // Kode pakai user_id penuh (VARCHAR(36), unik by construction) biar
+            // gak perlu cek duplikat kayak voucher manual admin.
+            await conn.query(
+              `INSERT INTO vouchers (kode, potongan, kuota, terpakai, aktif, disetujui_at, for_user, akses_role, tampil, catatan, used)
+               VALUES (?, 1000000, 1, 0, 1, NOW(), ?, 'akun', 0, ?, 0)`,
+              [`SAHABAT-${user_id}`, user_id, `Voucher Rp1.000.000 — auto-generate & auto-approve pendaftaran Sahabat Baitullah`]
+            );
+          }
+        }
+
+        await conn.commit();
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
       }
 
       return Response.json({ message: 'Status pendaftaran diperbarui.', status: status_baru });

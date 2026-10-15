@@ -55,6 +55,16 @@ function CheckoutPageInner() {
   const AUTO_LOCK_SUMBER_ROLES = ['perwakilan', 'sahabat_baitullah'];
   const [sumber, setSumber] = useState(() => AUTO_LOCK_SUMBER_ROLES.includes(user?.role) ? user.role : '');
   const [referralKode, setReferralKode] = useState(() => AUTO_LOCK_SUMBER_ROLES.includes(user?.role) ? (user.kode_unik || '') : '');
+  // Page load penuh (mis. habis login, navigasinya sekarang window.location)
+  // -> `user` baru kebaca SESUDAH hydration (lihat useCurrentUser.js), jadi
+  // lazy initializer di atas kebagian `undefined`. Isi sekali begitu user
+  // ada, tanpa nimpa pilihan yang udah diisi.
+  useEffect(() => {
+    if (!AUTO_LOCK_SUMBER_ROLES.includes(user?.role)) return;
+    setSumber(s => s || user.role);
+    setReferralKode(k => k || user.kode_unik || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role]);
   // Referral perwakilan PERMANEN (dikunci sejak registrasi) — kalau jamaah
   // punya ini, dropdown "Sumber Informasi" diganti banner read-only di
   // bawah, murni kosmetik karena server (buatSatuBooking) SUDAH memaksa
@@ -112,6 +122,9 @@ function CheckoutPageInner() {
   const [nikMandiri, setNikMandiri] = useState('');
   const [tanpaNikMandiri, setTanpaNikMandiri] = useState(false);
   const [cekLanjutMandiri, setCekLanjutMandiri] = useState(false);
+  // Modal "Pastikan data sudah benar" sebelum masuk step Pembayaran
+  // (dikonfirmasi user 2026-10-15).
+  const [konfirmasiDataMandiri, setKonfirmasiDataMandiri] = useState(false);
   const [voucherMandiri, setVoucherMandiri] = useState(null);
   const [saldoInfo, setSaldoInfo] = useState(null);
   const [hasilMandiri, setHasilMandiri] = useState(null);
@@ -350,7 +363,7 @@ function CheckoutPageInner() {
       } catch { alert('Gagal mengecek NIK, coba lagi.'); return; }
       finally { setCekLanjutMandiri(false); }
     }
-    setStep(2);
+    setKonfirmasiDataMandiri(true);
   }
 
   const hargaMandiri = prog ? Number(prog[`harga_${paketMandiri}_${kamarKeyOf(kamarMandiri)}`] || 0) : 0;
@@ -646,6 +659,45 @@ function CheckoutPageInner() {
                 className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                 {cekLanjutMandiri ? 'Mengecek data...' : 'Lanjut ke Pembayaran →'}
               </button>
+
+              {konfirmasiDataMandiri && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setKonfirmasiDataMandiri(false)}>
+                  <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+                    <div className="text-center mb-4">
+                      <div className="text-4xl mb-2">⚠️</div>
+                      <div className="font-bold text-lg text-[#0E2F6E]">Pastikan Data Sudah Benar</div>
+                      <div className="text-xs text-gray-500 mt-1">Periksa kembali data di bawah sebelum lanjut ke pembayaran. Data ini dipakai untuk pendaftaran umroh & pengiriman perlengkapan Anda.</div>
+                    </div>
+                    <div className="bg-[#E8F0FB] rounded-xl p-4 space-y-2 text-sm">
+                      {[
+                        { label: 'Program', val: prog.name },
+                        { label: 'Paket', val: `${paketOpsi.find(pk => pk.key === paketMandiri)?.label || paketMandiri} · ${kamarMandiri}` },
+                        { label: 'Harga', val: `Rp ${hargaMandiri.toLocaleString('id-ID')}` },
+                        { label: 'Nama Lengkap', val: namaMandiri },
+                        { label: 'No. WhatsApp', val: waMandiri },
+                        { label: 'NIK', val: nikMandiri || 'Belum punya KTP' },
+                        { label: 'Jenis Kelamin', val: jkMandiri },
+                        { label: 'Alamat Pengiriman', val: alamatMandiri },
+                      ].map(f => (
+                        <div key={f.label} className="flex justify-between items-start gap-4">
+                          <span className="text-gray-500 shrink-0">{f.label}</span>
+                          <span className="font-semibold text-[#0E2F6E] text-right leading-snug break-words min-w-0">{f.val}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-3 mt-5">
+                      <button onClick={() => setKonfirmasiDataMandiri(false)}
+                        className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors text-sm">
+                        Periksa Lagi
+                      </button>
+                      <button onClick={() => { setKonfirmasiDataMandiri(false); setStep(2); }}
+                        className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors text-sm">
+                        Ya, Data Sudah Benar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

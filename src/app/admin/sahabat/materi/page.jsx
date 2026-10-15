@@ -95,7 +95,7 @@ export default function AdminMateriSahabatPage() {
                   {file ? (
                     <div className="text-[#1A4FA0] truncate">{file.name}</div>
                   ) : (
-                    <span className="text-gray-400">Belum ada file dipilih (maks. 100MB)</span>
+                    <span className="text-gray-400">Belum ada file dipilih (maks. 5MB)</span>
                   )}
                 </div>
                 <span className="shrink-0 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-1.5 rounded-lg">

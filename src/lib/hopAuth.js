@@ -24,19 +24,23 @@ export function isHopRole(user) {
   return user?.role === 'hop';
 }
 
-// Versi wajibPemilikAtauAdmin (src/lib/auth.js) yang ikut ngebolehin HoP
-// liat data MILIK SAHABAT LAIN (dikonfirmasi user 2026-10-08) -- JANGAN
-// dipakai gantiin wajibPemilikAtauAdmin biasa di endpoint non-sahabat
-// (profil, perwakilan, dst), itu TETAP harus pakai versi original yang
-// gak ngasih HoP akses ke data orang lain yang gak relevan.
+// Versi wajibPemilikAtauAdmin (src/lib/auth.js) KHUSUS dipakai 3 endpoint
+// "Riwayat Lengkap" sahabat (riwayat-saldo, payslip, dashboard?sahabat_id=).
+// HoP SEMPAT dibolehin liat riwayat lengkap tabungan sahabat LAIN
+// (dikonfirmasi user 2026-10-08), TAPI DICABUT (dikonfirmasi user
+// 2026-10-15) -- rincian cashflow/tabungan mandiri orang lain bukan
+// urusannya, cukup ringkasan ujroh-only (lihat
+// /api/admin/sahabat/[userId]/ujroh-ringkasan, endpoint TERPISAH yang
+// TETAP boleh dia akses). HoP SEKARANG cuma boleh akses data MILIKNYA
+// SENDIRI di sini (sama kayak jamaah biasa) -- JANGAN dipakai gantiin
+// wajibPemilikAtauAdmin biasa di endpoint non-sahabat (profil, perwakilan,
+// dst), itu TETAP harus pakai versi original.
 export async function wajibPemilikAtauAdminHopSahabat(request, pemilikId) {
   const user = verifikasiToken(request);
   if (!user) {
     return { error: Response.json({ error: 'Tidak terautentikasi.' }, { status: 401 }) };
   }
-  const boleh = ['admin', 'super_admin'].includes(user.role)
-    || (isHopRole(user) && request.method === 'GET')
-    || String(user.id) === String(pemilikId);
+  const boleh = ['admin', 'super_admin'].includes(user.role) || String(user.id) === String(pemilikId);
   if (!boleh) {
     return { error: Response.json({ error: 'Akses ditolak. Anda hanya bisa mengakses data milik sendiri.' }, { status: 403 }) };
   }

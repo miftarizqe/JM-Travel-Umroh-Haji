@@ -1,27 +1,6 @@
 import { NextResponse } from 'next/server';
 import { semuaTokenDariHeader, headerHapusTokenLama, headerCookieToken } from '@/lib/auth';
-
-// Halaman yang butuh login
-const protectedRoutes = [
-  '/dashboard',
-  '/checkout',
-  '/form-jamaah',
-  '/pelunasan',
-  '/admin',
-  '/upgrade-paket',
-  '/upload-foto',
-  '/pks',
-  '/daftar-agen',
-  '/daftar-perwakilan',
-  '/status-pendaftaran',
-  '/profil',
-  '/perwakilan',
-  '/agen/harga', // BUKAN '/agen' — '/agen/[kode]' itu halaman publik (referral)
-  '/voucher',
-  '/ajukan-custom-harga',
-  '/ganti-password-wajib',
-  '/perbaiki-data-akun',
-];
+import { isRuteTerlindungi } from '@/lib/ruteTerlindungi';
 
 /**
  * Token dianggap SAH hanya jika ada isinya dan berbentuk JWT.
@@ -55,6 +34,19 @@ function sesiHabis(token) {
     return Math.floor(Date.now() / 1000) >= loginAt + DURASI_SESI_DETIK;
   } catch {
     return true;
+  }
+}
+
+// Sahabat Baitullah ditolak permanen (klaim `ditolak`, lihat
+// /api/auth/login & verifikasiToken) — semua halaman ditahan ke sini.
+const HALAMAN_DITOLAK = '/status-pendaftaran-sahabat';
+function tokenDitolak(token) {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)));
+    return !!payload.ditolak;
+  } catch {
+    return false;
   }
 }
 
@@ -95,7 +87,7 @@ export function proxy(request) {
   // Sesi lewat 4 jam -> buang cookie; halaman privat diarahkan ke login
   // dengan keterangan sesi habis.
   if (!aktif.length && berbentukJwt.length) {
-    const isProtectedHabis = protectedRoutes.some(route => pathname.startsWith(route));
+    const isProtectedHabis = isRuteTerlindungi(pathname);
     let res;
     if (isProtectedHabis) {
       const url = new URL('/login', request.url);
@@ -122,7 +114,7 @@ export function proxy(request) {
   // bersihkan varian lama (cookie resmi Path=/ dibiarkan).
   const adaSisaLama = semua.length > 1;
 
-  const isProtected = protectedRoutes.some(route => pathname.startsWith(route));
+  const isProtected = isRuteTerlindungi(pathname);
 
   // Halaman privat tanpa login -> ke login
   if (isProtected && !login) {
@@ -132,8 +124,11 @@ export function proxy(request) {
   }
 
   let res = NextResponse.next();
-  // Sudah login tapi buka /login atau /register -> ke beranda
-  if (login && (pathname === '/login' || pathname === '/register')) {
+  if (login && tokenDitolak(raw) && pathname !== HALAMAN_DITOLAK) {
+    // Ditolak permanen -> ditahan di halaman status (modal "ditolak").
+    res = NextResponse.redirect(new URL(HALAMAN_DITOLAK, request.url));
+  } else if (login && (pathname === '/login' || pathname === '/register')) {
+    // Sudah login tapi buka /login atau /register -> ke beranda
     res = NextResponse.redirect(new URL('/', request.url));
   }
   if (adaSisaLama) {

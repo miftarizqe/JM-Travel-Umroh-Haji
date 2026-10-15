@@ -3,9 +3,9 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-const MAKS = 10 * 1024 * 1024; // 10MB — bisa scan multi-halaman
 
 // POST /api/admin/upload-dokumen-pks-fisik  (multipart: file, user_id)
 // Unggah scan/foto dokumen SPKA/SPKA-Ins/SPKL yang sudah ditandatangani
@@ -31,8 +31,9 @@ export async function POST(request) {
     if (!TIPE_OK.includes(file.type)) {
       return Response.json({ error: 'File harus JPG, PNG, atau PDF' }, { status: 400 });
     }
-    if (file.size > MAKS) {
-      return Response.json({ error: 'Ukuran file maksimal 10MB' }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     const [rows] = await pool.query('SELECT id FROM users WHERE id = ?', [userId]);

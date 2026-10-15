@@ -53,7 +53,53 @@ export function semuaTokenDariHeader(cookieHeader) {
  * Kalau ada beberapa cookie `token`, pakai yang sah & paling baru.
  * @returns {object|null} { id, role, ... } atau null kalau tidak valid
  */
+/**
+ * Sahabat Baitullah yang DITOLAK PERMANEN admin tetap boleh login
+ * (dikonfirmasi user 2026-10-15, dulu login-nya diblok total), tapi
+ * tertahan di /status-pendaftaran-sahabat (proxy) — token-nya bawa klaim
+ * `ditolak: true` & cuma boleh dipakai ke API di daftar ini. API lain
+ * nganggep gak login.
+ */
+const API_BOLEH_SAAT_DITOLAK = ['/api/auth', '/api/notifications', '/api/pengaturan', '/api/metode-pembayaran'];
+
+function bolehSaatDitolak(request) {
+  let path = '';
+  let method = 'GET';
+  try {
+    path = new URL(request.url).pathname;
+    method = String(request.method || 'GET').toUpperCase();
+  } catch {
+    return false;
+  }
+  // Halaman status cuma butuh baca status; aksi (PATCH) jamaah gak boleh.
+  if (path === '/api/status-pendaftaran-sahabat') return method === 'GET';
+  return API_BOLEH_SAAT_DITOLAK.some(p => path === p || path.startsWith(`${p}/`));
+}
+
+/**
+ * Terbitkan ulang token sesi yang sama (login_at & batas 4 jam TETAP, gak
+ * memperpanjang sesi) dengan klaim tambahan — pola sama dengan
+ * /api/auth/switch-role. Null kalau sesinya udah habis.
+ */
+export function terbitkanUlangToken(payload, tambahan = {}) {
+  const berakhir = sesiBerakhirPada(payload);
+  const sisaDetik = berakhir - Math.floor(Date.now() / 1000);
+  if (sisaDetik <= 0) return null;
+  const isi = { ...payload };
+  delete isi.iat;
+  delete isi.exp;
+  const loginAt = Number(payload.login_at || payload.iat);
+  const token = jwt.sign({ ...isi, ...tambahan, login_at: loginAt, exp: berakhir }, ambilJwtSecret());
+  return { token, maxAge: sisaDetik };
+}
+
 export function verifikasiToken(request) {
+  const payload = verifikasiTokenMentah(request);
+  if (payload?.ditolak && !bolehSaatDitolak(request)) return null;
+  return payload;
+}
+
+function verifikasiTokenMentah(request) {
   const tokens = semuaTokenDariHeader(request.headers.get('cookie'));
   const sekarang = Math.floor(Date.now() / 1000);
   let terbaik = null;
