@@ -132,16 +132,21 @@ export default function DokumenSayaList({ bookingId, booking, onUpdated }) {
                             <a href={p.path} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-[#1A4FA0] hover:underline">Lihat</a>
                           </div>
                         </div>
-                        {p.st.status === 'ditolak' && p.st.alasan && <div className="text-[10px] text-red-600">Ditolak: {p.st.alasan}</div>}
+                        {/* Amber, bukan merah (dikonfirmasi user 2026-10-15,
+                            "jangan merah silang, bikin yang lebih manusiawi")
+                            -- alasan admin tetap ditampilkan apa adanya,
+                            cuma warnanya dilembutin, gak perlu kesan nuduh. */}
+                        {p.st.status === 'ditolak' && p.st.alasan && <div className="text-[10px] text-amber-700">Catatan admin: {p.st.alasan}</div>}
                         {/* Ganti file LANGSUNG di sini — kerja walau booking
                             udah lunas (endpoint sempit, cuma buat dokumen
                             yang statusnya 'ditolak', lihat gantiDokumen di
                             atas), gak perlu buka form-jamaah penuh lagi.
                             Cuma buat booking AKTIF -- booking yang udah
                             selesai/dibatalkan gak relevan lagi buat dibenerin
-                            dokumennya. */}
+                            dokumennya. Tombol dibuat biru (CTA biasa), bukan
+                            merah -- ini ajakan beresin, bukan peringatan. */}
                         {p.st.status === 'ditolak' && ['active', 'menunggu_batal'].includes(booking?.status) && (
-                          <label className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer ${gState === 'uploading' ? 'bg-gray-100 text-gray-400' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>
+                          <label className={`mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full cursor-pointer text-white ${gState === 'uploading' ? 'bg-gray-300' : 'bg-[#1A4FA0] hover:bg-[#0E2F6E]'}`}>
                             {gState === 'uploading' ? '⏳ Mengunggah…' : '📤 Unggah Ulang'}
                             <input type="file" accept="image/jpeg,image/png,application/pdf" className="hidden" disabled={gState === 'uploading'}
                               onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; gantiDokumen(p, f); }} />

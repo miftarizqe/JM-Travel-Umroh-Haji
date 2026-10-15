@@ -22,9 +22,12 @@ export default function DokumenPendukungStatus({ booking, onUnggah, onEdit }) {
 
   if (booking.pelunasan_status === 'paid') {
     if (ditolak) {
+      // Amber + nada positif, bukan merah/❌ (dikonfirmasi user 2026-10-15,
+      // "jangan merah silang, bikin yang lebih manusiawi") -- jamaah ini
+      // udah lunas bayar, bukan lagi kesalahan dia yang perlu ditegur.
       return (
-        <div className="mt-2 text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-          ❌ Ada dokumen pendukung yang ditolak admin — buka &ldquo;Dokumen Saya&rdquo; di bawah buat lihat alasannya & unggah ulang.
+        <div className="mt-2 text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          📋 Ada dokumen pendukung yang perlu diperbaiki — buka &ldquo;Dokumen Saya&rdquo; di bawah buat lihat alasannya & unggah ulang.
         </div>
       );
     }
@@ -41,8 +44,8 @@ export default function DokumenPendukungStatus({ booking, onUnggah, onEdit }) {
   return (
     <div className="mt-2 space-y-2">
       {ditolak && (
-        <div className="text-[11px] text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-          ❌ Ada dokumen pendukung yang ditolak admin — lihat alasannya di &ldquo;Dokumen Saya&rdquo;, lalu ganti lewat Edit.
+        <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+          📋 Ada dokumen pendukung yang perlu diperbaiki — lihat alasannya di &ldquo;Dokumen Saya&rdquo;, lalu ganti lewat Edit.
         </div>
       )}
       <div className={`grid gap-2 ${belumLengkap ? 'grid-cols-2' : 'grid-cols-1'}`}>

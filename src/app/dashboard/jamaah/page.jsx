@@ -397,10 +397,15 @@ export default function DashboardJamaah() {
                           menunaikan ibadah"). Notif ke jamaah udah otomatis
                           terkirim SAAT admin nolak dokumennya (lihat
                           kirimNotifikasi di /api/admin/dokumen-pendukung),
-                          gak perlu notif tambahan di sini. */}
+                          gak perlu notif tambahan di sini. Warna amber + copy
+                          positif (BUKAN merah/❌) — ini jamaah yang BARU AJA
+                          lunasin bayaran, bukan orang yang bikin kesalahan;
+                          nadanya jangan kayak nuduh/nolak (dikonfirmasi user
+                          2026-10-15, "jangan merah silang, bikin yang lebih
+                          manusiawi"). */}
                       {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && adaDokumenPendukungDitolak(b.jamaah_data) && (
-                        <div className="bg-red-50 text-red-600 text-xs text-center py-2 rounded-full font-bold">
-                          ❌ Lunas, tapi ada dokumen pendukung yang ditolak — lihat &amp; lengkapi di &ldquo;Dokumen Saya&rdquo; di bawah.
+                        <div className="bg-amber-50 text-amber-700 text-xs text-center py-2 rounded-full font-bold">
+                          📋 Lunas — tinggal lengkapi dokumen pendukung yang perlu diperbaiki di &ldquo;Dokumen Saya&rdquo; di bawah, ya.
                         </div>
                       )}
                       {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && !adaDokumenPendukungDitolak(b.jamaah_data) && (
