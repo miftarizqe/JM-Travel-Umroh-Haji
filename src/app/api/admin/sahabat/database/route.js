@@ -39,6 +39,15 @@ const JENIS_SALDO = JENIS_SALDO_SAHABAT.map(j => `'${j}'`).join(',');
 // 2026-10-15, lihat komentar di dekat pemakaiannya di bawah).
 const JENIS_UJROH = JENIS_UJROH_SAHABAT.map(j => `'${j}'`).join(',');
 
+// Replikasi PERSIS targetSudahDicheckout() (lib/targetImpian.js) -- 1 sumber
+// dipakai di 3 tempat di bawah (per-baris, filter siap_berangkat, ringkasan)
+// biar gak nyimpang. Begitu true, target tabungan dianggap BERES (udah
+// checkout beneran, bukan lagi dikejar) -- dikecualikan dari "Siap
+// Berangkat"/dari filter itu sendiri (dikonfirmasi user 2026-10-15).
+const TARGET_SUDAH_CHECKOUT_SQL = `EXISTS (
+  SELECT 1 FROM bookings bk WHERE bk.user_id = kp.user_id AND bk.prog_id = kp.program_id AND bk.status IN ('active','menunggu_batal','selesai')
+)`;
+
 const SORT_KOLOM = {
   kode: 'u.kode_unik',
   nama: 'kp.nama',
@@ -99,7 +108,7 @@ export async function GET(request) {
     const params = [];
     if (userId) { where.push('kp.user_id = ?'); params.push(userId); }
     if (status !== 'semua') { where.push('u.status = ?'); params.push(status); }
-    if (siapBerangkat) { where.push('kp.target_estimasi_harga > 0 AND COALESCE(sl.saldo_tabungan_umroh, 0) >= kp.target_estimasi_harga * 0.8'); }
+    if (siapBerangkat) { where.push(`kp.target_estimasi_harga > 0 AND COALESCE(sl.saldo_tabungan_umroh, 0) >= kp.target_estimasi_harga * 0.8 AND NOT ${TARGET_SUDAH_CHECKOUT_SQL}`); }
     if (q) {
       where.push('(kp.nama LIKE ? OR u.kode_unik LIKE ? OR kp.wa LIKE ? OR kp.nik LIKE ?)');
       const like = `%${q}%`;
@@ -156,7 +165,8 @@ export async function GET(request) {
        sl.saldo_updated_at,
        COALESCE(sl.saldo_pending, 0) AS saldo_pending,
        COALESCE(sl.ujroh_cair, 0) AS ujroh_cair,
-       COALESCE(sl.ujroh_pending, 0) AS ujroh_pending
+       COALESCE(sl.ujroh_pending, 0) AS ujroh_pending,
+       ${TARGET_SUDAH_CHECKOUT_SQL} AS target_sudah_checkout
     `;
 
     // Ringkasan (total/aktif/proses/siap_berangkat) SELALU dihitung dari
@@ -164,7 +174,8 @@ export async function GET(request) {
     // perilaku lama, cuma sekarang lewat query agregat ringan, bukan
     // dari array penuh yang di-fetch ke client.
     const [ringkasanRows] = await pool.query(
-      `SELECT u.status AS user_status, u.kode_unik, kp.target_estimasi_harga, COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh
+      `SELECT u.status AS user_status, u.kode_unik, kp.target_estimasi_harga, COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh,
+              ${TARGET_SUDAH_CHECKOUT_SQL} AS target_sudah_checkout
        ${baseFrom}`
     );
     const ringkasan = { total: 0, aktif: 0, proses: 0, siap_berangkat: 0 };
@@ -175,8 +186,13 @@ export async function GET(request) {
       if (r.kode_unik) ringkasan.total++;
       if (r.user_status === 'active') ringkasan.aktif++;
       if (r.user_status === 'pending') ringkasan.proses++;
-      const p = persenKesiapan(r.saldo_tabungan_umroh, r.target_estimasi_harga);
-      if (p !== null && p >= 80) ringkasan.siap_berangkat++;
+      // Udah checkout ke program targetnya -> target beres, gak lagi
+      // dihitung "siap berangkat" (dikonfirmasi user 2026-10-15, itu
+      // cluster follow-up buat yang MASIH dikejar, bukan yang udah kelar).
+      if (!r.target_sudah_checkout) {
+        const p = persenKesiapan(r.saldo_tabungan_umroh, r.target_estimasi_harga);
+        if (p !== null && p >= 80) ringkasan.siap_berangkat++;
+      }
     }
 
     // Tanpa `page` -> balikin semua baris (konsumen: /api/admin/sahabat

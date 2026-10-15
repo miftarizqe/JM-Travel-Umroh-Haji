@@ -485,18 +485,25 @@ function AdminPageInner() {
     () => sahabatPendaftaran.filter(p => p.voucher_kode && !p.voucher_disetujui_at),
     [sahabatPendaftaran]
   );
+  // Ketiga cluster di bawah ini ("mantau pergerakan saldo tabungan MENUJU
+  // TARGET") SEMUA exclude j.target_sudah_checkout (dikonfirmasi user
+  // 2026-10-15) -- begitu dia udah checkout ke program targetnya, target
+  // tabungannya beres, management gak perlu follow-up lagi soal progress
+  // nabung. Ujroh/komisi dia TETAP terus dipantau seperti biasa di tempat
+  // lain (itu duit JM Travel yang masih ngalir dari rekrutan, gak ada
+  // hubungannya sama status checkout target pribadinya).
   const sahabatSiapBerangkat = useMemo(() => sahabatJamaahDb.filter(j => {
-    if (j.status !== 'active') return false;
+    if (j.status !== 'active' || j.target_sudah_checkout) return false;
     const p = persenKesiapan(j.saldo_tabungan_umroh, j.target_estimasi_harga);
     return p !== null && p >= 80;
   }), [sahabatJamaahDb]);
   const sahabatDibawahProgress = useMemo(() => sahabatJamaahDb.filter(j =>
-    j.status === 'active' && diBawahProgress(j.saldo_tabungan_umroh, j.target_estimasi_harga, j.target_bulan, j.target_set_at)
+    j.status === 'active' && !j.target_sudah_checkout && diBawahProgress(j.saldo_tabungan_umroh, j.target_estimasi_harga, j.target_bulan, j.target_set_at)
   ), [sahabatJamaahDb]);
   // Catatan SYSTEM UJROH E3: jadwal target lewat (atau program dinonaktifkan)
   // sebelum target tercapai -> anggota wajib pilih program lain.
   const sahabatJadwalTerlewat = useMemo(() => sahabatJamaahDb.filter(j =>
-    j.status === 'active' && j.program_id && statusJadwalTarget({
+    j.status === 'active' && j.program_id && !j.target_sudah_checkout && statusJadwalTarget({
       tanggal_berangkat: j.target_tanggal_berangkat, program_aktif: !!j.target_program_aktif,
       saldo: j.saldo_tabungan_umroh, target: j.target_estimasi_harga,
     }).wajib_ganti
