@@ -21,6 +21,7 @@ import { resolveJamaahHarga, ringkasanPaketKamar } from '@/lib/jamaahHarga';
 import { persenKesiapan, diBawahProgress } from '@/lib/kesiapanTabungan';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
+import { porsiRefund } from '@/lib/danaRefund';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
@@ -952,7 +953,9 @@ function AdminPageInner() {
       if (!res.ok) { setBatalForm(f => ({ ...f, konfirmasi: false, error: d.error || 'Gagal membatalkan' })); return; }
       const bookingId = detailBooking.id;
       openBookingDetail(bookingId);
-      setBatalHasil(`${perJamaah ? namaTarget + ' dibatalkan' : 'Booking dibatalkan'}. Refund ${rp(d.refund_nominal || 0)}${d.refund_persen ? ` (${d.refund_persen}%)` : ''} — ${d.catatan}`);
+      setBatalHasil(d.sahabat_eksklusif
+        ? `${perJamaah ? namaTarget + ' dibatalkan' : 'Booking dibatalkan'}. ${rp(d.kembali_ke_saldo || 0)} dikembalikan ke saldo tabungan, bisa dipakai untuk program lain.`
+        : `${perJamaah ? namaTarget + ' dibatalkan' : 'Booking dibatalkan'}. Refund ${rp(d.refund_nominal || 0)}${d.refund_persen ? ` (${d.refund_persen}%)` : ''} — ${d.catatan}`);
       loadAll();
     } catch {
       setBatalForm(f => ({ ...f, konfirmasi: false, error: 'Terjadi kesalahan jaringan, coba lagi.' }));
@@ -3042,18 +3045,13 @@ function AdminPageInner() {
 
                 // Estimasi refund — rumusnya sama persis kayak hitungRefund di
                 // /api/pembatalan (server tetap yang final).
-                let refundEstimasi;
-                if (b.sahabat_eksklusif) refundEstimasi = 0;
-                else if (kesalahanJmt) {
-                  if (batalTotal) refundEstimasi = sisa;
-                  else {
-                    const pakaiHarga = jamaahAktif.every(({ j }) => j.harga_jual != null && Number(j.harga_jual) > 0);
-                    const bobot = ({ j }) => (pakaiHarga ? Number(j.harga_jual) : 1);
-                    const totalBobot = jamaahAktif.reduce((s, x) => s + bobot(x), 0);
-                    const t = jamaahAktif.find(x => x.i === batalForm.jamaah_idx);
-                    refundEstimasi = totalBobot > 0 && t ? Math.round(sisa * bobot(t) / totalBobot) : 0;
-                  }
-                } else refundEstimasi = Number(batalForm.refund_nominal) || 0;
+                // Sahabat Baitullah: gak ada refund tunai, porsi dana masuk
+                // dikembalikan ke saldo tabungan (+ hold saldo yang belum di-ACC
+                // ikut lepas kalau batal total).
+                const refundEstimasi = (b.sahabat_eksklusif || kesalahanJmt)
+                  ? porsiRefund(b.jamaah_data, batalForm.jamaah_idx, sisa)
+                  : Number(batalForm.refund_nominal) || 0;
+                const kembaliKeSaldo = b.sahabat_eksklusif ? refundEstimasi + (batalTotal ? (dana.holdBelumAcc || 0) : 0) : 0;
 
                 const butuhNominal = !b.sahabat_eksklusif && !kesalahanJmt;
                 const nominalMentah = String(batalForm.refund_nominal ?? '').trim();
@@ -3079,7 +3077,17 @@ function AdminPageInner() {
                       {dana.sudahDirefund > 0 && (
                         <div className="flex justify-between"><span className="text-gray-500">Sudah direfund sebelumnya</span><span className="font-bold text-gray-600">− {rp(dana.sudahDirefund)}</span></div>
                       )}
-                      <div className="flex justify-between border-t border-gray-100 pt-0.5"><span className="text-gray-500">Maks. bisa direfund</span><span className="font-bold text-red-600">{rp(sisa)}</span></div>
+                      {b.sahabat_eksklusif && dana.holdBelumAcc > 0 && (
+                        <div className="flex justify-between"><span className="text-gray-500">Saldo terpakai belum di-ACC</span><span className="font-bold text-gray-600">{rp(dana.holdBelumAcc)}</span></div>
+                      )}
+                      {b.sahabat_eksklusif ? (
+                        <>
+                          <div className="flex justify-between border-t border-gray-100 pt-0.5"><span className="text-gray-500">Refund tunai</span><span className="font-bold text-gray-600">{rp(0)} <span className="font-normal text-gray-400">(tidak bisa ditarik tunai)</span></span></div>
+                          <div className="flex justify-between"><span className="text-gray-500">Kembali ke saldo tabungan</span><span className="font-bold text-purple-800">{rp(kembaliKeSaldo)}</span></div>
+                        </>
+                      ) : (
+                        <div className="flex justify-between border-t border-gray-100 pt-0.5"><span className="text-gray-500">Maks. bisa direfund</span><span className="font-bold text-red-600">{rp(sisa)}</span></div>
+                      )}
                     </div>
 
                     {batalForm.error && (
@@ -3097,7 +3105,7 @@ function AdminPageInner() {
                         </select>
                         {b.sahabat_eksklusif ? (
                           <div className="text-[10px] text-purple-800 bg-purple-100 rounded-lg px-3 py-2">
-                            Program Sahabat Baitullah — tidak ada refund tunai, voucher dialihfungsikan ke jamaah lain.
+                            Program Sahabat Baitullah — tidak ada refund tunai. <b>{rp(kembaliKeSaldo)} dikembalikan ke saldo tabungan {b.pemesan_nama || 'pemilik booking'}</b> dan bisa dipakai checkout program lain.
                           </div>
                         ) : kesalahanJmt ? (
                           <div className="text-[11px] text-gray-600">Refund otomatis: <b>{rp(refundEstimasi)}</b></div>
@@ -3131,7 +3139,14 @@ function AdminPageInner() {
                         <ul className="text-[11px] text-gray-700 space-y-1 list-disc pl-4">
                           <li>{perJamaah ? <>Jamaah <b>{namaTarget}</b> dibatalkan{batalTotal ? ' — ini jamaah aktif terakhir, booking ikut batal total.' : ', jamaah lain tetap aktif.'}</> : <>Booking <b>{b.id}</b> dibatalkan seluruhnya.</>}</li>
                           <li>Penyebab: <b>{{ permintaan_jamaah: 'Permintaan Jamaah', kesalahan_jm_travel: 'Kesalahan JM Travel', lainnya: 'Lainnya' }[batalForm.penyebab]}</b></li>
-                          <li>Refund: <b>{rp(refundEstimasi)}</b>{refundEstimasi === 0 ? ' (tidak ada dana yang ditransfer balik)' : ''}</li>
+                          {b.sahabat_eksklusif ? (
+                            <>
+                              <li>Refund tunai: <b>{rp(0)}</b> (tidak bisa ditarik tunai)</li>
+                              <li><b>{rp(kembaliKeSaldo)} dikembalikan ke saldo tabungan {b.pemesan_nama || 'pemilik booking'}</b>, bisa dipakai checkout program lain.</li>
+                            </>
+                          ) : (
+                            <li>Refund: <b>{rp(refundEstimasi)}</b>{refundEstimasi === 0 ? ' (tidak ada dana yang ditransfer balik)' : ''}</li>
+                          )}
                           <li>{infoSeat}</li>
                           {batalTotal && <li>Pembayaran yang masih pending (kalau ada) otomatis ditolak.</li>}
                           <li>Pemesan dikabari lewat notifikasi.</li>
