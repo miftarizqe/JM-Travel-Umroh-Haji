@@ -2,6 +2,7 @@ import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
 import { persenKesiapan } from '@/lib/kesiapanTabungan';
+import { JENIS_SALDO_SAHABAT, JENIS_UJROH_SAHABAT } from '@/lib/saldoSahabat';
 
 // HoP gak berhak tau NIK & SEMUA rekening (bank biasa, tabungan umroh) — PRIVASI, cuma admin/super_admin (dikonfirmasi user 2026-10-05,
 // awalnya cuma rekening tabungan umroh, diperluas ke NIK & bank biasa juga).
@@ -28,8 +29,15 @@ function redaksiUntukHop(rows) {
 
 // Jenis komisi yang masuk hitungan "saldo tabungan umroh" — 1 sumber
 // dipakai di 2 tempat query di bawah (saldo per-baris & ringkasan), jangan
-// sampai kedua tempat itu diam-diam beda daftar jenis.
-const JENIS_SALDO = "'komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi','pemakaian_saldo_sahabat','setoran_mandiri_sahabat','koreksi_saldo_sahabat'";
+// sampai kedua tempat itu diam-diam beda daftar jenis. Dari lib/saldoSahabat
+// (bukan literal lokal lagi) biar gak nyimpang dari saldoSahabat() yang
+// dipakai endpoint lain.
+const JENIS_SALDO = JENIS_SALDO_SAHABAT.map(j => `'${j}'`).join(',');
+// Subset yang BENERAN ujroh (bukan tabungan_awal/setoran_mandiri/koreksi —
+// itu duit jamaah sendiri) — dipakai pisahin kartu "Ujroh Cair"/"Ujroh
+// Pending" dari "Saldo Tabungan" di Database Anggota (dikonfirmasi user
+// 2026-10-15, lihat komentar di dekat pemakaiannya di bawah).
+const JENIS_UJROH = JENIS_UJROH_SAHABAT.map(j => `'${j}'`).join(',');
 
 const SORT_KOLOM = {
   kode: 'u.kode_unik',
@@ -113,10 +121,18 @@ export async function GET(request) {
          -- gak kesubtract dari saldo_tabungan_umroh yang ditampilkan ke
          -- admin, keliatan kayak "saldo gak kepotong" padahal backend-nya
          -- sendiri udah bener motong buat nyegah dipakai checkout lain.
+         -- ujroh_cair/ujroh_pending (dikonfirmasi user 2026-10-15) -- subset
+         -- JENIS_UJROH doang (bukan tabungan_awal/setoran_mandiri/koreksi,
+         -- itu duit jamaah sendiri bukan komisi), biar kartu "Ujroh Cair"
+         -- gak keliatan ada angka buat jamaah yang belum pernah closing tapi
+         -- kebetulan udah setor mandiri -- bug dilaporkan sebelumnya (kartu
+         -- lama nyampur semua jadi "Sudah Cair").
          SELECT penerima_id,
                 COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NOT NULL OR jenis = 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_tabungan_umroh,
                 MAX(CASE WHEN dikonfirmasi_at IS NOT NULL THEN dikonfirmasi_at END) AS saldo_updated_at,
-                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NULL AND jenis != 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_pending
+                COALESCE(SUM(CASE WHEN dikonfirmasi_at IS NULL AND jenis != 'pemakaian_saldo_sahabat' THEN nominal ELSE 0 END), 0) AS saldo_pending,
+                COALESCE(SUM(CASE WHEN jenis IN (${JENIS_UJROH}) AND dikonfirmasi_at IS NOT NULL THEN nominal ELSE 0 END), 0) AS ujroh_cair,
+                COALESCE(SUM(CASE WHEN jenis IN (${JENIS_UJROH}) AND dikonfirmasi_at IS NULL THEN nominal ELSE 0 END), 0) AS ujroh_pending
          FROM komisi_ledger WHERE jenis IN (${JENIS_SALDO})
          GROUP BY penerima_id
        ) sl ON sl.penerima_id = kp.user_id
@@ -138,7 +154,9 @@ export async function GET(request) {
        v.id AS voucher_id, v.kode AS voucher_kode, v.used AS voucher_used, v.aktif AS voucher_aktif, v.disetujui_at AS voucher_disetujui_at,
        COALESCE(sl.saldo_tabungan_umroh, 0) AS saldo_tabungan_umroh,
        sl.saldo_updated_at,
-       COALESCE(sl.saldo_pending, 0) AS saldo_pending
+       COALESCE(sl.saldo_pending, 0) AS saldo_pending,
+       COALESCE(sl.ujroh_cair, 0) AS ujroh_cair,
+       COALESCE(sl.ujroh_pending, 0) AS ujroh_pending
     `;
 
     // Ringkasan (total/aktif/proses/siap_berangkat) SELALU dihitung dari
