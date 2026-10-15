@@ -2097,8 +2097,20 @@ function AdminPageInner() {
             <div className="space-y-3">
               {progJamaah.map(b => {
                 const isOpen = expandProgBooking === b.id;
+                // Kriteria SAMA PERSIS tindakan_total di kartu Program Aktif
+                // & badge sidebar Kelola Program — tombol yang jadi jalan
+                // nyelesaiinnya dikasih warna aksi (dikonfirmasi user
+                // 2026-10-15), biar gak sama kayak tombol reguler lain.
+                const aktif = b.status === 'active';
+                const dpPending = aktif && b.dp_status === 'pending';
+                const lunasPending = aktif && b.pelunasan_status === 'pending_confirm';
+                const formBelum = aktif && !b.form_lengkap;
+                const perluTindakan = dpPending || lunasPending || formBelum;
+                // Kuning = warning "perlu tindakan", BUKAN merah (merah = bahaya/error,
+                // dikonfirmasi user 2026-10-15).
+                const btnAksi = 'bg-amber-400 hover:bg-amber-500 text-amber-950 ring-2 ring-amber-200';
                 return (
-                <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] p-4">
+                <div key={b.id} className={`bg-white rounded-xl border p-4 ${perluTindakan ? 'border-amber-300 ring-2 ring-amber-100' : 'border-[#e0e8f0]'}`}>
                   <div className="flex items-center justify-between mb-2 cursor-pointer" onClick={() => setExpandProgBooking(isOpen ? null : b.id)}>
                     <div>
                       <div className="font-bold text-[#0E2F6E] text-sm">{b.pemesan_nama||'User'} — {b.id}</div>
@@ -2108,6 +2120,9 @@ function AdminPageInner() {
                       </div>
                     </div>
                     <div className="flex flex-col items-end gap-1">
+                      {perluTindakan && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 whitespace-nowrap">⚡ Perlu tindakan</span>
+                      )}
                       <span className={`text-xs font-bold px-2 py-1 rounded-full ${b.dp_status==='confirmed'?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-700'}`}>
                         {b.dp_status==='confirmed'?'DP OK':'DP Pending'}
                       </span>
@@ -2115,6 +2130,13 @@ function AdminPageInner() {
                     </div>
                   </div>
                   {b.status === 'active' && <BookingProgressBar booking={b} className="mb-2" />}
+                  {perluTindakan && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {dpPending && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">💳 DP menunggu konfirmasi</span>}
+                      {lunasPending && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">💰 Pelunasan menunggu konfirmasi</span>}
+                      {formBelum && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">📝 Formulir belum lengkap ({b.form_filled}/{b.form_total})</span>}
+                    </div>
+                  )}
 
                   {isOpen && (
                     <>
@@ -2139,8 +2161,13 @@ function AdminPageInner() {
                         </div>
                       )}
 
-                      <button onClick={() => openBookingDetail(b.id)} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold py-2 rounded-full">
-                        🔍 Detail Lengkap Booking
+                      {/* Konfirmasi DP/pelunasan dilakukan di modal detail
+                          booking (lihat aksiPaymentDariModal). */}
+                      <button onClick={() => openBookingDetail(b.id)}
+                        className={`w-full mb-2 text-sm font-bold py-2 rounded-full ${dpPending || lunasPending ? btnAksi : 'bg-gray-100 hover:bg-gray-200 text-gray-600'}`}>
+                        {dpPending || lunasPending
+                          ? `⚡ Konfirmasi ${[dpPending && 'DP', lunasPending && 'Pelunasan'].filter(Boolean).join(' & ')} — Buka Detail Booking`
+                          : '🔍 Detail Lengkap Booking'}
                       </button>
 
                       {/* Jalan pintas ke halaman form-jamaah (sudah admin-
@@ -2183,8 +2210,8 @@ function AdminPageInner() {
                           )}
                         </div>
                       ) : (
-                        <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)} className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2 rounded-full">
-                          📋 Lengkapi Formulir ({b.form_filled}/{b.form_total})
+                        <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)} className={`w-full text-sm font-bold py-2 rounded-full ${formBelum ? btnAksi : 'bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white'}`}>
+                          {formBelum ? '⚡ ' : '📋 '}Lengkapi Formulir ({b.form_filled}/{b.form_total})
                         </button>
                       )}
 
