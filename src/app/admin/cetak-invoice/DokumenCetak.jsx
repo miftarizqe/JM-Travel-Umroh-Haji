@@ -53,16 +53,13 @@ export function uniformCombo(list) {
   return list.every(j => j.paket === first.paket && j.kamar === first.kamar);
 }
 
-export function BarisPaket({ booking, listOverride }) {
-  // listOverride dipakai Kwitansi (dikonfirmasi user 2026-10-14) — begitu
-  // udah "Kirim ke Jamaah", daftar jamaah/qty di baris ini WAJIB ikut
-  // jamaah_breakdown_pembayaran yang udah dibekukan (lihat komponen
-  // pemanggil), bukan booking.jamaah_breakdown yang selalu dihitung LIVE —
-  // kalau enggak, baris ini bisa "berubah" walau nominal di bawahnya udah
-  // dikunci. Invoice (listOverride gak dikasih) tetap pakai data booking
-  // live seperti biasa, belum ikut lock.
-  const list = listOverride || booking.jamaah_breakdown || [];
-  const namaList = listOverride ? listOverride.map(j => j.nama) : (booking.jamaah_nama || []);
+// Dipakai Invoice doang sekarang (Kwitansi punya baris sendiri yang lebih
+// ringkas, gak lewat sini lagi — lihat komponen utama di bawah,
+// dikonfirmasi user 2026-10-15). Invoice masih pakai data booking LIVE,
+// belum ikut lock html_snapshot.
+export function BarisPaket({ booking }) {
+  const list = booking.jamaah_breakdown || [];
+  const namaList = booking.jamaah_nama || [];
   const qty = list.length || Number(booking.jumlah_jamaah || 1);
 
   // Mixed combo & ada datanya — 1 baris PER ORANG, qty/satuan/jumlah masing2
@@ -223,9 +220,23 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
               )}
               <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
             </>
+          ) : dokumen.jenis === 'kwitansi' ? (
+            // Gaya & isi DISAMAIN sama Tanda Terima Uang (dikonfirmasi user
+            // 2026-10-15, "miripin aja kayak TTU... tanpa kebanyakan
+            // garis-garis kotak-kotak") -- 1 baris ringkas (paket + atas nama
+            // jamaah + total terbayar), BUKAN breakdown DP/Pelunasan/TOTAL
+            // PAID terpisah kayak sebelumnya. Kwitansi SELALU dicetak pas
+            // sudah lunas total, jadi "total terbayar" = dokumen.nominal
+            // (keseluruhan), gak perlu embel-embel tahap pembayaran.
+            <>
+              <BarisItem label={LABEL_BARIS.kwitansi}
+                sub={<KeteranganPembayaran list={jamaahUntukPembayaran} />}
+                qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
+              <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+            </>
           ) : punyaRincianBooking ? (
             <>
-              <BarisPaket booking={booking} listOverride={dokumen.jenis === 'kwitansi' ? jamaahUntukPembayaran : undefined} />
+              <BarisPaket booking={booking} />
 
               {booking.opsi_tambahan_total > 0 && (
                 <BarisItem
@@ -234,37 +245,22 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
                 />
               )}
 
-              {dokumen.jenis === 'invoice' && (
-                // Breakdown pembayaran TAMBAHAN di bawah rincian paket di atas
-                // (dikonfirmasi user 2026-10-14 -- "detail dll kayak yang awal
-                // tetap ada, cuma bagian ini tambahannya", BUKAN pengganti
-                // BarisPaket seperti yang sempat salah saya buat). Total
-                // Tagihan, Sudah Dibayarkan, [Judul] (yang ditagih SEKARANG,
-                // gak perlu qty/satuan), Sisa kalau masih ada.
-                <>
-                  <BarisItem label="Total Tagihan Paket" jumlah={booking.total_harga} />
-                  {booking.sudah_dibayar > 0 && (
-                    <BarisItem label="Sudah Dibayarkan" jumlah={-booking.sudah_dibayar} />
-                  )}
-                  <BarisItem label={dokumen.judul} jumlah={dokumen.nominal} tebal />
-                  <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                  {booking.sisa_pembayaran > 0 && (
-                    <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
-                  )}
-                </>
+              {/* Breakdown pembayaran TAMBAHAN di bawah rincian paket di atas
+                  (dikonfirmasi user 2026-10-14 -- "detail dll kayak yang awal
+                  tetap ada, cuma bagian ini tambahannya", BUKAN pengganti
+                  BarisPaket seperti yang sempat salah saya buat). Total
+                  Tagihan, Sudah Dibayarkan, [Judul] (yang ditagih SEKARANG,
+                  gak perlu qty/satuan), Sisa kalau masih ada. Kwitansi punya
+                  cabang sendiri di atas, jadi branch ini sekarang CUMA buat
+                  invoice (punyaRincianBooking + bukan tanda_terima/kwitansi). */}
+              <BarisItem label="Total Tagihan Paket" jumlah={booking.total_harga} />
+              {booking.sudah_dibayar > 0 && (
+                <BarisItem label="Sudah Dibayarkan" jumlah={-booking.sudah_dibayar} />
               )}
-
-              {dokumen.jenis === 'kwitansi' && dokumen.nominal_dp != null && (
-                <>
-                  <BarisItem label="Uang Muka (DP) — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_dp, qtyJamaah)} jumlah={dokumen.nominal_dp} />
-                  {dokumen.status === 'paid' ? (
-                    <BarisItem label="Pelunasan — diterima" qty={qtyJamaah} satuan={perUnit(dokumen.nominal_pelunasan, qtyJamaah)} jumlah={dokumen.nominal_pelunasan} />
-                  ) : (
-                    <BarisCatatan>Pelunasan: <i>belum dibayar</i></BarisCatatan>
-                  )}
-                  <BarisItem label={dokumen.status === 'paid' ? 'TOTAL PAID (diterima)' : 'Total Diterima Sejauh Ini'} jumlah={dokumen.nominal} tebal />
-                  <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
-                </>
+              <BarisItem label={dokumen.judul} jumlah={dokumen.nominal} tebal />
+              <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
+              {booking.sisa_pembayaran > 0 && (
+                <BarisItem label="Sisa Pembayaran" sub="*Dilunasi maksimal H-30 sebelum keberangkatan" jumlah={booking.sisa_pembayaran} />
               )}
             </>
           ) : (
