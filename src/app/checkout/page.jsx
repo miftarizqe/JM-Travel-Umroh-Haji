@@ -133,6 +133,13 @@ function CheckoutPageInner() {
   const [saldoInfo, setSaldoInfo] = useState(null);
   const [hasilMandiri, setHasilMandiri] = useState(null);
   const [noRekeningUmrohMandiri, setNoRekeningUmrohMandiri] = useState('');
+  // Saldo kurang -> pilih cara nutup kekurangannya (dikonfirmasi user
+  // 2026-10-16): 'transfer_langsung' (saldo dipakai semua, sisanya transfer
+  // ke rekening JM Travel + upload bukti, checkout jalan sekarang) atau
+  // 'setor_mandiri' (nabung dulu ke rekening tabungan umroh sendiri,
+  // checkout lagi setelah saldo cukup).
+  const [metodeKurangMandiri, setMetodeKurangMandiri] = useState('');
+  const [buktiMandiri, setBuktiMandiri] = useState(null);
 
   const isMandiriSahabat = user?.role === 'sahabat_baitullah' && prog?.publish_type === 'sahabat_baitullah';
   // Program eksklusif cuma boleh didaftarkan buat diri sendiri — KECUALI
@@ -367,15 +374,17 @@ function CheckoutPageInner() {
   const voucherDiskonMandiri = voucherMandiri ? Math.min(Number(voucherMandiri.potongan || 0), hargaMandiri) : 0;
   const totalMandiri = Math.max(0, hargaMandiri - voucherDiskonMandiri);
   const saldoTersediaMandiri = Math.max(0, Number(saldoInfo?.saldo_tabungan_umroh || 0));
-  // Wajib ditutup PENUH dari saldo — gak ada lagi opsi transfer pribadi
-  // buat nutup selisih (dikonfirmasi user 2026-09-29). saldoDipakaiMandiri
-  // cuma dipakai buat TAMPILAN di sini (server tetap validasi ulang), kalau
-  // saldo kurang tombol "Selesaikan Pendaftaran" diganti pesan kurang saldo.
+  // Saldo dipakai duluan; kalau kurang, sisanya lewat Transfer Langsung atau
+  // Setor Mandiri (lihat metodeKurangMandiri). Angka di sini cuma TAMPILAN,
+  // server (checkout-mandiri) tetap hitung & validasi ulang.
   const saldoCukupMandiri = saldoTersediaMandiri >= totalMandiri;
   const saldoDipakaiMandiri = saldoCukupMandiri ? totalMandiri : saldoTersediaMandiri;
   const kuranganMandiri = Math.max(0, totalMandiri - saldoTersediaMandiri);
+  const transferLangsungMandiri = !saldoCukupMandiri && metodeKurangMandiri === 'transfer_langsung';
+  const bisaSubmitMandiri = saldoCukupMandiri || (transferLangsungMandiri && !!buktiMandiri?.path);
 
   async function submitMandiri() {
+    if (!bisaSubmitMandiri) { alert('Saldo belum cukup — pilih Transfer Langsung & unggah bukti transfer, atau Setor Mandiri dulu.'); return; }
     if (!setujuPotongSaldo) { alert('Centang dulu persetujuan pemotongan saldo di atas.'); return; }
     if (!passwordDpSaldo) { alert('Masukkan password akun Anda untuk konfirmasi.'); return; }
     setLoading(true);
@@ -391,6 +400,9 @@ function CheckoutPageInner() {
           tanpa_nik: tanpaNikMandiri && !namaMandiriTerkunci,
           voucher_kode: voucherMandiri?.kode || null,
           password: passwordDpSaldo,
+          metode: transferLangsungMandiri ? 'transfer_langsung' : null,
+          bukti_path: transferLangsungMandiri ? buktiMandiri?.path : null,
+          bukti_nama: transferLangsungMandiri ? buktiMandiri?.nama : null,
         })
       });
       const data = await res.json();
@@ -696,7 +708,8 @@ function CheckoutPageInner() {
             </div>
           )}
 
-          {/* STEP 2 — Ringkasan pembayaran: saldo dulu, sisa transfer pribadi */}
+          {/* STEP 2 — Ringkasan pembayaran: saldo dulu, kalau kurang pilih
+              Transfer Langsung (sisa ke rekening JM Travel) / Setor Mandiri */}
           {step === 2 && (
             <div className="space-y-4">
               <div className="bg-[#E8F0FB] rounded-xl p-4 space-y-2">
@@ -720,27 +733,96 @@ function CheckoutPageInner() {
                   <span>Saldo Tabungan Tersedia</span><span className="font-semibold">Rp {saldoTersediaMandiri.toLocaleString('id-ID')}</span>
                 </div>
                 <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
-                  <span className="text-sm">Dipakai dari Saldo (Pelunasan Penuh)</span>
+                  <span className="text-sm">{saldoCukupMandiri ? 'Dipakai dari Saldo (Pelunasan Penuh)' : 'Dipakai dari Saldo'}</span>
                   <span className="text-purple-700">−Rp {saldoDipakaiMandiri.toLocaleString('id-ID')}</span>
                 </div>
+                {!saldoCukupMandiri && (
+                  <div className="flex justify-between font-bold">
+                    <span className="text-sm">Kekurangan</span>
+                    <span className="text-red-600">Rp {kuranganMandiri.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
               </div>
 
-              {saldoCukupMandiri ? (
+              {!saldoCukupMandiri && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-3">
+                  <div>
+                    <div className="font-bold text-red-700 text-sm">⚠️ Saldo Tabungan Umroh Belum Cukup</div>
+                    <div className="text-xs text-red-600">Kurang <b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b> lagi dari total harga. Pilih cara melunasi kekurangannya:</div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { key: 'transfer_langsung', judul: '💸 Transfer Langsung', ket: `Saldo dipakai semua, sisa Rp ${kuranganMandiri.toLocaleString('id-ID')} ditransfer ke rekening JM Travel. Checkout bisa diselesaikan sekarang.` },
+                      { key: 'setor_mandiri', judul: '🏦 Setor Mandiri', ket: 'Setor kekurangannya ke rekening tabungan umroh Anda sendiri, lanjutkan checkout setelah saldo cukup.' },
+                    ].map(o => (
+                      <button key={o.key} type="button"
+                        onClick={() => { setMetodeKurangMandiri(o.key); if (o.key !== 'transfer_langsung') setBuktiMandiri(null); }}
+                        className={`text-left rounded-xl p-3 border-2 bg-white transition-colors ${
+                          metodeKurangMandiri === o.key ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
+                        }`}>
+                        <div className="text-sm font-bold text-[#0E2F6E]">{o.judul}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5 leading-snug">{o.ket}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!saldoCukupMandiri && metodeKurangMandiri === 'setor_mandiri' && (
+                <div className="bg-white border-2 border-gray-200 rounded-xl p-4 space-y-2">
+                  <div className="text-xs text-gray-500">
+                    Setor kekurangannya (<b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b>) ke rekening tabungan umroh Anda sendiri:
+                  </div>
+                  {noRekeningUmrohMandiri && (
+                    <div className="bg-gray-50 rounded-lg p-2.5 text-sm font-bold text-[#0E2F6E] text-center">{noRekeningUmrohMandiri}</div>
+                  )}
+                  <div className="text-xs text-gray-500">Sudah transfer? Unggah bukti transfernya di <button onClick={() => router.push('/dashboard/sahabat/riwayat?tab=cashflow')} className="text-[#1A4FA0] font-bold underline">Riwayat Tabungan Umroh</button> biar admin bisa langsung verifikasi & menambah saldo Anda — kembali ke sini untuk melanjutkan checkout setelah saldo cukup.</div>
+                </div>
+              )}
+
+              {(saldoCukupMandiri || transferLangsungMandiri) && (
                 <>
                   <div className="bg-[#FEF3DC] border border-[#C9952A] rounded-xl p-4 text-sm text-[#8a6516]">
-                    ℹ️ Tidak ada tahap DP di jalur ini — booking langsung dianggap lunas penuh begitu pemakaian saldo di-ACC admin.
+                    ℹ️ Tidak ada tahap DP di jalur ini — booking langsung dianggap lunas penuh begitu {transferLangsungMandiri ? 'pemakaian saldo & transfer sisa' : 'pemakaian saldo'} di-ACC admin.
                   </div>
-                  <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
-                    <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Tabungan Umroh Anda Akan Dibayarkan Ke</div>
-                    {metodePembayaran.map(m => (
-                      <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
-                        <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
-                        {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
-                        {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                  {saldoDipakaiMandiri > 0 && (
+                    <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Tabungan Umroh Anda Akan Dibayarkan Ke</div>
+                      {metodePembayaran.map(m => (
+                        <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                          <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
+                          {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
+                          {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                        </div>
+                      ))}
+                      <div className="text-xs text-gray-400 pt-1">
+                        {transferLangsungMandiri
+                          ? `Saldo Rp ${saldoDipakaiMandiri.toLocaleString('id-ID')} diproses admin begitu pemakaian saldo dikonfirmasi — Anda cukup mentransfer sisanya di bawah.`
+                          : 'Untuk pelunasan Program Umroh ini — Anda tidak perlu transfer apa pun, admin yang memprosesnya begitu pemakaian saldo dikonfirmasi.'}
                       </div>
-                    ))}
-                    <div className="text-xs text-gray-400 pt-1">Untuk pelunasan Program Umroh ini — Anda tidak perlu transfer apa pun, admin yang memprosesnya begitu pemakaian saldo dikonfirmasi.</div>
-                  </div>
+                    </div>
+                  )}
+                  {transferLangsungMandiri && (
+                    <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">💸 Transfer Sisa Pembayaran Ke</div>
+                      {metodePembayaran.map(m => (
+                        <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                          <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
+                          {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
+                          {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                          {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
+                        </div>
+                      ))}
+                      <div className="border-t border-gray-100 pt-2 flex justify-between font-bold">
+                        <span className="text-sm">Transfer Tepat</span>
+                        <span className="text-red-600">Rp {kuranganMandiri.toLocaleString('id-ID')}</span>
+                      </div>
+                      <UploadBukti
+                        onUploaded={(path, nama) => setBuktiMandiri({ path, nama })}
+                        label="Klik untuk upload bukti transfer sisa pembayaran"
+                      />
+                    </div>
+                  )}
                   <label className="flex items-start gap-2 bg-gray-50 rounded-xl p-3 cursor-pointer">
                     <input type="checkbox" checked={setujuPotongSaldo} onChange={e => setSetujuPotongSaldo(e.target.checked)}
                       className="mt-0.5 w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
@@ -748,6 +830,7 @@ function CheckoutPageInner() {
                       Saya setuju saldo tabungan umroh saya sebesar <b>Rp {saldoDipakaiMandiri.toLocaleString('id-ID')}</b> dipotong
                       &amp; ditransfer ke rekening JM Travel untuk pembayaran program ini, sesuai Surat Kuasa Kerjasama Multi CIF
                       &amp; Surat Pernyataan Kuasa Blokir Rekening yang telah saya setujui.
+                      {transferLangsungMandiri && <> Sisanya sebesar <b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b> saya bayar lewat transfer langsung.</>}
                     </span>
                   </label>
                   <div className="bg-white border-2 border-gray-200 rounded-xl p-3 space-y-1">
@@ -758,28 +841,16 @@ function CheckoutPageInner() {
                     <div className="text-[10px] text-gray-400">Demi keamanan, pemotongan saldo wajib dikonfirmasi dengan password akun.</div>
                   </div>
                 </>
-              ) : (
-                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-2">
-                  <div className="font-bold text-red-700 text-sm">⚠️ Saldo Tabungan Umroh Belum Cukup</div>
-                  <div className="text-xs text-red-600">Kurang <b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b> lagi dari total harga.</div>
-                  <div className="text-xs text-gray-500 pt-1">
-                    Pembayaran program ini SELALU dipotong dari saldo tabungan umroh Anda — tidak ada jalur transfer terpisah. Setor kekurangannya ke rekening tabungan umroh Anda sendiri:
-                  </div>
-                  {noRekeningUmrohMandiri && (
-                    <div className="bg-white rounded-lg p-2.5 text-sm font-bold text-[#0E2F6E] text-center">{noRekeningUmrohMandiri}</div>
-                  )}
-                  <div className="text-xs text-gray-500">Sudah transfer? Unggah bukti transfernya di <button onClick={() => router.push('/dashboard/sahabat/riwayat?tab=cashflow')} className="text-[#1A4FA0] font-bold underline">Riwayat Tabungan Umroh</button> biar admin bisa langsung verifikasi & menambah saldo Anda — kembali ke sini untuk melanjutkan checkout setelah saldo cukup.</div>
-                </div>
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => { setStep(1); setSetujuPotongSaldo(false); setPasswordDpSaldo(''); }}
+                <button onClick={() => { setStep(1); setSetujuPotongSaldo(false); setPasswordDpSaldo(''); setMetodeKurangMandiri(''); setBuktiMandiri(null); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                   ← Kembali
                 </button>
-                <button onClick={submitMandiri} disabled={loading || !saldoCukupMandiri || !setujuPotongSaldo || !passwordDpSaldo}
+                <button onClick={submitMandiri} disabled={loading || !bisaSubmitMandiri || !setujuPotongSaldo || !passwordDpSaldo}
                   className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? 'Memproses...' : !saldoCukupMandiri ? 'Saldo Belum Cukup' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : !passwordDpSaldo ? 'Masukkan password dulu' : 'Selesaikan Pendaftaran'}
+                  {loading ? 'Memproses...' : !saldoCukupMandiri && !metodeKurangMandiri ? 'Pilih Cara Bayar Dulu' : !saldoCukupMandiri && metodeKurangMandiri === 'setor_mandiri' ? 'Saldo Belum Cukup' : !bisaSubmitMandiri ? 'Upload bukti transfer dulu' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : !passwordDpSaldo ? 'Masukkan password dulu' : 'Selesaikan Pendaftaran'}
                 </button>
               </div>
             </div>
@@ -790,11 +861,14 @@ function CheckoutPageInner() {
             <div className="text-center space-y-4 py-8">
               <div className="text-6xl mb-4">🎉</div>
               <h2 className="text-2xl font-bold text-[#0E2F6E]">Pendaftaran Terkirim!</h2>
-              <p className="text-gray-400 text-sm">Admin akan verifikasi pemakaian saldo dalam 1×24 jam kerja.</p>
+              <p className="text-gray-400 text-sm">Admin akan verifikasi pemakaian saldo{Number(hasilMandiri?.sisa_transfer || 0) > 0 ? ' & bukti transfer' : ''} dalam 1×24 jam kerja.</p>
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-left space-y-1">
                 <div className="text-sm text-green-600">Program: {prog.name}</div>
                 <div className="font-bold text-green-800">Booking: {hasilMandiri?.booking_id}</div>
                 <div className="text-sm text-green-700 pt-1">Dipakai dari saldo: Rp {Number(hasilMandiri?.saldo_dipakai || 0).toLocaleString('id-ID')}</div>
+                {Number(hasilMandiri?.sisa_transfer || 0) > 0 && (
+                  <div className="text-sm text-green-700">Transfer langsung: Rp {Number(hasilMandiri.sisa_transfer).toLocaleString('id-ID')}</div>
+                )}
                 <span className="inline-block bg-[#FEF3DC] text-[#7a5500] text-xs font-bold px-3 py-1 rounded-full mt-1">⏳ Menunggu Konfirmasi Admin</span>
               </div>
               {/* Status booking (progress DP/pelunasan, dokumen, dst) belum
