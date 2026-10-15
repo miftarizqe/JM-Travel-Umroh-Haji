@@ -480,7 +480,7 @@ export default function DashboardSahabatPage() {
                 <div key={c.id} className="flex justify-between items-start text-xs bg-gray-50 rounded-lg px-3 py-2 gap-2">
                   <div className="text-gray-600 min-w-0">
                     <div className="font-semibold">{c.jenis === 'referral_closing_reguler_sahabat' ? 'Referral Closing Reguler' : 'Closing Langsung'}</div>
-                    <div className="text-gray-400 truncate">{c.keterangan}</div>
+                    <div className="text-gray-600 break-words">{c.keterangan}</div>
                   </div>
                   <div className="text-right shrink-0">
                     <div className="font-bold text-[#1A4FA0]">{fmtRp(c.nominal)}</div>

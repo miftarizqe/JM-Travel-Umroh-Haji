@@ -7,15 +7,19 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
 
 const STATUS_AKUN = {
-  active: { label: 'Aktif', cls: 'bg-green-100 text-green-700' },
-  pending: { label: 'Dalam proses', cls: 'bg-yellow-100 text-yellow-700' },
-  nonaktif: { label: 'Nonaktif', cls: 'bg-gray-200 text-gray-500' },
+  // Tiap status warna + ikon beda (dikonfirmasi user 2026-10-16) — sebelumnya
+  // 'rejected' gak terdaftar di sini, jatuh ke abu-abu default & susah
+  // dibedain dari yang lain.
+  active: { label: '✓ Aktif', cls: 'bg-green-100 text-green-700 border border-green-300' },
+  pending: { label: '⏳ Dalam proses', cls: 'bg-amber-100 text-amber-700 border border-amber-300' },
+  rejected: { label: '✕ Dibatalkan', cls: 'bg-red-100 text-red-700 border border-red-300' },
+  nonaktif: { label: '⏸ Nonaktif', cls: 'bg-slate-200 text-slate-600 border border-slate-300' },
 };
 // Kode agen (SBJMxxxx) baru dijatah pas akun diaktifkan admin — sahabat yang
 // masih dalam proses/ditolak memang belum punya, jangan ditampilin "-" polos
 // yang kebaca kayak data hilang.
 const KodeAgen = ({ s }) => s.kode_unik
-  ? <>{s.kode_unik}</>
+  ? <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-[#1A4FA0] border border-blue-200">{s.kode_unik}</span>
   : <span title="Kode agen terbit otomatis saat akun diaktifkan admin"
       className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-dashed border-gray-300 not-italic">
       Belum ada kode
