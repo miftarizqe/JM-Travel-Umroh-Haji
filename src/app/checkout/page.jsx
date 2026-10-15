@@ -785,7 +785,9 @@ function CheckoutPageInner() {
                   <div className="bg-[#FEF3DC] border border-[#C9952A] rounded-xl p-4 text-sm text-[#8a6516]">
                     ℹ️ Tidak ada tahap DP di jalur ini — booking langsung dianggap lunas penuh begitu {transferLangsungMandiri ? 'pemakaian saldo & transfer sisa' : 'pemakaian saldo'} di-ACC admin.
                   </div>
-                  {saldoDipakaiMandiri > 0 && (
+                  {/* Rekening tujuan saldo & transfer sisa SAMA (rekening JM
+                      Travel) — Transfer Langsung cukup 1 kartu di bawah. */}
+                  {!transferLangsungMandiri && saldoDipakaiMandiri > 0 && (
                     <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
                       <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Tabungan Umroh Anda Akan Dibayarkan Ke</div>
                       {metodePembayaran.map(m => (
@@ -795,16 +797,12 @@ function CheckoutPageInner() {
                           {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
                         </div>
                       ))}
-                      <div className="text-xs text-gray-400 pt-1">
-                        {transferLangsungMandiri
-                          ? `Saldo Rp ${saldoDipakaiMandiri.toLocaleString('id-ID')} diproses admin begitu pemakaian saldo dikonfirmasi — Anda cukup mentransfer sisanya di bawah.`
-                          : 'Untuk pelunasan Program Umroh ini — Anda tidak perlu transfer apa pun, admin yang memprosesnya begitu pemakaian saldo dikonfirmasi.'}
-                      </div>
+                      <div className="text-xs text-gray-400 pt-1">Untuk pelunasan Program Umroh ini — Anda tidak perlu transfer apa pun, admin yang memprosesnya begitu pemakaian saldo dikonfirmasi.</div>
                     </div>
                   )}
                   {transferLangsungMandiri && (
                     <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
-                      <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">💸 Transfer Sisa Pembayaran Ke</div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan Pembayaran</div>
                       {metodePembayaran.map(m => (
                         <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
                           <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
@@ -813,9 +811,17 @@ function CheckoutPageInner() {
                           {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
                         </div>
                       ))}
-                      <div className="border-t border-gray-100 pt-2 flex justify-between font-bold">
-                        <span className="text-sm">Transfer Tepat</span>
-                        <span className="text-red-600">Rp {kuranganMandiri.toLocaleString('id-ID')}</span>
+                      <div className="border-t border-gray-100 pt-2 space-y-1">
+                        {saldoDipakaiMandiri > 0 && (
+                          <div className="flex justify-between text-sm text-gray-500">
+                            <span>Dari Saldo Tabungan <span className="text-[10px] text-gray-400">(diproses admin)</span></span>
+                            <span className="font-semibold text-purple-700">Rp {saldoDipakaiMandiri.toLocaleString('id-ID')}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between font-bold">
+                          <span className="text-sm">Transfer Tepat</span>
+                          <span className="text-red-600">Rp {kuranganMandiri.toLocaleString('id-ID')}</span>
+                        </div>
                       </div>
                       <UploadBukti
                         onUploaded={(path, nama) => setBuktiMandiri({ path, nama })}
