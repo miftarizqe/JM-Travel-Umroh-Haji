@@ -431,6 +431,28 @@ function AdminPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
+  // Auto-refresh tab Dashboard (dikonfirmasi user 2026-10-15) — dulu
+  // pendaftaran baru yang "Menunggu Verifikasi Admin" dkk baru muncul sesudah
+  // reload manual. Cek ulang ringkasan + antrian Sahabat/Perwakilan tiap 20
+  // detik selama tab kebuka & langsung pas tab browser balik difokus. Cuma
+  // data dashboard — bukan loadAll() (payments/users/programs bisa berat).
+  useEffect(() => {
+    if (activeTab !== 'dashboard' || !user) return;
+    const muat = () => {
+      fetch('/api/admin/dashboard')
+        .then(r => (r.ok ? r.json() : null))
+        .then(dash => { if (dash) setData(prev => ({ stat: {}, pending: {}, ...prev, ...dash })); })
+        .catch(() => {});
+      muatSahabatDash();
+      if (user.role !== 'hop') muatPerwakilanDash();
+    };
+    const id = setInterval(() => { if (document.visibilityState === 'visible') muat(); }, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') muat(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user]);
+
   async function approveSahabatVoucher(voucherId) {
     setBusySahabat(true);
     try {

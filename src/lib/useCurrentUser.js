@@ -94,10 +94,20 @@ function langganan(onChange) {
 }
 const snapshotServer = () => undefined;
 
+// Hasil cek sesi di-cache SEPANJANG page load, jadi bisa basi: mis. akun
+// di-ACC admin sesudah halaman dibuka, halaman status nulis status baru ke
+// localStorage, tapi hook di halaman berikutnya masih nerima `user` lama
+// dari promise ini & nimpa balik status-nya -> "Buka Dashboard" mantul ke
+// /status-pendaftaran-sahabat terus sampai reload (bug 2026-10-15). Makanya
+// simpan juga isi cache SAAT cek dikirim: status cuma boleh disamain kalau
+// cache-nya belum diubah siapa-siapa sesudah itu.
 function cekSesiServer() {
   if (!cekSesiPromise) {
+    let cacheSaatCek = null;
+    try { cacheSaatCek = localStorage.getItem('user'); } catch {}
     cekSesiPromise = fetch('/api/auth/sesi', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
+      .then(d => (d ? { ...d, cacheSaatCek } : null))
       .catch(() => null); // offline/error -> jangan buang apa-apa
   }
   return cekSesiPromise;
@@ -129,7 +139,10 @@ export function useCurrentUser() {
         try { cache = sekarang ? JSON.parse(sekarang) : null; } catch {}
         // Isi ulang kalau cache hilang/beda akun, atau status akunnya udah
         // berubah di server (mis. ditolak/di-ACC admin sesudah login).
-        if (d.user && (cache?.id !== d.user.id || cache?.status !== d.user.status)) {
+        // Status beda tapi cache udah ditulis ulang sesudah cek dikirim ->
+        // cache yang lebih baru, hasil cek ini yang basi (lihat cekSesiServer).
+        const cacheBasi = sekarang !== d.cacheSaatCek;
+        if (d.user && (cache?.id !== d.user.id || (cache?.status !== d.user.status && !cacheBasi))) {
           isiCacheUser(cache?.id === d.user.id ? { ...cache, ...d.user } : d.user);
         }
         setSesiTerkonfirmasi(true);
