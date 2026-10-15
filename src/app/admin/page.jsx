@@ -8,6 +8,7 @@ import SearchableSelect from '@/app/components/SearchableSelect';
 import TombolWA from '@/app/components/TombolWA';
 import KartuJanjiTemu from '@/app/components/KartuJanjiTemu';
 import UploadScanDokumen from '@/app/components/UploadScanDokumen';
+import ModalTolakPermanen from '@/app/components/ModalTolakPermanen';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { urutkan, cocok } from '@/lib/sortTable';
@@ -288,6 +289,8 @@ function AdminPageInner() {
   const [auditFilter, setAuditFilter] = useState('');
   const [downloadingIdCard, setDownloadingIdCard] = useState(null);
   const [detailUser, setDetailUser] = useState(null);
+  const [tolakAkun, setTolakAkun] = useState(null); // akun yang mau ditolak permanen (ModalTolakPermanen)
+  const [tolakAkunBusy, setTolakAkunBusy] = useState(false);
   const [detailBooking, setDetailBooking] = useState(null);
   const [editPaketForm, setEditPaketForm] = useState(null); // { paket, kamar, harga_custom } — null = form tertutup
   const [editPaketBusy, setEditPaketBusy] = useState(false);
@@ -669,10 +672,12 @@ function AdminPageInner() {
     await patchUser(u.id, 'minta_perbaikan_akun', { reject_reason: alasan.trim() });
   }
 
-  async function tolakVerifikasi(u) {
-    const alasan = prompt(`TOLAK PERMANEN akun ${u.name}? Akun tidak akan bisa login lagi (untuk akun spam/palsu).\n\nAlasan (opsional):`);
-    if (alasan === null) return;
-    await patchUser(u.id, 'tolak_verifikasi', { reject_reason: alasan.trim() || undefined });
+  // Alasan dipilih dari dropdown di ModalTolakPermanen (dikonfirmasi user 2026-10-16).
+  async function tolakVerifikasi(catatan) {
+    setTolakAkunBusy(true);
+    await patchUser(tolakAkun.id, 'tolak_verifikasi', { reject_reason: catatan });
+    setTolakAkunBusy(false);
+    setTolakAkun(null);
   }
 
   async function toggleUser(u) {
@@ -1898,7 +1903,7 @@ function AdminPageInner() {
                               {!u.perbaikan_akun_diminta_at && (
                                 <button onClick={() => mintaPerbaikanAkun(u)} className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">↺ Minta Perbaiki</button>
                               )}
-                              <button onClick={() => tolakVerifikasi(u)} className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">⛔ Tolak Permanen</button>
+                              <button onClick={() => setTolakAkun(u)} className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full whitespace-nowrap">⛔ Tolak Permanen</button>
                             </div>
                           </td>
                         </tr>
@@ -3350,6 +3355,10 @@ function AdminPageInner() {
             })()}
           </div>
         </div>
+      )}
+      {tolakAkun && (
+        <ModalTolakPermanen nama={tolakAkun.name} busy={tolakAkunBusy}
+          onBatal={() => setTolakAkun(null)} onKirim={tolakVerifikasi} />
       )}
     </Layout>
   );

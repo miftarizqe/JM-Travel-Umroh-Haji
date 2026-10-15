@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
+import { IsianAlasanTolak, catatanTolakPermanen } from '@/app/components/ModalTolakPermanen';
 
 // Urutan proses pendaftaran s.d. aktif (SAMA PERSIS STEP_PENDAFTARAN_SAHABAT
 // di /api/status-pendaftaran-sahabat/route.js — jangan diubah sendiri2,
@@ -89,6 +90,11 @@ export default function AdminSahabatPage() {
   function resetTolak() {
     setModeTolak(null); setAlasanPilih(''); setAlasanLain(''); setKeteranganTambahan('');
   }
+  // Ganti mode (perbaiki <-> permanen) — alasan dua mode beda daftar,
+  // jangan sampai pilihan mode sebelumnya kebawa diam-diam.
+  function pilihModeTolak(mode) {
+    setModeTolak(mode); setAlasanPilih(''); setAlasanLain('');
+  }
   function bukaDetail(userId) {
     resetTolak();
     setDetailUserId(userId);
@@ -152,8 +158,9 @@ export default function AdminSahabatPage() {
     if (await aksi({ action: 'minta_perbaikan', user_id: j.user_id, catatan_admin: catatan })) resetTolak();
   }
   async function kirimTolakPermanen(j) {
-    const tambahan = keteranganTambahan.trim();
-    if (await aksi({ action: 'reject', user_id: j.user_id, catatan_admin: tambahan || undefined })) resetTolak();
+    const catatan = catatanTolakPermanen(alasanPilih, alasanLain, keteranganTambahan);
+    if (!catatan) { alert('Pilih alasan penolakan dulu.'); return; }
+    if (await aksi({ action: 'reject', user_id: j.user_id, catatan_admin: catatan })) resetTolak();
   }
 
   // Admin unggah scan dokumen fisik yang udah diterima di kantor -- endpoint
@@ -476,7 +483,7 @@ export default function AdminSahabatPage() {
                         ✅ ACC & Aktifkan
                       </button>
                     )}
-                    <button disabled={busy} onClick={() => setModeTolak(detail.perbaikan_diminta_at ? 'permanen' : 'pilih')}
+                    <button disabled={busy} onClick={() => pilihModeTolak(detail.perbaikan_diminta_at ? 'permanen' : 'pilih')}
                       className="flex-1 whitespace-nowrap bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
                       ✖ Tolak
                     </button>
@@ -486,12 +493,12 @@ export default function AdminSahabatPage() {
                 {modeTolak === 'pilih' && (
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 space-y-2">
                     <div className="text-xs font-bold text-[#0E2F6E]">Tolak pendaftaran {detail.nama}?</div>
-                    <button disabled={busy} onClick={() => setModeTolak('perbaiki')}
+                    <button disabled={busy} onClick={() => pilihModeTolak('perbaiki')}
                       className="w-full text-left bg-white hover:bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 disabled:opacity-50 transition-colors">
                       <div className="text-xs font-bold text-amber-700">↺ Minta Perbaiki</div>
                       <div className="text-[10px] text-gray-500">Jamaah tetap bisa login &amp; progresnya tidak hilang, tinggal perbaiki data yang salah.</div>
                     </button>
-                    <button disabled={busy} onClick={() => setModeTolak('permanen')}
+                    <button disabled={busy} onClick={() => pilihModeTolak('permanen')}
                       className="w-full text-left bg-white hover:bg-red-50 border border-red-200 rounded-lg px-3 py-2 disabled:opacity-50 transition-colors">
                       <div className="text-xs font-bold text-red-600">⛔ Tolak Permanen</div>
                       <div className="text-[10px] text-gray-500">Akun tidak bisa login lagi — untuk akun spam/palsu.</div>
@@ -540,15 +547,12 @@ export default function AdminSahabatPage() {
                       Akun ini <b>tidak akan bisa login lagi</b> dan tidak bisa dibatalkan dari sini. Pakai hanya untuk akun spam/palsu —
                       kalau datanya cuma ada yang salah, pilih &quot;Minta Perbaiki&quot;.
                     </div>
-                    <div>
-                      <label className="block text-[11px] text-gray-600 mb-1">Alasan (opsional)</label>
-                      <textarea value={keteranganTambahan} onChange={e => setKeteranganTambahan(e.target.value)} rows={2}
-                        className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-red-400 focus:outline-none text-xs bg-white" />
-                    </div>
+                    <IsianAlasanTolak alasanPilih={alasanPilih} setAlasanPilih={setAlasanPilih} alasanLain={alasanLain}
+                      setAlasanLain={setAlasanLain} keterangan={keteranganTambahan} setKeterangan={setKeteranganTambahan} />
                     <div className="flex gap-1.5">
                       <button disabled={busy} onClick={() => (detail.perbaikan_diminta_at ? resetTolak() : setModeTolak('pilih'))}
                         className="flex-1 bg-white border border-gray-200 text-gray-500 font-bold py-1.5 rounded-full text-[11px] disabled:opacity-50">Tidak, Batal</button>
-                      <button disabled={busy} onClick={() => kirimTolakPermanen(detail)}
+                      <button disabled={busy || !catatanTolakPermanen(alasanPilih, alasanLain, keteranganTambahan)} onClick={() => kirimTolakPermanen(detail)}
                         className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-1.5 rounded-full text-[11px] disabled:opacity-50 transition-colors">
                         {busy ? 'Memproses...' : 'Ya, Tolak Permanen'}
                       </button>
