@@ -185,6 +185,21 @@ export default function DashboardJamaah() {
                       {/* Progress 5 tahap — komponen sama dengan admin */}
                       <BookingProgressBar booking={b} className="mb-4" />
 
+                      {/* Program Eksklusif Sahabat Baitullah: tahap Perjanjian
+                          otomatis ✓ (perjanjianSelesai() di bookingStage.js)
+                          karena perjanjiannya = SPK-AK yang ditandatangani
+                          SEKALI pas daftar Sahabat, bukan per-booking. Tetap
+                          kasih jalan buat lihat dokumennya (dikonfirmasi user
+                          2026-10-15) — PDF yang sama dengan di Profil. */}
+                      {b.prog_publish_type === 'sahabat_baitullah' && (
+                        <button
+                          onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
+                          className="w-full mb-3 border border-[#1A4FA0] text-[#1A4FA0] text-xs font-bold py-2 rounded-full hover:bg-[#E8F0FB] transition-colors"
+                        >
+                          📜 Lihat Perjanjian (SPK-AK Sahabat Baitullah)
+                        </button>
+                      )}
+
                       {/* Status DP — 1 booking bisa punya LEBIH dari 1 payment
                           DP (DP awal, DP pax tambahan, resubmit abis
                           ditolak), masing-masing ditampilin sendiri-sendiri

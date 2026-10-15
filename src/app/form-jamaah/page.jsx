@@ -41,6 +41,14 @@ function statusMasaBerlakuPaspor(expPaspor) {
   return null;
 }
 
+// Batas atas Tanggal Lahir buat yang wajib minimal 17 tahun — pola sama
+// maksTglLahir17Tahun di /daftar-sahabat.
+function maksTglLahir17Tahun() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - 17);
+  return d.toISOString().slice(0, 10);
+}
+
 // Kolom DATE dari /api/profil keserialisasi mysql2 jadi ISO UTC — tgl lahir
 // 23 Jan (WIB, zona DB) datang sebagai "2007-01-22T17:00:00.000Z", jadi
 // slice(0,10) mundur sehari. Geser ke WIB dulu (pola sama hariIniWib di
@@ -252,6 +260,13 @@ function FormJamaahPageInner() {
   // kayak NIK).
   const wajibAyahPendidikan = umur === null || umur >= 17;
   const statusPaspor = statusMasaBerlakuPaspor(j.exp_paspor);
+  // Program impian (eksklusif Sahabat Baitullah) yang diisi buat DIRI
+  // SENDIRI wajib minimal 17 tahun — sama syarat daftar Sahabat-nya
+  // (dikonfirmasi user 2026-10-15). Non-Muslim yang daftarin orang lain
+  // (untuk_diri_sendiri gak ada) TETAP boleh anak, lihat tanpa_nik di
+  // /api/sahabat/checkout-mandiri.
+  const wajib17Tahun = booking?.prog_publish_type === 'sahabat_baitullah' && j.untuk_diri_sendiri === true;
+  const maksTglLahir = wajib17Tahun ? maksTglLahir17Tahun() : undefined;
 
   // Exact-match doang (dipicu pas paspor/NIK selesai diisi) — bukan search
   // bebas, biar gak ada cara ngintip data orang cuma dari coba-coba nomor.
@@ -352,6 +367,10 @@ function FormJamaahPageInner() {
     if (errFormat) { alert(errFormat.replace(/^Jamaah: /, '')); return false; }
 
     const umurJ = hitungUmur(d.ttl);
+    if (booking?.prog_publish_type === 'sahabat_baitullah' && d.untuk_diri_sendiri === true && (umurJ ?? 0) < 17) {
+      alert('Tanggal lahir tidak valid: peserta Program Sahabat Baitullah wajib minimal berusia 17 tahun.');
+      return false;
+    }
     if (umurJ !== null && umurJ > 17) {
       if (!d.nik || !String(d.nik).trim()) {
         alert('No. KTP (NIK) wajib diisi untuk jamaah usia di atas 17 tahun!');
@@ -631,8 +650,8 @@ function FormJamaahPageInner() {
                 <input value={j.tl} onChange={e => setField('tl', e.target.value)} className={inp}/>
               </div>
               <div>
-                <label className={lbl}>Tanggal Lahir *</label>
-                <InputTanggal value={j.ttl} onChange={e => {
+                <label className={lbl}>Tanggal Lahir *{wajib17Tahun && <span className="text-gray-400 font-normal"> (minimal 17 tahun)</span>}</label>
+                <InputTanggal max={maksTglLahir} value={j.ttl} onChange={e => {
                   const v = e.target.value;
                   if (!v) return; // input tanggal browser bisa sempat kirim event kosong pas segmen lagi diketik — jangan sampai numpuk hapus NIK/ttl yang sudah keisi (lihat setField di atas)
                   setField('ttl', v);
