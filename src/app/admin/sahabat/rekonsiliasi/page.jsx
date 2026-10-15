@@ -245,7 +245,7 @@ export default function RekonsiliasiSaldoPage() {
               <label className="block text-xs font-semibold text-gray-600 mb-1">📎 Bukti dari BSI <span className="text-red-500">*</span></label>
               <input type="file" accept="image/jpeg,image/png,application/pdf" onChange={e => setBukti(e.target.files?.[0] || null)}
                 className="block w-full text-xs text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:bg-[#E8F0FB] file:text-[#1A4FA0] file:font-bold" />
-              <div className="text-[10px] text-gray-400 mt-1">Mutasi / laporan saldo rekening tabungan umroh dari BSI. JPG, PNG, atau PDF, maks. 10MB.</div>
+              <div className="text-[10px] text-gray-400 mt-1">Mutasi / laporan saldo rekening tabungan umroh dari BSI. JPG/PNG maks. 3MB, PDF maks. 5MB.</div>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Catatan sesi</label>

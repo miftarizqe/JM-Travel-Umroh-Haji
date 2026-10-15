@@ -5,9 +5,9 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-const MAKS = 10 * 1024 * 1024;
 
 // POST /api/sahabat/upload-bukti-tf  (multipart: file)
 // Self-service, wajibLogin — bukti transfer Rp1.000.000 pendaftaran
@@ -85,8 +85,9 @@ export async function POST(request) {
     if (!TIPE_OK.includes(file.type)) {
       return Response.json({ error: 'File harus JPG, PNG, atau PDF' }, { status: 400 });
     }
-    if (file.size > MAKS) {
-      return Response.json({ error: 'Ukuran file maksimal 10MB' }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     // Kategori storage SENGAJA dibiarkan 'bukti-tf-koperasi' (bukan ikut

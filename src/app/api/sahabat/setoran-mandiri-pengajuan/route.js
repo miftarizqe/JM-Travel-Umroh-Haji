@@ -1,6 +1,13 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 
+// Balikin pesan kenapa setoran mandiri belum bisa diajukan, null kalau boleh.
+function syaratSetoranMandiri(user) {
+  if (!Number(user.terverifikasi)) return 'Akun Anda belum diverifikasi admin. Setoran mandiri bisa diajukan setelah akun diverifikasi.';
+  if (!String(user.no_rekening_tabungan_umroh || '').trim()) return 'Nomor rekening tabungan umroh Anda belum diisi. Lengkapi dulu di halaman Status Pendaftaran.';
+  return null;
+}
+
 // POST /api/sahabat/setoran-mandiri-pengajuan  body: { nominal, bukti_path, bukti_nama }
 // Self-service — anggota Sahabat Baitullah ajukan setoran mandiri (nabung
 // ke rekening tabungan umroh MEREKA SENDIRI, lalu upload bukti transfernya
@@ -19,10 +26,18 @@ export async function POST(request) {
     if (!nominalNum || nominalNum <= 0) return Response.json({ error: 'Nominal harus lebih dari 0' }, { status: 400 });
     if (!bukti_path) return Response.json({ error: 'Bukti transfer wajib diunggah' }, { status: 400 });
 
-    const [[user]] = await pool.query('SELECT role FROM users WHERE id = ?', [auth.user.id]);
+    const [[user]] = await pool.query(
+      'SELECT role, terverifikasi, no_rekening_tabungan_umroh FROM users WHERE id = ?',
+      [auth.user.id]
+    );
     if (!user || user.role !== 'sahabat_baitullah') {
       return Response.json({ error: 'Hanya berlaku untuk akun Sahabat Baitullah' }, { status: 400 });
     }
+    // Setoran mandiri cuma kebuka kalau akun udah di-ACC admin DAN nomor
+    // rekening tabungan umroh-nya udah diisi — tanpa rekening admin gak
+    // punya acuan buat nyocokin mutasi (dikonfirmasi user 2026-10-15).
+    const syarat = syaratSetoranMandiri(user);
+    if (syarat) return Response.json({ error: syarat }, { status: 400 });
 
     await pool.query(
       'INSERT INTO sahabat_setoran_mandiri_pengajuan (user_id, nominal, bukti_path, bukti_nama) VALUES (?, ?, ?, ?)',
@@ -47,7 +62,17 @@ export async function GET(request) {
        FROM sahabat_setoran_mandiri_pengajuan WHERE user_id = ? ORDER BY created_at DESC`,
       [auth.user.id]
     );
-    return Response.json({ pengajuan: rows });
+    const [[user]] = await pool.query(
+      'SELECT terverifikasi, no_rekening_tabungan_umroh, nama_pemilik_rekening_umroh FROM users WHERE id = ?',
+      [auth.user.id]
+    );
+    return Response.json({
+      pengajuan: rows,
+      no_rekening_tabungan_umroh: user?.no_rekening_tabungan_umroh || null,
+      nama_pemilik_rekening_umroh: user?.nama_pemilik_rekening_umroh || null,
+      // null = boleh ajukan; string = alasan form dikunci (ditampilkan apa adanya)
+      alasan_terkunci: user ? syaratSetoranMandiri(user) : 'Akun tidak ditemukan',
+    });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

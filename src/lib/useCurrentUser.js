@@ -74,6 +74,11 @@ function buangCacheUser() {
   for (const fn of pendengarCache) fn();
 }
 
+function isiCacheUser(u) {
+  try { localStorage.setItem('user', JSON.stringify(u)); } catch {}
+  for (const fn of pendengarCache) fn();
+}
+
 // Storage event cuma nembak antar-TAB (login/logout di tab lain); perubahan
 // di tab yang sama lewat buangCacheUser. Penulisan localStorage lain di tab
 // yang sama ikut kebaca begitu komponen render ulang (getSnapshot dibaca
@@ -107,16 +112,31 @@ function cekSesiServer() {
 export function useCurrentUser() {
   const raw = useSyncExternalStore(langganan, bacaLocalStorage, snapshotServer);
   const [sesiTerkonfirmasi, setSesiTerkonfirmasi] = useState(false);
+  // Cocokin cache sama sesi server (sekali per page load, lihat
+  // cekSesiServer). Jalan juga pas cache KOSONG — sesi masih aktif tapi
+  // cache-nya kehapus (mis. halaman /login sempat kebuka dari Client Cache
+  // Next & ngebuang cache) bikin navbar "Masuk/Daftar" padahal klik Masuk
+  // dimantulin proxy ke `/` (bug 2026-10-15) -> isi ulang dari server.
   useEffect(() => {
-    if (!raw) return;
+    if (raw === undefined) return; // masih hydration
     let batal = false;
     cekSesiServer().then(d => {
       if (batal || !d) return;
-      if (d.aktif) { setSesiTerkonfirmasi(true); return; }
-      // Cache keburu diganti (mis. barusan login) -> jangan dibuang.
       let sekarang = null;
       try { sekarang = localStorage.getItem('user'); } catch {}
-      if (sekarang === raw) buangCacheUser();
+      if (d.aktif) {
+        let cache = null;
+        try { cache = sekarang ? JSON.parse(sekarang) : null; } catch {}
+        // Isi ulang kalau cache hilang/beda akun, atau status akunnya udah
+        // berubah di server (mis. ditolak/di-ACC admin sesudah login).
+        if (d.user && (cache?.id !== d.user.id || cache?.status !== d.user.status)) {
+          isiCacheUser(cache?.id === d.user.id ? { ...cache, ...d.user } : d.user);
+        }
+        setSesiTerkonfirmasi(true);
+        return;
+      }
+      // Cache keburu diganti (mis. barusan login) -> jangan dibuang.
+      if (raw && sekarang === raw) buangCacheUser();
     });
     return () => { batal = true; };
   }, [raw]);

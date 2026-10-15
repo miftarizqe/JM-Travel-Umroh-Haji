@@ -111,7 +111,7 @@ export default function AdminPromoPage() {
           placeholder="Detail promo, S&K, periode berlaku, dst."
           className={`${inp} mb-3`} />
 
-        <label className={lbl}>Flyer Promo (opsional, JPG/PNG maks 5MB)</label>
+        <label className={lbl}>Flyer Promo (opsional, JPG/PNG maks 3MB)</label>
         <div className="flex items-center gap-3 mb-3">
           {flyerPath && (
             /* eslint-disable-next-line @next/next/no-img-element */

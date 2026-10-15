@@ -10,6 +10,11 @@ import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fitu
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
+  // Token baru di bawah gak bawa klaim `ditolak` — jangan sampai akun yang
+  // ditolak permanen lolos dari tahanan halaman status lewat ganti mode.
+  if (auth.user.ditolak) {
+    return Response.json({ error: 'Pendaftaran Anda ditolak. Hubungi admin JM Travel.' }, { status: 403 });
+  }
 
   try {
     const { ke } = await request.json();

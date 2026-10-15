@@ -3,9 +3,9 @@ import { existsSync } from 'fs';
 import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
-const MAKS = 5 * 1024 * 1024; // 5MB
 
 // POST /api/admin/kenapa-jm-travel/upload-gambar (multipart: file, id)
 // Foto/scan dokumen buat 1 card "Kenapa JM Travel" (mis. scan izin PPIU,
@@ -26,8 +26,9 @@ export async function POST(request) {
     if (!TIPE_OK.includes(file.type)) {
       return Response.json({ error: 'Gambar harus JPG atau PNG' }, { status: 400 });
     }
-    if (file.size > MAKS) {
-      return Response.json({ error: 'Ukuran gambar maksimal 5MB' }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     const [rows] = await pool.query('SELECT id FROM kenapa_jm_travel WHERE id = ?', [id]);

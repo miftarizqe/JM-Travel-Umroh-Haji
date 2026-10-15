@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 export default function UploadFotoPage() {
   return (
@@ -49,7 +50,7 @@ function UploadFotoPageInner() {
     if (!['image/jpeg','image/jpg','image/png'].includes(file.type)) {
       setError('Foto harus JPG atau PNG'); return;
     }
-    if (file.size > 10*1024*1024) { setError('Ukuran foto maksimal 10MB'); return; }
+    if (pesanUkuranFile(file)) { setError(pesanUkuranFile(file)); return; }
 
     setPreview(URL.createObjectURL(file));
     setUploading(true);
@@ -140,7 +141,7 @@ function UploadFotoPageInner() {
           </button>
         </div>
 
-        <div className="text-center text-xs text-gray-400 mt-2">JPG atau PNG, maksimal 10MB</div>
+        <div className="text-center text-xs text-gray-400 mt-2">JPG atau PNG, maksimal 3MB</div>
 
         {error && <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 text-center">❌ {error}</div>}
 

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { ambilJwtSecret, headersCookieSesi, DURASI_SESI_DETIK } from '@/lib/auth';
 import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
 import { varianWA } from '@/lib/validasiAkun';
+import { dataUserSesi } from '@/lib/dataUserSesi';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 // Per IP: menghitung SEMUA percobaan (sukses pun), biar penyerang tidak bisa
@@ -54,7 +55,12 @@ export async function POST(request) {
         { status: 403 }
       );
     }
-    if (user.status === 'rejected') {
+    // Sahabat Baitullah yang ditolak permanen TETAP boleh login (dikonfirmasi
+    // user 2026-10-15) — tertahan di /status-pendaftaran-sahabat lewat klaim
+    // `ditolak` di token (lihat src/proxy.js & verifikasiToken). Role lain
+    // yang ditolak tetap diblok kayak dulu.
+    const ditolakSahabat = user.status === 'rejected' && user.role === 'sahabat_baitullah';
+    if (user.status === 'rejected' && !ditolakSahabat) {
       return Response.json(
         { error: 'Pendaftaran Anda ditolak. Hubungi admin JM Travel.' },
         { status: 403 }
@@ -69,41 +75,17 @@ export async function POST(request) {
 
     const loginAt = Math.floor(Date.now() / 1000);
     const token = jwt.sign(
-      { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name, login_at: loginAt },
+      { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name, login_at: loginAt, ...(ditolakSahabat ? { ditolak: true } : {}) },
       ambilJwtSecret(),
       { expiresIn: DURASI_SESI_DETIK }
     );
 
-    const dataUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      wa: user.wa,
-      nik: user.nik,
-      agama: user.agama || null,
-      role: user.role,
-      role_kedua: user.role_kedua || null,
-      kode_unik: user.kode_unik,
-      status: user.status,
-      wilayah: user.wilayah,
-      points: user.points,
-      tabungan_bsi: user.tabungan_bsi,
-      wajib_ganti_password: !!user.wajib_ganti_password,
-      // Dipakai gerbang "Daftar Program" & checkout di client — sebelumnya
-      // gak ikut dikirim, jadi user.terverifikasi selalu undefined dan
-      // akun yang udah diverifikasi admin tetap keblokir (bug 2026-10-11).
-      terverifikasi: !!user.terverifikasi,
-      // Admin "Minta Perbaikan" di Verifikasi Akun — login diarahkan ke
-      // /perbaiki-data-akun & Layout nampilin banner (2026-10-11).
-      perlu_perbaikan_akun: !!user.perbaikan_akun_diminta_at && !user.terverifikasi,
-    };
+    const dataUser = dataUserSesi(user, loginAt);
 
     // Cookie di-set oleh SERVER dengan httpOnly:
     // token tidak bisa dibaca/dicuri lewat JavaScript di browser.
     // Sesi 4 jam sejak login (lihat DURASI_SESI_DETIK di lib/auth.js).
     const maxAge = DURASI_SESI_DETIK;
-    // Dipakai useCurrentUser buat ngebuang cache data user begitu sesi habis.
-    dataUser.sesi_berakhir_at = (loginAt + DURASI_SESI_DETIK) * 1000;
 
     return new Response(
       JSON.stringify({ message: 'Login berhasil!', user: dataUser }),

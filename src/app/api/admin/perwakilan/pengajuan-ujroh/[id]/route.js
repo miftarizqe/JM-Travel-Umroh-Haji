@@ -4,9 +4,9 @@ import path from 'path';
 import pool from '@/lib/db';
 import { wajibSuperAdmin } from '@/lib/auth';
 import { catatAudit } from '@/lib/audit';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
-const MAKS = 10 * 1024 * 1024;
 
 // Mirror persis src/app/api/admin/sahabat/pengajuan-ujroh/[id]/route.js —
 // lihat komentar di file itu buat penjelasan lengkap tiap action & kenapa
@@ -19,8 +19,9 @@ async function simpanBuktiTtd(file, id) {
   if (!TIPE_OK.includes(file.type)) {
     return { error: 'File harus JPG, PNG, atau PDF' };
   }
-  if (file.size > MAKS) {
-    return { error: 'Ukuran file maksimal 10MB' };
+  const errUkuran = pesanUkuranFile(file);
+  if (errUkuran) {
+    return { error: errUkuran };
   }
   const dir = path.join(process.cwd(), 'private-uploads', 'bukti-ttd-ujroh-perwakilan');
   if (!existsSync(dir)) await mkdir(dir, { recursive: true });

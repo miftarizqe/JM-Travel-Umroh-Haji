@@ -5,9 +5,9 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { absolutePathDariUrl } from '@/lib/dokumenProteksi';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_FOTO_OK = { 'image/jpeg': '.jpg', 'image/jpg': '.jpg', 'image/png': '.png' };
-const MAKS_FOTO = 5 * 1024 * 1024;
 // Nomor resi kurir (JNE/J&T/SiCepat/Pos, dst) — huruf/angka/strip, 6-40.
 const POLA_RESI = /^[A-Za-z0-9-]{6,40}$/;
 
@@ -39,7 +39,8 @@ export async function PATCH(request) {
     }
     if (adaFoto) {
       if (!TIPE_FOTO_OK[foto.type]) return Response.json({ error: 'Foto resi harus JPG atau PNG' }, { status: 400 });
-      if (foto.size > MAKS_FOTO) return Response.json({ error: 'Ukuran foto resi maksimal 5MB' }, { status: 400 });
+      const errUkuran = pesanUkuranFile(foto);
+      if (errUkuran) return Response.json({ error: errUkuran }, { status: 400 });
     }
 
     const [[user]] = await pool.query(

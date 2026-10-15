@@ -2,8 +2,8 @@ import pool from '@/lib/db';
 import { wajibSuperAdmin } from '@/lib/auth';
 import { parseMutasiRekening } from '@/lib/parseMutasiRekening';
 import { sarankanKategori } from '@/lib/klasifikasiCashflowKategori';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
-const MAKS = 10 * 1024 * 1024; // 10MB
 
 function keTanggalStr(v) {
   const d = new Date(v);
@@ -27,7 +27,8 @@ export async function POST(request) {
 
     if (!file || typeof file === 'string') return Response.json({ error: 'File tidak ditemukan' }, { status: 400 });
     if (file.type !== 'application/pdf') return Response.json({ error: 'File harus PDF' }, { status: 400 });
-    if (file.size > MAKS) return Response.json({ error: 'Ukuran file maksimal 10MB' }, { status: 400 });
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) return Response.json({ error: errUkuran }, { status: 400 });
     if (!periodeId || !akunId) return Response.json({ error: 'periode_id dan akun_id wajib diisi' }, { status: 400 });
 
     const [[periode]] = await pool.query('SELECT * FROM cashflow_periode WHERE id = ?', [periodeId]);

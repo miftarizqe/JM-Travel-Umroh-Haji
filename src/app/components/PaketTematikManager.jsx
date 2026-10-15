@@ -183,7 +183,7 @@ export default function PaketTematikManager() {
             <textarea value={deskripsi} onChange={e => setDeskripsi(e.target.value)} rows={3} placeholder="Ceritakan paket ini singkat..." className={inp} />
           </div>
           <div className="mb-4">
-            <label className={lbl}>Foto Paket (opsional, JPG/PNG maks 10MB)</label>
+            <label className={lbl}>Foto Paket (opsional, JPG/PNG maks 3MB)</label>
             <div className="flex items-center gap-3 mb-3">
               {gambar && (
                 /* eslint-disable-next-line @next/next/no-img-element */

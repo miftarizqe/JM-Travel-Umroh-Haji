@@ -23,13 +23,31 @@ function LoginPageInner() {
   // Diarahkan ke sini karena sesi 4 jam habis (src/proxy.js /
   // useCurrentUser) — kasih tau alasannya.
   const sesiHabis = searchParams.get('sesi') === 'habis';
-  // Halaman ini cuma bisa kebuka kalau GAK ada sesi aktif (proxy ngelempar
-  // yang masih login ke `/`), jadi cache data user apa pun di sini pasti
-  // basi — buang SELALU, bukan cuma pas ?sesi=habis. Dulu cache tanpa
-  // sesi_berakhir_at (login sebelum aturan 4 jam) gak pernah kebuang:
-  // nama tetap nongol di navbar walau udah gak login (bug 2026-10-14).
+  // Cek sesi ke server dulu, baru putusin (2026-10-15). Proxy emang ngelempar
+  // yang masih login dari /login ke `/`, TAPI halaman ini bisa juga kebuka
+  // dari Client Cache Next tanpa lewat proxy — dulu cache user langsung
+  // dibuang di sini, jadi user yang masih login malah keliatan tamu di
+  // navbar. Sekarang:
+  // - sesi gak aktif -> buang cache basi (bug 2026-10-14: cache tanpa
+  //   sesi_berakhir_at gak pernah kebuang, nama nyangkut di navbar).
+  // - sesi masih aktif -> simpan data user dari server & langsung ke tujuan.
   useEffect(() => {
-    try { localStorage.removeItem('user'); } catch {}
+    let batal = false;
+    fetch('/api/auth/sesi', { cache: 'no-store' }).then(r => r.json()).then(d => {
+      if (batal) return;
+      if (!d.aktif) {
+        try { localStorage.removeItem('user'); } catch {}
+        return;
+      }
+      if (d.user) {
+        try { localStorage.setItem('user', JSON.stringify(d.user)); } catch {}
+      }
+      const redirect = searchParams.get('redirect') || searchParams.get('from');
+      const aman = redirect && redirect.startsWith('/') && !redirect.startsWith('//');
+      window.location.replace(aman ? redirect : (d.user ? dashboardPathForRole(d.user.role) : '/'));
+    }).catch(() => {});
+    return () => { batal = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleLogin() {
@@ -70,7 +88,12 @@ function LoginPageInner() {
       // cache itu, jadi habis login sukses malah mantul balik ke /login;
       // user coba lagi terus sampai kena rate limit (bug 2026-10-14).
       // Navigasi penuh juga mastiin cookie baru ikut terkirim ke proxy.
-      const tujuan = data.user.perlu_perbaikan_akun
+      // Ditolak permanen -> langsung ke halaman status (modal ditolak);
+      // proxy juga nahan ke situ kalau ke mana pun.
+      const ditolak = data.user.status === 'rejected' && role === 'sahabat_baitullah';
+      const tujuan = ditolak
+        ? '/status-pendaftaran-sahabat'
+        : data.user.perlu_perbaikan_akun
         ? '/perbaiki-data-akun'
         : (redirect && redirect.startsWith('/') && !redirect.startsWith('//') ? redirect : dashboardPathForRole(role));
       berhasil = true;

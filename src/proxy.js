@@ -37,6 +37,19 @@ function sesiHabis(token) {
   }
 }
 
+// Sahabat Baitullah ditolak permanen (klaim `ditolak`, lihat
+// /api/auth/login & verifikasiToken) — semua halaman ditahan ke sini.
+const HALAMAN_DITOLAK = '/status-pendaftaran-sahabat';
+function tokenDitolak(token) {
+  try {
+    const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)));
+    return !!payload.ditolak;
+  } catch {
+    return false;
+  }
+}
+
 function loginAtToken(token) {
   try {
     const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -111,8 +124,11 @@ export function proxy(request) {
   }
 
   let res = NextResponse.next();
-  // Sudah login tapi buka /login atau /register -> ke beranda
-  if (login && (pathname === '/login' || pathname === '/register')) {
+  if (login && tokenDitolak(raw) && pathname !== HALAMAN_DITOLAK) {
+    // Ditolak permanen -> ditahan di halaman status (modal "ditolak").
+    res = NextResponse.redirect(new URL(HALAMAN_DITOLAK, request.url));
+  } else if (login && (pathname === '/login' || pathname === '/register')) {
+    // Sudah login tapi buka /login atau /register -> ke beranda
     res = NextResponse.redirect(new URL('/', request.url));
   }
   if (adaSisaLama) {

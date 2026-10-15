@@ -7,6 +7,7 @@ import PdfDokumenResmi from '@/app/components/PdfDokumenResmi';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { renderPasalBlock, FONT_DOKUMEN, UKURAN_DOKUMEN } from '@/lib/pasalMarkup';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 function Item({ done, label, children }) {
   return (
@@ -58,6 +59,9 @@ export default function StatusPendaftaranSahabatPage() {
   const [submittingKirim, setSubmittingKirim] = useState(false);
   const kirimRef = useRef(null);
   const [rekeningSahabat, setRekeningSahabat] = useState([]);
+  // Ditolak admin sesudah login -> klaim `ditolak` di token disamain sekali
+  // lewat /api/auth/sesi (biar proxy langsung nahan di sini).
+  const sinkronDitolakRef = useRef(false);
 
   // Preview gabungan SK-CIF + Surat Pemblokiran buat step "baca & setuju".
   const [skCif, setSkCif] = useState(null);
@@ -139,6 +143,10 @@ export default function StatusPendaftaranSahabatPage() {
       // status-pendaftaran/page.jsx) — /dashboard/sahabat nge-guard pakai
       // user.status dari localStorage, yang masih 'pending' sejak login.
       // Tanpa ini, habis di-ACC admin "Buka Dashboard" mantul balik ke sini.
+      if (d.user?.status === 'rejected' && !sinkronDitolakRef.current) {
+        sinkronDitolakRef.current = true;
+        fetch('/api/auth/sesi', { cache: 'no-store' }).catch(() => {});
+      }
       if (d.user) {
         try {
           const parsed = JSON.parse(localStorage.getItem('user') || 'null');
@@ -157,8 +165,22 @@ export default function StatusPendaftaranSahabatPage() {
     if (user.role !== 'sahabat_baitullah') { router.push('/'); return; }
     muat();
     fetch('/api/metode-pembayaran?scope=sahabat_baitullah').then(r => r.json()).then(d => setRekeningSahabat(d.metode || [])).catch(() => {});
+    // Auto-refresh status (dikonfirmasi user 2026-10-15) — dulu keputusan
+    // admin (ACC / minta perbaikan / tolak) baru kelihatan sesudah reload
+    // manual. Cek ulang tiap 20 detik selama tab kebuka & langsung pas tab
+    // balik difokus. Input form di halaman ini state terpisah, gak ketimpa.
+    const id = setInterval(() => { if (document.visibilityState === 'visible') muat(); }, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') muat(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  async function keluarAkun() {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+    try { localStorage.removeItem('user'); } catch {}
+    window.location.assign('/login'); // navigasi penuh, lihat logout() di Layout.jsx
+  }
 
   async function pilihBuktiTf(file) {
     if (!file) return;
@@ -251,7 +273,7 @@ export default function StatusPendaftaranSahabatPage() {
     const resi = resiInput.trim();
     if (!/^[A-Za-z0-9-]{6,40}$/.test(resi)) { alert('Nomor resi wajib diisi (6-40 karakter huruf/angka)'); return; }
     if (!fotoResi && !u.dokumen_fisik_resi_foto_path) { alert('Foto resi wajib diunggah'); return; }
-    if (fotoResi && fotoResi.size > 5 * 1024 * 1024) { alert('Ukuran foto resi maksimal 5MB'); return; }
+    if (fotoResi && pesanUkuranFile(fotoResi)) { alert(pesanUkuranFile(fotoResi)); return; }
     setSavingKirimFisik(true);
     try {
       const fd = new FormData();
@@ -382,6 +404,45 @@ export default function StatusPendaftaranSahabatPage() {
   if (loading || !data) return <Layout title="🤝 Status Pendaftaran Sahabat Baitullah" showBack><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>;
 
   const { prasyarat, pendaftaran, user: u } = data;
+
+  // Ditolak PERMANEN admin (dikonfirmasi user 2026-10-15): tetap bisa login,
+  // tapi tertahan di sini (proxy) dengan modal besar yang gak bisa ditutup —
+  // dulu login-nya langsung diblok, jamaah gak tau kenapa gak bisa masuk.
+  if (u?.status === 'rejected' || pendaftaran?.status === 'ditolak') {
+    const waAdmin = waLink(pengaturan?.wa_kantor, `Assalamu'alaikum JM Travel, pendaftaran Sahabat Baitullah saya atas nama ${u?.name || ''} ditolak. Mohon informasinya.`) || '#';
+    return (
+      <Layout title="🤝 Status Pendaftaran Sahabat Baitullah">
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="judul-ditolak"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center space-y-4">
+            <div className="text-6xl">⛔</div>
+            <h2 id="judul-ditolak" className="text-xl font-bold text-red-700">Pendaftaran Ditolak Permanen</h2>
+            <p className="text-sm text-gray-600">
+              Mohon maaf, pendaftaran Sahabat Baitullah Anda <b>ditolak secara permanen</b> oleh admin JM Travel,
+              sehingga tidak bisa dilanjutkan.
+            </p>
+            {pendaftaran?.catatan_admin && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 text-left">
+                <div className="font-bold mb-0.5">Alasan:</div>
+                {pendaftaran.catatan_admin}
+              </div>
+            )}
+            <p className="text-xs text-gray-500">Kalau menurut Anda ini keliru, silakan hubungi admin JM Travel.</p>
+            <div className="flex flex-col gap-2 pt-1">
+              <a href={waAdmin} target="_blank" rel="noopener noreferrer"
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-full text-sm transition-colors">
+                💬 Hubungi Admin via WhatsApp
+              </a>
+              <button onClick={keluarAkun}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full text-sm transition-colors cursor-pointer">
+                Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!pendaftaran) {
     return <Layout title="🤝 Status Pendaftaran Sahabat Baitullah" showBack><div className="max-w-md mx-auto">
@@ -1129,7 +1190,7 @@ export default function StatusPendaftaranSahabatPage() {
                         <div>
                           <label className="block text-[10px] font-bold text-gray-600 mb-1">Foto Resi *{u.dokumen_fisik_resi_foto_path && <span className="font-normal text-gray-400"> (kosongkan kalau tidak diganti)</span>}</label>
                           <label className={`block border-2 border-dashed rounded-lg p-3 text-center cursor-pointer text-xs transition-colors ${fotoResi ? 'border-green-300 bg-green-50 text-green-700' : 'border-gray-300 text-gray-500 hover:border-[#1A4FA0]'}`}>
-                            {fotoResi ? `✅ ${fotoResi.name}` : '📷 Klik untuk unggah foto resi (JPG/PNG, maks 5MB)'}
+                            {fotoResi ? `✅ ${fotoResi.name}` : '📷 Klik untuk unggah foto resi (JPG/PNG, maks 3MB)'}
                             <input type="file" accept="image/jpeg,image/png" className="hidden"
                               onChange={e => setFotoResi(e.target.files?.[0] || null)} />
                           </label>

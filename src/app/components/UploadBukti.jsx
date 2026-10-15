@@ -1,5 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
+import { pesanUkuranFile } from '@/lib/batasUpload';
 
 /**
  * Komponen upload bukti transfer.
@@ -14,7 +15,6 @@ export default function UploadBukti({ onUploaded, label = 'Klik untuk upload buk
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(null);
 
-  const MAKS = 5 * 1024 * 1024;
   const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 
   async function pilihFile(e) {
@@ -29,8 +29,9 @@ export default function UploadBukti({ onUploaded, label = 'Klik untuk upload buk
       setError('Tipe file tidak didukung. Gunakan JPG, PNG, atau PDF.');
       return;
     }
-    if (file.size > MAKS) {
-      setError('Ukuran file maksimal 5MB.');
+    const errUkuran = pesanUkuranFile(file);
+    if (errUkuran) {
+      setError(errUkuran);
       return;
     }
 
@@ -89,7 +90,7 @@ export default function UploadBukti({ onUploaded, label = 'Klik untuk upload buk
             <>
               <div className="text-3xl mb-2">📎</div>
               <div className="text-sm font-semibold text-[#0E2F6E]">{label}</div>
-              <div className="text-xs text-gray-400 mt-1">JPG, PNG, PDF (maks 5MB)</div>
+              <div className="text-xs text-gray-400 mt-1">JPG/PNG maks 3MB, PDF maks 5MB</div>
             </>
           )}
         </div>
