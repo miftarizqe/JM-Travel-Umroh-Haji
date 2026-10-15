@@ -1,5 +1,6 @@
 import pool from '@/lib/db';
 import { wajibPemilikAtauAdminHopSahabat } from '@/lib/hopAuth';
+import { JENIS_UJROH_SAHABAT } from '@/lib/saldoSahabat';
 import { groupJamaahAktif } from '@/lib/jamaahHarga';
 import { keTanggal, jadwalSudahLewat } from '@/lib/jadwalTarget';
 import { targetSudahDicheckout } from '@/lib/targetImpian';
@@ -153,6 +154,16 @@ export async function GET(request) {
     const saldoUpdatedAt = confirmedRows.length > 0
       ? confirmedRows.reduce((max, k) => (!max || k.dikonfirmasi_at > max) ? k.dikonfirmasi_at : max, null)
       : null;
+    // Ujroh MURNI (komisi closing/rekrutan doang) — kartu "Total Ujroh
+    // Terkonfirmasi" di beranda sempat ngambil saldoTabunganUmroh di atas
+    // (dikonfirmasi user 2026-10-16: itu salah, kecampur tabungan_awal/
+    // setoran_mandiri/koreksi_saldo yang BUKAN ujroh, jadi akun tanpa
+    // rekrutan sama sekali bisa nunjukin "ujroh terkonfirmasi" > 0 padahal
+    // itu duit tabungan pribadi). Pakai JENIS_UJROH_SAHABAT, sumber sama
+    // yang dipakai split kartu Database Anggota admin.
+    const ujrohTerkonfirmasi = confirmedRows
+      .filter(k => JENIS_UJROH_SAHABAT.includes(k.jenis))
+      .reduce((s, k) => s + Number(k.nominal || 0), 0);
 
     // "Saldo Pending" = baris ledger yang UDAH TERCATAT (ujroh/tabungan
     // awal/dll sudah kejadian) tapi belum dikonfirmasi admin (belum
@@ -395,6 +406,7 @@ export async function GET(request) {
         jumlah_rekrutan: rekrutan.length,
         saldo_pending: saldoPending,
         saldo_tabungan_umroh: saldoTabunganUmroh,
+        ujroh_terkonfirmasi: ujrohTerkonfirmasi,
         saldo_updated_at: saldoUpdatedAt,
         rincian_konfirmasi: rincianKonfirmasi,
         rincian_pending: rincianPending,

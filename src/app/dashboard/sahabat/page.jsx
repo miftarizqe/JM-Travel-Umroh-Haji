@@ -328,7 +328,7 @@ export default function DashboardSahabatPage() {
         <div onClick={() => router.push('/dashboard/sahabat/riwayat')}
           className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 cursor-pointer">
           <div className="text-xs opacity-75 uppercase tracking-wider mb-1">Total Ujroh Terkonfirmasi</div>
-          <div className="text-3xl font-black text-[#C9952A] mb-2">{fmtRp(data.ringkasan.saldo_tabungan_umroh)}</div>
+          <div className="text-3xl font-black text-[#C9952A] mb-2">{fmtRp(data.ringkasan.ujroh_terkonfirmasi)}</div>
           <div className="text-xs opacity-75">Dari {data.ringkasan.jumlah_rekrutan} rekrutan langsung · Lihat riwayat pencairan →</div>
           <div className="bg-white/10 rounded-xl p-4 mt-4 text-sm space-y-1">
             <div className="font-bold mb-2">💡 Skema Ujroh Sahabat Baitullah</div>
