@@ -41,6 +41,47 @@ function statusMasaBerlakuPaspor(expPaspor) {
   return null;
 }
 
+// Kolom DATE dari /api/profil keserialisasi mysql2 jadi ISO UTC — tgl lahir
+// 23 Jan (WIB, zona DB) datang sebagai "2007-01-22T17:00:00.000Z", jadi
+// slice(0,10) mundur sehari. Geser ke WIB dulu (pola sama hariIniWib di
+// src/lib/jadwalTarget.js) biar gak tergantung zona waktu browser.
+function keTanggalInput(v) {
+  if (!v) return '';
+  const s = String(v);
+  if (!s.includes('T')) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s.slice(0, 10);
+  return new Date(d.getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// Isi field jamaah dari data pendaftaran Sahabat (users, via /api/profil) —
+// cuma field yang MASIH KOSONG, isian yang udah ada tetap menang.
+function isiDariProfil(j, p) {
+  const kosong = (v) => !v || !String(v).trim();
+  const isi = (val, dariProfil) => (kosong(val) ? (dariProfil || '') : val);
+  const alamatProfil = p.alamat_domisili || p.alamat || '';
+  return {
+    ...j,
+    nama: isi(j.nama, p.name),
+    nik: isi(j.nik, p.nik),
+    wa: isi(j.wa, p.wa),
+    email: isi(j.email, p.email),
+    tl: isi(j.tl, p.tempat_lahir),
+    ttl: isi(j.ttl, keTanggalInput(p.tanggal_lahir)),
+    jk: p.jenis_kelamin || j.jk,
+    ayah: isi(j.ayah, p.nama_ayah),
+    ibu: isi(j.ibu, p.nama_ibu),
+    pendidikan: isi(j.pendidikan, p.pendidikan_terakhir),
+    pkj: isi(j.pkj, p.pekerjaan),
+    paspor: isi(j.paspor, p.no_paspor),
+    tkp: isi(j.tkp, p.tempat_keluar_paspor),
+    exp_mulai: isi(j.exp_mulai, keTanggalInput(p.masa_berlaku_paspor_dari)),
+    exp_paspor: isi(j.exp_paspor, keTanggalInput(p.masa_berlaku_paspor_sampai)),
+    alamat: isi(j.alamat, alamatProfil),
+    alamat_kirim: isi(j.alamat_kirim, alamatProfil),
+  };
+}
+
 
 export default function FormJamaahPage() {
   return (
@@ -96,120 +137,103 @@ function FormJamaahPageInner() {
     // user null krn localStorage belum kebaca di render pertama — bukan
     // berarti belum login (pola sama di halaman admin lain); middleware
     // sudah menjamin route ini butuh sesi valid.
-    if (!user) return;
+    if (!user || !bookingId) return;
+    // Effect ini bisa jalan ulang (user ke-refresh dari cek sesi, StrictMode
+    // dev) — hasil fetch yang udah basi dibuang biar gak nimpa list yang
+    // lebih baru / munculin prompt draft palsu di kunjungan pertama.
+    let batal = false;
 
-    if (bookingId) {
-      fetch(`/api/bookings?booking_id=${bookingId}`)
-        .then(r => r.json())
-        .then(d => {
-          const found = (d.bookings || [])[0];
-          if (found) {
-            setBooking(found);
-            const list = Array.from({ length: found.jumlah_jamaah }, () => emptyJamaah());
-            // Kalau yang isi = jamaah pemilik booking, prefill dari akunnya.
-            // Kalau perwakilan/admin yang mendaftarkan, mulai kosong.
-            // Sahabat Baitullah checkout mandiri IKUT (dikonfirmasi user
-            // 2026-10-11) — Muslim SELALU checkout buat diri sendiri
-            // (dikunci server, lihat checkout-mandiri/route.js), jadi nama/
-            // nik/wa/email yang keisi di akunnya emang data jamaah ini
-            // juga. Non-Muslim DIKECUALIKAN -- mereka checkout buat ORANG
-            // LAIN (gak bisa umroh sendiri), data akun BUKAN data jamaah.
-            //
-            // Sahabat checkout program REGULER bisa buat diri sendiri ATAU
-            // orang lain (dikonfirmasi user 2026-10-12) — prefill dari akun
-            // CUMA kalau jamaah #1 ditandai untuk_diri_sendiri pas checkout
-            // (opsi "Diri Sendiri"), biar data akun gak kebawa ke formulir
-            // orang lain. Checkout mandiri program eksklusif akun Muslim
-            // tetap selalu diri sendiri.
-            const jdAwal = parseJamaahData(found.jamaah_data);
-            const isSahabatDiriSendiri = user.role === 'sahabat_baitullah' && (
-              jdAwal[0]?.untuk_diri_sendiri === true
-              || (found.prog_publish_type === 'sahabat_baitullah' && user.agama !== 'non_islam')
-            );
-            const isPemilik = found.user_id === user.id && (user.role === 'jamaah' || isSahabatDiriSendiri);
-            if (isPemilik) {
-              list[0] = {
-                ...list[0],
-                nama: user.name || '',
-                nik: user.nik || '',
-                wa: user.wa || '',
-                email: user.email || '',
-              };
-            }
-            // Kalau sudah pernah diisi sebelumnya, muat data lama
-            // jamaah_data dari API berupa string JSON (kolom LONGTEXT) — wajib
-            // di-parse, kalau enggak data lama gak pernah kemuat (form kosong).
-            const dataLama = parseJamaahData(found.jamaah_data);
-            if (dataLama.length > 0) {
-              dataLama.forEach((jd, i) => { if (i < list.length) list[i] = { ...list[i], ...jd }; });
-              setTersimpan(dataLama);
-            }
+    (async () => {
+      const d = await fetch(`/api/bookings?booking_id=${bookingId}`).then(r => r.json()).catch(() => ({}));
+      const found = (d.bookings || [])[0];
+      if (batal || !found) return;
 
-            // Draft otomatis (localStorage) — jaga-jaga kalau sebelumnya
-            // keluar sebelum sempat klik "Kirim Semua Formulir", karena
-            // data baru benar-benar tersimpan ke server pas submit akhir.
-            let finalList = list;
-            let finalCurrentJ = 0;
-            try {
-              const draftRaw = localStorage.getItem(draftKey(bookingId));
-              if (draftRaw) {
-                const draft = JSON.parse(draftRaw);
-                if (draft?.jamaahList?.length === list.length &&
-                    confirm('Ditemukan draft formulir yang belum terkirim di perangkat ini. Lanjutkan mengedit draft tersebut?')) {
-                  // doc_status di draft bisa basi (admin verifikasi setelah
-                  // draft dibuat) — selalu pakai yang dari server.
-                  finalList = draft.jamaahList.map((dj, i) => ({ ...dj, doc_status: list[i]?.doc_status }));
-                  finalCurrentJ = draft.currentJ || 0;
-                } else {
-                  localStorage.removeItem(draftKey(bookingId));
-                }
-              }
-            } catch {}
+      const list = Array.from({ length: found.jumlah_jamaah }, () => emptyJamaah());
+      // Kalau yang isi = jamaah pemilik booking, prefill dari akunnya.
+      // Kalau perwakilan/admin yang mendaftarkan, mulai kosong.
+      // Sahabat Baitullah checkout mandiri IKUT (dikonfirmasi user
+      // 2026-10-11) — Muslim SELALU checkout buat diri sendiri
+      // (dikunci server, lihat checkout-mandiri/route.js), jadi nama/
+      // nik/wa/email yang keisi di akunnya emang data jamaah ini
+      // juga. Non-Muslim DIKECUALIKAN -- mereka checkout buat ORANG
+      // LAIN (gak bisa umroh sendiri), data akun BUKAN data jamaah.
+      //
+      // Sahabat checkout program REGULER bisa buat diri sendiri ATAU
+      // orang lain (dikonfirmasi user 2026-10-12) — prefill dari akun
+      // CUMA kalau jamaah #1 ditandai untuk_diri_sendiri pas checkout
+      // (opsi "Diri Sendiri"), biar data akun gak kebawa ke formulir
+      // orang lain. Checkout mandiri program eksklusif akun Muslim
+      // tetap selalu diri sendiri.
+      const dataLama = parseJamaahData(found.jamaah_data);
+      const isSahabatDiriSendiri = user.role === 'sahabat_baitullah' && (
+        dataLama[0]?.untuk_diri_sendiri === true
+        || (found.prog_publish_type === 'sahabat_baitullah' && user.agama !== 'non_islam')
+      );
+      const isPemilik = found.user_id === user.id && (user.role === 'jamaah' || isSahabatDiriSendiri);
 
-            setJamaahList(finalList);
-            setCurrentJ(finalCurrentJ);
-          }
-        });
-    }
-  }, [user, bookingId]);
+      // Prefill TAMBAHAN khusus Sahabat Baitullah diri sendiri (dikonfirmasi
+      // user 2026-10-11 & 2026-10-15) — tempat/tanggal lahir, ortu,
+      // pendidikan, pekerjaan, alamat & detail paspor udah pernah diisi SEKALI
+      // pas /daftar-sahabat (ke-sync ke users), gak perlu diketik ulang.
+      // Diambil BARENG booking (bukan effect terpisah yang nyusul) biar gak
+      // balapan sama pembentukan list/draft di bawah — dulu bisa ketimpa
+      // list kosong begitu effect ini jalan ulang.
+      let profil = null;
+      if (isPemilik && user.role === 'sahabat_baitullah') {
+        const p = await fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).catch(() => ({}));
+        if (batal) return;
+        profil = p.user || null;
+      }
 
-  // Prefill TAMBAHAN khusus Sahabat Baitullah checkout mandiri (dikonfirmasi
-  // user 2026-10-11) — tempat/tanggal lahir, nama ayah, pendidikan,
-  // pekerjaan, & detail paspor udah pernah diisi SEKALI pas /daftar-sahabat
-  // (ke-sync ke users), gak perlu diketik ulang di sini. /api/profil gak
-  // kebawa di effect loading utama di atas (butuh fetch terpisah), jadi
-  // nyusul di effect sendiri setelah booking kemuat. Cuma isi field yang
-  // MASIH KOSONG — data lama (jamaah_data/draft) yang udah ada tetap
-  // menang, gak ketimpa.
-  useEffect(() => {
-    if (!user || user.role !== 'sahabat_baitullah' || user.agama === 'non_islam') return;
-    if (!booking || booking.user_id !== user.id) return;
-    fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).then(d => {
-      const p = d.user;
-      if (!p) return;
-      const kosong = (v) => !v || !String(v).trim();
-      setJamaahList(prev => {
-        if (prev.length === 0) return prev;
-        const j0 = prev[0];
-        const next0 = {
-          ...j0,
-          tl: kosong(j0.tl) ? (p.tempat_lahir || '') : j0.tl,
-          ttl: kosong(j0.ttl) ? (p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : '') : j0.ttl,
-          jk: p.jenis_kelamin || j0.jk,
-          ayah: kosong(j0.ayah) ? (p.nama_ayah || '') : j0.ayah,
-          ibu: kosong(j0.ibu) ? (p.nama_ibu || '') : j0.ibu,
-          pendidikan: kosong(j0.pendidikan) ? (p.pendidikan_terakhir || '') : j0.pendidikan,
-          pkj: kosong(j0.pkj) ? (p.pekerjaan || '') : j0.pkj,
-          paspor: kosong(j0.paspor) ? (p.no_paspor || '') : j0.paspor,
-          tkp: kosong(j0.tkp) ? (p.tempat_keluar_paspor || '') : j0.tkp,
-          exp_mulai: kosong(j0.exp_mulai) ? (p.masa_berlaku_paspor_dari ? String(p.masa_berlaku_paspor_dari).slice(0, 10) : '') : j0.exp_mulai,
-          exp_paspor: kosong(j0.exp_paspor) ? (p.masa_berlaku_paspor_sampai ? String(p.masa_berlaku_paspor_sampai).slice(0, 10) : '') : j0.exp_paspor,
-          alamat: kosong(j0.alamat) ? (p.alamat_domisili || p.alamat || '') : j0.alamat,
+      if (isPemilik) {
+        list[0] = {
+          ...list[0],
+          nama: profil?.name || user.name || '',
+          nik: profil?.nik || user.nik || '',
+          wa: profil?.wa || user.wa || '',
+          email: profil?.email || user.email || '',
         };
-        return [next0, ...prev.slice(1)];
-      });
-    }).catch(() => {});
-  }, [user, booking]);
+      }
+      // Kalau sudah pernah diisi sebelumnya, muat data lama
+      // jamaah_data dari API berupa string JSON (kolom LONGTEXT) — wajib
+      // di-parse, kalau enggak data lama gak pernah kemuat (form kosong).
+      if (dataLama.length > 0) {
+        dataLama.forEach((jd, i) => { if (i < list.length) list[i] = { ...list[i], ...jd }; });
+        setTersimpan(dataLama);
+      }
+
+      // Draft otomatis (localStorage) — jaga-jaga kalau sebelumnya
+      // keluar sebelum sempat klik "Kirim Semua Formulir", karena
+      // data baru benar-benar tersimpan ke server pas submit akhir.
+      let finalList = list;
+      let finalCurrentJ = 0;
+      try {
+        const draftRaw = localStorage.getItem(draftKey(bookingId));
+        if (draftRaw) {
+          const draft = JSON.parse(draftRaw);
+          if (draft?.jamaahList?.length === list.length &&
+              confirm('Ditemukan draft formulir yang belum terkirim di perangkat ini. Lanjutkan mengedit draft tersebut?')) {
+            // doc_status di draft bisa basi (admin verifikasi setelah
+            // draft dibuat) — selalu pakai yang dari server.
+            finalList = draft.jamaahList.map((dj, i) => ({ ...dj, doc_status: list[i]?.doc_status }));
+            finalCurrentJ = draft.currentJ || 0;
+          } else {
+            localStorage.removeItem(draftKey(bookingId));
+          }
+        }
+      } catch {}
+
+      // Data pendaftaran Sahabat cuma ngisi field yang MASIH KOSONG — isian
+      // lama (jamaah_data/draft) tetap menang, gak ketimpa.
+      if (profil) finalList = [isiDariProfil(finalList[0], profil), ...finalList.slice(1)];
+
+      setBooking(found);
+      setJamaahList(finalList);
+      setCurrentJ(finalCurrentJ);
+    })();
+
+    return () => { batal = true; };
+  }, [user, bookingId]);
 
   // Simpan draft ke localStorage tiap ada perubahan — antisipasi keluar
   // sebelum submit akhir (yang baru itu momen data beneran tersimpan).
