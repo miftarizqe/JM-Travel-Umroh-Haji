@@ -20,6 +20,7 @@ import { pesanDpDikonfirmasi, pesanPelunasanDikonfirmasi, pesanReferralBaru, pes
 import { resolveJamaahHarga, ringkasanPaketKamar } from '@/lib/jamaahHarga';
 import { persenKesiapan, diBawahProgress } from '@/lib/kesiapanTabungan';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
+import { formLengkap, perjanjianSelesai } from '@/lib/bookingStage';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 import { porsiRefund } from '@/lib/danaRefund';
 
@@ -2176,7 +2177,7 @@ function AdminPageInner() {
                       <span className="text-[10px] text-[#1A4FA0] font-bold">{isOpen?'Tutup ▲':'Detail ▼'}</span>
                     </div>
                   </div>
-                  {b.status === 'active' && <BookingProgressBar booking={b} className="mb-2" />}
+                  {b.status === 'active' && <BookingProgressBar booking={b} className="mb-2" keterangan={false} />}
                   {perluTindakan && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {dpPending && <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded-full">💳 DP menunggu konfirmasi</span>}
@@ -3208,6 +3209,20 @@ function AdminPageInner() {
                     const jamaahArr = Array.isArray(b.jamaah_data) ? b.jamaah_data : [];
                     const dokMenunggu = jamaahArr.some(j => j && j.doc_status && Object.values(j.doc_status).some(st => st?.status === 'menunggu'));
                     const hold = b.saldo_hold_pending;
+                    // Booking Program Sahabat Baitullah: ACC pembayarannya
+                    // nunggu formulir & SPJ beres (dikonfirmasi user
+                    // 2026-10-16) — server yang jadi gerbang aslinya
+                    // (alasanBelumBisaAccSahabat), di sini cuma biar admin
+                    // langsung tau kenapa tombolnya mati.
+                    const syaratAccSahabat = b.prog_publish_type === 'sahabat_baitullah' ? [
+                      !formLengkap(b) && `formulir jamaah belum lengkap (${b.form_filled}/${b.form_total})`,
+                      !perjanjianSelesai(b) && 'SPJ belum disetujui jamaah',
+                    ].filter(Boolean) : [];
+                    const infoSyaratAcc = syaratAccSahabat.length > 0 && (
+                      <div className="text-[11px] font-semibold text-amber-800 bg-amber-100 rounded-lg px-2.5 py-1.5">
+                        🔒 Belum bisa dikonfirmasi: {syaratAccSahabat.join(' & ')}. Tombol aktif otomatis setelah jamaah menyelesaikannya.
+                      </div>
+                    );
                     if (a.payments.length === 0 && !a.pembatalan && !dokMenunggu && !hold) return null;
                     return (
                       <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 space-y-2">
@@ -3225,8 +3240,9 @@ function AdminPageInner() {
                                 <span className="text-[10px] text-purple-600 font-semibold whitespace-nowrap">Tanpa bukti TF (saldo)</span>
                               )}
                             </div>
+                            {p.type === 'lunas' && infoSyaratAcc}
                             <div className="flex gap-2">
-                              <button onClick={() => aksiPaymentDariModal(p, 'approve')} disabled={aksiModalBusy === p.id}
+                              <button onClick={() => aksiPaymentDariModal(p, 'approve')} disabled={aksiModalBusy === p.id || (p.type === 'lunas' && syaratAccSahabat.length > 0)}
                                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">✅ Konfirmasi</button>
                               <button onClick={() => aksiPaymentDariModal(p, 'reject')} disabled={aksiModalBusy === p.id}
                                 className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">❌ Tolak</button>
@@ -3246,8 +3262,9 @@ function AdminPageInner() {
                               </div>
                               <div className="text-[10px] text-gray-400 mt-0.5">Saldo sudah terpotong sejak checkout — ACC ini menandai pembayarannya resmi diterima.</div>
                             </div>
+                            {infoSyaratAcc}
                             <div className="flex gap-2">
-                              <button onClick={() => konfirmasiSaldoDariModal(b.id, hold)} disabled={aksiModalBusy === `hold:${hold.id}`}
+                              <button onClick={() => konfirmasiSaldoDariModal(b.id, hold)} disabled={aksiModalBusy === `hold:${hold.id}` || syaratAccSahabat.length > 0}
                                 className="flex-1 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">✅ Konfirmasi Pemakaian Saldo</button>
                               <button onClick={() => router.push(`/admin/sahabat/database?cari=${encodeURIComponent(hold.penerima_kode || hold.penerima_nama || '')}`)}
                                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Buka di Database Sahabat →</button>

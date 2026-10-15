@@ -4,7 +4,7 @@ import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { saldoSahabat, catatPerubahanSaldo, JENIS_SALDO_SAHABAT } from '@/lib/saldoSahabat';
-import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
+import { alasanBelumBisaAccSahabat, cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { pesanUkuranFile } from '@/lib/batasUpload';
 
@@ -53,6 +53,12 @@ export async function PATCH(request, { params }) {
       if (!p || p.status !== 'disetujui') {
         return Response.json({ error: `Batch pengajuan ujroh ini belum disetujui (status: ${p?.status || '-'}). Konfirmasi baru bisa dilakukan setelah disetujui.` }, { status: 400 });
       }
+    }
+    // ACC pemakaian saldo checkout Program Sahabat Baitullah nunggu formulir
+    // & SPJ beres (lihat alasanBelumBisaAccSahabat).
+    if (confirmed && !sudahConfirmed && rows[0].jenis === 'pemakaian_saldo_sahabat' && rows[0].booking_id) {
+      const alasan = await alasanBelumBisaAccSahabat(pool, rows[0].booking_id);
+      if (alasan) return Response.json({ error: alasan }, { status: 400 });
     }
     // pemakaian_saldo_sahabat itu penyesuaian internal (saldo dipakai buat
     // booking sendiri), bukan transfer masuk — gak ada bukti TF eksternal

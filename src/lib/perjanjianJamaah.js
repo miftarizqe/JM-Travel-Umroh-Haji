@@ -7,9 +7,9 @@
 // perjanjianSelesai() di src/lib/bookingStage.js). Query di sini SENGAJA
 // gak ikut filter setuju_pks — daftar ini berguna buat SEMUA booking yang
 // belum ada scan-nya, baik yang udah setuju online maupun yang TTD fisik
-// duluan di kantor tanpa pernah klik apa pun online. Checkout mandiri
-// Program Sahabat Baitullah gak punya tahap ini sama sekali — dulu ikut
-// kehitung, jadi notifnya nyala terus (2026-10-11).
+// duluan di kantor tanpa pernah klik apa pun online. Booking Program
+// Sahabat Baitullah IKUT dihitung — SPJ berlaku buat semua program
+// (dikonfirmasi user 2026-10-16).
 export async function daftarPerjanjianBelumSelesai(pool) {
   const [rows] = await pool.query(
     `SELECT b.id, b.prog_name, b.setuju_pks, b.perjanjian_scan_path, b.jamaah_data,
@@ -17,11 +17,9 @@ export async function daftarPerjanjianBelumSelesai(pool) {
             ds.fase AS sig_fase, ds.metode AS sig_metode
      FROM bookings b
      LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
-     LEFT JOIN programs p ON p.id = b.prog_id
      LEFT JOIN dokumen_signature ds ON ds.dokumen = 'jamaah' AND ds.ref_id = b.id
      WHERE b.status = 'active' AND b.dp_status = 'confirmed'
        AND b.form_filled >= b.form_total
-       AND (p.publish_type IS NULL OR p.publish_type <> 'sahabat_baitullah')
      ORDER BY b.created_at ASC`
   );
   // Lembar materai+TTD fisik sekarang PER JAMAAH (jamaah_data[i].perjanjian_scan_path,

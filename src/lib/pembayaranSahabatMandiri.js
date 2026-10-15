@@ -9,6 +9,30 @@ import { kirimNotifikasi } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib/invoiceKwitansi';
 import { potongKuotaSeatDp } from '@/lib/booking';
+import { formLengkap, perjanjianSelesai } from '@/lib/bookingStage';
+
+// Gerbang ACC admin booking Program Sahabat Baitullah (dikonfirmasi user
+// 2026-10-16): pembayaran saldo/transfer langsungnya BARU boleh di-ACC
+// (= booking jadi lunas) setelah formulir jamaah lengkap & SPJ disetujui —
+// aturan pembatalan/refund ada di SPJ, booking lunas tanpa SPJ gak punya
+// pegangan. Sama posisinya kayak program reguler yang gak bisa pelunasan
+// sebelum setuju SPJ (gerbang di POST /api/payments). Saldo jamaah tetap
+// aman, udah ke-hold sejak checkout — ini cuma nahan status "resmi lunas".
+// Return null kalau boleh di-ACC (atau bukan booking program eksklusif),
+// selain itu kalimat alasan buat ditampilin ke admin.
+export async function alasanBelumBisaAccSahabat(pool, bookingId) {
+  const [[b]] = await pool.query(
+    `SELECT b.form_filled, b.form_total, b.setuju_pks, b.perjanjian_scan_path, p.publish_type,
+            (SELECT ds.fase FROM dokumen_signature ds WHERE ds.dokumen = 'jamaah' AND ds.ref_id = b.id LIMIT 1) AS sig_fase
+     FROM bookings b LEFT JOIN programs p ON p.id = b.prog_id WHERE b.id = ?`,
+    [bookingId]
+  );
+  if (!b || b.publish_type !== 'sahabat_baitullah') return null;
+  const belum = [];
+  if (!formLengkap(b)) belum.push(`formulir jamaah belum lengkap (${b.form_filled || 0}/${b.form_total || 0})`);
+  if (!perjanjianSelesai({ ...b, perjanjian_sig: b.sig_fase ? { fase: b.sig_fase } : null })) belum.push('Surat Perjanjian Jamaah (SPJ) belum disetujui');
+  return belum.length ? `Booking ${bookingId} belum bisa dikonfirmasi: ${belum.join(' & ')}.` : null;
+}
 
 export async function cekDanFinalisasiLunasSahabat(pool, bookingId, actor) {
   // Hold saldo di booking program REGULER itu bayar DP (lihat

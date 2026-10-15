@@ -8,7 +8,7 @@ import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
 import TombolWA from '@/app/components/TombolWA';
-import { STAGE_LABELS, getStage } from '@/lib/bookingStage';
+import { getStage, langkahBooking } from '@/lib/bookingStage';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
 import { adaDokumenPendukungDitolak } from '@/lib/dokumenPendukung';
 
@@ -273,6 +273,9 @@ export default function DashboardSahabatPage() {
             </div>
             {bookingAktif.map(b => {
               const stage = getStage(b);
+              // Chip posisi ikut langkah bar progres yang berurutan (beda
+              // jumlah langkah buat Program Sahabat Baitullah).
+              const { langkah, posisi } = langkahBooking(b);
               const tindakan = alasanPerluTindakan(b);
               const namaUtama = (() => {
                 const jd = typeof b.jamaah_data === 'string' ? (() => { try { return JSON.parse(b.jamaah_data); } catch { return []; } })() : b.jamaah_data;
@@ -288,9 +291,9 @@ export default function DashboardSahabatPage() {
                         {namaUtama ? `📛 ${namaUtama}${b.jumlah_jamaah > 1 ? ` +${b.jumlah_jamaah - 1}` : ''} · ` : ''}{b.id}
                       </div>
                     </div>
-                    {stage < 5 && (
+                    {posisi < langkah.length && (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#E8F0FB] text-[#1A4FA0] whitespace-nowrap">
-                        {stage}/5 · {STAGE_LABELS[stage - 1]}
+                        {posisi + 1}/{langkah.length} · {langkah[posisi].label}
                       </span>
                     )}
                   </div>
