@@ -354,28 +354,28 @@ function TeamContent() {
           Ditaruh SEBELUM guard "team.length === 0" biar tetap keliatan
           walau jaringan pribadinya sendiri masih kosong. */}
       {bolehLihatSemua && (
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 mb-3">
-          <div className="text-xs font-bold text-purple-800 mb-2">
+        <div className="bg-purple-200/70 border border-purple-300 border-l-4 border-l-purple-800 rounded-xl p-3 mb-3">
+          <div className="text-xs font-bold text-white bg-purple-800 rounded-lg px-3 py-2 mb-2">
             {isHop ? '👑 Head of Program — Lihat Jaringan Lain' : '🔎 Cari & Buka Jaringan Sahabat Baitullah'}
           </div>
           {loadingAkar || !semuaAkar ? (
-            <div className="text-xs text-purple-600">Memuat daftar jaringan...</div>
+            <div className="text-xs text-gray-400">Memuat daftar jaringan...</div>
           ) : semuaAkar.length === 0 ? (
-            <div className="text-xs text-purple-600">Belum ada akar jaringan.</div>
+            <div className="text-xs text-gray-400">Belum ada akar jaringan.</div>
           ) : (
             <>
               <input value={cariAkar} onChange={e => setCariAkar(e.target.value)} placeholder="Cari nama / kode akar jaringan..."
-                className="w-full px-3 py-1.5 rounded-lg border border-purple-200 focus:border-purple-500 focus:outline-none text-xs mb-2 bg-white" />
+                className="w-full px-3 py-1.5 rounded-lg border border-gray-200 focus:border-purple-800 focus:outline-none text-xs mb-2 bg-white" />
               {/* "Jaringan Saya" DIBUANG buat HoP (dikonfirmasi user
                   2026-10-05) — HoP itu kepala/pengawas seluruh jaringan, gak
                   punya jaringan pribadi sendiri buat ditoggle balik. */}
-              <div className="max-h-56 overflow-y-auto rounded-lg border border-purple-100 bg-white divide-y divide-purple-50">
+              <div className="max-h-56 overflow-y-auto rounded-lg border border-[#e0e8f0] bg-white divide-y divide-[#e0e8f0]">
                 {akarTerfilter.length === 0 ? (
-                  <div className="text-xs text-purple-400 text-center py-3">Gak ada yang cocok.</div>
+                  <div className="text-xs text-gray-400 text-center py-3">Gak ada yang cocok.</div>
                 ) : akarTerfilter.map(a => (
                   <button key={a.id} onClick={() => router.push(`/dashboard/sahabat/team?sahabat_id=${a.id}`)}
                     className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-xs transition-colors ${
-                      targetId === a.id ? 'bg-purple-700 text-white' : 'text-purple-700 hover:bg-purple-50'
+                      targetId === a.id ? 'bg-purple-800 text-white' : 'text-purple-900 hover:bg-purple-300'
                     }`}>
                     <span className="min-w-0">
                       <span className="font-bold truncate block">{a.name} <span className="font-normal opacity-70">({a.kode_unik})</span></span>
@@ -385,7 +385,7 @@ function TeamContent() {
                   </button>
                 ))}
               </div>
-              <div className="text-[10px] text-purple-400 mt-1">{akarTerfilter.length} dari {semuaAkar.length} jaringan</div>
+              <div className="text-[10px] text-gray-400 mt-1">{akarTerfilter.length} dari {semuaAkar.length} jaringan</div>
             </>
           )}
         </div>
@@ -412,7 +412,7 @@ function TeamContent() {
           // merekrut" di atas gak relevan buat mereka (dikonfirmasi user
           // 2026-10-06, admin/HoP gak punya link referral pribadi buat
           // dibagikan di konteks ini).
-          <div className="bg-purple-50 rounded-xl p-6 text-center text-sm text-purple-700">
+          <div className="bg-white border border-[#e0e8f0] border-l-4 border-l-purple-800 rounded-xl p-6 text-center text-sm text-purple-900">
             Pilih salah satu jaringan dari daftar di atas buat mulai lihat pohonnya.
           </div>
         )
