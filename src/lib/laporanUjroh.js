@@ -290,10 +290,13 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
     const oMember = orangSahabat(sahabatMember);
     const isSelfCheckout = hopId && String(b.referral_sahabat_id) === String(hopId);
     // Replikasi PERSIS closing.js::prosesBookingSelesai (dikonfirmasi user
-    // 2026-10-15) -- sahabat yang checkout program reguler buat DIRINYA
-    // SENDIRI (bukan isSelfCheckout di atas, itu khusus akun HOP) gak
-    // diforecast dapet closerNominal, biar forecast gak kejanjiin ujroh yang
-    // emang gak bakal cair pas beneran closing.
+    // 2026-10-15) -- siapa pun (sahabat biasa ATAU HOP) yang checkout
+    // program reguler buat DIRINYA SENDIRI gak diforecast dapet ujroh/margin
+    // ke diri sendiri, biar forecast gak kejanjiin yang emang gak bakal cair
+    // pas beneran closing. isSelfCheckout (di atas) beda konsep -- itu
+    // nentuin SKEMA (margin penuh vs closer+hop split) berdasar SIAPA
+    // referral-nya (HOP vs sahabat biasa), checkoutDiriSendiri nentuin
+    // APAKAH jamaahnya diri sendiri -- independen, berlaku di DUA skema.
     let jamaahParsed = b.jamaah_data;
     if (typeof jamaahParsed === 'string') { try { jamaahParsed = JSON.parse(jamaahParsed); } catch { jamaahParsed = []; } }
     const checkoutDiriSendiri = Array.isArray(jamaahParsed) && jamaahParsed.some(j => j?.untuk_diri_sendiri === true);
@@ -304,7 +307,12 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
         hppTotal += Number(b[`hpp_${paketG}_${g.kamarKey}`] || 0) * g.count;
       }
       const margin = (b.total_harga || 0) - hppTotal;
-      tambahForecastSahabat(oMember, 'closing_langsung_sahabat', margin, b, 'Closing Langsung (margin) — belum closing');
+      // HOP checkout buat DIRINYA SENDIRI (checkoutDiriSendiri) -> gak
+      // diforecast (dikonfirmasi user 2026-10-15, disamain sahabat biasa).
+      // HOP checkout-in orang lain -> TETAP margin penuh, gak diubah.
+      if (!checkoutDiriSendiri) {
+        tambahForecastSahabat(oMember, 'closing_langsung_sahabat', margin, b, 'Closing Langsung (margin) — belum closing');
+      }
     } else {
       const closerNominal = Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
       const hopNominal = Number(b.sahabat_closing_langsung_hop_nominal ?? pengaturanSahabat?.sahabat_closing_langsung_hop_nominal ?? 0);

@@ -330,10 +330,27 @@ export async function prosesBookingSelesai(bookingId, actor) {
           hppTotalSendiri += Number(b[`hpp_${paketG}_${g.kamarKey}`] || 0) * g.count;
         }
         const marginHop = (b.total_harga || 0) - hppTotalSendiri;
-        const tercatat = await catat(conn, bookingId, sahabatMember, 'closing_langsung_sahabat', marginHop, jml, paket,
-          `Closing Langsung (margin) — ${labelAtasNama} — ${b.prog_name}`);
-        if (tercatat > 0) {
-          rincian.push({ penerima: sahabatMember.name, id: sahabatMember.id, role: sahabatMember.role, jenis: 'closing_langsung_sahabat', nominal: tercatat });
+        if (checkoutDiriSendiri) {
+          // Head of Program checkout buat DIRINYA SENDIRI (dikonfirmasi
+          // user 2026-10-15, disamain prinsip sahabat biasa: beli sendiri
+          // = gak dapet ujroh/margin ke diri sendiri). Margin penuh masuk
+          // Operasional Management, bukan ke akun HOP -- beda dari HOP
+          // checkout-in ORANG LAIN di bawah yang TETAP margin penuh
+          // (gak diubah, dikonfirmasi user).
+          if (marginHop > 0) {
+            await conn.query(
+              `INSERT INTO komisi_ledger (booking_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, paket, keterangan)
+               VALUES (?, 'operasional_sahabat', 'Operasional Management', 'operasional_sahabat', ?, ?, ?, ?)`,
+              [bookingId, jml, marginHop, paket, `Margin closing (checkout diri sendiri oleh Head of Program, bukan ujroh) — ${labelAtasNama} — ${b.prog_name}`]
+            );
+            rincian.push({ penerima: 'Operasional Management', id: 'operasional_sahabat', role: null, jenis: 'operasional_sahabat', nominal: marginHop });
+          }
+        } else {
+          const tercatat = await catat(conn, bookingId, sahabatMember, 'closing_langsung_sahabat', marginHop, jml, paket,
+            `Closing Langsung (margin) — ${labelAtasNama} — ${b.prog_name}`);
+          if (tercatat > 0) {
+            rincian.push({ penerima: sahabatMember.name, id: sahabatMember.id, role: sahabatMember.role, jenis: 'closing_langsung_sahabat', nominal: tercatat });
+          }
         }
       } else {
         const closerNominal = Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
