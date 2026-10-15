@@ -11,6 +11,15 @@ const STATUS_AKUN = {
   pending: { label: 'Dalam proses', cls: 'bg-yellow-100 text-yellow-700' },
   nonaktif: { label: 'Nonaktif', cls: 'bg-gray-200 text-gray-500' },
 };
+// Kode agen (SBJMxxxx) baru dijatah pas akun diaktifkan admin — sahabat yang
+// masih dalam proses/ditolak memang belum punya, jangan ditampilin "-" polos
+// yang kebaca kayak data hilang.
+const KodeAgen = ({ s }) => s.kode_unik
+  ? <>{s.kode_unik}</>
+  : <span title="Kode agen terbit otomatis saat akun diaktifkan admin"
+      className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-dashed border-gray-300 not-italic">
+      Belum ada kode
+    </span>;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 const namaBulan = (kunci) => {
   const [y, m] = kunci.split('-').map(Number);
@@ -137,7 +146,7 @@ export default function DashboardHopPage() {
     const st = STATUS_AKUN[s.status] || { label: s.status, cls: 'bg-gray-100 text-gray-500' };
     return (
       <>
-        <span className="text-[10px] text-gray-400">{s.kode_unik || '-'}</span>
+        <span className="text-[10px] text-gray-400"><KodeAgen s={s} /></span>
         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
         {s.laporan_terbuka > 0 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600">⚠️ {s.laporan_terbuka} laporan</span>}
       </>
@@ -256,7 +265,7 @@ export default function DashboardHopPage() {
                     <span className="w-5 text-center text-xs font-black text-gray-400">{i + 1}</span>
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-[#0E2F6E] text-sm truncate">{s.name}</div>
-                      <div className="text-[10px] text-gray-400">{s.kode_unik || '-'} · Gen1 {s.gen[0]}</div>
+                      <div className="text-[10px] text-gray-400"><KodeAgen s={s} /> · Gen1 {s.gen[0]}</div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-sm font-black text-[#0E2F6E]">{s.total}</div>
@@ -369,7 +378,7 @@ export default function DashboardHopPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => !mengirim && setTandai(null)}>
           <div className="bg-white rounded-2xl max-w-md w-full p-5" onClick={e => e.stopPropagation()}>
             <div className="font-bold text-[#0E2F6E]">⚠️ Tandai Data Bermasalah</div>
-            <div className="text-xs text-gray-500 mt-0.5 mb-3">{tandai.name} ({tandai.kode_unik || '-'}) — laporan dikirim ke admin untuk diverifikasi. Data sahabat tidak berubah.</div>
+            <div className="text-xs text-gray-500 mt-0.5 mb-3">{tandai.name} (<KodeAgen s={tandai} />) — laporan dikirim ke admin untuk diverifikasi. Data sahabat tidak berubah.</div>
             <textarea value={catatan} onChange={e => setCatatan(e.target.value)} rows={4} maxLength={1000}
               placeholder="Jelaskan data apa yang bermasalah, mis. 'No. rekening tabungan umroh tidak sesuai buku tabungan'"
               className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />

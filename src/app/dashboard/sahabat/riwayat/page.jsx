@@ -35,6 +35,17 @@ const KATEGORI_LABEL = {
   koreksi_saldo_sahabat: { label: 'Koreksi Saldo (Admin)', warna: 'bg-red-50 text-red-700' },
 };
 
+// Dana booking Program Sahabat Baitullah yang dibatalkan dikembalikan ke
+// saldo (dikonfirmasi user 2026-10-16) — dicatat sebagai koreksi_saldo_sahabat
+// dengan ref_id 'pembatalan:<id>' (lihat kreditSaldoPembatalan di
+// /api/pembatalan), dilabelin beda dari koreksi manual admin.
+function kategoriLedger(r) {
+  if (r?.jenis === 'koreksi_saldo_sahabat' && String(r?.ref_id || '').startsWith('pembatalan:')) {
+    return { label: 'Pengembalian Pembatalan', warna: 'bg-emerald-50 text-emerald-700' };
+  }
+  return KATEGORI_LABEL[r?.jenis] || { label: r?.jenis, warna: 'bg-gray-100 text-gray-600' };
+}
+
 // Halaman "Riwayat Tabungan Umroh" — dituju dari klik "Total Ujroh
 // Terkonfirmasi"/"Ujroh Pending"/"Forecast" di /dashboard/sahabat.
 // Restrukturisasi 2026-09-22/23, lalu diluruskan lagi 2026-10-09
@@ -373,7 +384,7 @@ function RiwayatSaldoContent() {
                       <a href={entry.bukti} target="_blank" rel="noopener noreferrer"
                         className="inline-block text-xs font-bold text-[#1A4FA0] mb-1">📎 Lihat Bukti TF</a>
                       {entry.items.map(r => {
-                        const kat = KATEGORI_LABEL[r.jenis] || { label: r.jenis, warna: 'bg-gray-100 text-gray-600' };
+                        const kat = kategoriLedger(r);
                         return (
                           <div key={r.id} className="flex justify-between text-xs bg-gray-50 rounded-lg px-2.5 py-1.5">
                             <div className="min-w-0">
@@ -394,7 +405,7 @@ function RiwayatSaldoContent() {
             }
 
             const r = entry.items[0];
-            const kat = KATEGORI_LABEL[r.jenis] || { label: r.jenis, warna: 'bg-gray-100 text-gray-600' };
+            const kat = kategoriLedger(r);
             return (
               <div key={r.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -480,7 +491,7 @@ function RiwayatSaldoContent() {
               ) : (
                 <div className="space-y-2">
                   {forecast.closing_jamaah.map(c => {
-                    const kat = KATEGORI_LABEL[c.jenis] || { label: c.jenis, warna: 'bg-gray-100 text-gray-600' };
+                    const kat = kategoriLedger(c);
                     return (
                       <div key={`${c.jenis}-${c.id}`} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
                         <div className="flex items-center justify-between gap-2">
@@ -522,7 +533,7 @@ function RiwayatSaldoContent() {
             ) : (
               <div className="space-y-2">
                 {forecast.menunggu_konfirmasi.map(k => {
-                  const kat = KATEGORI_LABEL[k.jenis] || { label: k.jenis, warna: 'bg-gray-100 text-gray-600' };
+                  const kat = kategoriLedger(k);
                   return (
                     <div key={k.id} className="bg-white rounded-xl border border-[#e0e8f0] p-3">
                       <div className="flex items-center justify-between gap-2">
