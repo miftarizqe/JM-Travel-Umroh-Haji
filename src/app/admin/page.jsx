@@ -33,7 +33,11 @@ function parseJamaahData(raw) {
 // status tiap booking, cukup lihat badge-nya terus klik buat verifikasi
 // yang relevan aja.
 function ringkasDokumenPendukung(b) {
-  const jamaah = parseJamaahData(b.jamaah_data);
+  // `b` di sini sumbernya /api/admin/program-jamaah — jamaah_data UDAH
+  // di-parse server-side & dikirim sebagai `b.jamaah` (bukan `b.jamaah_data`
+  // mentah), lihat route.js-nya. Pakai parseJamaahData tetap aman buat
+  // jaga-jaga kalau kepanggil dari sumber lain yang masih raw.
+  const jamaah = Array.isArray(b.jamaah) ? b.jamaah : parseJamaahData(b.jamaah_data);
   const slotTotal = jamaah.length * DOC_LIST.length;
   let diunggah = 0, menunggu = 0, ditolak = 0, diverifikasi = 0;
   for (const j of jamaah) {
@@ -2261,10 +2265,23 @@ function AdminPageInner() {
                           hilang kalau form belum diisi padahal udah lunas
                           (server /api/admin/invoice-kwitansi/auto sendiri
                           emang gak pernah syarat form_lengkap). */}
+                      {/* Penanda "udah terkirim apa belum" — tombol TETAP
+                          ada walau udah terkirim (dikonfirmasi user
+                          2026-10-15, "jangan ilang") biar admin tetap bisa
+                          buka/reprint; generateOrUpdateKwitansi idempotent,
+                          1 kwitansi per booking (nomor beku), klik ulang
+                          gak bikin dokumen baru. Badge-nya sama persis
+                          polanya kayak "📤 TTU Terkirim" di Konfirmasi
+                          Pembayaran (dikonfirmasi user 2026-10-14). */}
                       {b.pelunasan_status === 'paid' && (
-                        <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="w-full mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
-                          🧾 Kwitansi Pembayaran
-                        </button>
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
+                            🧾 {b.kwitansi_terkirim ? 'Lihat Kwitansi' : 'Kwitansi Pembayaran'}
+                          </button>
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${b.kwitansi_terkirim ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'}`}>
+                            {b.kwitansi_terkirim ? '📤 Terkirim' : '📝 Belum Dikirim'}
+                          </span>
+                        </div>
                       )}
 
                       {/* Closing (ujroh terhitung) diproses otomatis begitu booking lunas, form

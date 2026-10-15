@@ -22,10 +22,12 @@ export async function GET(request) {
                 SELECT 1 FROM pembatalan pb
                 WHERE pb.booking_id = b.id AND pb.status IN ('menunggu','disetujui')
               ) AS ada_pembatalan_aktif,
-              u.name AS pemesan_nama, u.email AS pemesan_email
+              u.name AS pemesan_nama, u.email AS pemesan_email,
+              kw.terkirim AS kwitansi_terkirim
        FROM bookings b
        LEFT JOIN users u ON u.id = b.user_id
        LEFT JOIN programs p ON p.id = b.prog_id
+       LEFT JOIN invoice_kwitansi kw ON kw.booking_id = b.id AND kw.jenis = 'kwitansi'
        WHERE b.prog_id = ?
        ORDER BY b.created_at DESC`,
       [progId]
@@ -56,6 +58,7 @@ export async function GET(request) {
         created_at: b.created_at,
         tanggal_berangkat: b.tanggal_berangkat,
         ada_pembatalan_aktif: !!b.ada_pembatalan_aktif,
+        kwitansi_terkirim: !!b.kwitansi_terkirim,
         jamaah, // array detail tiap jamaah
         form_lengkap: b.form_filled >= b.form_total,
       };
