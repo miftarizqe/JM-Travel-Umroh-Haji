@@ -10,6 +10,7 @@ import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
 import TombolWA from '@/app/components/TombolWA';
 import { STAGE_LABELS, getStage } from '@/lib/bookingStage';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
+import { adaDokumenPendukungDitolak } from '@/lib/dokumenPendukung';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -294,9 +295,18 @@ export default function DashboardSahabatPage() {
                     )}
                   </div>
                   {stage === 5 ? (
-                    <div className="mt-2 bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
-                      ✅ Lunas — Selamat menunaikan ibadah!
-                    </div>
+                    // Sinkron sama /dashboard/jamaah (dikonfirmasi user
+                    // 2026-10-15) -- jangan nampilin "Lunas" ijo polos kalau
+                    // ada dokumen pendukung yang ditolak admin, nyesatin.
+                    adaDokumenPendukungDitolak(b.jamaah_data) ? (
+                      <div className="mt-2 bg-red-50 text-red-600 text-xs text-center py-2 rounded-full font-bold">
+                        ❌ Lunas, ada dokumen ditolak — lengkapi lagi
+                      </div>
+                    ) : (
+                      <div className="mt-2 bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
+                        ✅ Lunas — Selamat menunaikan ibadah!
+                      </div>
+                    )
                   ) : tindakan.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {tindakan.map(t => (
