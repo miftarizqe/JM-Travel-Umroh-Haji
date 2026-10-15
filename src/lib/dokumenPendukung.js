@@ -41,6 +41,17 @@ export function statusDokumen(jamaah, key) {
   return jamaah.doc_status?.[key] || { status: 'menunggu' };
 }
 
+// Dipakai halaman Booking Saya (dashboard jamaah/sahabat) buat nentuin
+// boleh-gaknya nampilin badge "Lunas — Selamat menunaikan ibadah!" polos
+// ijo. Booking bisa SECARA PEMBAYARAN lunas (stage 5) tapi ada dokumen
+// pendukung yang admin tolak & belum diunggah ulang -- badge ijo polos
+// nyesatin, keliatan "beres semua" padahal masih ada yang wajib dibenerin
+// (dikonfirmasi user 2026-10-15, bug ditemukan dari booking sahabat3).
+export function adaDokumenPendukungDitolak(jamaahDataRaw) {
+  const jamaah = parseJamaahData(jamaahDataRaw);
+  return jamaah.some(j => DOC_KEYS.some(key => statusDokumen(j, key)?.status === 'ditolak'));
+}
+
 // BE: hitung ulang doc_status saat formulir disimpan. `lama` = jamaah_data yang
 // tersimpan di DB, `baru` = kiriman client. Dicocokkan per index (urutan jamaah
 // di form = urutan di DB). Dokumen yang path-nya sama dengan yang tersimpan

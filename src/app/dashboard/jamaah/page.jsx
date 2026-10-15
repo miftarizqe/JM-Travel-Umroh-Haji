@@ -8,6 +8,7 @@ import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { formLengkap, getStage, perjanjianSelesai, pembayaranSudahDiAcc } from '@/lib/bookingStage';
+import { adaDokumenPendukungDitolak } from '@/lib/dokumenPendukung';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
 import { dpPerluResubmit } from '@/lib/dpPayments';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
@@ -387,7 +388,22 @@ export default function DashboardJamaah() {
                           📜 Baca & Setujui Perjanjian →
                         </button>
                       )}
-                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && (
+                      {/* Ada dokumen pendukung yang ditolak admin -> JANGAN
+                          nampilin "Lunas" polos ijo, nyesatin keliatan
+                          "beres semua" padahal masih ada yang wajib
+                          dibenerin (dikonfirmasi user 2026-10-15, bug
+                          ditemukan dari booking sahabat3: 5 dokumen, 1
+                          ditolak, tapi badge-nya tetep ijo "Selamat
+                          menunaikan ibadah"). Notif ke jamaah udah otomatis
+                          terkirim SAAT admin nolak dokumennya (lihat
+                          kirimNotifikasi di /api/admin/dokumen-pendukung),
+                          gak perlu notif tambahan di sini. */}
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && adaDokumenPendukungDitolak(b.jamaah_data) && (
+                        <div className="bg-red-50 text-red-600 text-xs text-center py-2 rounded-full font-bold">
+                          ❌ Lunas, tapi ada dokumen pendukung yang ditolak — lihat &amp; lengkapi di &ldquo;Dokumen Saya&rdquo; di bawah.
+                        </div>
+                      )}
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && !adaDokumenPendukungDitolak(b.jamaah_data) && (
                         <div className="bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
                           ✅ Lunas — Selamat menunaikan ibadah!
                         </div>
