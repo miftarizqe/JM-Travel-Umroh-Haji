@@ -298,9 +298,11 @@ export default function DashboardSahabatPage() {
                     // Sinkron sama /dashboard/jamaah (dikonfirmasi user
                     // 2026-10-15) -- jangan nampilin "Lunas" ijo polos kalau
                     // ada dokumen pendukung yang ditolak admin, nyesatin.
+                    // Amber + nada positif, bukan merah/❌ (dikonfirmasi user,
+                    // "jangan merah silang, bikin yang lebih manusiawi").
                     adaDokumenPendukungDitolak(b.jamaah_data) ? (
-                      <div className="mt-2 bg-red-50 text-red-600 text-xs text-center py-2 rounded-full font-bold">
-                        ❌ Lunas, ada dokumen ditolak — lengkapi lagi
+                      <div className="mt-2 bg-amber-50 text-amber-700 text-xs text-center py-2 rounded-full font-bold">
+                        📋 Lunas — ada dokumen yang perlu diperbaiki
                       </div>
                     ) : (
                       <div className="mt-2 bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">

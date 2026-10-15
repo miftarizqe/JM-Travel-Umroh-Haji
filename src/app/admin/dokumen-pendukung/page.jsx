@@ -1,6 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { STATUS_DOKUMEN } from '@/lib/dokumenPendukung';
@@ -34,14 +34,36 @@ const isGambar = (path) => /\.(jpe?g|png|webp|gif)$/i.test(path || '');
 // 1 jamaah bisa muncul 5 baris terpisah. Sekarang daftar per JAMAAH dulu
 // (yang punya dokumen sesuai filter), klik -> semua dokumen jamaah itu.
 // Data tetap 1x fetch status=semua, dikelompokkan di sini.
+//
+// useSearchParams() WAJIB dibungkus <Suspense> buat `next build` (dikonfirmasi
+// user 2026-10-15) -- tanpa ini lolos di `next dev` tapi gagal total pas
+// production build ("should be wrapped in a suspense boundary"), sempat
+// bikin deploy ke main gagal. Pola sama persis admin/page.jsx &
+// dashboard/sahabat/riwayat/page.jsx.
 export default function AdminDokumenPendukungPage() {
+  return (
+    <Suspense fallback={<Layout title="📎 Verifikasi Dokumen Pendukung"><div className="text-center text-gray-400 py-10">Memuat...</div></Layout>}>
+      <AdminDokumenPendukungContent />
+    </Suspense>
+  );
+}
+
+function AdminDokumenPendukungContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [user] = useCurrentUser();
-  const [filter, setFilter] = useState('menunggu');
+  // Deep-link dari kartu booking di Kelola Program (dikonfirmasi user
+  // 2026-10-15, "nempel di masing-masing programnya") — ?booking_id=xxx
+  // isi awal `cari` (booking_id ikut dicocokkan di filter pencarian yang
+  // udah ada di bawah) + default filter 'semua' biar yang udah diverifikasi/
+  // ditolak ikut kebaca, gak kepotong default 'menunggu'. Lazy initializer
+  // (bukan useEffect+setState) biar gak kena cascading-render lint error.
+  const bookingIdDeepLink = searchParams.get('booking_id') || '';
+  const [filter, setFilter] = useState(() => bookingIdDeepLink ? 'semua' : 'menunggu');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(null);
-  const [cari, setCari] = useState('');
+  const [cari, setCari] = useState(() => bookingIdDeepLink);
   const [pilih, setPilih] = useState(null); // kunciJamaah yang lagi dibuka
 
   function muat() {
