@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
+import ModalTolakPermanen from '@/app/components/ModalTolakPermanen';
 import { persenKesiapan, warnaProgress } from '@/lib/kesiapanTabungan';
 import { downloadExcel } from '@/lib/downloadExcel';
 
@@ -149,6 +150,7 @@ export default function DatabaseJamaahPage() {
   const [form, setForm] = useState({ target_minat: '', target_estimasi_harga: '', target_bulan: '' });
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tolakTarget, setTolakTarget] = useState(null); // pendaftaran yang mau ditolak permanen
   const [editingData, setEditingData] = useState(null); // user_id lagi diedit NIK/rekening-nya
   const [formData, setFormData] = useState({});
   const [savingData, setSavingData] = useState(false);
@@ -396,10 +398,13 @@ export default function DatabaseJamaahPage() {
         body: JSON.stringify(body),
       });
       const d = await res.json();
-      if (!res.ok) { alert(d.error); setBusy(false); return; }
+      if (!res.ok) { alert(d.error); setBusy(false); return false; }
       muat();
+      setBusy(false);
+      return true;
     } catch { alert('Terjadi kesalahan'); }
     setBusy(false);
+    return false;
   }
 
   // Tolak tapi jamaah tetap bisa login & isi ulang data diri (dikonfirmasi
@@ -410,10 +415,9 @@ export default function DatabaseJamaahPage() {
     if (!catatan.trim()) { alert('Alasan wajib diisi supaya jamaah tahu apa yang harus diperbaiki.'); return; }
     aksi({ action: 'minta_perbaikan', user_id: j.user_id, catatan_admin: catatan.trim() });
   }
-  function tolakPermanen(j) {
-    const catatan = prompt(`TOLAK PERMANEN pendaftaran ${j.nama}? Akun tidak akan bisa login lagi (untuk akun spam/palsu).\n\nAlasan (opsional):`);
-    if (catatan === null) return;
-    aksi({ action: 'reject', user_id: j.user_id, catatan_admin: catatan.trim() || undefined });
+  // Alasan dipilih dari dropdown di ModalTolakPermanen (dikonfirmasi user 2026-10-16).
+  async function kirimTolakPermanen(catatan) {
+    if (await aksi({ action: 'reject', user_id: tolakTarget.user_id, catatan_admin: catatan })) setTolakTarget(null);
   }
 
   async function approveVoucher(voucherId) {
@@ -1221,7 +1225,7 @@ export default function DatabaseJamaahPage() {
                           </button>
                         )}
                         {j.status !== 'active' && j.status !== 'ditolak' && (
-                          <button disabled={busy} onClick={() => tolakPermanen(j)}
+                          <button disabled={busy} onClick={() => setTolakTarget(j)}
                             className="bg-gray-100 text-gray-500 font-bold px-4 py-2 rounded-full disabled:opacity-50">
                             ⛔ Tolak Permanen
                           </button>
@@ -1318,6 +1322,10 @@ export default function DatabaseJamaahPage() {
             )}
           </div>
         </div>
+      )}
+      {tolakTarget && (
+        <ModalTolakPermanen nama={tolakTarget.nama} busy={busy}
+          onBatal={() => setTolakTarget(null)} onKirim={kirimTolakPermanen} />
       )}
     </Layout>
   );

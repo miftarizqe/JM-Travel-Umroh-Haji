@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useOpsiTambahan } from '@/lib/useOpsiTambahan';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
 
-const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
+export const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
 
 function hargaProgram(prog, item) {
   // Custom Hotel per Kota (paket==='custom') SELALU pakai hargaCustom (harga
@@ -15,42 +15,36 @@ function hargaProgram(prog, item) {
   return prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 }
 
-// Opsi tambahan harganya per jamaah (dikali jumlah item), ditambahkan ke
-// harga program — bukan biaya terpisah, biar semua total (DP, sisa
-// pelunasan, dst) otomatis ikut hitungannya tanpa perlu logic tambahan.
 function hargaOpsiTambahan(item) {
   return (item.opsiTambahan || []).reduce((s, o) => s + Number(o.harga || 0), 0);
 }
 
-function hargaItem(prog, item) {
+export function hargaItem(prog, item) {
   return hargaProgram(prog, item) + hargaOpsiTambahan(item);
 }
 
-// Label ringkasan keranjang — paket tetap tampil "Deluxe · Triple" seperti
-// biasa, khusus Custom Hotel tampil Bintang Mekkah/Madinah yang dipilih
-// (lebih informatif daripada cuma tulisan "custom").
 function labelPaketKamar(item) {
   if (item.paket === 'custom' && item.customHotel) {
     return `🎨 Mekkah Bintang ${BINTANG_PAKET[item.customHotel.mekkahPaket]} + Madinah Bintang ${BINTANG_PAKET[item.customHotel.madinahPaket]} · ${item.kamar}`;
   }
-  return `${item.paket} · ${item.kamar}`;
+  return `${PAKET_LABEL[item.paket] || item.paket} · ${item.kamar}`;
 }
 
 const PAKET_LIST = [
-  { key: 'deluxe', label: '⭐⭐⭐ Deluxe', hotel: 'Ramada Al Fayzeen' },
-  { key: 'eksekutif', label: '⭐⭐⭐⭐ Eksekutif', hotel: 'Maysan Al Mashaer' },
-  { key: 'signature', label: '⭐⭐⭐⭐⭐ Signature', hotel: 'Ghufron Al Shofwa' },
+  { key: 'deluxe', label: 'Deluxe', hotel: 'Ramada Al Fayzeen' },
+  { key: 'eksekutif', label: 'Eksekutif', hotel: 'Maysan Al Mashaer' },
+  { key: 'signature', label: 'Signature', hotel: 'Ghufron Al Shofwa' },
 ];
+const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
 const KAMAR_LIST = ['Quad (4/Kamar)', 'Triple (3/Kamar)', 'Double (2/Kamar)'];
 const BINTANG_PAKET = { deluxe: 3, eksekutif: 4, signature: 5 };
 
 // Custom Hotel per Kota — hitung harga LIVE tiap kali pilihan Bintang/kamar
 // berubah (KEY paket aja yang dikirim, server yang resolve rate dari baris
 // paket bersangkutan & hitung margin/komisi proporsional, lihat
-// /api/programs/[id]/hitung-hotel-custom). Dipisah jadi hook sendiri (bukan
-// langsung di komponen utama) biar effect-nya cuma bergantung ke 4 nilai
-// primitif ini, gak keikut re-run tiap `current` berubah karena alasan lain
-// (ganti nama jamaah, dst).
+// /api/programs/[id]/hitung-hotel-custom). Hook sendiri (dipanggil per
+// JamaahCard, bukan di komponen utama) biar tiap jamaah yang pilih Custom
+// Hotel punya hitungan harga sendiri-sendiri, independen dari jamaah lain.
 function useCustomHotelHarga(progId, mekkahPaket, madinahPaket, kamarKey) {
   const [hasil, setHasil] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -59,14 +53,8 @@ function useCustomHotelHarga(progId, mekkahPaket, madinahPaket, kamarKey) {
   const valid = !!(progId && mekkahPaket && madinahPaket && kamarKey);
 
   useEffect(() => {
-    // Input belum lengkap — jangan setState di sini (dianggap "derived state"
-    // oleh lint, bukan side effect beneran), cukup skip. `valid` di bawah yang
-    // nentuin `hasil`/`error` balikin null selama input belum lengkap.
     if (!valid) return;
     let ignore = false;
-    // Pola fetch-in-effect standar (setLoading sebelum async, dipakai luas
-    // di proyek ini) — lint react-hooks/set-state-in-effect terlalu ketat
-    // buat pola ini, sudah ada beberapa exception serupa di codebase.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true); setError(null);
     fetch(`/api/programs/${progId}/hitung-hotel-custom`, {
@@ -84,30 +72,10 @@ function useCustomHotelHarga(progId, mekkahPaket, madinahPaket, kamarKey) {
   return { hasil: valid ? hasil : null, loading: valid && loading, error: valid ? error : null };
 }
 
-// Jaga panjang array nama tetap = jumlah jamaah, tanpa buang nama yang
-// sudah diketik kalau jumlahnya cuma naik/turun sedikit.
-function resizeNamas(namas, n) {
-  const arr = [...(namas || [])];
-  while (arr.length < n) arr.push('');
-  while (arr.length > n) arr.pop();
-  return arr;
-}
-
-// Step "Pilih Paket" dipakai bareng di checkout & order-jamaah — tiap item
-// (kombinasi paket+kamar+jumlah bebas) ditambahkan ke keranjang satu-satu,
-// mirip nambah item menu di Gojek: konfigurasi dulu, "+ Tambahkan ke Pesanan",
-// bisa ulang lagi buat kombinasi lain sebelum lanjut bayar.
-//
-// `onSummaryChange` dipanggil tiap kali angka ringkasan (termasuk voucher)
-// berubah, supaya halaman pemanggil bisa nyimpen angka2 itu buat ditampilkan
-// lagi di step Invoice DP (komponen ini sendiri unmount begitu pindah step).
 // Program Hotel Mix (custom, 1 harga rata) bikin SEMUA 9 kombinasi
-// paket×kamar kebetulan sama persis (lihat KalkulatorTerpadu.jsx) — kalau
-// gitu, nampilin "Pilih Akomodasi"/"Tipe Kamar" ke jamaah cuma bikin
-// keliatan ada pilihan padahal harganya gak pernah beda apapun yang
-// dipencet. Dicek di sini (bukan nyimpen flag "hotel_mode" baru di tabel
-// programs) — otomatis nyala/mati sendiri ngikutin data harga yang beneran
-// kesimpen, gak perlu field tambahan.
+// paket×kamar kebetulan sama persis — kalau gitu, nampilin pilihan paket ke
+// jamaah cuma bikin keliatan ada pilihan padahal harganya gak pernah beda
+// apapun yang dipencet.
 function semuaHargaSamaCek(prog) {
   if (!prog) return false;
   const nilai = [];
@@ -119,90 +87,263 @@ function semuaHargaSamaCek(prog) {
   return nilai[0] > 0 && nilai.every(n => n === nilai[0]);
 }
 
-// Slot 0 — TIDAK ada mekanisme auto-release seat di sistem ini (booking
-// pending yang gak dibayar TETAP ngunci seat sampai admin approve
-// pembatalan manual), jadi jangan biarin orang tetep bisa "checkout"
-// (nambah ke keranjang cuma buat mentok pas submit). Diganti tombol
-// "Infokan Jika Ada Slot Kosong" (komponen WaitlistCTA, dipakai bareng
-// /program/[id]) — nyatet minat ke program_waitlist, dikabarin via
-// notifikasi in-app begitu admin approve pembatalan & seat-nya beneran
-// kebuka (lihat api/pembatalan PATCH).
+// Kombo paket+kamar PERTAMA yang beneran ada harganya — dipakai default
+// jamaah baru biar gak nyangkut di pilihan "Rp 0" kalau admin belum isi
+// semua tier.
+function komboDefault(prog) {
+  for (const pk of PAKET_LIST) {
+    for (const km of KAMAR_LIST) {
+      const harga = prog?.[`harga_${pk.key}_${kamarKeyOf(km)}`] || prog?.[`harga_${pk.key}`] || 0;
+      if (harga > 0) return { paket: pk.key, kamar: km };
+    }
+  }
+  return { paket: PAKET_LIST[0].key, kamar: KAMAR_LIST[1] };
+}
 
-// `dataDiriSendiri` ({ nama, wa, jk, alamat }) opsional — kalau dikirim
-// (akun Sahabat Baitullah), Data Jamaah nampilin 2 opsi: "Diri Sendiri"
-// (jamaah #1 auto-isi dari profil akun) atau "Orang Lain" (isi manual).
-//
-// `perjanjian` ({ dibaca, render(checkbox) }) opsional — kalau dikirim (akun
-// Sahabat Baitullah), tombol "+ Tambahkan ke Pesanan" diganti checkbox
-// persetujuan Surat Perjanjian: centang = item masuk pesanan & ringkasan
-// muncul, uncentang = item keluar lagi & ringkasan disembunyikan. Mode ini
-// cuma 1 item, form dikunci selama tercentang biar sama dengan isi pesanan.
-export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, onChangeCurrent, extra, onSummaryChange, referralPerwId, dataDiriSendiri, perjanjian }) {
-  const [opsiTambahanList] = useOpsiTambahan(prog?.id);
-  const kamarKey = kamarKeyOf(current.kamar);
-  // current.paket/kamar tetap kepakai apa adanya (default dari halaman
-  // pemanggil) buat nyimpen booking — kombinasi manapun hasilnya sama aja
-  // pas harganya emang seragam, jadi gak perlu diubah, cuma UI pemilihnya
-  // yang disembunyiin.
-  const semuaHargaSama = semuaHargaSamaCek(prog);
-  const hargaSeragam = semuaHargaSama ? Number(prog[`harga_${current.paket}_${kamarKey}`]) || 0 : 0;
-  const sisaSeat = (prog?.total_seat || 0) - (prog?.used_seat || 0) - cart.reduce((s, c) => s + c.jumlah, 0);
-  const maxJumlah = Math.max(1, sisaSeat);
+export function jamaahKosong(prog) {
+  const { paket, kamar } = komboDefault(prog);
+  return {
+    paket, kamar, hargaCustom: '', customHotel: null,
+    nama: '', jk: '', nik: '', tanpaNik: false, wa: '', alamat: '',
+    opsiTambahan: [], diriSendiri: false,
+  };
+}
 
-  // Auto-koreksi kalau paket yang lagi kepilih ternyata harganya belum
-  // diisi admin (harga_X_Y = 0/NULL) — jangan biarin jamaah nyangkut di
-  // pilihan "Rp 0" (bisa kejadian di program mana pun kalau admin belum
-  // sempat isi semua tier, bukan cuma pas paket default 'eksekutif' pas
-  // load pertama). Pindah otomatis ke tier PERTAMA yang beneran ada
-  // harganya buat kombinasi kamar yang sama; kalau gak ada satu pun yang
-  // punya harga, biarin apa adanya (nanti ke-block di tambahkan()).
-  useEffect(() => {
-    if (!prog || semuaHargaSama || current.paket === 'custom') return;
-    const hargaSaatIni = Number(prog[`harga_${current.paket}_${kamarKey}`]) || Number(prog[`harga_${current.paket}`]) || 0;
-    if (hargaSaatIni > 0) return;
-    const alternatif = PAKET_LIST.find(pk => (Number(prog[`harga_${pk.key}_${kamarKey}`]) || Number(prog[`harga_${pk.key}`]) || 0) > 0);
-    if (alternatif && alternatif.key !== current.paket) onChangeCurrent({ ...current, paket: alternatif.key });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prog?.id, kamarKey, current.paket, semuaHargaSama]);
+// 1 kartu = 1 jamaah, MANDIRI total (paket/kamar sendiri, data sendiri) --
+// restrukturisasi dari model lama "1 item keranjang = qty N jamaah berbagi 1
+// paket" (dikonfirmasi user 2026-10-16: "ribet kalo misalkan harus ada 2
+// pilihan diri sendiri/orang lain", maunya tiap jamaah kartu sendiri-sendiri
+// kayak fitur Tambah Jamaah yang udah ada, lihat src/app/tambah-jamaah/
+// page.jsx -- pola yang sama, direplikasi di sini + custom hotel + opsi
+// tambahan + harga admin per kartu). `useCustomHotelHarga` WAJIB di
+// komponen terpisah (bukan di-inline di loop parent) -- aturan Hooks React,
+// tiap kartu butuh hitungan harga custom hotel-nya sendiri-sendiri.
+function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom }) {
+  const kamarKey = kamarKeyOf(item.kamar);
+  const hargaNormal = prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 
-  // Custom Hotel per Kota — cuma aktif kalau program ini beneran nyediakan
-  // (prog.custom_hotel_tersedia, lihat GET /api/programs) DAN paket yang lagi
-  // dipilih emang 'custom' (kartu ke-4 di "Pilih Akomodasi" di bawah).
-  const customHotelPilihan = current.customHotel || {};
+  const customHotelPilihan = item.customHotel || {};
   const { hasil: customHotelHasil, loading: customHotelLoading, error: customHotelError } =
-    useCustomHotelHarga(prog?.id, customHotelPilihan.mekkahPaket, customHotelPilihan.madinahPaket, current.paket === 'custom' ? kamarKey : null);
+    useCustomHotelHarga(prog?.id, customHotelPilihan.mekkahPaket, customHotelPilihan.madinahPaket, item.paket === 'custom' ? kamarKey : null);
   useEffect(() => {
-    if (current.paket !== 'custom') return;
+    if (item.paket !== 'custom') return;
     const harga = customHotelHasil?.harga || '';
-    if (String(current.hargaCustom || '') !== String(harga)) onChangeCurrent({ ...current, hargaCustom: harga });
+    if (String(item.hargaCustom || '') !== String(harga)) onChange({ ...item, hargaCustom: harga });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customHotelHasil]);
 
-  const totalDpCart = cart.reduce((s, c) => s + (prog?.dp || 0) * c.jumlah, 0);
-  const totalHargaCart = cart.reduce((s, c) => s + hargaItem(prog, c) * c.jumlah, 0);
+  // "Ini saya sendiri" CUMA di kartu #1 (bukan role-gated — berlaku siapa
+  // pun yang login & checkout, dikonfirmasi user 2026-10-16), autofill +
+  // KUNCI (gak bisa diganti) Nama/JK/NIK/No. Telp dari data identitas akun.
+  // Alamat kirim SENGAJA TETAP manual/gak dikunci (alamat pengiriman bisa
+  // beda dari alamat identitas).
+  const diriSendiriTersedia = idx === 0 && !!dataDiriSendiri;
+  const nikTerkunci = !!item.diriSendiri && !!dataDiriSendiri?.nik;
+  const fieldTerkunci = !!item.diriSendiri;
+
+  function toggleDiriSendiri(checked) {
+    if (checked) {
+      onChange({
+        ...item, diriSendiri: true, tanpaNik: false,
+        nama: dataDiriSendiri?.nama || '', jk: dataDiriSendiri?.jk || '',
+        nik: dataDiriSendiri?.nik || '', wa: dataDiriSendiri?.wa || '',
+      });
+    } else {
+      onChange({ ...item, diriSendiri: false, nama: '', jk: '', nik: '', wa: '' });
+    }
+  }
+
+  function toggleOpsi(opsi) {
+    const dipilih = (item.opsiTambahan || []).some(o => o.id === opsi.id);
+    onChange({ ...item, opsiTambahan: dipilih ? item.opsiTambahan.filter(o => o.id !== opsi.id) : [...(item.opsiTambahan || []), opsi] });
+  }
+
+  const inp = 'w-full px-3.5 py-2.5 rounded-lg border-2 text-sm focus:outline-none';
+  const inpNormal = `${inp} border-gray-200 focus:border-[#1A4FA0]`;
+  const inpTerkunci = `${inp} border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed`;
+
+  return (
+    <div className="bg-white rounded-xl border-2 border-gray-200 p-4 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="font-bold text-[#0E2F6E] text-sm">Jamaah {idx + 1}</div>
+        {canRemove && <button onClick={onRemove} className="text-xs text-red-500 font-bold">✕ Hapus</button>}
+      </div>
+
+      {diriSendiriTersedia && (
+        <label className="flex items-center gap-2 bg-[#FEF3DC] rounded-lg px-3 py-2 cursor-pointer">
+          <input type="checkbox" checked={!!item.diriSendiri} onChange={e => toggleDiriSendiri(e.target.checked)}
+            className="w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
+          <span className="text-xs font-semibold text-[#8a6516]">🙋 Ini saya sendiri — Nama/JK/NIK/No. Telp otomatis dari data akun & terkunci</span>
+        </label>
+      )}
+
+      {semuaHargaSama ? (
+        <div className="text-xs text-gray-500 bg-[#E8F0FB] rounded-lg px-3 py-2">Harga paket: <b className="text-[#0E2F6E]">Rp {Number(hargaNormal).toLocaleString('id-ID')}</b></div>
+      ) : (
+        <>
+          <select value={item.paket === 'custom' ? 'custom' : `${item.paket}|${item.kamar}`}
+            onChange={e => {
+              if (e.target.value === 'custom') { onChange({ ...item, paket: 'custom', customHotel: item.customHotel || {}, hargaCustom: '' }); return; }
+              const [pk, km] = e.target.value.split('|');
+              onChange({ ...item, paket: pk, kamar: km, customHotel: null, hargaCustom: '' });
+            }}
+            className="w-full px-3.5 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm font-semibold text-[#0E2F6E]">
+            {PAKET_LIST.flatMap(pk => KAMAR_LIST.map(km => {
+              const harga = prog?.[`harga_${pk.key}_${kamarKeyOf(km)}`] || prog?.[`harga_${pk.key}`] || 0;
+              if (harga <= 0) return null;
+              return <option key={`${pk.key}|${km}`} value={`${pk.key}|${km}`}>{pk.label} · {km} — Rp {harga.toLocaleString('id-ID')}</option>;
+            }))}
+            {prog?.custom_hotel_tersedia && <option value="custom">🎨 Custom Hotel — pilih bintang Mekkah/Madinah sendiri</option>}
+          </select>
+
+          {item.paket === 'custom' && (
+            <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Bintang Mekkah</label>
+                  <select value={customHotelPilihan.mekkahPaket ?? ''}
+                    onChange={e => onChange({ ...item, customHotel: { ...customHotelPilihan, mekkahPaket: e.target.value || null } })}
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
+                    <option value="">-- Pilih --</option>
+                    {(prog?.hotel_opsi || []).map(o => (
+                      <option key={o.paket} value={o.paket}>Bintang {o.bintang}{o.hotel_mekkah ? ` — ${o.hotel_mekkah}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-gray-500 mb-1">Bintang Madinah</label>
+                  <select value={customHotelPilihan.madinahPaket ?? ''}
+                    onChange={e => onChange({ ...item, customHotel: { ...customHotelPilihan, madinahPaket: e.target.value || null } })}
+                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
+                    <option value="">-- Pilih --</option>
+                    {(prog?.hotel_opsi || []).map(o => (
+                      <option key={o.paket} value={o.paket}>Bintang {o.bintang}{o.hotel_madinah ? ` — ${o.hotel_madinah}` : ''}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {customHotelPilihan.mekkahPaket && customHotelPilihan.madinahPaket && (
+                <div className="text-xs">
+                  {customHotelLoading ? <span className="text-gray-400">Menghitung harga...</span>
+                    : customHotelError ? <span className="text-red-500">⚠️ {customHotelError}</span>
+                    : customHotelHasil?.harga ? <span className="font-black text-[#0E2F6E]">Rp {Number(customHotelHasil.harga).toLocaleString('id-ID')}</span> : null}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      <input value={item.nama} readOnly={fieldTerkunci} onChange={e => onChange({ ...item, nama: e.target.value })}
+        placeholder="Nama lengkap sesuai paspor/KTP" className={fieldTerkunci ? inpTerkunci : inpNormal} />
+
+      <select value={item.jk} disabled={fieldTerkunci} onChange={e => onChange({ ...item, jk: e.target.value })}
+        className={fieldTerkunci ? inpTerkunci : `${inpNormal} text-gray-700`}>
+        <option value="">Pilih jenis kelamin...</option>
+        <option value="Laki-Laki">Laki-Laki</option>
+        <option value="Perempuan">Perempuan</option>
+      </select>
+
+      <div className="space-y-1">
+        <input value={item.nik} readOnly={nikTerkunci} disabled={item.tanpaNik}
+          onChange={e => onChange({ ...item, nik: e.target.value.replace(/\D/g, '').slice(0, 16) })}
+          inputMode="numeric" maxLength={16}
+          placeholder={item.tanpaNik ? 'Belum punya KTP' : 'NIK (No. KTP) — 16 digit'}
+          className={(nikTerkunci || item.tanpaNik) ? inpTerkunci : inpNormal} />
+        {!fieldTerkunci && (
+          <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
+            <input type="checkbox" checked={!!item.tanpaNik} className="w-3.5 h-3.5 accent-[#1A4FA0]"
+              onChange={e => onChange({ ...item, tanpaNik: e.target.checked, nik: e.target.checked ? '' : item.nik })} />
+            Belum punya KTP (usia di bawah 17 tahun)
+          </label>
+        )}
+      </div>
+
+      <input value={item.wa} readOnly={fieldTerkunci} onChange={e => onChange({ ...item, wa: e.target.value.replace(/\D/g, '') })}
+        placeholder="No. Telepon / WhatsApp (opsional)" inputMode="numeric" maxLength={13}
+        className={fieldTerkunci ? inpTerkunci : inpNormal} />
+
+      <input value={item.alamat} onChange={e => onChange({ ...item, alamat: e.target.value })}
+        placeholder="📦 Alamat kirim perlengkapan (koper, ihrom/mukena, dll)" className={inpNormal} />
+
+      {allowHargaCustom && item.paket !== 'custom' && (
+        <div className="bg-gray-900 rounded-xl p-3 space-y-1.5">
+          <div className="font-bold text-white text-xs">💰 Set Harga Sendiri (Admin)</div>
+          <div className="text-[11px] text-gray-300">Kosongkan untuk pakai harga normal (Rp {Number(hargaNormal).toLocaleString('id-ID')}).</div>
+          <input type="number" value={item.hargaCustom} onChange={e => onChange({ ...item, hargaCustom: e.target.value })}
+            placeholder={`Rp ${Number(hargaNormal).toLocaleString('id-ID')}`}
+            className="w-full px-3 py-2 rounded-lg border-2 border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-[#C9952A] focus:outline-none text-sm" />
+          {item.hargaCustom !== '' && (
+            <button onClick={() => onChange({ ...item, hargaCustom: '' })} className="text-[11px] text-[#C9952A] font-semibold underline">
+              Reset ke harga normal
+            </button>
+          )}
+        </div>
+      )}
+
+      {opsiTambahanList.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-xs font-bold text-[#0E2F6E]">Opsi Tambahan (opsional)</div>
+          {opsiTambahanList.map(o => {
+            const dipilih = (item.opsiTambahan || []).some(x => x.id === o.id);
+            return (
+              <label key={o.id} onClick={() => toggleOpsi(o)}
+                className={`flex items-center justify-between p-2.5 rounded-lg border-2 cursor-pointer transition-all ${dipilih ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'}`}>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={dipilih} readOnly className="w-4 h-4 accent-[#1A4FA0]" />
+                  <div>
+                    <div className="text-xs font-semibold text-gray-700">{o.nama}</div>
+                    {o.deskripsi && <div className="text-[10px] text-gray-400">{o.deskripsi}</div>}
+                  </div>
+                </div>
+                <div className="text-xs font-bold text-[#0E2F6E] whitespace-nowrap">+Rp {Number(o.harga).toLocaleString('id-ID')}</div>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Step "Pilih Paket" dipakai checkout & admin booking jamaah. 1 kartu = 1
+// jamaah, MANDIRI (paket/kamar sendiri-sendiri) — lihat JamaahCard di atas.
+// `onSummaryChange` dipanggil tiap kali angka ringkasan (termasuk voucher)
+// berubah, supaya halaman pemanggil bisa nyimpen angka2 itu buat ditampilkan
+// lagi di step Invoice DP (komponen ini sendiri unmount begitu pindah step).
+//
+// `dataDiriSendiri` ({ nama, wa, jk, nik }) opsional — kalau dikirim, kartu
+// jamaah #1 nampilin checkbox "Ini saya sendiri" (dikonfirmasi user
+// 2026-10-16, berlaku SEMUA role yang checkout, gak lagi khusus Sahabat
+// Baitullah).
+// `allowHargaCustom` (bool) — tampilkan input "Set Harga Sendiri" per kartu
+// (admin/super_admin doang, closing Direct/Kantor sering pakai harga
+// negosiasi).
+export default function CartPaketKamar({ prog, list, onChangeList, extra, onSummaryChange, referralPerwId, dataDiriSendiri, allowHargaCustom }) {
+  const [opsiTambahanList] = useOpsiTambahan(prog?.id);
+  const semuaHargaSama = semuaHargaSamaCek(prog);
+  const sisaSeat = (prog?.total_seat || 0) - (prog?.used_seat || 0) - list.length;
+
+  const totalDpCart = (prog?.dp || 0) * list.length;
+  const totalHargaCart = list.reduce((s, c) => s + hargaItem(prog, c), 0);
 
   const [voucherInput, setVoucherInput] = useState('');
   const [voucherChecking, setVoucherChecking] = useState(false);
   const [voucherError, setVoucherError] = useState(null);
-  // { kode, total, cartSnapshot } — cartSnapshot dipakai deteksi keranjang
-  // berubah SETELAH voucher di-apply, supaya nggak ada angka basi ke-tampilkan.
+  // { kode, total, listSnapshot } — listSnapshot dipakai deteksi daftar
+  // jamaah berubah SETELAH voucher di-apply, supaya nggak ada angka basi
+  // ke-tampilkan.
   const [voucherApplied, setVoucherApplied] = useState(null);
-  // Daftar voucher aktif milik user (buat picker klik-langsung ala Shopee,
-  // bukan cuma ketik manual) — /api/vouchers/saya udah nge-filter aktif/
-  // kuota/expired/akses_role, tinggal disaring lagi ke program yang lagi
-  // dibuka (voucher publik/akun bisa scoped ke 1 program lewat prog_id,
-  // NULL berarti berlaku semua program).
   const [voucherList, setVoucherList] = useState([]);
 
   useEffect(() => {
     fetch('/api/vouchers/saya').then(r => r.json())
       .then(d => setVoucherList((d.vouchers || []).filter(v => !v.prog_id || v.prog_id === prog?.id)))
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prog?.id]);
 
-  const cartSnapshot = JSON.stringify(cart.map(c => ({ paket: c.paket, jumlah: c.jumlah })));
-  const voucherStale = voucherApplied && voucherApplied.cartSnapshot !== cartSnapshot;
+  const listSnapshot = JSON.stringify(list.map(c => ({ paket: c.paket, kamar: c.kamar })));
+  const voucherStale = voucherApplied && voucherApplied.listSnapshot !== listSnapshot;
   const voucherDiskonTotal = (voucherApplied && !voucherStale) ? voucherApplied.total : 0;
   const totalHargaSetelahDiskon = Math.max(0, totalHargaCart - voucherDiskonTotal);
   const sisaPelunasan = Math.max(0, totalHargaSetelahDiskon - totalDpCart);
@@ -219,12 +360,9 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalHargaCart, totalDpCart, voucherDiskonTotal, totalHargaSetelahDiskon, sisaPelunasan]);
 
-  // `kodeOverride` dipakai klik langsung dari picker (lihat render di bawah)
-  // — gak bisa andelin state voucherInput yang baru di-set barengan (setState
-  // async), jadi kode-nya dioper eksplisit alih-alih dibaca dari state.
   async function terapkanVoucher(kodeOverride) {
     const kode = (kodeOverride ?? voucherInput).trim();
-    if (!kode || cart.length === 0) return;
+    if (!kode || list.length === 0) return;
     setVoucherInput(kode);
     setVoucherChecking(true);
     setVoucherError(null);
@@ -233,7 +371,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           kode, prog_id: prog.id,
-          items: cart.map(c => ({ paket: c.paket, kamar: c.kamar, jumlah_jamaah: c.jumlah })),
+          items: list.map(c => ({ paket: c.paket, kamar: c.kamar, jumlah_jamaah: 1 })),
           referral_perw_id: referralPerwId || null,
         }),
       });
@@ -242,102 +380,13 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         setVoucherError(d.error || 'Voucher tidak valid');
         setVoucherApplied(null);
       } else {
-        setVoucherApplied({ kode: d.kode, total: d.potongan_total, cartSnapshot });
+        setVoucherApplied({ kode: d.kode, total: d.potongan_total, listSnapshot });
       }
     } catch {
       setVoucherError('Terjadi kesalahan saat cek voucher');
       setVoucherApplied(null);
     }
     setVoucherChecking(false);
-  }
-
-  const terkunciPerjanjian = !!perjanjian && cart.length > 0;
-
-  // Profil (dataDiriSendiri) di-fetch pemanggil & bisa telat datang — kalau
-  // "Diri Sendiri" keburu diklik sebelum profil kebaca, autofill di onClick
-  // cuma dapat fallback kosong & klik ulang gak ngapa-ngapain (opsi udah
-  // kepilih). Isi jamaah #1 begitu profil datang, cuma field yang masih
-  // kosong — gak nimpa yang udah diketik.
-  useEffect(() => {
-    if (current.untukDiri !== 'sendiri' || !dataDiriSendiri) return;
-    const isi = { namas: dataDiriSendiri.nama, was: dataDiriSendiri.wa, jks: dataDiriSendiri.jk, alamats: dataDiriSendiri.alamat, niks: dataDiriSendiri.nik };
-    const next = { ...current };
-    let berubah = false;
-    for (const [kolom, nilai] of Object.entries(isi)) {
-      const arr = resizeNamas(current[kolom], current.jumlah);
-      if (nilai && !arr[0]) { arr[0] = nilai; next[kolom] = arr; berubah = true; }
-    }
-    if (berubah) onChangeCurrent(next);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current.untukDiri, dataDiriSendiri?.nama, dataDiriSendiri?.wa, dataDiriSendiri?.jk, dataDiriSendiri?.alamat, dataDiriSendiri?.nik]);
-
-  const [cekNikBusy, setCekNikBusy] = useState(false);
-
-  async function tambahkan() {
-    if (current.jumlah < 1) return;
-    if (current.paket === 'custom') {
-      if (!customHotelPilihan.mekkahPaket || !customHotelPilihan.madinahPaket) { alert('Pilih Bintang Mekkah & Madinah dulu!'); return; }
-      if (customHotelLoading) { alert('Tunggu harga selesai dihitung dulu...'); return; }
-      if (customHotelError || !customHotelHasil?.harga) { alert('Gagal menghitung harga kombinasi bintang ini, coba pilih ulang.'); return; }
-    } else if (hargaItem(prog, current) <= 0) {
-      // Jaga-jaga kalau somehow lolos dari disable di kartu paket (mis. semua
-      // tier belum diisi harga sama sekali) — jangan sampai item Rp 0 masuk
-      // keranjang.
-      alert('Harga paket ini belum tersedia. Pilih akomodasi lain atau hubungi admin.');
-      return;
-    }
-    if (dataDiriSendiri && !current.untukDiri) { alert('Pilih dulu: checkout untuk Diri Sendiri atau Orang Lain!'); return; }
-    const namas = resizeNamas(current.namas, current.jumlah).map(n => n.trim());
-    if (namas.some(n => !n)) { alert('Isi nama lengkap semua jamaah dulu!'); return; }
-    const jks = resizeNamas(current.jks, current.jumlah);
-    if (jks.some(j => j !== 'Laki-Laki' && j !== 'Perempuan')) { alert('Pilih jenis kelamin semua jamaah dulu!'); return; }
-    const was = resizeNamas(current.was, current.jumlah).map(w => w.trim());
-    const alamats = resizeNamas(current.alamats, current.jumlah).map(a => a.trim());
-    if (alamats.some(a => !a)) { alert('Isi alamat kirim perlengkapan semua jamaah dulu!'); return; }
-    let niks = [];
-    if (dataDiriSendiri) {
-      niks = resizeNamas(current.niks, current.jumlah).map(n => String(n || '').trim());
-      const tanpaNiks = resizeNamas(current.tanpaNiks, current.jumlah);
-      for (let i = 0; i < niks.length; i++) {
-        if (tanpaNiks[i]) { niks[i] = ''; continue; }
-        if (!/^\d{16}$/.test(niks[i])) {
-          alert(i === 0 && current.untukDiri === 'sendiri' && !dataDiriSendiri.nik
-            ? 'NIK di profil akun Anda belum ada — isi NIK Anda (16 digit) dulu.'
-            : `NIK jamaah #${i + 1} wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).`);
-          return;
-        }
-      }
-      const terisi = niks.filter(Boolean);
-      const diKeranjang = cart.flatMap(c => c.niks || []).filter(Boolean);
-      const dobelLokal = terisi.find((n, i) => terisi.indexOf(n) !== i || diKeranjang.includes(n));
-      if (dobelLokal) { alert(`NIK ${dobelLokal} dimasukkan lebih dari sekali. Satu orang cuma bisa didaftarkan sekali di program ini.`); return; }
-      if (terisi.length > 0) {
-        setCekNikBusy(true);
-        try {
-          const d = await fetch('/api/bookings/cek-nik', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prog_id: prog?.id, niks: terisi }),
-          }).then(r => r.json());
-          if (d.terpakai) {
-            alert(`NIK ${d.terpakai} sudah terdaftar di program ini${d.booking_id ? ` (booking ${d.booking_id})` : ''}. Satu orang tidak bisa didaftarkan dua kali di program yang sama.`);
-            return;
-          }
-        } catch { alert('Gagal mengecek NIK, coba lagi.'); return; }
-        finally { setCekNikBusy(false); }
-      }
-    }
-    onAdd({ ...current, namas, was, jks, alamats, niks });
-    // Mode perjanjian: form tetap nampilin isi item (dikunci), gak di-reset.
-    if (perjanjian) return;
-    onChangeCurrent({ paket: current.paket, kamar: current.kamar, jumlah: 1, hargaCustom: '', customHotel: current.paket === 'custom' ? {} : null, namas: [''], was: [''], jks: [''], alamats: [''], niks: [''], tanpaNiks: [''], opsiTambahan: [] });
-  }
-
-  function toggleOpsiTambahan(opsi) {
-    const sudahDipilih = (current.opsiTambahan || []).some(o => o.id === opsi.id);
-    const opsiTambahan = sudahDipilih
-      ? current.opsiTambahan.filter(o => o.id !== opsi.id)
-      : [...(current.opsiTambahan || []), opsi];
-    onChangeCurrent({ ...current, opsiTambahan });
   }
 
   function hapusVoucher() {
@@ -347,404 +396,39 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
     setVoucherError(null);
   }
 
+  function ubahJamaah(idx, next) {
+    onChangeList(list.map((j, i) => i === idx ? next : j));
+  }
+  function tambahJamaah() {
+    onChangeList([...list, jamaahKosong(prog)]);
+  }
+  function hapusJamaah(idx) {
+    onChangeList(list.filter((_, i) => i !== idx));
+  }
+
   return (
     <div className="space-y-5">
-      {sisaSeat <= 0 && !terkunciPerjanjian ? <WaitlistCTA progId={prog?.id} /> : (
+      {sisaSeat <= 0 && list.length === 0 ? <WaitlistCTA progId={prog?.id} /> : (
       <>
-      <div className={terkunciPerjanjian ? 'space-y-5 pointer-events-none opacity-60 select-none' : 'space-y-5'}>
-      {/* Harga seragam (mis. paket Hotel Mix/custom) — gak ada bedanya
-          apapun akomodasi/tipe kamar yang dipilih, jadi selector-nya
-          disembunyiin (cuma bikin bingung, keliatan ada pilihan padahal
-          gak ngaruh apa2 ke harga) — cukup 1 baris info harga polos. */}
-      {semuaHargaSama ? (
-        <div className="bg-[#E8F0FB] rounded-xl p-4 flex items-center justify-between">
-          <div className="font-bold text-[#0E2F6E]">Harga Paket</div>
-          <div className="font-black text-[#0E2F6E] text-lg">Rp {(hargaSeragam / 1000000).toFixed(1)} jt</div>
-        </div>
-      ) : (
-        <>
-          {/* Pilih Akomodasi */}
-          <div>
-            <div className="font-bold text-[#0E2F6E] mb-3">Pilih Akomodasi</div>
-            <div className="space-y-3">
-              {PAKET_LIST.map(pk => {
-                const harga = prog?.[`harga_${pk.key}_${kamarKey}`] || prog?.[`harga_${pk.key}`] || 0;
-                const belumTersedia = harga <= 0;
-                return (
-                  <div key={pk.key} onClick={() => { if (!belumTersedia) onChangeCurrent({ ...current, paket: pk.key }); }}
-                    className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
-                      belumTersedia ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed'
-                        : current.paket === pk.key ? 'border-[#1A4FA0] bg-[#E8F0FB] cursor-pointer' : 'border-gray-200 hover:border-gray-300 cursor-pointer'
-                    }`}>
-                    <div>
-                      <div className="font-bold text-[#0E2F6E]">{pk.label}</div>
-                      <div className="text-xs text-gray-400">{pk.hotel}</div>
-                    </div>
-                    <div className="text-right">
-                      {belumTersedia ? (
-                        <div className="text-xs font-semibold text-gray-400">Belum tersedia</div>
-                      ) : (
-                        <div className="font-black text-[#0E2F6E]">Rp {(harga / 1000000).toFixed(1)} jt</div>
-                      )}
-                      {!belumTersedia && current.paket === pk.key && <div className="text-xs text-[#1A4FA0] font-semibold">✓ Dipilih</div>}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Custom Hotel per Kota — cuma muncul kalau admin sudah
-                  siapkan opsi hotelnya buat program ini (lihat KalkulatorTerpadu
-                  §Custom Hotel per Kota). Harga BELUM diketahui sampai jamaah
-                  pilih Hotel Mekkah & Madinah di bawah (beda dari 3 kartu di
-                  atas yang harganya sudah pasti). */}
-              {prog?.custom_hotel_tersedia && (
-                <div onClick={() => onChangeCurrent({ ...current, paket: 'custom', customHotel: current.customHotel || {} })}
-                  className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                    current.paket === 'custom' ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
-                  }`}>
-                  <div>
-                    <div className="font-bold text-[#0E2F6E]">🎨 Custom Hotel</div>
-                    <div className="text-xs text-gray-400">Pilih sendiri hotel Mekkah & Madinah</div>
-                  </div>
-                  {current.paket === 'custom' && <div className="text-xs text-[#1A4FA0] font-semibold">✓ Dipilih</div>}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Tipe Kamar */}
-          <div>
-            <div className="font-bold text-[#0E2F6E] mb-3">Tipe Kamar</div>
-            <div className="flex gap-3 flex-wrap">
-              {KAMAR_LIST.map(k => (
-                <div key={k} onClick={() => onChangeCurrent({ ...current, kamar: k })}
-                  className={`px-4 py-2 rounded-full border-2 text-sm font-semibold cursor-pointer transition-all ${
-                    current.kamar === k ? 'border-[#1A4FA0] bg-[#E8F0FB] text-[#1A4FA0]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-                  }`}>
-                  {k}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Pilihan Bintang Custom — cuma tampil kalau kartu "Custom Hotel"
-              di atas lagi dipilih. KEY paket ('deluxe'/'eksekutif'/'signature')
-              aja yang disimpen di current.customHotel — rate mentah gak
-              pernah nyampe browser, server yang resolve dari baris paket
-              bersangkutan (lihat prog.hotel_opsi, cuma nama hotel + bintang,
-              di-derive server-side dari GET /api/programs). */}
-          {current.paket === 'custom' && (
-            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-              <div className="font-bold text-[#0E2F6E] text-sm">🎨 Pilih Bintang Custom</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Bintang Mekkah</label>
-                  <select value={customHotelPilihan.mekkahPaket ?? ''}
-                    onChange={e => onChangeCurrent({ ...current, customHotel: { ...customHotelPilihan, mekkahPaket: e.target.value || null } })}
-                    className="w-full px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
-                    <option value="">-- Pilih Bintang Mekkah --</option>
-                    {(prog?.hotel_opsi || []).map(o => (
-                      <option key={o.paket} value={o.paket}>Bintang {o.bintang}{o.hotel_mekkah ? ` — ${o.hotel_mekkah}` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">Bintang Madinah</label>
-                  <select value={customHotelPilihan.madinahPaket ?? ''}
-                    onChange={e => onChangeCurrent({ ...current, customHotel: { ...customHotelPilihan, madinahPaket: e.target.value || null } })}
-                    className="w-full px-3 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
-                    <option value="">-- Pilih Bintang Madinah --</option>
-                    {(prog?.hotel_opsi || []).map(o => (
-                      <option key={o.paket} value={o.paket}>Bintang {o.bintang}{o.hotel_madinah ? ` — ${o.hotel_madinah}` : ''}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {customHotelPilihan.mekkahPaket && customHotelPilihan.madinahPaket && (
-                <div className="text-sm">
-                  {customHotelLoading ? (
-                    <span className="text-gray-400">Menghitung harga...</span>
-                  ) : customHotelError ? (
-                    <span className="text-red-500">⚠️ {customHotelError}</span>
-                  ) : customHotelHasil?.harga ? (
-                    <span className="font-black text-[#0E2F6E]">Rp {Number(customHotelHasil.harga).toLocaleString('id-ID')} / jamaah</span>
-                  ) : null}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Jumlah Jamaah — DIKUNCI ke 1 kalau "Checkout Untuk" = Diri Sendiri
-          (dikonfirmasi user 2026-10-15). Alasannya: ujroh closing_langsung_
-          sahabat ditentukan PER BOOKING dari jamaah_data[0].untuk_diri_sendiri
-          (lihat closing.js/laporanUjroh.js) — kalau 1 booking nyampur jamaah
-          diri sendiri + orang lain (jumlah > 1 sambil pilih "Diri Sendiri"),
-          seluruh booking ikut ke-skip dari ujroh padahal ada orang lain yang
-          beneran di-closing-in. Mau daftarin orang lain SEKALIAN? Tambahkan
-          item "Diri Sendiri" ini ke keranjang dulu (qty 1), baru buka item
-          baru pilih "Orang Lain" dengan jumlah & paketnya sendiri. */}
-      <div>
-        <div className="font-bold text-[#0E2F6E] mb-3">Jumlah Jamaah</div>
-        <div className="flex items-center gap-4">
-          <button disabled={current.untukDiri === 'sendiri'} onClick={() => {
-              const jumlah = Math.max(1, current.jumlah - 1);
-              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah), niks: resizeNamas(current.niks, jumlah), tanpaNiks: resizeNamas(current.tanpaNiks, jumlah) });
-            }}
-            className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent">−</button>
-          <span className="text-2xl font-black text-[#0E2F6E] w-8 text-center">{current.jumlah}</span>
-          <button disabled={current.untukDiri === 'sendiri'} onClick={() => {
-              const jumlah = Math.min(maxJumlah, current.jumlah + 1);
-              onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah), niks: resizeNamas(current.niks, jumlah), tanpaNiks: resizeNamas(current.tanpaNiks, jumlah) });
-            }}
-            className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent">+</button>
-          <span className="text-xs text-gray-400">Sisa seat: {Math.max(0, sisaSeat)}</span>
-        </div>
-        {current.untukDiri === 'sendiri' && (
-          <div className="text-[10px] text-gray-400 mt-1.5">
-            Checkout untuk diri sendiri selalu 1 jamaah. Mau daftarin orang lain juga? Tambahkan item ini ke keranjang dulu, lalu buka item baru pilih &ldquo;Orang Lain&rdquo;.
-          </div>
-        )}
+      <div className="space-y-3">
+        {list.map((item, idx) => (
+          <JamaahCard key={idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
+            onRemove={() => hapusJamaah(idx)} canRemove={list.length > 1}
+            prog={prog} semuaHargaSama={semuaHargaSama} opsiTambahanList={opsiTambahanList}
+            dataDiriSendiri={dataDiriSendiri} allowHargaCustom={allowHargaCustom} />
+        ))}
       </div>
 
-      {/* Opsi Diri Sendiri / Orang Lain — cuma buat akun Sahabat Baitullah.
-          Diri Sendiri: jamaah #1 auto-isi dari profil, jumlah DIKUNCI 1
-          (dikonfirmasi user 2026-10-15, lihat komentar di "Jumlah Jamaah" di
-          atas). Orang Lain: semua isi manual, jumlah bebas. */}
-      {dataDiriSendiri && (
-        <div>
-          <div className="font-bold text-[#0E2F6E] mb-3">Checkout Untuk</div>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { key: 'sendiri', label: '🙋 Diri Sendiri', desc: 'Data otomatis dari profil Anda' },
-              { key: 'lain', label: '👥 Orang Lain', desc: 'Isi data jamaah manual' },
-            ].map(o => (
-              <div key={o.key}
-                onClick={() => {
-                  if (current.untukDiri === o.key) return;
-                  // Pindah ke "Diri Sendiri" -> kunci jumlah ke 1 (dikonfirmasi
-                  // user 2026-10-15), apapun qty yang udah kepilih sebelumnya.
-                  const jumlahBaru = o.key === 'sendiri' ? 1 : current.jumlah;
-                  const namas = resizeNamas(current.namas, jumlahBaru);
-                  const was = resizeNamas(current.was, jumlahBaru);
-                  const jks = resizeNamas(current.jks, jumlahBaru);
-                  const alamats = resizeNamas(current.alamats, jumlahBaru);
-                  const niks = resizeNamas(current.niks, jumlahBaru);
-                  const tanpaNiks = resizeNamas(current.tanpaNiks, jumlahBaru);
-                  // Autofill dari profil CUMA buat opsi Diri Sendiri
-                  // (dikonfirmasi user 2026-10-12) — Orang Lain selalu manual.
-                  if (o.key === 'sendiri') {
-                    namas[0] = dataDiriSendiri.nama || '';
-                    was[0] = dataDiriSendiri.wa || '';
-                    jks[0] = dataDiriSendiri.jk || '';
-                    alamats[0] = dataDiriSendiri.alamat || '';
-                    niks[0] = dataDiriSendiri.nik || '';
-                    tanpaNiks[0] = '';
-                  } else if (current.untukDiri === 'sendiri') {
-                    // Pindah dari Diri Sendiri — kosongkan jamaah #1 yang tadi
-                    // ke-isi otomatis biar gak kebawa jadi data orang lain.
-                    namas[0] = ''; was[0] = ''; jks[0] = ''; alamats[0] = ''; niks[0] = ''; tanpaNiks[0] = '';
-                  }
-                  onChangeCurrent({ ...current, untukDiri: o.key, jumlah: jumlahBaru, namas, was, jks, alamats, niks, tanpaNiks });
-                }}
-                className={`rounded-xl p-3 border-2 cursor-pointer ${
-                  current.untukDiri === o.key ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
-                }`}>
-                <div className="text-sm font-semibold text-[#0E2F6E]">{o.label}</div>
-                <div className="text-[10px] text-gray-400 mt-0.5">{o.desc}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Nama jamaah — wajib per orang, langsung sesuai jumlah di atas.
-          Nama ini nanti otomatis ngisi field "Nama" di formulir jamaah
-          (tinggal lengkapi sisa field lainnya), bukan cuma label kartu.
-          No. WA opsional tapi PENTING buat jamaah yang gak bikin akun sendiri
-          (dipesankan admin/perwakilan) — tanpa ini admin gak punya cara kirim info
-          status (DP dikonfirmasi, dst) ke jamaah tsb sama sekali. */}
-      <div>
-        <div className="font-bold text-[#0E2F6E] mb-3">Data Jamaah</div>
-        {dataDiriSendiri && !current.untukDiri ? (
-          <div className="text-xs text-gray-400 bg-gray-50 rounded-xl p-3">Pilih dulu checkout untuk Diri Sendiri atau Orang Lain di atas.</div>
-        ) : (<>
-        <div className="space-y-3">
-          {Array.from({ length: current.jumlah }).map((_, i) => (
-            <div key={i} className="space-y-2 pb-3 border-b border-gray-100 last:border-0 last:pb-0">
-              {i === 0 && current.untukDiri === 'sendiri' && (
-                <div className="text-[10px] font-semibold text-[#C9952A]">🙋 Jamaah #1 — Anda (otomatis dari profil; NIK dikunci sesuai akun)</div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <input
-                  value={current.namas?.[i] || ''}
-                  onChange={e => {
-                    const namas = resizeNamas(current.namas, current.jumlah);
-                    namas[i] = e.target.value;
-                    onChangeCurrent({ ...current, namas });
-                  }}
-                  placeholder={`Nama lengkap jamaah #${i + 1} sesuai KTP/Paspor`}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
-                <select
-                  value={current.jks?.[i] || ''}
-                  onChange={e => {
-                    const jks = resizeNamas(current.jks, current.jumlah);
-                    jks[i] = e.target.value;
-                    onChangeCurrent({ ...current, jks });
-                  }}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm text-gray-700">
-                  <option value="">Jenis kelamin jamaah #{i + 1}</option>
-                  <option value="Laki-Laki">Laki-Laki</option>
-                  <option value="Perempuan">Perempuan</option>
-                </select>
-                <input
-                  value={current.was?.[i] || ''}
-                  onChange={e => {
-                    const was = resizeNamas(current.was, current.jumlah);
-                    was[i] = e.target.value.replace(/\D/g, '');
-                    onChangeCurrent({ ...current, was });
-                  }}
-                  placeholder={`No. WhatsApp jamaah #${i + 1} (opsional)`}
-                  inputMode="numeric"
-                  maxLength={13}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
-              </div>
-              {dataDiriSendiri && (() => {
-                // NIK dipakai buat cek dobel daftar di program yang sama.
-                // Diri Sendiri: dari profil & dikunci. Orang Lain: manual,
-                // boleh "belum punya KTP" (anak < 17 th, NIK gak wajib —
-                // sama aturan formulir jamaah).
-                const nikTerkunci = i === 0 && current.untukDiri === 'sendiri' && !!dataDiriSendiri.nik;
-                const tanpaNik = !!current.tanpaNiks?.[i];
-                return (
-                  <div className="space-y-1">
-                    <input
-                      value={current.niks?.[i] || ''}
-                      readOnly={nikTerkunci}
-                      disabled={tanpaNik}
-                      onChange={e => {
-                        const niks = resizeNamas(current.niks, current.jumlah);
-                        niks[i] = e.target.value.replace(/\D/g, '').slice(0, 16);
-                        onChangeCurrent({ ...current, niks });
-                      }}
-                      inputMode="numeric" maxLength={16}
-                      placeholder={tanpaNik ? 'Belum punya KTP' : `NIK (No. KTP) jamaah #${i + 1} — 16 digit`}
-                      className={`w-full px-4 py-3 rounded-xl border-2 text-sm focus:outline-none ${nikTerkunci || tanpaNik
-                        ? 'border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed'
-                        : 'border-gray-200 focus:border-[#1A4FA0]'}`}/>
-                    {!(i === 0 && current.untukDiri === 'sendiri') && (
-                      <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
-                        <input type="checkbox" checked={tanpaNik} className="w-3.5 h-3.5 accent-[#1A4FA0]"
-                          onChange={e => {
-                            const tanpaNiks = resizeNamas(current.tanpaNiks, current.jumlah);
-                            const niks = resizeNamas(current.niks, current.jumlah);
-                            tanpaNiks[i] = e.target.checked ? '1' : '';
-                            if (e.target.checked) niks[i] = '';
-                            onChangeCurrent({ ...current, tanpaNiks, niks });
-                          }} />
-                        Belum punya KTP (usia di bawah 17 tahun)
-                      </label>
-                    )}
-                  </div>
-                );
-              })()}
-              <input
-                value={current.alamats?.[i] || ''}
-                onChange={e => {
-                  const alamats = resizeNamas(current.alamats, current.jumlah);
-                  alamats[i] = e.target.value;
-                  onChangeCurrent({ ...current, alamats });
-                }}
-                placeholder={`📦 Alamat kirim perlengkapan jamaah #${i + 1} (koper, ihrom/mukena, dll)`}
-                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
-            </div>
-          ))}
-        </div>
-        <div className="text-[10px] text-gray-400 mt-1">
-          Wajib nama lengkap, jenis kelamin & alamat kirim perlengkapan — dipakai buat rencanakan kamar (non-mahram gak sekamar), kirim perlengkapan (koper/ihrom/mukena), & otomatis mengisi formulir jamaah nanti (alamat ini bisa diubah lagi di formulir kalau perlu). No. WA opsional, tapi isi kalau jamaah tidak bikin akun sendiri — dipakai admin buat kirim info status via WhatsApp.
-        </div>
-        </>)}
-      </div>
-
-      {/* Opsi Tambahan — opsional, harga per jamaah (dikali jumlah di atas),
-          otomatis nambah ke total harga item ini & tersimpan ke booking. */}
-      {opsiTambahanList.length > 0 && (
-        <div>
-          <div className="font-bold text-[#0E2F6E] mb-3">Opsi Tambahan (opsional)</div>
-          <div className="space-y-2">
-            {opsiTambahanList.map(o => {
-              const dipilih = (current.opsiTambahan || []).some(x => x.id === o.id);
-              return (
-                <label key={o.id} onClick={() => toggleOpsiTambahan(o)}
-                  className={`flex items-center justify-between p-3 rounded-xl border-2 cursor-pointer transition-all ${
-                    dipilih ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
-                  }`}>
-                  <div className="flex items-center gap-3">
-                    <input type="checkbox" checked={dipilih} readOnly className="w-4 h-4 accent-[#1A4FA0]" />
-                    <div>
-                      <div className="text-sm font-semibold text-gray-700">{o.nama}</div>
-                      {o.deskripsi && <div className="text-xs text-gray-400">{o.deskripsi}</div>}
-                    </div>
-                  </div>
-                  <div className="text-sm font-bold text-[#0E2F6E] whitespace-nowrap">+Rp {Number(o.harga).toLocaleString('id-ID')}/jamaah</div>
-                </label>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      <button onClick={tambahJamaah} disabled={sisaSeat < 1}
+        className="w-full border-2 border-dashed border-[#1A4FA0] text-[#1A4FA0] font-bold py-3 rounded-full hover:bg-[#E8F0FB] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+        + Tambah Jamaah Lain Lagi
+      </button>
+      {sisaSeat < 1 && <div className="text-center text-xs text-gray-400">Sisa seat habis — gak bisa nambah jamaah lagi.</div>}
 
       {extra}
-      </div>
-
-      {perjanjian ? perjanjian.render(
-        <label className={`flex items-start gap-2 text-xs ${perjanjian.dibaca ? 'text-gray-700 cursor-pointer' : 'text-gray-400 cursor-not-allowed'}`}>
-          <input type="checkbox" checked={terkunciPerjanjian} disabled={!perjanjian.dibaca || cekNikBusy}
-            onChange={e => { if (e.target.checked) tambahkan(); else cart.forEach(() => onRemove(0)); }}
-            className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
-          <span>
-            Saya sudah membaca dan menyetujui Surat Perjanjian Jamaah Umroh di atas, dan data pesanan di atas sudah benar.
-            {!perjanjian.dibaca && <span className="block text-[10px] text-amber-600 mt-0.5">Scroll isi perjanjian sampai bawah dulu.</span>}
-            {terkunciPerjanjian && <span className="block text-[10px] text-gray-400 mt-0.5">Hapus centang untuk mengubah paket / data jamaah.</span>}
-          </span>
-        </label>
-      ) : (
-      <button onClick={tambahkan} disabled={sisaSeat < 1 || cekNikBusy}
-        className="w-full border-2 border-dashed border-[#1A4FA0] text-[#1A4FA0] font-bold py-3 rounded-full hover:bg-[#E8F0FB] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-        + Tambahkan ke Pesanan
-      </button>
-      )}
-      </>
-      )}
-
-      {/* Daftar item di keranjang — TETAP kelihatan walau seat abis, siapa
-          tau udah ada item ke-add dari sebelum kehabisan. */}
-      {cart.length > 0 && !perjanjian && (
-        <div>
-          <div className="font-bold text-[#0E2F6E] mb-2">🛒 Pesanan Anda ({cart.length})</div>
-          <div className="space-y-2">
-            {cart.map((c, i) => (
-              <div key={i} className="flex items-center justify-between bg-white border border-[#e0e8f0] rounded-xl p-3">
-                <div>
-                  <div className="font-semibold text-[#0E2F6E] text-sm capitalize">{labelPaketKamar(c)}</div>
-                  <div className="text-xs text-gray-400">{c.jumlah} jamaah · Rp {(hargaItem(prog, c) * c.jumlah).toLocaleString('id-ID')}</div>
-                  {c.opsiTambahan?.length > 0 && (
-                    <div className="text-xs text-[#1A4FA0] mt-0.5">🧳 {c.opsiTambahan.map(o => o.nama).join(', ')}</div>
-                  )}
-                  {c.namas?.length > 0 && (
-                    <div className="text-xs text-[#C9952A] font-semibold mt-0.5">📛 {c.namas.join(', ')}</div>
-                  )}
-                </div>
-                <button onClick={() => onRemove(i)} className="text-red-400 hover:text-red-600 text-sm font-bold px-2">🗑️</button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Voucher */}
-      {cart.length > 0 && (
+      {list.length > 0 && (
         <div>
           <div className="font-bold text-[#0E2F6E] mb-2">🎟️ Kode Voucher (opsional)</div>
           {voucherApplied && !voucherStale ? (
@@ -781,19 +465,19 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
           )}
           {voucherError && <div className="text-xs text-red-500 mt-1.5">⚠️ {voucherError}</div>}
           {voucherStale && (
-            <div className="text-xs text-yellow-600 mt-1.5">⚠️ Keranjang berubah, klik Terapkan lagi untuk update voucher.</div>
+            <div className="text-xs text-yellow-600 mt-1.5">⚠️ Daftar jamaah berubah, klik Terapkan lagi untuk update voucher.</div>
           )}
         </div>
       )}
 
       {/* Ringkasan */}
-      {cart.length > 0 && (
+      {list.length > 0 && (
         <div className="bg-[#E8F0FB] rounded-xl p-4 space-y-2">
           <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0] mb-3">📋 Ringkasan</div>
-          {cart.map((c, i) => (
+          {list.map((c, i) => (
             <div key={i} className="flex justify-between text-sm text-gray-500">
-              <span className="capitalize">{labelPaketKamar(c)} × {c.jumlah}</span>
-              <span className="font-semibold text-[#0E2F6E]">Rp {(hargaItem(prog, c) * c.jumlah).toLocaleString('id-ID')}</span>
+              <span className="capitalize">{c.nama || `Jamaah ${i + 1}`} — {labelPaketKamar(c)}</span>
+              <span className="font-semibold text-[#0E2F6E]">Rp {hargaItem(prog, c).toLocaleString('id-ID')}</span>
             </div>
           ))}
           <div className="flex justify-between text-sm text-gray-500 pt-1 border-t border-blue-200">
@@ -825,8 +509,8 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
           </div>
         </div>
       )}
+      </>
+      )}
     </div>
   );
 }
-
-export { hargaItem, kamarKeyOf };

@@ -5,6 +5,7 @@ import { cekPemesanBolehOrder, buatSatuBooking, cariNikDipakaiProgramLain, poton
 import { cariVoucherValid, hitungPotonganItem, pakaiVoucher } from '@/lib/voucher';
 import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { saldoSahabat } from '@/lib/saldoSahabat';
+import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 
 // POST /api/sahabat/checkout-mandiri — checkout Program Sahabat Baitullah
 // (publish_type='sahabat_baitullah') buat DIRI SENDIRI. Beda dari
@@ -16,10 +17,15 @@ import { saldoSahabat } from '@/lib/saldoSahabat';
 // umroh, hasil blokir BSI], admin cek mutasi & catat via
 // /api/admin/sahabat/setoran-mandiri — itu OTOMATIS nambah saldo_tabungan_
 // umroh yang dipakai di sini, bukan jalur pembayaran terpisah per-booking).
-// Checkout ditolak total kalau saldo belum cukup — TIDAK ADA lagi opsi
-// upload bukti transfer buat nutup selisihnya. Booking baru beneran "paid"
-// begitu pemakaian saldo di-acc admin — lihat cekDanFinalisasiLunasSahabat
-// di src/lib/pembayaranSahabatMandiri.js.
+// Saldo belum cukup -> jamaah pilih (dikonfirmasi user 2026-10-16):
+//  - Setor Mandiri: nabung dulu ke rekening tabungan umroh sendiri, checkout
+//    ditolak di sini sampai saldo cukup (perilaku lama), ATAU
+//  - Transfer Langsung (metode='transfer_langsung'): saldo dipakai SEMUA,
+//    sisanya ditransfer langsung ke rekening JM Travel + upload bukti
+//    (1 baris payments type='lunas' pending).
+// Booking baru beneran "paid" begitu pemakaian saldo (dan transfer sisa,
+// kalau ada) di-acc admin — lihat cekDanFinalisasiLunasSahabat di
+// src/lib/pembayaranSahabatMandiri.js.
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -30,7 +36,8 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, opsi_tambahan_ids, password, nik, tanpa_nik } = body;
+    const { prog_id, paket, kamar, nama, wa, jk, alamat, voucher_kode, opsi_tambahan_ids, password, nik, tanpa_nik, metode, bukti_path, bukti_nama } = body;
+    const transferLangsung = metode === 'transfer_langsung';
 
     // Wajib konfirmasi password akun sebelum saldo dipotong (dikonfirmasi
     // user 2026-10-11) — sama kayak bayar DP dari saldo di /api/bookings/batch.
@@ -152,18 +159,22 @@ export async function POST(request) {
       });
 
       const totalHarga = hasil.totalHarga;
-      // Wajib ditutup PENUH dari saldo tabungan umroh — TIDAK ADA lagi
-      // opsi transfer pribadi buat nutup selisih (dikonfirmasi user
-      // 2026-09-29). Kalau saldo dari ujroh belum cukup, jamaah nabung
-      // sendiri ke rekening tabungan umrohnya sendiri dulu (admin catat via
-      // setoran-mandiri, otomatis nambah saldoTersedia), baru checkout lagi.
-      if (saldoTersedia < totalHarga) {
+      // Saldo kurang: tanpa pilihan Transfer Langsung ditolak (jalur Setor
+      // Mandiri — nabung dulu ke rekening tabungan umroh sendiri, admin catat,
+      // otomatis nambah saldoTersedia, baru checkout lagi). Dengan Transfer
+      // Langsung: saldo dipakai SEMUA, sisanya wajib ada bukti transfer.
+      const saldoCukup = saldoTersedia >= totalHarga;
+      if (!saldoCukup && !transferLangsung) {
         throw Object.assign(new Error(
           `Saldo tabungan umroh Anda belum cukup (tersedia Rp${saldoTersedia.toLocaleString('id-ID')} dari Rp${totalHarga.toLocaleString('id-ID')}). ` +
-          'Tambah saldo dengan menabung ke rekening tabungan umroh Anda sendiri, lalu tunggu admin memperbarui saldo Anda sebelum checkout lagi.'
+          'Setor kekurangannya ke rekening tabungan umroh Anda sendiri, atau pilih Transfer Langsung untuk membayar sisanya.'
         ), { status: 400 });
       }
-      const saldoDipakai = totalHarga;
+      if (!saldoCukup && !bukti_path) {
+        throw Object.assign(new Error('Bukti transfer sisa pembayaran wajib diunggah.'), { status: 400 });
+      }
+      const saldoDipakai = saldoCukup ? totalHarga : Math.max(0, saldoTersedia);
+      const sisaTransfer = totalHarga - saldoDipakai;
 
       if (saldoDipakai > 0) {
         await conn.query(
@@ -175,11 +186,24 @@ export async function POST(request) {
 
       // buatSatuBooking otomatis nyimpen 1 baris payments type='dp' (nominal
       // dpAmount) — gak relevan di jalur ini (gak ada tahap DP terpisah,
-      // total_harga PENUH dilunasi dari saldo di atas, gak ada baris
-      // payments 'lunas' lagi sama sekali sejak transfer-pribadi dicabut).
+      // total_harga dilunasi dari saldo + baris payments 'lunas' Transfer
+      // Langsung di bawah kalau saldo kurang).
       // Nol-in nominalnya (bukan cuma confirm) biar gak KEDOBEL kehitung di
       // generateOrUpdateKwitansi (yang jumlahin payments dp+lunas confirmed).
       await conn.query("UPDATE payments SET status = 'confirmed', amount = 0 WHERE booking_id = ? AND type = 'dp'", [hasil.bookingId]);
+
+      // Transfer Langsung — sisa di luar saldo masuk antrean Konfirmasi
+      // Pembayaran admin kayak pelunasan biasa; PATCH /api/payments yang
+      // nyerahin finalisasinya ke cekDanFinalisasiLunasSahabat (cek saldo +
+      // transfer dua-duanya udah di-acc).
+      if (sisaTransfer > 0) {
+        await conn.query(
+          `INSERT INTO payments
+           (booking_id, user_id, nama, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status)
+           VALUES (?, ?, ?, 'lunas', ?, 0, ?, ?, NOW(), 'pending')`,
+          [hasil.bookingId, auth.user.id, auth.user.name, sisaTransfer, bukti_path, bukti_nama || null]
+        );
+      }
 
       await conn.query(
         "UPDATE bookings SET dp_status = 'confirmed', pelunasan_status = 'pending_confirm' WHERE id = ?",
@@ -200,6 +224,19 @@ export async function POST(request) {
         await pakaiVoucher(pool, voucherKodeFinal, 1);
       }
 
+      if (sisaTransfer > 0) {
+        try {
+          await kirimNotifikasiAdmin(pool, {
+            tipe: 'pembayaran_baru',
+            judul: 'Bukti Pelunasan Baru',
+            pesan: `${auth.user.name || 'Jamaah'} mengirim bukti transfer sisa pelunasan (di luar saldo tabungan) untuk booking ${hasil.bookingId}.`,
+            link: '/admin?tab=payments',
+          });
+        } catch (e) {
+          console.error('Gagal kirim notifikasi admin transfer langsung sahabat:', e);
+        }
+      }
+
       // Jaring pengaman buat kasus total_harga 0 (misal voucher nutup penuh)
       // — gak ada baris debit ATAUPUN payment yang perlu di-acc sama sekali,
       // jadi langsung selesaikan di sini juga (no-op aman kalau salah satu
@@ -215,6 +252,7 @@ export async function POST(request) {
         booking_id: hasil.bookingId,
         total_harga: totalHarga,
         saldo_dipakai: saldoDipakai,
+        sisa_transfer: sisaTransfer,
       }, { status: 201 });
     } catch (err) {
       await conn.rollback();

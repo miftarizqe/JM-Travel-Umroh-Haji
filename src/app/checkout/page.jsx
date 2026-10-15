@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
-import CartPaketKamar, { kamarKeyOf } from '@/app/components/CartPaketKamar';
+import CartPaketKamar, { jamaahKosong, kamarKeyOf } from '@/app/components/CartPaketKamar';
 import SearchableSelect from '@/app/components/SearchableSelect';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
@@ -38,8 +38,61 @@ function CheckoutPageInner() {
   const [prog, setProg] = useState(null);
   const [progTidakTersedia, setProgTidakTersedia] = useState(false);
   const [step, setStep] = useState(1);
+  // Keranjang = daftar JAMAAH (1 kartu = 1 jamaah, paket/kamar sendiri-
+  // sendiri, dikonfirmasi user 2026-10-16) — bukan lagi "item" qty-N berbagi
+  // 1 paket. Diseed 1 kartu kosong begitu `prog` kemuat (lihat effect di
+  // bawah), bukan di initial state (komboDefault butuh `prog` buat nentuin
+  // paket/kamar default yang beneran ada harganya).
   const [cart, setCart] = useState([]);
-  const [current, setCurrent] = useState({ paket: 'eksekutif', kamar: 'Triple (3/Kamar)', jumlah: 1, hargaCustom: '', customHotel: null, namas: [''], was: [''], jks: [''], opsiTambahan: [] });
+  useEffect(() => {
+    if (!prog || cart.length > 0) return;
+    setCart([jamaahKosong(prog)]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prog]);
+  // Validasi + cek NIK dobel sebelum lanjut ke step bayar — dulu ada di
+  // dalam tambahkan() punya CartPaketKamar, sekarang kartu jamaah gak ada
+  // tombol "tambahkan" lagi (langsung nempel di keranjang), jadi dicek
+  // sekali di sini pas user mau lanjut.
+  const [cekNikBusy, setCekNikBusy] = useState(false);
+  async function lanjutKePembayaran() {
+    if (cart.length === 0) return;
+    for (const c of cart) {
+      if (!c.paket || !c.kamar) { alert('Pilih paket & kamar untuk semua jamaah dulu!'); return; }
+      if (c.paket === 'custom' && (!c.hargaCustom || Number(c.hargaCustom) <= 0)) {
+        alert('Lengkapi pilihan Bintang Mekkah & Madinah dulu buat jamaah yang pilih Custom Hotel!');
+        return;
+      }
+      if (!c.nama.trim()) { alert('Isi nama lengkap semua jamaah dulu!'); return; }
+      if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') { alert('Pilih jenis kelamin semua jamaah dulu!'); return; }
+      if (!c.alamat.trim()) { alert('Isi alamat kirim perlengkapan semua jamaah dulu!'); return; }
+      if (!c.tanpaNik && !/^\d{16}$/.test(c.nik.trim())) {
+        alert(`NIK "${c.nama}" wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).`);
+        return;
+      }
+    }
+    const niks = cart.filter(c => !c.tanpaNik).map(c => c.nik.trim());
+    const dobelLokal = niks.find((n, i) => niks.indexOf(n) !== i);
+    if (dobelLokal) { alert(`NIK ${dobelLokal} dimasukkan lebih dari sekali. Satu orang cuma bisa didaftarkan sekali di program ini.`); return; }
+    if (niks.length > 0) {
+      setCekNikBusy(true);
+      try {
+        const d = await fetch('/api/bookings/cek-nik', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prog_id: prog?.id, niks }),
+        }).then(r => r.json());
+        if (d.terpakai) {
+          alert(`NIK ${d.terpakai} sudah terdaftar di program ini. Satu orang tidak bisa didaftarkan dua kali di program yang sama.`);
+          return;
+        }
+      } catch {
+        alert('Gagal mengecek data NIK, coba lagi.');
+        return;
+      } finally {
+        setCekNikBusy(false);
+      }
+    }
+    setStep(3);
+  }
   // Dari CartPaketKamar — dipakai isi voucher_kode pas submit & nampilin
   // info sisa pelunasan di step 3 (komponennya sendiri sudah unmount di situ).
   const [summary, setSummary] = useState({ totalHarga: 0, totalDp: 0, voucherKode: null, voucherDiskon: 0, totalHargaSetelahDiskon: 0, sisaPelunasan: 0 });
@@ -84,13 +137,12 @@ function CheckoutPageInner() {
   // Sahabat Baitullah checkout program REGULER SEMPAT wajib baca & setujui
   // Surat Perjanjian Jamaah SEBELUM bayar DP (dikonfirmasi user 2026-10-11)
   // -- DICABUT (dikonfirmasi user 2026-10-15): mekanisme itu numpang di
-  // prop `perjanjian` CartPaketKamar yang nge-replace tombol "+ Tambahkan
-  // ke Pesanan" jadi checkbox, efek sampingnya keranjang KEBATAS maks 1
-  // item -- gak bisa checkout buat Diri Sendiri + Orang Lain sekaligus
-  // (beda paket pun gak bisa). Sahabat sekarang ikut alur STANDAR sama
-  // persis jamaah biasa: bebas nambah berapa pun item/paket ke keranjang
-  // (lihat "+ Tambahkan ke Pesanan" di CartPaketKamar, gak ada `perjanjian`
-  // prop lagi dikirim dari sini), DP, BARU Isi Formulir Jamaah, BARU Baca &
+  // prop `perjanjian` CartPaketKamar (udah gak ada sama sekali di keranjang
+  // versi sekarang, 1-kartu-1-jamaah), efek sampingnya keranjang KEBATAS
+  // maks 1 item -- gak bisa checkout buat Diri Sendiri + Orang Lain
+  // sekaligus (beda paket pun gak bisa). Sahabat sekarang ikut alur
+  // STANDAR sama persis jamaah biasa: bebas nambah berapa pun kartu
+  // jamaah/paket ke keranjang, DP, BARU Isi Formulir Jamaah, BARU Baca &
   // Setujui Perjanjian (1x per booking lewat /pks?jenis=jamaah, SAMA
   // mekanismenya kayak jamaah lain -- isi pasalnya pun SAMA PERSIS,
   // dikonfirmasi user, "perjanjian program umroh semuanya sama apapun
@@ -133,6 +185,13 @@ function CheckoutPageInner() {
   const [saldoInfo, setSaldoInfo] = useState(null);
   const [hasilMandiri, setHasilMandiri] = useState(null);
   const [noRekeningUmrohMandiri, setNoRekeningUmrohMandiri] = useState('');
+  // Saldo kurang -> pilih cara nutup kekurangannya (dikonfirmasi user
+  // 2026-10-16): 'transfer_langsung' (saldo dipakai semua, sisanya transfer
+  // ke rekening JM Travel + upload bukti, checkout jalan sekarang) atau
+  // 'setor_mandiri' (nabung dulu ke rekening tabungan umroh sendiri,
+  // checkout lagi setelah saldo cukup).
+  const [metodeKurangMandiri, setMetodeKurangMandiri] = useState('');
+  const [buktiMandiri, setBuktiMandiri] = useState(null);
 
   const isMandiriSahabat = user?.role === 'sahabat_baitullah' && prog?.publish_type === 'sahabat_baitullah';
   // Program eksklusif cuma boleh didaftarkan buat diri sendiri — KECUALI
@@ -226,12 +285,14 @@ function CheckoutPageInner() {
       .catch(() => {});
   }, [user]);
 
-  // Profil akun Sahabat Baitullah buat opsi "Diri Sendiri" di Data Jamaah
-  // step Pilih Paket (checkout program reguler) — auto-isi jamaah #1,
-  // "Orang Lain" tetap isi manual.
+  // Profil akun buat checkbox "Ini saya sendiri" di kartu jamaah #1 (step
+  // Pilih Paket) — berlaku SEMUA role yang checkout (dikonfirmasi user
+  // 2026-10-16, sebelumnya cuma Sahabat Baitullah), KECUALI admin/super_admin
+  // (mereka booking BUAT ORANG LAIN, data identitas akun admin gak relevan
+  // jadi jamaah).
   const [dataDiriSahabat, setDataDiriSahabat] = useState(null);
   useEffect(() => {
-    if (user?.role !== 'sahabat_baitullah') return;
+    if (!user?.id || user.role === 'admin' || user.role === 'super_admin') return;
     fetch(`/api/profil?user_id=${user.id}`)
       .then(r => r.json())
       .then(d => setDataDiriSahabat({
@@ -367,15 +428,17 @@ function CheckoutPageInner() {
   const voucherDiskonMandiri = voucherMandiri ? Math.min(Number(voucherMandiri.potongan || 0), hargaMandiri) : 0;
   const totalMandiri = Math.max(0, hargaMandiri - voucherDiskonMandiri);
   const saldoTersediaMandiri = Math.max(0, Number(saldoInfo?.saldo_tabungan_umroh || 0));
-  // Wajib ditutup PENUH dari saldo — gak ada lagi opsi transfer pribadi
-  // buat nutup selisih (dikonfirmasi user 2026-09-29). saldoDipakaiMandiri
-  // cuma dipakai buat TAMPILAN di sini (server tetap validasi ulang), kalau
-  // saldo kurang tombol "Selesaikan Pendaftaran" diganti pesan kurang saldo.
+  // Saldo dipakai duluan; kalau kurang, sisanya lewat Transfer Langsung atau
+  // Setor Mandiri (lihat metodeKurangMandiri). Angka di sini cuma TAMPILAN,
+  // server (checkout-mandiri) tetap hitung & validasi ulang.
   const saldoCukupMandiri = saldoTersediaMandiri >= totalMandiri;
   const saldoDipakaiMandiri = saldoCukupMandiri ? totalMandiri : saldoTersediaMandiri;
   const kuranganMandiri = Math.max(0, totalMandiri - saldoTersediaMandiri);
+  const transferLangsungMandiri = !saldoCukupMandiri && metodeKurangMandiri === 'transfer_langsung';
+  const bisaSubmitMandiri = saldoCukupMandiri || (transferLangsungMandiri && !!buktiMandiri?.path);
 
   async function submitMandiri() {
+    if (!bisaSubmitMandiri) { alert('Saldo belum cukup — pilih Transfer Langsung & unggah bukti transfer, atau Setor Mandiri dulu.'); return; }
     if (!setujuPotongSaldo) { alert('Centang dulu persetujuan pemotongan saldo di atas.'); return; }
     if (!passwordDpSaldo) { alert('Masukkan password akun Anda untuk konfirmasi.'); return; }
     setLoading(true);
@@ -391,6 +454,9 @@ function CheckoutPageInner() {
           tanpa_nik: tanpaNikMandiri && !namaMandiriTerkunci,
           voucher_kode: voucherMandiri?.kode || null,
           password: passwordDpSaldo,
+          metode: transferLangsungMandiri ? 'transfer_langsung' : null,
+          bukti_path: transferLangsungMandiri ? buktiMandiri?.path : null,
+          bukti_nama: transferLangsungMandiri ? buktiMandiri?.nama : null,
         })
       });
       const data = await res.json();
@@ -413,9 +479,14 @@ function CheckoutPageInner() {
         body: JSON.stringify({
           user_id: user.id,
           prog_id: progId,
+          // 1 kartu = 1 jamaah sekarang (dikonfirmasi user 2026-10-16) --
+          // tiap field dibungkus array panjang-1, formatnya tetap sama
+          // persis yang diterima /api/bookings/batch (gak ada perubahan
+          // backend sama sekali).
           items: cart.map(c => ({
-            paket: c.paket, kamar: c.kamar, jumlah_jamaah: c.jumlah, namas: c.namas, was: c.was, jks: c.jks, alamats: c.alamats,
-            niks: c.niks, untuk_diri_sendiri: c.untukDiri === 'sendiri',
+            paket: c.paket, kamar: c.kamar, jumlah_jamaah: 1,
+            namas: [c.nama], was: [c.wa], jks: [c.jk], alamats: [c.alamat],
+            niks: [c.tanpaNik ? '' : c.nik], untuk_diri_sendiri: !!c.diriSendiri,
             harga_custom_per_jamaah: c.hargaCustom || null,
             customHotel: c.customHotel || null,
             opsi_tambahan_ids: (c.opsiTambahan || []).map(o => o.id),
@@ -460,7 +531,7 @@ function CheckoutPageInner() {
 
   const timerFmt = `${String(Math.floor(timer / 60)).padStart(2, '0')}:${String(timer % 60).padStart(2, '0')}`;
 
-  const totalDP = cart.reduce((s, c) => s + (prog?.dp || 0) * c.jumlah, 0);
+  const totalDP = (prog?.dp || 0) * cart.length;
 
   // Setelah submit (step 4) yang aktif "Verifikasi Admin" — DP belum
   // beneran beres sampai admin konfirmasi (maks 1×24 jam), "Selesai" baru
@@ -696,7 +767,8 @@ function CheckoutPageInner() {
             </div>
           )}
 
-          {/* STEP 2 — Ringkasan pembayaran: saldo dulu, sisa transfer pribadi */}
+          {/* STEP 2 — Ringkasan pembayaran: saldo dulu, kalau kurang pilih
+              Transfer Langsung (sisa ke rekening JM Travel) / Setor Mandiri */}
           {step === 2 && (
             <div className="space-y-4">
               <div className="bg-[#E8F0FB] rounded-xl p-4 space-y-2">
@@ -720,27 +792,102 @@ function CheckoutPageInner() {
                   <span>Saldo Tabungan Tersedia</span><span className="font-semibold">Rp {saldoTersediaMandiri.toLocaleString('id-ID')}</span>
                 </div>
                 <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
-                  <span className="text-sm">Dipakai dari Saldo (Pelunasan Penuh)</span>
+                  <span className="text-sm">{saldoCukupMandiri ? 'Dipakai dari Saldo (Pelunasan Penuh)' : 'Dipakai dari Saldo'}</span>
                   <span className="text-purple-700">−Rp {saldoDipakaiMandiri.toLocaleString('id-ID')}</span>
                 </div>
+                {!saldoCukupMandiri && (
+                  <div className="flex justify-between font-bold">
+                    <span className="text-sm">Kekurangan</span>
+                    <span className="text-red-600">Rp {kuranganMandiri.toLocaleString('id-ID')}</span>
+                  </div>
+                )}
               </div>
 
-              {saldoCukupMandiri ? (
+              {!saldoCukupMandiri && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-3">
+                  <div>
+                    <div className="font-bold text-red-700 text-sm">⚠️ Saldo Tabungan Umroh Belum Cukup</div>
+                    <div className="text-xs text-red-600">Kurang <b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b> lagi dari total harga. Pilih cara melunasi kekurangannya:</div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {[
+                      { key: 'transfer_langsung', judul: '💸 Transfer Langsung', ket: `Saldo dipakai semua, sisa Rp ${kuranganMandiri.toLocaleString('id-ID')} ditransfer ke rekening JM Travel. Checkout bisa diselesaikan sekarang.` },
+                      { key: 'setor_mandiri', judul: '🏦 Setor Mandiri', ket: 'Setor kekurangannya ke rekening tabungan umroh Anda sendiri, lanjutkan checkout setelah saldo cukup.' },
+                    ].map(o => (
+                      <button key={o.key} type="button"
+                        onClick={() => { setMetodeKurangMandiri(o.key); if (o.key !== 'transfer_langsung') setBuktiMandiri(null); }}
+                        className={`text-left rounded-xl p-3 border-2 bg-white transition-colors ${
+                          metodeKurangMandiri === o.key ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
+                        }`}>
+                        <div className="text-sm font-bold text-[#0E2F6E]">{o.judul}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5 leading-snug">{o.ket}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!saldoCukupMandiri && metodeKurangMandiri === 'setor_mandiri' && (
+                <div className="bg-white border-2 border-gray-200 rounded-xl p-4 space-y-2">
+                  <div className="text-xs text-gray-500">
+                    Setor kekurangannya (<b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b>) ke rekening tabungan umroh Anda sendiri:
+                  </div>
+                  {noRekeningUmrohMandiri && (
+                    <div className="bg-gray-50 rounded-lg p-2.5 text-sm font-bold text-[#0E2F6E] text-center">{noRekeningUmrohMandiri}</div>
+                  )}
+                  <div className="text-xs text-gray-500">Sudah transfer? Unggah bukti transfernya di <button onClick={() => router.push('/dashboard/sahabat/riwayat?tab=cashflow')} className="text-[#1A4FA0] font-bold underline">Riwayat Tabungan Umroh</button> biar admin bisa langsung verifikasi & menambah saldo Anda — kembali ke sini untuk melanjutkan checkout setelah saldo cukup.</div>
+                </div>
+              )}
+
+              {(saldoCukupMandiri || transferLangsungMandiri) && (
                 <>
                   <div className="bg-[#FEF3DC] border border-[#C9952A] rounded-xl p-4 text-sm text-[#8a6516]">
-                    ℹ️ Tidak ada tahap DP di jalur ini — booking langsung dianggap lunas penuh begitu pemakaian saldo di-ACC admin.
+                    ℹ️ Tidak ada tahap DP di jalur ini — booking langsung dianggap lunas penuh begitu {transferLangsungMandiri ? 'pemakaian saldo & transfer sisa' : 'pemakaian saldo'} di-ACC admin.
                   </div>
-                  <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
-                    <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Tabungan Umroh Anda Akan Dibayarkan Ke</div>
-                    {metodePembayaran.map(m => (
-                      <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
-                        <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
-                        {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
-                        {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                  {/* Rekening tujuan saldo & transfer sisa SAMA (rekening JM
+                      Travel) — Transfer Langsung cukup 1 kartu di bawah. */}
+                  {!transferLangsungMandiri && saldoDipakaiMandiri > 0 && (
+                    <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Tabungan Umroh Anda Akan Dibayarkan Ke</div>
+                      {metodePembayaran.map(m => (
+                        <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                          <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
+                          {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
+                          {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                        </div>
+                      ))}
+                      <div className="text-xs text-gray-400 pt-1">Untuk pelunasan Program Umroh ini — Anda tidak perlu transfer apa pun, admin yang memprosesnya begitu pemakaian saldo dikonfirmasi.</div>
+                    </div>
+                  )}
+                  {transferLangsungMandiri && (
+                    <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan Pembayaran</div>
+                      {metodePembayaran.map(m => (
+                        <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                          <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
+                          {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
+                          {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                          {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
+                        </div>
+                      ))}
+                      <div className="border-t border-gray-100 pt-2 space-y-1">
+                        {saldoDipakaiMandiri > 0 && (
+                          <div className="flex justify-between text-sm text-gray-500">
+                            <span>Dari Saldo Tabungan <span className="text-[10px] text-gray-400">(diproses admin)</span></span>
+                            <span className="font-semibold text-purple-700">Rp {saldoDipakaiMandiri.toLocaleString('id-ID')}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between font-bold">
+                          <span className="text-sm">Transfer Tepat</span>
+                          <span className="text-red-600">Rp {kuranganMandiri.toLocaleString('id-ID')}</span>
+                        </div>
                       </div>
-                    ))}
-                    <div className="text-xs text-gray-400 pt-1">Untuk pelunasan Program Umroh ini — Anda tidak perlu transfer apa pun, admin yang memprosesnya begitu pemakaian saldo dikonfirmasi.</div>
-                  </div>
+                      <UploadBukti
+                        onUploaded={(path, nama) => setBuktiMandiri({ path, nama })}
+                        label="Klik untuk upload bukti transfer sisa pembayaran"
+                      />
+                    </div>
+                  )}
                   <label className="flex items-start gap-2 bg-gray-50 rounded-xl p-3 cursor-pointer">
                     <input type="checkbox" checked={setujuPotongSaldo} onChange={e => setSetujuPotongSaldo(e.target.checked)}
                       className="mt-0.5 w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
@@ -748,6 +895,7 @@ function CheckoutPageInner() {
                       Saya setuju saldo tabungan umroh saya sebesar <b>Rp {saldoDipakaiMandiri.toLocaleString('id-ID')}</b> dipotong
                       &amp; ditransfer ke rekening JM Travel untuk pembayaran program ini, sesuai Surat Kuasa Kerjasama Multi CIF
                       &amp; Surat Pernyataan Kuasa Blokir Rekening yang telah saya setujui.
+                      {transferLangsungMandiri && <> Sisanya sebesar <b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b> saya bayar lewat transfer langsung.</>}
                     </span>
                   </label>
                   <div className="bg-white border-2 border-gray-200 rounded-xl p-3 space-y-1">
@@ -758,28 +906,16 @@ function CheckoutPageInner() {
                     <div className="text-[10px] text-gray-400">Demi keamanan, pemotongan saldo wajib dikonfirmasi dengan password akun.</div>
                   </div>
                 </>
-              ) : (
-                <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4 space-y-2">
-                  <div className="font-bold text-red-700 text-sm">⚠️ Saldo Tabungan Umroh Belum Cukup</div>
-                  <div className="text-xs text-red-600">Kurang <b>Rp {kuranganMandiri.toLocaleString('id-ID')}</b> lagi dari total harga.</div>
-                  <div className="text-xs text-gray-500 pt-1">
-                    Pembayaran program ini SELALU dipotong dari saldo tabungan umroh Anda — tidak ada jalur transfer terpisah. Setor kekurangannya ke rekening tabungan umroh Anda sendiri:
-                  </div>
-                  {noRekeningUmrohMandiri && (
-                    <div className="bg-white rounded-lg p-2.5 text-sm font-bold text-[#0E2F6E] text-center">{noRekeningUmrohMandiri}</div>
-                  )}
-                  <div className="text-xs text-gray-500">Sudah transfer? Unggah bukti transfernya di <button onClick={() => router.push('/dashboard/sahabat/riwayat?section=pending')} className="text-[#1A4FA0] font-bold underline">Riwayat Tabungan Umroh</button> biar admin bisa langsung verifikasi & menambah saldo Anda — kembali ke sini untuk melanjutkan checkout setelah saldo cukup.</div>
-                </div>
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => { setStep(1); setSetujuPotongSaldo(false); setPasswordDpSaldo(''); }}
+                <button onClick={() => { setStep(1); setSetujuPotongSaldo(false); setPasswordDpSaldo(''); setMetodeKurangMandiri(''); setBuktiMandiri(null); }}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                   ← Kembali
                 </button>
-                <button onClick={submitMandiri} disabled={loading || !saldoCukupMandiri || !setujuPotongSaldo || !passwordDpSaldo}
+                <button onClick={submitMandiri} disabled={loading || !bisaSubmitMandiri || !setujuPotongSaldo || !passwordDpSaldo}
                   className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? 'Memproses...' : !saldoCukupMandiri ? 'Saldo Belum Cukup' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : !passwordDpSaldo ? 'Masukkan password dulu' : 'Selesaikan Pendaftaran'}
+                  {loading ? 'Memproses...' : !saldoCukupMandiri && !metodeKurangMandiri ? 'Pilih Cara Bayar Dulu' : !saldoCukupMandiri && metodeKurangMandiri === 'setor_mandiri' ? 'Saldo Belum Cukup' : !bisaSubmitMandiri ? 'Upload bukti transfer dulu' : !setujuPotongSaldo ? 'Centang persetujuan dulu' : !passwordDpSaldo ? 'Masukkan password dulu' : 'Selesaikan Pendaftaran'}
                 </button>
               </div>
             </div>
@@ -790,11 +926,14 @@ function CheckoutPageInner() {
             <div className="text-center space-y-4 py-8">
               <div className="text-6xl mb-4">🎉</div>
               <h2 className="text-2xl font-bold text-[#0E2F6E]">Pendaftaran Terkirim!</h2>
-              <p className="text-gray-400 text-sm">Admin akan verifikasi pemakaian saldo dalam 1×24 jam kerja.</p>
+              <p className="text-gray-400 text-sm">Admin akan verifikasi pemakaian saldo{Number(hasilMandiri?.sisa_transfer || 0) > 0 ? ' & bukti transfer' : ''} dalam 1×24 jam kerja.</p>
               <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-left space-y-1">
                 <div className="text-sm text-green-600">Program: {prog.name}</div>
                 <div className="font-bold text-green-800">Booking: {hasilMandiri?.booking_id}</div>
                 <div className="text-sm text-green-700 pt-1">Dipakai dari saldo: Rp {Number(hasilMandiri?.saldo_dipakai || 0).toLocaleString('id-ID')}</div>
+                {Number(hasilMandiri?.sisa_transfer || 0) > 0 && (
+                  <div className="text-sm text-green-700">Transfer langsung: Rp {Number(hasilMandiri.sisa_transfer).toLocaleString('id-ID')}</div>
+                )}
                 <span className="inline-block bg-[#FEF3DC] text-[#7a5500] text-xs font-bold px-3 py-1 rounded-full mt-1">⏳ Menunggu Konfirmasi Admin</span>
               </div>
               {/* Status booking (progress DP/pelunasan, dokumen, dst) belum
@@ -1003,72 +1142,42 @@ function CheckoutPageInner() {
           <div className="space-y-5">
 
             <CartPaketKamar
-              prog={prog} cart={cart} current={current}
-              onAdd={item => setCart(prev => [...prev, item])}
-              onRemove={i => setCart(prev => prev.filter((_, idx) => idx !== i))}
-              onChangeCurrent={setCurrent}
+              prog={prog} list={cart} onChangeList={setCart}
               onSummaryChange={setSummary}
-              dataDiriSendiri={user.role === 'sahabat_baitullah' ? (dataDiriSahabat || { nama: user.name || '', wa: '', jk: '', alamat: '', nik: '' }) : undefined}
+              dataDiriSendiri={dataDiriSahabat}
+              allowHargaCustom={user.role === 'admin' || user.role === 'super_admin'}
               referralPerwId={user.role === 'perwakilan' ? user.id
                 : permanentReferrer ? permanentReferrer.id
                 : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null}
               // Banner "Chat Admin" TETAP tampil apapun kondisinya (dikonfirmasi
               // user 2026-08-20) — walau kartu "🎨 Custom Hotel" udah nawarin
-              // pilih Bintang Mekkah/Madinah langsung in-app, masih ada
-              // kemungkinan kombinasi yang jamaah cari gak ke-cover (mis. mau
-              // hotel spesifik di luar 3 bintang yang ada), jadi opsi manual
-              // chat admin gak boleh dihilangkan. Cuma teksnya nyesuain
-              // tergantung custom_hotel_tersedia biar gak keliru dikira
-              // satu-satunya cara.
+              // pilih Bintang Mekkah/Madinah langsung in-app per kartu, masih
+              // ada kemungkinan kombinasi yang jamaah cari gak ke-cover (mis.
+              // mau hotel spesifik di luar 3 bintang yang ada). "Set Harga
+              // Sendiri (Admin)" PINDAH ke dalam tiap kartu jamaah (prop
+              // allowHargaCustom di atas) — dikonfirmasi user 2026-10-16,
+              // sekarang per-orang bukan per-pesanan.
               extra={
-                (user.role === 'admin' || user.role === 'super_admin') ? (() => {
-                  // Dulu cuma ada di /order-jamaah (sekarang dilebur ke sini,
-                  // dikonfirmasi user 2026-09-27) — closing Direct/Kantor
-                  // sering pakai harga negosiasi, bukan harga normal program.
-                  const kamarKey = current.kamar?.includes('Quad') ? 'quad' : current.kamar?.includes('Double') ? 'double' : 'triple';
-                  const hargaNormal = prog?.[`harga_${current.paket}_${kamarKey}`] || prog?.[`harga_${current.paket}`] || 0;
-                  return (
-                    <div className="bg-gray-900 rounded-xl p-4 space-y-2">
-                      <div className="font-bold text-white text-sm">💰 Set Harga Sendiri (Admin)</div>
-                      <div className="text-xs text-gray-300">
-                        Kosongkan untuk pakai harga normal (Rp {hargaNormal.toLocaleString('id-ID')}/jamaah) untuk item ini.
+                <div className="bg-gradient-to-r from-[#C9952A] to-yellow-500 rounded-xl p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-white text-sm">✨ Ingin Paket Custom?</div>
+                      <div className="text-xs text-white/85 mt-0.5">
+                        {prog?.custom_hotel_tersedia
+                          ? 'Gak nemu kombinasi yang cocok di atas? Konsultasi langsung'
+                          : 'Kombinasi hotel berbeda Mekkah & Madinah'}
                       </div>
-                      <input
-                        type="number"
-                        value={current.hargaCustom}
-                        onChange={e => setCurrent({ ...current, hargaCustom: e.target.value })}
-                        placeholder={`Rp ${hargaNormal.toLocaleString('id-ID')}`}
-                        className="w-full px-3 py-2 rounded-lg border-2 border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-[#C9952A] focus:outline-none text-sm"
-                      />
-                      {current.hargaCustom !== '' && (
-                        <button onClick={() => setCurrent({ ...current, hargaCustom: '' })} className="text-xs text-[#C9952A] font-semibold underline">
-                          Reset ke harga normal
-                        </button>
-                      )}
                     </div>
-                  );
-                })() : (
-                  <div className="bg-gradient-to-r from-[#C9952A] to-yellow-500 rounded-xl p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-bold text-white text-sm">✨ Ingin Paket Custom?</div>
-                        <div className="text-xs text-white/85 mt-0.5">
-                          {prog?.custom_hotel_tersedia
-                            ? 'Gak nemu kombinasi yang cocok di atas? Konsultasi langsung'
-                            : 'Kombinasi hotel berbeda Mekkah & Madinah'}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const msg = `Halo JM Travel, saya ingin konsultasi paket custom untuk program *${prog?.name}*. Mohon bantuannya 🙏`;
-                          window.open(waLink(pengaturan.wa_kantor, msg) || '#', '_blank');
-                        }}
-                        className="bg-white text-[#C9952A] font-bold text-xs px-4 py-2 rounded-full hover:bg-yellow-50 transition-colors whitespace-nowrap">
-                        Chat Admin →
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => {
+                        const msg = `Halo JM Travel, saya ingin konsultasi paket custom untuk program *${prog?.name}*. Mohon bantuannya 🙏`;
+                        window.open(waLink(pengaturan.wa_kantor, msg) || '#', '_blank');
+                      }}
+                      className="bg-white text-[#C9952A] font-bold text-xs px-4 py-2 rounded-full hover:bg-yellow-50 transition-colors whitespace-nowrap">
+                      Chat Admin →
+                    </button>
                   </div>
-                )
+                </div>
               }
             />
 
@@ -1077,9 +1186,9 @@ function CheckoutPageInner() {
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                 ← Kembali
               </button>
-              <button onClick={() => setStep(3)} disabled={cart.length === 0}
+              <button onClick={lanjutKePembayaran} disabled={cart.length === 0 || cekNikBusy}
                 className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-                Lanjut ke Pembayaran →
+                {cekNikBusy ? 'Mengecek data...' : 'Lanjut ke Pembayaran →'}
               </button>
             </div>
           </div>
@@ -1099,8 +1208,8 @@ function CheckoutPageInner() {
               </div>
               {cart.map((c, i) => (
                 <div key={i} className="flex justify-between text-sm text-gray-500">
-                  <span className="capitalize">{c.paket} · {c.kamar} × {c.jumlah}</span>
-                  <span className="font-semibold text-[#0E2F6E]">Rp {((prog?.dp || 0) * c.jumlah).toLocaleString('id-ID')}</span>
+                  <span className="capitalize">{c.nama || `Jamaah ${i + 1}`} — {c.paket} · {c.kamar}</span>
+                  <span className="font-semibold text-[#0E2F6E]">Rp {(prog?.dp || 0).toLocaleString('id-ID')}</span>
                 </div>
               ))}
               <div className="flex justify-between text-sm text-gray-500 pt-1 border-t border-blue-200">

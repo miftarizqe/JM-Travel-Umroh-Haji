@@ -75,6 +75,7 @@ function RiwayatSaldoContent() {
   const [targetInfo, setTargetInfo] = useState(null);
   const [tab, setTab] = useState(() => {
     if (searchParams.get('tab') === 'forecast') return 'forecast';
+    if (searchParams.get('tab') === 'cashflow') return 'cashflow';
     if (searchParams.get('section') === 'pending') return 'pending';
     return 'pencairan';
   });

@@ -7,6 +7,7 @@ import { ambilItemDikirimJamaah } from '@/lib/perlengkapan';
 import { KAMAR_KEY, hargaProgram, resolveJamaahHarga } from '@/lib/jamaahHarga';
 import { cariNikDipakaiProgramLain } from '@/lib/booking';
 import { lampirkanInfoStage } from '@/lib/bookingStageServer';
+import { infoDanaRefund } from '@/lib/danaRefund';
 
 // GET — detail satu booking (untuk halaman cetak formulir)
 export async function GET(request, { params }) {
@@ -80,6 +81,13 @@ export async function GET(request, { params }) {
         [booking.id]
       );
       booking.saldo_hold_pending = hold || null;
+
+      // Info buat form "Batalkan Booking/Jamaah" — batas refund yang SAMA
+      // persis kayak yang divalidasi server (lihat infoDanaRefund), plus
+      // flag program Sahabat Baitullah eksklusif (gak ada refund tunai).
+      booking.dana_refund = await infoDanaRefund(pool, booking.id);
+      const [[pr]] = await pool.query('SELECT publish_type FROM programs WHERE id = ?', [booking.prog_id]);
+      booking.sahabat_eksklusif = pr?.publish_type === 'sahabat_baitullah';
     }
 
     return Response.json({ booking });
