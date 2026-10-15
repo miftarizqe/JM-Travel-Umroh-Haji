@@ -19,11 +19,34 @@ import { pesanDpDikonfirmasi, pesanPelunasanDikonfirmasi, pesanReferralBaru, pes
 import { resolveJamaahHarga, ringkasanPaketKamar } from '@/lib/jamaahHarga';
 import { persenKesiapan, diBawahProgress } from '@/lib/kesiapanTabungan';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
+import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
   if (typeof raw === 'string') { try { return JSON.parse(raw); } catch { return []; } }
   return Array.isArray(raw) ? raw : [];
+}
+
+// Ringkasan dokumen pendukung (paspor/KK/KTP/vaksin/foto) 1 booking —
+// "nempel" di kartu booking Kelola Program (dikonfirmasi user 2026-10-15)
+// biar admin gak perlu bolak-balik ke /admin/dokumen-pendukung buat tau
+// status tiap booking, cukup lihat badge-nya terus klik buat verifikasi
+// yang relevan aja.
+function ringkasDokumenPendukung(b) {
+  const jamaah = parseJamaahData(b.jamaah_data);
+  const slotTotal = jamaah.length * DOC_LIST.length;
+  let diunggah = 0, menunggu = 0, ditolak = 0, diverifikasi = 0;
+  for (const j of jamaah) {
+    for (const d of DOC_LIST) {
+      if (!j?.[d.key]) continue;
+      diunggah++;
+      const st = statusDokumen(j, d.key)?.status;
+      if (st === 'ditolak') ditolak++;
+      else if (st === 'diverifikasi') diverifikasi++;
+      else menunggu++;
+    }
+  }
+  return { slotTotal, diunggah, menunggu, ditolak, diverifikasi };
 }
 
 // Badge kolom Status tabel Jamaah/Perwakilan, per nilai status_akun dari /api/admin/users.
@@ -2179,7 +2202,27 @@ function AdminPageInner() {
                         📎 Input Dokumen (dari WA)
                       </button>
 
-                      {/* Print hanya kalau form sudah lengkap */}
+                      {/* Ringkasan dokumen pendukung "nempel" di kartu
+                          (dikonfirmasi user 2026-10-15) — klik langsung ke
+                          /admin/dokumen-pendukung TERFILTER booking ini
+                          (deep-link ?booking_id=, lihat halaman tsb), gak
+                          perlu admin ngeraba-raba nyari di sidebar terpisah. */}
+                      {(() => {
+                        const rd = ringkasDokumenPendukung(b);
+                        if (rd.slotTotal === 0) return null;
+                        return (
+                          <button onClick={() => router.push(`/admin/dokumen-pendukung?booking_id=${b.id}`)}
+                            className="w-full mb-2 flex items-center justify-center gap-1.5 flex-wrap bg-gray-50 hover:bg-gray-100 border border-gray-200 text-[11px] font-bold py-1.5 rounded-full">
+                            <span className="text-gray-500">📎 Dokumen Pendukung ({rd.diunggah}/{rd.slotTotal})</span>
+                            {rd.ditolak > 0 && <span className={`px-1.5 py-0.5 rounded-full ${STATUS_DOKUMEN.ditolak.cls}`}>❌ {rd.ditolak}</span>}
+                            {rd.menunggu > 0 && <span className={`px-1.5 py-0.5 rounded-full ${STATUS_DOKUMEN.menunggu.cls}`}>⏳ {rd.menunggu}</span>}
+                            {rd.diverifikasi > 0 && <span className={`px-1.5 py-0.5 rounded-full ${STATUS_DOKUMEN.diverifikasi.cls}`}>✅ {rd.diverifikasi}</span>}
+                          </button>
+                        );
+                      })()}
+
+                      {/* Print Formulir/Perjanjian hanya kalau form sudah lengkap
+                          (butuh jamaah_data lengkap buat ngisi dokumennya). */}
                       {b.form_lengkap ? (
                         <div className="flex gap-2 flex-wrap">
                           <button onClick={() => printFormulir(b.id)} className="flex-1 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold py-2 rounded-full">
@@ -2193,12 +2236,6 @@ function AdminPageInner() {
                               2026-10-14) — sebelumnya ada DUA tombol Buat
                               Invoice nongol bareng kalau form lengkap + DP
                               confirmed + belum lunas, sekarang cuma 1. */}
-                          {/* Kwitansi cuma keluar begitu LUNAS TOTAL. */}
-                          {b.pelunasan_status === 'paid' && (
-                            <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
-                              🧾 Kwitansi Pembayaran
-                            </button>
-                          )}
                           {/* Kenaikan harga tiket / force majeure — jamaah wajib
                               setuju eksplisit dulu sebelum bisa lanjut pelunasan
                               (lihat src/app/pelunasan/page.jsx). Gak relevan lagi
@@ -2212,6 +2249,21 @@ function AdminPageInner() {
                       ) : (
                         <button onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)} className={`w-full text-sm font-bold py-2 rounded-full ${formBelum ? btnAksi : 'bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white'}`}>
                           {formBelum ? '⚡ ' : '📋 '}Lengkapi Formulir ({b.form_filled}/{b.form_total})
+                        </button>
+                      )}
+
+                      {/* Kwitansi SENGAJA independen dari b.form_lengkap
+                          (dikonfirmasi user 2026-10-15) -- booking LUNAS
+                          berarti uangnya udah beneran diterima, admin harus
+                          tetap bisa cetak kwitansinya kapan pun, gak peduli
+                          progress formulir/perjanjian jamaah. Sebelumnya
+                          tombol ini numpang di blok form_lengkap, jadi ikut
+                          hilang kalau form belum diisi padahal udah lunas
+                          (server /api/admin/invoice-kwitansi/auto sendiri
+                          emang gak pernah syarat form_lengkap). */}
+                      {b.pelunasan_status === 'paid' && (
+                        <button onClick={() => cetakInvoiceOtomatis(b.id, 'kwitansi')} className="w-full mt-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold py-2 rounded-full">
+                          🧾 Kwitansi Pembayaran
                         </button>
                       )}
 
