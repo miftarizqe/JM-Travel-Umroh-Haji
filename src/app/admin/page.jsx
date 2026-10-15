@@ -445,6 +445,20 @@ function AdminPageInner() {
     setBusySahabat(false);
   }
 
+  // Pendaftaran Sahabat yang nunggu tindakan admin di /admin/sahabat —
+  // sebelumnya notif "Pendaftaran Siap Ditinjau"/"Pendaftar Baru" masuk tapi
+  // section Sahabat di dashboard gak nampilin antriannya sama sekali
+  // (ditemukan user 2026-10-15). Kriteria verifikasi = jamaah udah klik
+  // "Kirim Pendaftaran" & gak lagi diminta perbaiki (yang di-notif
+  // kirim-pendaftaran), mirror tahap "Menunggu ACC Admin" di /admin/sahabat.
+  const sahabatMenungguVerifikasi = useMemo(
+    () => sahabatPendaftaran.filter(p => p.status === 'menunggu_sk_cif' && p.diajukan_at && !p.perbaikan_diminta_at),
+    [sahabatPendaftaran]
+  );
+  const sahabatPendaftarBaru = useMemo(
+    () => sahabatPendaftaran.filter(p => p.status === 'pending'),
+    [sahabatPendaftaran]
+  );
   const sahabatVoucherPending = useMemo(
     () => sahabatPendaftaran.filter(p => p.voucher_kode && !p.voucher_disetujui_at),
     [sahabatPendaftaran]
@@ -1185,7 +1199,8 @@ function AdminPageInner() {
               (dikonfirmasi user 2026-09-06). Pendaftaran di sana sekarang
               murni funnel status; semua reminder lain (voucher/saldo/closing)
               digabung di sini biar 1 pintu. */}
-          <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">🤝 Sahabat Baitullah</h3>} defaultOpen={false}>
+          <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">🤝 Sahabat Baitullah</h3>} defaultOpen={false}
+            badge={sahabatMenungguVerifikasi.length > 0 ? `${sahabatMenungguVerifikasi.length} menunggu verifikasi` : undefined}>
             {loadingSahabatDash ? (
               <div className="text-center text-gray-400 py-6 text-sm">Memuat...</div>
             ) : (
@@ -1216,8 +1231,10 @@ function AdminPageInner() {
                   )}
                 </div>
 
-                {/* Siap Berangkat / Di Bawah Progress */}
+                {/* Pendaftaran baru (nunggu verifikasi/ACC admin) + Siap Berangkat / Di Bawah Progress */}
                 {[
+                  { key: 'verifikasi', icon: '🪪', color: 'border-purple-200 bg-purple-50', label: 'Pendaftaran Menunggu Verifikasi Admin', rows: sahabatMenungguVerifikasi, path: '/admin/sahabat', aksi: 'Verifikasi →' },
+                  { key: 'baru', icon: '📝', color: 'border-blue-200 bg-blue-50', label: 'Pendaftar Baru (belum upload bukti TF)', rows: sahabatPendaftarBaru, path: '/admin/sahabat', aksi: 'Detail →' },
                   { key: 'siap', icon: '🎯', color: 'border-amber-200 bg-amber-50', label: 'Siap Berangkat (≥80%)', rows: sahabatSiapBerangkat },
                   { key: 'bawah', icon: '⚠️', color: 'border-orange-200 bg-orange-50', label: 'Di Bawah Progress Tabungan', rows: sahabatDibawahProgress },
                   { key: 'jadwal', icon: '⏰', color: 'border-red-200 bg-red-50', label: 'Jadwal Target Terlewat (wajib pilih program lain)', rows: sahabatJadwalTerlewat },
@@ -1232,10 +1249,10 @@ function AdminPageInner() {
                         {c.rows.length === 0 ? (
                           <div className="text-xs text-gray-400">Gak ada.</div>
                         ) : c.rows.map(r => (
-                          <button key={r.id} onClick={() => router.push('/admin/sahabat/database')}
+                          <button key={r.id} onClick={() => router.push(c.path || '/admin/sahabat/database')}
                             className="w-full flex items-center justify-between bg-white/70 hover:bg-white rounded-lg px-3 py-2 text-left transition-colors">
-                            <div className="text-xs font-bold text-[#0E2F6E] truncate">{r.nama} <span className="text-gray-400 font-normal">({r.kode_unik})</span></div>
-                            <span className="text-gray-300 text-xs shrink-0">Database →</span>
+                            <div className="text-xs font-bold text-[#0E2F6E] truncate">{r.nama}{r.kode_unik && <span className="text-gray-400 font-normal"> ({r.kode_unik})</span>}</div>
+                            <span className="text-gray-300 text-xs shrink-0">{c.aksi || 'Database →'}</span>
                           </button>
                         ))}
                       </div>

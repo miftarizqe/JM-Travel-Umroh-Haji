@@ -2,8 +2,11 @@ import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 
 // Balikin pesan kenapa setoran mandiri belum bisa diajukan, null kalau boleh.
+// "Terverifikasi" buat Sahabat = status 'active' (di-ACC admin di ujung
+// funnel pendaftaran) — BUKAN users.terverifikasi, kolom itu auto-1 buat
+// sahabat sejak daftar (lihat /api/auth/register).
 function syaratSetoranMandiri(user) {
-  if (!Number(user.terverifikasi)) return 'Akun Anda belum diverifikasi admin. Setoran mandiri bisa diajukan setelah akun diverifikasi.';
+  if (user.status !== 'active') return 'Akun Anda belum diverifikasi/diaktifkan admin. Setoran mandiri bisa diajukan setelah pendaftaran Sahabat Baitullah Anda di-ACC.';
   if (!String(user.no_rekening_tabungan_umroh || '').trim()) return 'Nomor rekening tabungan umroh Anda belum diisi. Lengkapi dulu di halaman Status Pendaftaran.';
   return null;
 }
@@ -27,7 +30,7 @@ export async function POST(request) {
     if (!bukti_path) return Response.json({ error: 'Bukti transfer wajib diunggah' }, { status: 400 });
 
     const [[user]] = await pool.query(
-      'SELECT role, terverifikasi, no_rekening_tabungan_umroh FROM users WHERE id = ?',
+      'SELECT role, status, no_rekening_tabungan_umroh FROM users WHERE id = ?',
       [auth.user.id]
     );
     if (!user || user.role !== 'sahabat_baitullah') {
@@ -63,7 +66,7 @@ export async function GET(request) {
       [auth.user.id]
     );
     const [[user]] = await pool.query(
-      'SELECT terverifikasi, no_rekening_tabungan_umroh, nama_pemilik_rekening_umroh FROM users WHERE id = ?',
+      'SELECT status, no_rekening_tabungan_umroh, nama_pemilik_rekening_umroh FROM users WHERE id = ?',
       [auth.user.id]
     );
     return Response.json({
