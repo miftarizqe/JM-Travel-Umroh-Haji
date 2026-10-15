@@ -1004,7 +1004,10 @@ function AdminPageInner() {
     {key:'refund_belum_ditransfer', label:'Refund Belum Ditransfer', icon:'💸', color:'border-red-200 bg-red-50', group:'pembatalan', items: pending.refund_belum_ditransfer||[]},
   ];
   const CLUSTER_GROUPS = [
-    {key:'akun_lead', label:'Akun & Lead Baru', icon:'🆕'},
+    // DISEMBUNYIKAN SEMENTARA (dikonfirmasi user 2026-10-15) — jangan dihapus,
+    // tinggal un-comment buat munculin lagi grup "🆕 Akun & Lead Baru"
+    // (cluster-nya di atas tetap ada, cuma gak dirender tanpa grup ini).
+    // {key:'akun_lead', label:'Akun & Lead Baru', icon:'🆕'},
     {key:'program_harga', label:'Program & Harga', icon:'🕌'},
     {key:'pembayaran_dokumen', label:'Pembayaran & Dokumen', icon:'💳'},
     {key:'operasional', label:'Operasional & Logistik', icon:'📦'},

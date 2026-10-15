@@ -391,6 +391,9 @@ export default function StatusPendaftaranSahabatPage() {
 
   async function submitSetujuGabungan() {
     if (!setujuGabungan) { alert('Centang persetujuan terlebih dahulu!'); return; }
+    // Konfirmasi terakhir sebelum persetujuan disimpan (dikonfirmasi user
+    // 2026-10-15) — biar jamaah gak asal klik tanpa baca isi suratnya.
+    if (!window.confirm('Pastikan Anda sudah membaca seluruh isi SK-CIF & Surat Pernyataan Kuasa Blokir Rekening sebelum menyetujuinya.\n\nLanjutkan?')) return;
     setSubmittingSetuju(true);
     try {
       const res = await fetch('/api/sahabat/setuju-sk-cif-pemblokiran', { method: 'PATCH' });
