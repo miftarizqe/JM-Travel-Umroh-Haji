@@ -784,30 +784,36 @@ function FormJamaahPageInner() {
               </div>
             </div>
 
+            {/* Keterangan "di bawah 17 tahun" ditulis SEKALI di sini, bukan di
+                tiap label — label beda panjang ke-wrap beda baris & bikin
+                input sebelahan gak sejajar. */}
+            {!wajibAyahPendidikan && (
+              <div className="text-xs text-gray-500 -mb-1">Nama ayah/ibu kandung &amp; pendidikan terakhir opsional untuk jamaah di bawah 17 tahun.</div>
+            )}
             <div className="grid grid-cols-2 gap-3">
-              <div data-field="ayah">
-                <label className={lbl}>Nama Ayah Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
+              <div data-field="ayah" className="flex flex-col">
+                <label className={`${lbl} flex-1`}>Nama Ayah Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional)</span>}</label>
                 <input value={j.ayah} onChange={e => setField('ayah', e.target.value)} className={c('ayah')}/>
                 {err('ayah')}
               </div>
-              <div data-field="ibu">
-                <label className={lbl}>Nama Ibu Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
+              <div data-field="ibu" className="flex flex-col">
+                <label className={`${lbl} flex-1`}>Nama Ibu Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional)</span>}</label>
                 <input value={j.ibu} onChange={e => setField('ibu', e.target.value)} className={c('ibu')}/>
                 {err('ibu')}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div data-field="pendidikan">
-                <label className={lbl}>Pendidikan Terakhir {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
+              <div data-field="pendidikan" className="flex flex-col">
+                <label className={`${lbl} flex-1`}>Pendidikan Terakhir {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional)</span>}</label>
                 <select value={j.pendidikan} onChange={e => setField('pendidikan', e.target.value)} className={c('pendidikan')}>
                   <option value="">— Pilih —</option>
                   {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
                 {err('pendidikan')}
               </div>
-              <div>
-                <label className={lbl}>Pekerjaan (opsional)</label>
+              <div className="flex flex-col">
+                <label className={`${lbl} flex-1`}>Pekerjaan (opsional)</label>
                 <input value={j.pkj} onChange={e => setField('pkj', e.target.value)} className={inp}/>
               </div>
             </div>
