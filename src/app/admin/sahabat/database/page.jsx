@@ -1310,7 +1310,7 @@ export default function DatabaseJamaahPage() {
                   <div key={k.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 text-xs">
                     <div className="min-w-0">
                       <div className="font-bold text-gray-700">{JENIS_SALDO_LABEL[k.jenis] || k.jenis}</div>
-                      <div className="text-gray-400 truncate">{new Date(k.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}{k.keterangan ? ` · ${k.keterangan}` : ''}</div>
+                      <div className="text-gray-600 break-words">{new Date(k.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}{k.keterangan ? ` · ${k.keterangan}` : ''}</div>
                     </div>
                     <div className="text-right shrink-0 pl-2">
                       <div className={`font-bold ${k.nominal < 0 ? 'text-red-600' : 'text-[#C9952A]'}`}>{k.nominal < 0 ? '-' : ''}{fmtRp(Math.abs(k.nominal))}</div>
