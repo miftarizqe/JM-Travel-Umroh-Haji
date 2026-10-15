@@ -854,10 +854,20 @@ export default function DatabaseJamaahPage() {
                         className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100">
                         🌳 Jaringan
                       </button>
-                      <button onClick={() => router.push(`/dashboard/sahabat/riwayat?sahabat_id=${j.user_id}`)}
-                        className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E8F0FB] text-[#1A4FA0] hover:bg-blue-100">
-                        📜 Riwayat Lengkap
-                      </button>
+                      {/* HoP gak boleh liat riwayat lengkap tabungan (cashflow/
+                          setoran mandiri) punya sahabat lain (dikonfirmasi user
+                          2026-10-15, dicabut dari yang sempat dibolehin 2026-10-08)
+                          -- API-nya juga udah dikunci (lihat wajibPemilikAtauAdminHopSahabat
+                          di lib/hopAuth.js), tombol ini disembunyikan biar gak
+                          nunjuk ke endpoint yang bakal 403. Ringkasan ujroh-only
+                          dia TETAP ada lewat 3 kartu Ujroh Cair/Pending/Forecast
+                          di atas (cabang isHop, sumber beda: ujroh-ringkasan). */}
+                      {!isHop && (
+                        <button onClick={() => router.push(`/dashboard/sahabat/riwayat?sahabat_id=${j.user_id}`)}
+                          className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#E8F0FB] text-[#1A4FA0] hover:bg-blue-100">
+                          📜 Riwayat Lengkap
+                        </button>
+                      )}
                     </div>
 
                     {/* Voucher Rp1jt — HoP gak boleh tau (dikonfirmasi user 2026-10-05). */}

@@ -128,13 +128,16 @@ function RiwayatSaldoContent() {
   }, [data]);
 
   const paramId = searchParams.get('sahabat_id');
-  // HoP ikut diizinin liat riwayat sahabat lain (dikonfirmasi user
-  // 2026-10-08, sebelumnya role 'hop' gak masuk daftar ini sama sekali --
-  // tombol "Riwayat Lengkap" di Database Sahabat jadi nge-redirect HoP ke
-  // /dashboard/jamaah lewat guard di bawah, bukan nampilin riwayat).
-  const isAdmin = user && ['admin', 'super_admin', 'hop'].includes(user.role);
-  const targetId = (paramId && isAdmin) ? paramId : user?.id;
-  const lihatOrangLain = isAdmin && paramId && paramId !== user?.id;
+  // HoP SEMPAT diizinin liat riwayat lengkap tabungan sahabat LAIN
+  // (dikonfirmasi user 2026-10-08) -- DICABUT (dikonfirmasi user 2026-10-15,
+  // lihat wajibPemilikAtauAdminHopSahabat di lib/hopAuth.js, API-nya udah
+  // 403 buat HoP yang nyoba liat punya orang lain). `role 'hop'` SENGAJA
+  // gak diikutkan lagi di `bolehLihatOrangLain` -- kalau paramId tetep ke-pass
+  // (mis. HoP ngetik URL manual), targetId jatuh balik ke akun sendiri,
+  // BUKAN error, biar tetap nampilin riwayat miliknya sendiri.
+  const bolehLihatOrangLain = user && ['admin', 'super_admin'].includes(user.role);
+  const targetId = (paramId && bolehLihatOrangLain) ? paramId : user?.id;
+  const lihatOrangLain = bolehLihatOrangLain && paramId && paramId !== user?.id;
 
   function muatPengajuanSaya() {
     fetch('/api/sahabat/setoran-mandiri-pengajuan')
