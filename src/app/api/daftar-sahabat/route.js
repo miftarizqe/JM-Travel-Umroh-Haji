@@ -5,6 +5,7 @@ import { hargaTermurahProgram } from '@/lib/harga';
 import { hariIniWib, SQL_JADWAL_BELUM_LEWAT } from '@/lib/jadwalTarget';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
+import { tempatValid } from '@/lib/dataJamaah';
 
 // Formulir data diri pendaftaran sahabat (funnel "Program Sahabat Bisa
 // Umroh & Haji" kerja sama BSI) — tabel staging SENDIRI (sahabat_pendaftaran),
@@ -21,10 +22,13 @@ function cekDataDiri(body, nik, wa) {
     nama, tl, jk, ayah, pendidikan,
     jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara,
     sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
-    no_paspor,
+    no_paspor, tempat_keluar_paspor,
   } = body;
   if (!nama || !nik || !wa) {
     return 'Data wajib belum lengkap';
+  }
+  if (!tempatValid(tempat_keluar_paspor)) {
+    return 'Tempat Keluar Paspor hanya boleh huruf (tanpa angka)';
   }
   if (!/^\d{16}$/.test(String(nik).trim())) {
     return 'NIK harus 16 digit angka';

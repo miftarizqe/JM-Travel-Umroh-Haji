@@ -6,7 +6,7 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen, parseJamaahData } from '@/lib/dokumenPendukung';
-import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, validasiIsianJamaah } from '@/lib/dataJamaah';
+import { HUBUNGAN_KONTAK_DARURAT, WA_MAKS, PASPOR_MAKS, hanyaAngka, bersihkanPaspor, bersihkanTempat, validasiIsianJamaah } from '@/lib/dataJamaah';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
 
@@ -622,7 +622,7 @@ function FormJamaahPageInner() {
 
             <div>
               <label className={lbl}>Tempat Keluarkan Paspor *</label>
-              <input value={j.tkp} onChange={e => setField('tkp', e.target.value)} className={inp}/>
+              <input value={j.tkp} onChange={e => setField('tkp', bersihkanTempat(e.target.value))} placeholder="Contoh: Jakarta Selatan" className={inp}/>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

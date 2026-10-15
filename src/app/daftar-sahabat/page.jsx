@@ -10,6 +10,7 @@ import { hargaTermurahProgram } from '@/lib/harga';
 import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
+import { bersihkanTempat } from '@/lib/dataJamaah';
 
 const emptyForm = () => ({
   // Tanggal Lahir & Jenis Kelamin SENGAJA kosong (dikonfirmasi user
@@ -351,7 +352,7 @@ export default function DaftarSahabatPage() {
 
             {form.no_paspor.trim() && (<>
               <div><label className={lbl}>Tempat Keluar Paspor</label>
-                <input value={form.tempat_keluar_paspor} onChange={e=>setF('tempat_keluar_paspor',e.target.value)} className={inp}/></div>
+                <input value={form.tempat_keluar_paspor} onChange={e=>setF('tempat_keluar_paspor',bersihkanTempat(e.target.value))} placeholder="Contoh: Jakarta Selatan" className={inp}/></div>
               <div className="grid grid-cols-2 gap-3">
                 <div><label className={lbl}>Masa Berlaku Dari</label>
                   <InputTanggal value={form.masa_berlaku_paspor_dari} onChange={e=>setF('masa_berlaku_paspor_dari',e.target.value)} className={inp}/></div>
