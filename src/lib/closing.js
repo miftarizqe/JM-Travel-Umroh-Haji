@@ -321,7 +321,9 @@ export async function prosesBookingSelesai(bookingId, actor) {
       // ujroh ke direktur jelas asal-usulnya, bukan cuma nama program
       // (dikonfirmasi user 2026-09-02).
       const jamaahBooking = await getUser(conn, b.user_id);
-      const labelAtasNama = `atas nama ${jamaahBooking?.name || '-'} (Kode Agen: ${jamaahBooking?.kode_unik || '-'}, Booking #${bookingId})`;
+      // Kode Agen di-skip kalau pemesannya belum punya kode (bukan ditulis "-").
+      const kodeAgenLabel = jamaahBooking?.kode_unik ? `Kode Agen: ${jamaahBooking.kode_unik}, ` : '';
+      const labelAtasNama = `atas nama ${jamaahBooking?.name || '-'} (${kodeAgenLabel}Booking #${bookingId})`;
 
       if (isSelfCheckout) {
         let hppTotalSendiri = 0;
