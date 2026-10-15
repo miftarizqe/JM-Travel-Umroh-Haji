@@ -127,6 +127,10 @@ function FormJamaahPageInner() {
   const [riwayat, setRiwayat] = useState(null); // { data, sumber } dari /api/form-jamaah/cari-riwayat
   const [riwayatDiabaikan, setRiwayatDiabaikan] = useState(false);
   const [riwayatDipakai, setRiwayatDipakai] = useState(null); // sumber riwayat yang barusan dipakai — pengingat buat cek ulang
+  // Isian yang gagal validasi pas Lanjut/Kirim — { key: pesan }, ditandai
+  // merah langsung di field-nya (dikonfirmasi user 2026-10-15), bukan cuma
+  // alert satu-satu yang hilang begitu ditutup.
+  const [errors, setErrors] = useState({});
   const [uploadingDoc, setUploadingDoc] = useState(null); // key dokumen yang lagi diunggah (buat spinner tombolnya aja)
   // Tautan dokumen yang dilepas (Hapus) atau ditimpa (Ganti) — file fisiknya
   // baru dihapus SETELAH formulir berhasil disimpan (DELETE
@@ -298,6 +302,12 @@ function FormJamaahPageInner() {
   }
 
   function setField(key, val) {
+    setErrors(prev => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
     setJamaahList(prev => {
       const next = [...prev];
       next[currentJ] = { ...next[currentJ], [key]: val };
@@ -332,12 +342,16 @@ function FormJamaahPageInner() {
 
   function validateCurrent() {
     const d = jamaahList[currentJ];
+    const e = {};
+    const kosong = (v) => !v || !String(v).trim();
+    const tandai = (key, pesan) => { if (!e[key]) e[key] = pesan; };
+
     // Field WAJIB (KECUALI: penyakit, pekerjaan, email)
     const wajib = [
       ['nama', 'Nama Sesuai Paspor'],
       ['paspor', 'No. Paspor'],
-      ['exp_mulai', 'Masa Berlaku Paspor (Tanggal Mulai)'],
-      ['exp_paspor', 'Masa Berlaku Paspor (Tanggal Berakhir)'],
+      ['exp_mulai', 'Tanggal Mulai'],
+      ['exp_paspor', 'Tanggal Berakhir'],
       ['tkp', 'Tempat Keluarkan Paspor'],
       ['tl', 'Tempat Lahir'],
       ['ttl', 'Tanggal Lahir'],
@@ -352,84 +366,80 @@ function FormJamaahPageInner() {
       ['kdhub', 'Hubungan Kontak Darurat'],
     ];
     for (const [key, label] of wajib) {
-      if (!d[key] || !String(d[key]).trim()) {
-        alert(`${label} wajib diisi!`); return false;
-      }
+      if (kosong(d[key])) tandai(key, `${label} wajib diisi`);
     }
 
     // Masa berlaku paspor: berakhir harus setelah mulai
-    if (new Date(d.exp_paspor) <= new Date(d.exp_mulai)) {
-      alert('Tanggal berakhir paspor harus setelah tanggal mulai!');
-      return false;
+    if (d.exp_mulai && d.exp_paspor && new Date(d.exp_paspor) <= new Date(d.exp_mulai)) {
+      tandai('exp_paspor', 'Tanggal berakhir harus setelah tanggal mulai');
     }
 
-    const errFormat = validasiIsianJamaah(d);
-    if (errFormat) { alert(errFormat.replace(/^Jamaah: /, '')); return false; }
+    // Format per field — validasiIsianJamaah cuma ngecek field yang ada,
+    // jadi dipanggil per field biar tahu field mana yang salah.
+    for (const key of ['paspor', 'tkp', 'wa', 'kdwa', 'kdhub']) {
+      if (kosong(d[key])) continue;
+      const err = validasiIsianJamaah({ [key]: d[key] });
+      if (err) tandai(key, err.replace(/^Jamaah: /, '').replace(/\.$/, ''));
+    }
 
     const umurJ = hitungUmur(d.ttl);
-    if (booking?.prog_publish_type === 'sahabat_baitullah' && d.untuk_diri_sendiri === true && (umurJ ?? 0) < 17) {
-      alert('Tanggal lahir tidak valid: peserta Program Sahabat Baitullah wajib minimal berusia 17 tahun.');
-      return false;
+    if (d.ttl && booking?.prog_publish_type === 'sahabat_baitullah' && d.untuk_diri_sendiri === true && (umurJ ?? 0) < 17) {
+      tandai('ttl', 'Peserta Program Sahabat Baitullah wajib minimal berusia 17 tahun');
     }
     if (umurJ !== null && umurJ > 17) {
-      if (!d.nik || !String(d.nik).trim()) {
-        alert('No. KTP (NIK) wajib diisi untuk jamaah usia di atas 17 tahun!');
-        return false;
-      }
-      if (!/^\d{16}$/.test(String(d.nik).trim())) {
-        alert('No. KTP (NIK) harus 16 digit angka!');
-        return false;
-      }
+      if (kosong(d.nik)) tandai('nik', 'No. KTP (NIK) wajib diisi untuk jamaah usia di atas 17 tahun');
+      else if (!/^\d{16}$/.test(String(d.nik).trim())) tandai('nik', 'No. KTP (NIK) harus 16 digit angka');
     }
     // Nama Ayah/Ibu Kandung & Pendidikan Terakhir — wajib buat Siskopatuh,
     // KECUALI jamaah di bawah 17 tahun (dikonfirmasi user 2026-10-08, Nama
     // Ibu Kandung nyusul ditambahin 2026-10-13 -- sebelumnya kelewat, cuma
     // Ayah yang kebawa walau sama-sama dibutuhin Siskopatuh).
     if (umurJ === null || umurJ >= 17) {
-      if (!d.ayah || !String(d.ayah).trim()) {
-        alert('Nama Ayah Kandung wajib diisi!'); return false;
-      }
-      if (!d.ibu || !String(d.ibu).trim()) {
-        alert('Nama Ibu Kandung wajib diisi!'); return false;
-      }
-      if (!d.pendidikan || !String(d.pendidikan).trim()) {
-        alert('Pendidikan Terakhir wajib diisi!'); return false;
-      }
+      if (kosong(d.ayah)) tandai('ayah', 'Nama Ayah Kandung wajib diisi');
+      if (kosong(d.ibu)) tandai('ibu', 'Nama Ibu Kandung wajib diisi');
+      if (kosong(d.pendidikan)) tandai('pendidikan', 'Pendidikan Terakhir wajib diisi');
     }
     // Wali/Penanggung Jawab — WAJIB buat jamaah DI BAWAH 17 tahun
     // (dikonfirmasi user 2026-10-13): anak/infant gak ikut tanda tangan
     // Perjanjian Jamaah sendiri, nama wali inilah yang dicetak sebagai
     // penanda tangan mewakili dia di /admin/cetak-perjanjian.
     if (umurJ !== null && umurJ < 17) {
-      if (!d.wali_nama || !String(d.wali_nama).trim()) {
-        alert('Nama Wali/Penanggung Jawab wajib diisi untuk jamaah di bawah 17 tahun!'); return false;
-      }
-      if (!d.wali_hub || !String(d.wali_hub).trim()) {
-        alert('Hubungan Wali dengan jamaah wajib diisi!'); return false;
-      }
+      if (kosong(d.wali_nama)) tandai('wali_nama', 'Nama Wali/Penanggung Jawab wajib diisi');
+      if (kosong(d.wali_hub)) tandai('wali_hub', 'Hubungan Wali wajib diisi');
     }
 
     for (let i = 0; i < jamaahList.length; i++) {
       if (i === currentJ) continue;
       const o = jamaahList[i];
       if (d.nik && o.nik && d.nik.trim() === o.nik.trim()) {
-        alert(`No. KTP sama dengan Jamaah ${i + 1}. Setiap jamaah harus punya KTP berbeda.`); return false;
+        tandai('nik', `No. KTP sama dengan Jamaah ${i + 1} — setiap jamaah harus punya KTP berbeda`);
       }
       if (d.paspor && o.paspor && d.paspor.trim().toLowerCase() === o.paspor.trim().toLowerCase()) {
-        alert(`No. Paspor sama dengan Jamaah ${i + 1}. Setiap jamaah harus punya paspor berbeda.`); return false;
+        tandai('paspor', `No. Paspor sama dengan Jamaah ${i + 1} — setiap jamaah harus punya paspor berbeda`);
       }
       if (d.wa && o.wa && d.wa.trim() === o.wa.trim()) {
-        alert(`No. WhatsApp sama dengan Jamaah ${i + 1}. Gunakan nomor berbeda.`); return false;
+        tandai('wa', `No. WhatsApp sama dengan Jamaah ${i + 1} — gunakan nomor berbeda`);
       }
     }
 
-    return true;
+    setErrors(e);
+    if (Object.keys(e).length === 0) return true;
+    // Gulir ke field merah PERTAMA (urutan tampil di layar, bukan urutan
+    // pengecekan di atas) biar langsung keliatan.
+    requestAnimationFrame(() => {
+      const el = [...document.querySelectorAll('[data-field]')].find(x => e[x.dataset.field]);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.querySelector('input:not([disabled]), select')?.focus({ preventScroll: true });
+    });
+    return false;
   }
 
   // Banner "data sebelumnya" direset tiap pindah jamaah — jangan sampai data
   // orang lain nyangkut buat jamaah lain di booking yang sama.
   function pindahJamaah(next) {
     setCurrentJ(next);
+    setErrors({});
     setRiwayat(null);
     setRiwayatDiabaikan(false);
     setRiwayatDipakai(null);
@@ -517,6 +527,10 @@ function FormJamaahPageInner() {
 
   const inp = "w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
   const lbl = "block text-sm font-semibold text-[#0E2F6E] mb-1.5";
+  const inpErr = "w-full px-4 py-3 rounded-xl border-2 border-red-400 bg-red-50 focus:border-red-500 focus:outline-none text-sm";
+  const c = (key) => (errors[key] ? inpErr : inp);
+  const err = (key) => errors[key] && <div className="text-xs text-red-500 mt-1">⚠ {errors[key]}</div>;
+  const jumlahError = Object.keys(errors).length;
 
   return (
     <Layout title="📋 Formulir Jamaah" showBack>
@@ -601,12 +615,13 @@ function FormJamaahPageInner() {
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
             <div className="font-bold text-[#0E2F6E]">👤 Data Pribadi — Jamaah {currentJ + 1}</div>
 
-            <div>
+            <div data-field="nama">
               <label className={lbl}>Nama Sesuai Paspor *</label>
-              <input value={j.nama} onChange={e => setField('nama', e.target.value)} className={inp}/>
+              <input value={j.nama} onChange={e => setField('nama', e.target.value)} className={c('nama')}/>
+              {err('nama')}
             </div>
 
-            <div>
+            <div data-field="paspor">
               <label className={lbl}>No. Paspor *</label>
               <input value={j.paspor} maxLength={PASPOR_MAKS} placeholder="Contoh: C1234567" onChange={e => {
                 const v = bersihkanPaspor(e.target.value);
@@ -615,19 +630,22 @@ function FormJamaahPageInner() {
                 // kalau sudah pasti gak ada NIK (usia <=17 th, blm punya KTP).
                 // Kalau orangnya dewasa, tunggu NIK-nya diisi (lihat field NIK).
                 if (umur !== null && umur <= 17 && v.trim().length >= 6) cariRiwayat('paspor', v.trim());
-              }} className={inp}/>
+              }} className={c('paspor')}/>
+              {err('paspor')}
             </div>
 
             <div>
               <label className={lbl}>Masa Berlaku Paspor *</label>
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div data-field="exp_mulai">
                   <div className="text-xs text-gray-400 mb-1">Tanggal Mulai</div>
-                  <InputTanggal value={j.exp_mulai} onChange={e => { if (e.target.value) setField('exp_mulai', e.target.value); }} className={inp}/>
+                  <InputTanggal value={j.exp_mulai} onChange={e => { if (e.target.value) setField('exp_mulai', e.target.value); }} className={c('exp_mulai')}/>
+                  {err('exp_mulai')}
                 </div>
-                <div>
+                <div data-field="exp_paspor">
                   <div className="text-xs text-gray-400 mb-1">Tanggal Berakhir</div>
-                  <InputTanggal value={j.exp_paspor} onChange={e => { if (e.target.value) setField('exp_paspor', e.target.value); }} className={inp}/>
+                  <InputTanggal value={j.exp_paspor} onChange={e => { if (e.target.value) setField('exp_paspor', e.target.value); }} className={c('exp_paspor')}/>
+                  {err('exp_paspor')}
                 </div>
               </div>
               {statusPaspor && (
@@ -639,17 +657,19 @@ function FormJamaahPageInner() {
               )}
             </div>
 
-            <div>
+            <div data-field="tkp">
               <label className={lbl}>Tempat Keluarkan Paspor *</label>
-              <input value={j.tkp} onChange={e => setField('tkp', bersihkanTempat(e.target.value))} placeholder="Contoh: Jakarta Selatan" className={inp}/>
+              <input value={j.tkp} onChange={e => setField('tkp', bersihkanTempat(e.target.value))} placeholder="Contoh: Jakarta Selatan" className={c('tkp')}/>
+              {err('tkp')}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-field="tl">
                 <label className={lbl}>Tempat Lahir *</label>
-                <input value={j.tl} onChange={e => setField('tl', e.target.value)} className={inp}/>
+                <input value={j.tl} onChange={e => setField('tl', e.target.value)} className={c('tl')}/>
+                {err('tl')}
               </div>
-              <div>
+              <div data-field="ttl">
                 <label className={lbl}>Tanggal Lahir *{wajib17Tahun && <span className="text-gray-400 font-normal"> (minimal 17 tahun)</span>}</label>
                 <InputTanggal max={maksTglLahir} value={j.ttl} onChange={e => {
                   const v = e.target.value;
@@ -662,11 +682,12 @@ function FormJamaahPageInner() {
                   if (umr !== null && umr <= 17 && j.paspor && j.paspor.trim().length >= 6) {
                     cariRiwayat('paspor', j.paspor.trim());
                   }
-                }} className={inp}/>
+                }} className={c('ttl')}/>
+                {err('ttl')}
               </div>
             </div>
 
-            <div>
+            <div data-field="nik">
               <label className={lbl}>No. KTP (NIK) {nikAktif ? '*' : ''}</label>
               <input
                 value={j.nik}
@@ -680,8 +701,10 @@ function FormJamaahPageInner() {
                 inputMode="numeric"
                 placeholder={nikAktif ? '16 digit sesuai KTP' : 'Isi tanggal lahir dulu (aktif jika usia > 17 th)'}
                 className={`w-full px-4 py-3 rounded-xl border-2 text-sm focus:outline-none transition-colors ${
-                  nikAktif ? 'border-gray-200 focus:border-[#1A4FA0]' : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                  !nikAktif ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                    : errors.nik ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-gray-200 focus:border-[#1A4FA0]'
                 }`}/>
+              {err('nik')}
               {umur !== null && (
                 <div className={`text-xs mt-1 ${nikAktif ? 'text-green-600' : 'text-gray-400'}`}>
                   {nikAktif
@@ -691,12 +714,13 @@ function FormJamaahPageInner() {
               )}
             </div>
 
-            <div>
+            <div data-field="jk">
               <label className={lbl}>Jenis Kelamin *</label>
-              <select value={j.jk} onChange={e => setField('jk', e.target.value)} className={inp}>
+              <select value={j.jk} onChange={e => setField('jk', e.target.value)} className={c('jk')}>
                 <option>Laki-Laki</option>
                 <option>Perempuan</option>
               </select>
+              {err('jk')}
             </div>
 
             {(() => {
@@ -708,15 +732,16 @@ function FormJamaahPageInner() {
               const kirimBeda = j.alamat_kirim_beda ?? (!!(j.alamat_kirim || '').trim() && (j.alamat_kirim || '').trim() !== (j.alamat || '').trim());
               return (
                 <>
-                  <div>
+                  <div data-field="alamat">
                     <label className={lbl}>Alamat Domisili *</label>
                     <input value={j.alamat} onChange={e => {
                       setField('alamat', e.target.value);
                       if (!kirimBeda) setField('alamat_kirim', e.target.value);
-                    }} className={inp}/>
+                    }} className={c('alamat')}/>
+                    {err('alamat')}
                   </div>
 
-                  <div>
+                  <div data-field="alamat_kirim">
                     <label className={lbl}>📦 Alamat Kirim Perlengkapan *</label>
                     <div className="grid grid-cols-2 gap-2">
                       {[
@@ -737,8 +762,9 @@ function FormJamaahPageInner() {
                     </div>
                     {kirimBeda && (
                       <input value={j.alamat_kirim} onChange={e => setField('alamat_kirim', e.target.value)}
-                        placeholder="Alamat lengkap tujuan pengiriman perlengkapan" className={`${inp} mt-2`}/>
+                        placeholder="Alamat lengkap tujuan pengiriman perlengkapan" className={`${c('alamat_kirim')} mt-2`}/>
                     )}
+                    {err('alamat_kirim')}
                     <div className="text-[10px] text-gray-400 mt-1">Alamat tujuan pengiriman koper, ihrom/mukena, dan perlengkapan lainnya.</div>
                   </div>
                 </>
@@ -746,10 +772,11 @@ function FormJamaahPageInner() {
             })()}
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-field="wa">
                 <label className={lbl}>No. WhatsApp *</label>
                 <input value={j.wa} onChange={e => setField('wa', hanyaAngka(e.target.value))}
-                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={inp}/>
+                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={c('wa')}/>
+                {err('wa')}
               </div>
               <div>
                 <label className={lbl}>Email (opsional)</label>
@@ -758,23 +785,26 @@ function FormJamaahPageInner() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-field="ayah">
                 <label className={lbl}>Nama Ayah Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
-                <input value={j.ayah} onChange={e => setField('ayah', e.target.value)} className={inp}/>
+                <input value={j.ayah} onChange={e => setField('ayah', e.target.value)} className={c('ayah')}/>
+                {err('ayah')}
               </div>
-              <div>
+              <div data-field="ibu">
                 <label className={lbl}>Nama Ibu Kandung {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
-                <input value={j.ibu} onChange={e => setField('ibu', e.target.value)} className={inp}/>
+                <input value={j.ibu} onChange={e => setField('ibu', e.target.value)} className={c('ibu')}/>
+                {err('ibu')}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-field="pendidikan">
                 <label className={lbl}>Pendidikan Terakhir {wajibAyahPendidikan ? '*' : <span className="text-gray-400 font-normal">(opsional, jamaah di bawah 17 tahun)</span>}</label>
-                <select value={j.pendidikan} onChange={e => setField('pendidikan', e.target.value)} className={inp}>
+                <select value={j.pendidikan} onChange={e => setField('pendidikan', e.target.value)} className={c('pendidikan')}>
                   <option value="">— Pilih —</option>
                   {PENDIDIKAN_LIST.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
+                {err('pendidikan')}
               </div>
               <div>
                 <label className={lbl}>Pekerjaan (opsional)</label>
@@ -795,14 +825,16 @@ function FormJamaahPageInner() {
                 penanda tangan mewakili dia di lembar perjanjian. */}
             {!wajibAyahPendidikan && (
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div data-field="wali_nama">
                   <label className={lbl}>Nama Wali/Penanggung Jawab *</label>
-                  <input value={j.wali_nama} onChange={e => setField('wali_nama', e.target.value)} className={inp}/>
+                  <input value={j.wali_nama} onChange={e => setField('wali_nama', e.target.value)} className={c('wali_nama')}/>
+                  {err('wali_nama')}
                 </div>
-                <div>
+                <div data-field="wali_hub">
                   <label className={lbl}>Hubungan Wali *</label>
                   <input value={j.wali_hub} onChange={e => setField('wali_hub', e.target.value)}
-                    placeholder="mis. Orang Tua, Kakak" className={inp}/>
+                    placeholder="mis. Orang Tua, Kakak" className={c('wali_hub')}/>
+                  {err('wali_hub')}
                 </div>
                 <div className="col-span-2 text-[10px] text-gray-400 -mt-2">
                   Karena jamaah ini di bawah 17 tahun, Perjanjian Jamaah akan ditandatangani oleh wali ini, bukan jamaah sendiri.
@@ -811,18 +843,20 @@ function FormJamaahPageInner() {
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-field="mahram">
                 <label className={lbl}>Nama Mahram *</label>
-                <input value={j.mahram} onChange={e => setField('mahram', e.target.value)} className={inp}/>
+                <input value={j.mahram} onChange={e => setField('mahram', e.target.value)} className={c('mahram')}/>
+                {err('mahram')}
               </div>
-              <div>
+              <div data-field="hub_mahram">
                 <label className={lbl}>Hubungan Mahram *</label>
-                <select value={j.hub_mahram} onChange={e => setField('hub_mahram', e.target.value)} className={inp}>
+                <select value={j.hub_mahram} onChange={e => setField('hub_mahram', e.target.value)} className={c('hub_mahram')}>
                   <option>Orang Tua</option>
                   <option>Anak</option>
                   <option>Suami/Istri</option>
                   <option>Saudara Kandung</option>
                 </select>
+                {err('hub_mahram')}
               </div>
             </div>
           </div>
@@ -830,25 +864,28 @@ function FormJamaahPageInner() {
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
             <div className="font-bold text-[#0E2F6E]">🆘 Kontak Darurat</div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
+              <div data-field="kdnama">
                 <label className={lbl}>Nama *</label>
-                <input value={j.kdnama} onChange={e => setField('kdnama', e.target.value)} className={inp}/>
+                <input value={j.kdnama} onChange={e => setField('kdnama', e.target.value)} className={c('kdnama')}/>
+                {err('kdnama')}
               </div>
-              <div>
+              <div data-field="kdwa">
                 <label className={lbl}>No. WA *</label>
                 <input value={j.kdwa} onChange={e => setField('kdwa', hanyaAngka(e.target.value))}
-                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={inp}/>
+                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={c('kdwa')}/>
+                {err('kdwa')}
               </div>
             </div>
-            <div>
+            <div data-field="kdhub">
               <label className={lbl}>Hubungan *</label>
-              <select value={j.kdhub} onChange={e => setField('kdhub', e.target.value)} className={inp}>
+              <select value={j.kdhub} onChange={e => setField('kdhub', e.target.value)} className={c('kdhub')}>
                 <option value="">-- Pilih Hubungan --</option>
                 {hubunganList.map(h => <option key={h} value={h}>{h}</option>)}
                 {/* Isian lama (teks bebas, mis. dari riwayat booking sebelumnya)
                     tetap kelihatan biar jamaah sadar harus pilih ulang. */}
                 {j.kdhub && !hubunganList.includes(j.kdhub) && <option value={j.kdhub}>{j.kdhub} (pilih ulang)</option>}
               </select>
+              {err('kdhub')}
             </div>
           </div>
 
@@ -935,6 +972,12 @@ function FormJamaahPageInner() {
                 Saya menyatakan bahwa data yang saya isi adalah benar dan saya menyetujui seluruh peraturan yang berlaku dari JM Travel.
               </span>
             </label>
+          )}
+
+          {jumlahError > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-600">
+              ⚠ Ada {jumlahError} isian yang belum diisi atau belum benar — sudah ditandai merah di atas.
+            </div>
           )}
 
           <div className="flex gap-3">
