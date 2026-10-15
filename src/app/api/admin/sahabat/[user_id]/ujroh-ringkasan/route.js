@@ -71,7 +71,17 @@ export async function GET(request, { params }) {
        WHERE b.referral_sahabat_id = ? AND b.status IN ('active','menunggu_batal')`,
       [user_id]
     );
+    // Checkout buat DIRI SENDIRI -> gak diforecast dapet apa-apa, baik
+    // sahabat biasa maupun HOP (dikonfirmasi user 2026-10-15, replikasi
+    // PERSIS closing.js::prosesBookingSelesai -- 1 dari 4 tempat yang
+    // duplikat logic forecast ini, SEMUA WAJIB disamain kalau aturannya
+    // berubah lagi: closing.js, laporanUjroh.js, sahabat/dashboard/route.js,
+    // endpoint ini).
     let forecastClosing = bookingLangsungAktif.reduce((s, b) => {
+      let jamaahParsed = b.jamaah_data;
+      if (typeof jamaahParsed === 'string') { try { jamaahParsed = JSON.parse(jamaahParsed); } catch { jamaahParsed = []; } }
+      const checkoutDiriSendiri = Array.isArray(jamaahParsed) && jamaahParsed.some(j => j?.untuk_diri_sendiri === true);
+      if (checkoutDiriSendiri) return s;
       if (!isHopAkun) return s + Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
       let hppTotal = 0;
       for (const g of groupJamaahAktif(b)) {
