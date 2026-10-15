@@ -4,7 +4,7 @@ import path from 'path';
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { saldoSahabat, catatPerubahanSaldo, JENIS_SALDO_SAHABAT } from '@/lib/saldoSahabat';
-import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
+import { alasanBelumBisaAccSahabat, cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { pesanUkuranFile } from '@/lib/batasUpload';
 
@@ -70,6 +70,17 @@ export async function PATCH(request) {
           return Response.json({ error: `Batch pengajuan #${pid} belum disetujui (status: ${statusById[pid] || '-'}). Konfirmasi baru bisa dilakukan setelah disetujui.` }, { status: 400 });
         }
       }
+    }
+
+    // ACC pemakaian saldo checkout Program Sahabat Baitullah nunggu formulir
+    // & SPJ beres — dicek SEMUA dulu, sama kayak gerbang di atas.
+    const alasanSahabat = [];
+    for (const bid of new Set(belumConfirm.filter(r => r.jenis === 'pemakaian_saldo_sahabat' && r.booking_id).map(r => r.booking_id))) {
+      const alasan = await alasanBelumBisaAccSahabat(pool, bid);
+      if (alasan) alasanSahabat.push(alasan);
+    }
+    if (alasanSahabat.length > 0) {
+      return Response.json({ error: alasanSahabat.join('\n') }, { status: 400 });
     }
 
     const butuhBuktiRows = belumConfirm.filter(r => !JENIS_TANPA_BUKTI.includes(r.jenis));
