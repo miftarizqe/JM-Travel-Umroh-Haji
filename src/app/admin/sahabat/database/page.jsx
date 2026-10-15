@@ -656,6 +656,16 @@ export default function DatabaseJamaahPage() {
                   ) : (
                     <div className="mt-2.5">
                       {j.target_estimasi_harga ? (
+                        j.target_sudah_checkout ? (
+                          // Udah checkout (ada booking active/menunggu_batal/
+                          // selesai) ke program targetnya -- sama kayak logic
+                          // dashboard jamaah (targetSudahDicheckout, lib/
+                          // targetImpian.js) yang nyembunyiin kartu Progress
+                          // Tabungan begitu ini true. Progress bar % gak lagi
+                          // relevan, dia udah beneran beli bukan masih
+                          // ngumpulin (dikonfirmasi user 2026-10-15).
+                          <div className="text-[10px] text-green-600 font-bold">✅ Target Beres — Sudah Checkout</div>
+                        ) : (
                         <>
                           <div className="flex items-center justify-between text-[10px] text-gray-500 mb-1">
                             <span>{j.target_minat || 'Target belum diberi nama'} — {fmtRp(j.target_estimasi_harga)}{j.target_bulan ? ` · ${j.target_bulan} bulan` : ''}</span>
@@ -678,6 +688,7 @@ export default function DatabaseJamaahPage() {
                             <div className="mt-1.5 text-[10px] text-green-600 font-bold">✅ Sudah dibuatkan Program Eksklusif</div>
                           )}
                         </>
+                        )
                       ) : (
                         <div className="text-[10px] text-gray-400">Belum ada target program.</div>
                       )}

@@ -156,7 +156,17 @@ export async function GET(request) {
        sl.saldo_updated_at,
        COALESCE(sl.saldo_pending, 0) AS saldo_pending,
        COALESCE(sl.ujroh_cair, 0) AS ujroh_cair,
-       COALESCE(sl.ujroh_pending, 0) AS ujroh_pending
+       COALESCE(sl.ujroh_pending, 0) AS ujroh_pending,
+       -- Replikasi PERSIS targetSudahDicheckout() (lib/targetImpian.js, yang
+       -- dipakai dashboard jamaah buat nyembunyiin kartu Progress Tabungan)
+       -- biar progress bar di admin SINKRON -- sebelumnya progress bar di
+       -- sini jalan terus walau orangnya udah checkout ke program
+       -- targetnya, bikin keliatan kayak masih ngumpulin padahal udah beres
+       -- (dikonfirmasi user 2026-10-15).
+       EXISTS (
+         SELECT 1 FROM bookings bk
+         WHERE bk.user_id = kp.user_id AND bk.prog_id = kp.program_id AND bk.status IN ('active','menunggu_batal','selesai')
+       ) AS target_sudah_checkout
     `;
 
     // Ringkasan (total/aktif/proses/siap_berangkat) SELALU dihitung dari
