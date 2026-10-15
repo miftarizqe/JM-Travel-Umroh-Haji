@@ -7,6 +7,30 @@ import { pembayaranSudahDiAcc } from '@/lib/bookingStage';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 
+// Program Sahabat Baitullah: gak ada refund tunai, dana yang sudah masuk
+// dikembalikan ke saldo tabungan umroh (dikonfirmasi user 2026-10-16) —
+// ditampilin di sini biar user tau berapa yang bisa dipakai buat program
+// lain. Angka dari /api/bookings/[id] (dana_refund), rumus sama dengan yang
+// dieksekusi server pas pembatalan disetujui.
+function InfoKembaliKeSaldo({ dana }) {
+  if (!dana) return null;
+  const total = Number(dana.sisaBisaDirefund || 0) + Number(dana.holdBelumAcc || 0);
+  return (
+    <div className="bg-purple-50 border border-purple-200 border-l-4 border-l-purple-800 rounded-xl p-4">
+      <div className="font-bold text-purple-900 text-sm mb-1">💰 Dana Kembali ke Saldo Tabungan</div>
+      <div className="text-2xl font-black text-purple-800">{rp(total)}</div>
+      <div className="flex justify-between text-xs mt-2 pt-2 border-t border-purple-200">
+        <span className="text-purple-900">Refund tunai</span>
+        <span className="font-bold text-gray-600">{rp(0)} <span className="font-normal text-gray-400">(tidak bisa ditarik tunai)</span></span>
+      </div>
+      <p className="text-xs text-purple-900 mt-2 leading-relaxed">
+        Program Sahabat Baitullah tidak ada refund tunai. Jika pembatalan disetujui, dana ini
+        <b> dikembalikan ke saldo tabungan umroh Anda</b> dan bisa langsung dipakai untuk checkout program lain.
+      </p>
+    </div>
+  );
+}
+
 export default function BatalkanProgramPage() {
   return (
     <Suspense fallback={<Layout backHref="/dashboard/jamaah"><div className="flex items-center justify-center py-20 text-gray-400">Memuat...</div></Layout>}>
@@ -25,6 +49,7 @@ function BatalkanProgramPageInner() {
   const [setuju, setSetuju] = useState(false);
   const [loading, setLoading] = useState(true);
   const [proses, setProses] = useState(false);
+  const [danaSaldo, setDanaSaldo] = useState(null); // dana_refund kalau booking program Sahabat Baitullah
 
   const isDirty = !!alasan.trim() || setuju;
   useUnsavedGuard(isDirty);
@@ -40,6 +65,11 @@ function BatalkanProgramPageInner() {
         const found = (d.bookings || []).find(b => b.id === bookingId);
         setBooking(found || null);
         setLoading(false);
+        if (found?.prog_publish_type === 'sahabat_baitullah') {
+          fetch(`/api/bookings/${found.id}`).then(r => r.json())
+            .then(det => { if (det.booking?.sahabat_eksklusif) setDanaSaldo(det.booking.dana_refund || null); })
+            .catch(() => {});
+        }
       })
       .catch(() => setLoading(false));
   }, [bookingId]);
@@ -102,6 +132,7 @@ function BatalkanProgramPageInner() {
           <h4 className="font-bold text-blue-800 mb-1">Booking Sudah Dikonfirmasi</h4>
           <p className="text-sm text-blue-600">Pembayaran booking ini sudah dikonfirmasi admin, jadi tidak bisa dibatalkan sendiri. Hubungi admin JM Travel untuk pembatalan.</p>
         </div>
+        {danaSaldo && <div className="max-w-md mx-auto mt-4"><InfoKembaliKeSaldo dana={danaSaldo} /></div>}
       </Layout>
     );
   }
@@ -158,8 +189,11 @@ function BatalkanProgramPageInner() {
           </p>
         </div>
 
-        {/* Ketentuan refund hanya relevan kalau sudah ada pembayaran */}
-        {sudahBayar && (
+        {danaSaldo && <InfoKembaliKeSaldo dana={danaSaldo} />}
+
+        {/* Ketentuan refund hanya relevan kalau sudah ada pembayaran — gak
+            berlaku buat Program Sahabat Baitullah (dananya balik ke saldo). */}
+        {sudahBayar && !danaSaldo && (
           <div className="bg-white rounded-xl border-2 border-[#C9952A] p-4">
             <div className="font-bold text-[#0E2F6E] text-sm mb-2">💰 Ketentuan Pengembalian Dana</div>
             <div className="space-y-2 text-xs text-gray-600">

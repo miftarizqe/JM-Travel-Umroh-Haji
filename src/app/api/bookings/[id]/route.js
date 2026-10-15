@@ -81,14 +81,16 @@ export async function GET(request, { params }) {
         [booking.id]
       );
       booking.saldo_hold_pending = hold || null;
-
-      // Info buat form "Batalkan Booking/Jamaah" — batas refund yang SAMA
-      // persis kayak yang divalidasi server (lihat infoDanaRefund), plus
-      // flag program Sahabat Baitullah eksklusif (gak ada refund tunai).
-      booking.dana_refund = await infoDanaRefund(pool, booking.id);
-      const [[pr]] = await pool.query('SELECT publish_type FROM programs WHERE id = ?', [booking.prog_id]);
-      booking.sahabat_eksklusif = pr?.publish_type === 'sahabat_baitullah';
     }
+
+    // Info dana buat form "Batalkan Booking/Jamaah" admin — batas refund yang
+    // SAMA persis kayak yang divalidasi server (lihat infoDanaRefund) — dan
+    // buat pemilik booking program Sahabat Baitullah eksklusif: berapa yang
+    // bakal balik ke saldo tabungannya kalau batal (dikonfirmasi user
+    // 2026-10-16, uangnya dikembalikan ke saldo, bukan refund tunai).
+    const [[pr]] = await pool.query('SELECT publish_type FROM programs WHERE id = ?', [booking.prog_id]);
+    booking.sahabat_eksklusif = pr?.publish_type === 'sahabat_baitullah';
+    booking.dana_refund = await infoDanaRefund(pool, booking.id, null, { sahabatEksklusif: booking.sahabat_eksklusif });
 
     return Response.json({ booking });
   } catch (error) {

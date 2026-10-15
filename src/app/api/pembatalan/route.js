@@ -3,10 +3,10 @@ import { wajibLogin, wajibRole } from '@/lib/auth';
 import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { lepasVoucher } from '@/lib/voucher';
-import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
+import { lepasHoldSaldoSahabat, saldoSahabat, catatPerubahanSaldo } from '@/lib/saldoSahabat';
 import { pembayaranSudahDiAcc } from '@/lib/bookingStage';
 import { releaseNomorSuratJikaBulanSama } from '@/lib/nomorSurat';
-import { infoDanaRefund } from '@/lib/danaRefund';
+import { infoDanaRefund, porsiRefund } from '@/lib/danaRefund';
 
 /**
  * Pembatalan Program
@@ -277,23 +277,16 @@ async function dalamTransaksi(fn) {
 // sisa kalau batal booking utuh / jamaah aktif terakhir, porsi 1 orang
 // (bobot harga_jual kalau booking pernah diedit per-orang, rata kalau
 // seragam) kalau batal per-jamaah — bukan total seluruh booking.
+//
+// Program Sahabat Baitullah eksklusif: gak ada refund tunai — SEMUA dana
+// masuk (porsi yang dibatalkan) dikembalikan ke saldo tabungan, otomatis,
+// nominal dari admin diabaikan (dikonfirmasi user 2026-10-16).
 async function hitungRefund(conn, { p, entries, sahabatEksklusif, penyebab, refund_nominal }) {
-  const { totalDibayar, sudahDirefund, sisaBisaDirefund } = await infoDanaRefund(conn, p.booking_id, p.id);
+  const { totalDibayar, sudahDirefund, sisaBisaDirefund } = await infoDanaRefund(conn, p.booking_id, p.id, { sahabatEksklusif });
 
   let nominal;
-  if (sahabatEksklusif) {
-    nominal = 0;
-  } else if (penyebab === 'kesalahan_jm_travel') {
-    const aktif = entries.map((e, i) => ({ e, i })).filter(({ e }) => e.status_jamaah !== 'dibatalkan');
-    if (p.jamaah_idx == null || aktif.length <= 1) {
-      nominal = sisaBisaDirefund;
-    } else {
-      const pakaiHarga = aktif.every(({ e }) => e.harga_jual != null && Number(e.harga_jual) > 0);
-      const bobot = ({ e }) => (pakaiHarga ? Number(e.harga_jual) : 1);
-      const totalBobot = aktif.reduce((s, x) => s + bobot(x), 0);
-      const target = aktif.find(x => x.i === p.jamaah_idx);
-      nominal = totalBobot > 0 && target ? Math.round(sisaBisaDirefund * bobot(target) / totalBobot) : 0;
-    }
+  if (sahabatEksklusif || penyebab === 'kesalahan_jm_travel') {
+    nominal = porsiRefund(entries, p.jamaah_idx, sisaBisaDirefund);
   } else {
     nominal = Number(refund_nominal || 0);
     if (!Number.isFinite(nominal)) throw gagal('Nominal refund tidak valid.');
@@ -321,10 +314,10 @@ async function eksekusiPembatalan(conn, p, actorUser, { penyebab, refund_nominal
   if (bk.status === 'dibatalkan') throw gagal('Booking ini sudah dibatalkan.');
   if (bk.status === 'selesai') throw gagal('Perjalanan sudah selesai, tidak bisa dibatalkan.');
 
-  // Program Sahabat Baitullah eksklusif (checkout mandiri, setoran 1jt) TIDAK
-  // PERNAH ada refund cash — setoran itu sudah berwujud voucher, dan kalau
-  // batal vouchernya dialihfungsikan ke jamaah lain (lepasVoucher di bawah),
-  // bukan ditransfer balik. Dikonfirmasi user 2026-09-18.
+  // Program Sahabat Baitullah eksklusif (checkout mandiri) TIDAK PERNAH ada
+  // refund cash (dikonfirmasi user 2026-09-18) — dananya dikembalikan ke
+  // saldo tabungan Sahabat pemilik booking, biar bisa dipakai checkout
+  // program lain (dikonfirmasi user 2026-10-16, lihat kreditSaldoPembatalan).
   const [[progInfo]] = await conn.query('SELECT publish_type FROM programs WHERE id = ?', [bk.prog_id]);
   const sahabatEksklusif = progInfo?.publish_type === 'sahabat_baitullah';
 
@@ -337,6 +330,13 @@ async function eksekusiPembatalan(conn, p, actorUser, { penyebab, refund_nominal
     }
   }
 
+  // Hold saldo yang belum di-ACC — dilepas (dihapus) kalau booking batal
+  // total, saldo balik sendiri. Dicatat buat info "kembali ke saldo".
+  const [[hold]] = await conn.query(
+    "SELECT COALESCE(-SUM(nominal),0) AS n FROM komisi_ledger WHERE booking_id = ? AND jenis = 'pemakaian_saldo_sahabat' AND dikonfirmasi_at IS NULL",
+    [p.booking_id]
+  );
+
   const { nominal, persen } = await hitungRefund(conn, {
     p, entries: entriesAsli, sahabatEksklusif, penyebab, refund_nominal,
   });
@@ -344,7 +344,9 @@ async function eksekusiPembatalan(conn, p, actorUser, { penyebab, refund_nominal
   // Nominal 0 = tidak ada apa pun yang perlu ditransfer balik, jadi refund
   // langsung 'selesai' (skip tahap upload bukti TF yang cuma relevan kalau
   // beneran ada uang keluar).
-  const refundStatusAwal = nominal > 0 ? 'diproses' : 'selesai';
+  // Kredit ke saldo Sahabat juga langsung 'selesai' — gak ada transfer
+  // keluar yang perlu bukti TF.
+  const refundStatusAwal = nominal > 0 && !sahabatEksklusif ? 'diproses' : 'selesai';
   let namaJamaahDibatalkan = null; // cuma keisi kalau ini pembatalan per-jamaah
 
   await conn.query(
@@ -461,7 +463,46 @@ async function eksekusiPembatalan(conn, p, actorUser, { penyebab, refund_nominal
     }
   }
 
-  return { p, nominal, persen, penyebab, sahabatEksklusif, progIdSeatDibuka: bk.prog_id, namaJamaahDibatalkan };
+  // Hold cuma beneran dilepas kalau booking-nya jadi batal total.
+  const [[bkAkhir]] = await conn.query('SELECT status FROM bookings WHERE id = ?', [p.booking_id]);
+  const holdDilepas = bkAkhir?.status === 'dibatalkan' ? Number(hold.n || 0) : 0;
+
+  let kreditSaldo = 0;
+  if (sahabatEksklusif && nominal > 0) {
+    await kreditSaldoPembatalan(conn, { p, bk, nominal, actorUser });
+    kreditSaldo = nominal;
+  }
+
+  return {
+    p, nominal, persen, penyebab, sahabatEksklusif, progIdSeatDibuka: bk.prog_id, namaJamaahDibatalkan,
+    kembaliKeSaldo: sahabatEksklusif ? kreditSaldo + holdDilepas : 0,
+  };
+}
+
+// Kembalikan dana booking Sahabat Baitullah yang batal ke saldo tabungan
+// pemilik booking. Pakai jenis koreksi_saldo_sahabat (bukan jenis baru —
+// daftar jenis saldo juga dipakai service jm-travel-api, nambah enum berarti
+// wajib ubah 2 repo bareng), DIBEDAIN dari koreksi manual admin lewat
+// booking_id terisi + ref_id 'pembatalan:<id>' (koreksi manual booking_id
+// NULL). Riwayat saldo nampilin baris ini sebagai "Pengembalian Pembatalan".
+async function kreditSaldoPembatalan(conn, { p, bk, nominal, actorUser }) {
+  const [[u]] = await conn.query('SELECT name FROM users WHERE id = ?', [bk.user_id]);
+  const saldoSebelum = await saldoSahabat(conn, bk.user_id);
+  const keterangan = `Pengembalian dana pembatalan booking ${bk.id}`;
+  const [ins] = await conn.query(
+    `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, dikonfirmasi_at)
+     VALUES (?, ?, ?, ?, 'koreksi_saldo_sahabat', 1, ?, ?, NOW())`,
+    [bk.id, `pembatalan:${p.id}`, bk.user_id, u?.name || null, nominal, keterangan]
+  );
+  await catatPerubahanSaldo(conn, {
+    actor: actorUser,
+    userId: bk.user_id,
+    saldoSebelum,
+    aksi: 'sahabat_pengembalian_pembatalan',
+    target_type: 'komisi_ledger',
+    target_id: String(ins.insertId),
+    keterangan: `${keterangan} (${bk.prog_name || '-'}) — Rp${nominal.toLocaleString('id-ID')} kembali ke saldo tabungan ${u?.name || bk.user_id}`,
+  });
 }
 
 // Efek di luar transaksi setelah pembatalan disetujui & ke-commit:
@@ -470,16 +511,19 @@ async function eksekusiPembatalan(conn, p, actorUser, { penyebab, refund_nominal
 // 'batal_langsung_admin' (admin eksekusi sendiri tanpa pengajuan) — dulu
 // dua-duanya kecatat approve_pembatalan, jadi gak kebedain di audit log.
 async function setelahPembatalanDisetujui(id, actorUser, hasil, catatan_admin, aksiAudit = 'approve_pembatalan') {
-  const { p, nominal, persen, penyebab, sahabatEksklusif, progIdSeatDibuka, namaJamaahDibatalkan } = hasil;
+  const { p, nominal, persen, penyebab, sahabatEksklusif, progIdSeatDibuka, namaJamaahDibatalkan, kembaliKeSaldo } = hasil;
 
+  const subjek = namaJamaahDibatalkan
+    ? `Pembatalan ${namaJamaahDibatalkan} pada booking ${p.booking_id} disetujui.`
+    : `Pembatalan booking ${p.booking_id} disetujui.`;
   await kirimNotifikasi(pool, {
     user_id: p.user_id,
     tipe: 'pembatalan_disetujui',
     judul: 'Pembatalan Disetujui',
-    pesan: namaJamaahDibatalkan
-      ? `Pembatalan ${namaJamaahDibatalkan} pada booking ${p.booking_id} disetujui. Refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%).`
-      : `Pembatalan booking ${p.booking_id} disetujui. Refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%).`,
-    link: '/dashboard/jamaah',
+    pesan: sahabatEksklusif
+      ? `${subjek} Rp ${kembaliKeSaldo.toLocaleString('id-ID')} dikembalikan ke saldo tabungan umroh Anda dan bisa dipakai untuk program lain.`
+      : `${subjek} Refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%).`,
+    link: sahabatEksklusif ? '/dashboard/sahabat/riwayat' : '/dashboard/jamaah',
   });
 
   // Seat kebuka — kabarin semua yang daftar "Infokan Jika Ada Slot Kosong"
@@ -508,15 +552,16 @@ async function setelahPembatalanDisetujui(id, actorUser, hasil, catatan_admin, a
     aksi: aksiAudit,
     target_type: 'pembatalan',
     target_id: id,
-    keterangan: `Booking ${p.booking_id}${namaJamaahDibatalkan ? ` — jamaah: ${namaJamaahDibatalkan}` : ''} — refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%)${catatan_admin ? ', catatan: ' + catatan_admin : ''}`,
+    keterangan: `Booking ${p.booking_id}${namaJamaahDibatalkan ? ` — jamaah: ${namaJamaahDibatalkan}` : ''} — ${sahabatEksklusif ? `kembali ke saldo Rp ${kembaliKeSaldo.toLocaleString('id-ID')}` : `refund Rp ${nominal.toLocaleString('id-ID')} (${persen}%)`}${catatan_admin ? ', catatan: ' + catatan_admin : ''}`,
   });
 
   return {
     refund_nominal: nominal,
     refund_persen: persen,
     sahabat_eksklusif: sahabatEksklusif,
+    kembali_ke_saldo: kembaliKeSaldo,
     catatan: sahabatEksklusif
-      ? 'Program Sahabat Baitullah: tidak ada refund tunai, voucher dialihfungsikan.'
+      ? `Program Sahabat Baitullah: Rp ${kembaliKeSaldo.toLocaleString('id-ID')} dikembalikan ke saldo tabungan, bisa dipakai untuk program lain.`
       : penyebab === 'kesalahan_jm_travel'
         ? 'Kesalahan JM Travel: refund 100% dari porsi yang dibatalkan.'
         : 'Refund mengikuti syarat & ketentuan.',
