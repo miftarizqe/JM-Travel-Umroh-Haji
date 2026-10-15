@@ -198,6 +198,7 @@ const AKSI_LABEL = {
   approve_pelunasan: 'Approve Pelunasan', reject_pelunasan: 'Reject Pelunasan',
   booking_selesai: 'Tandai Selesai',
   approve_pembatalan: 'Approve Pembatalan', reject_pembatalan: 'Reject Pembatalan',
+  batal_langsung_admin: 'Batal Langsung oleh Admin',
   approve_user: 'ACC Akun', reject_user: 'Tolak Akun',
   aktifkan_user: 'Aktifkan Akun', nonaktifkan_user: 'Nonaktifkan Akun',
   edit_data_user: 'Edit Data Akun',
@@ -298,6 +299,7 @@ function AdminPageInner() {
   const [editJamaahBusy, setEditJamaahBusy] = useState(false);
   const [batalForm, setBatalForm] = useState(null); // { penyebab, refund_nominal, catatan_admin, jamaah_idx } — null = form tertutup; jamaah_idx null = batalkan seluruh booking, terisi = batalkan 1 jamaah
   const [batalBusy, setBatalBusy] = useState(false);
+  const [batalHasil, setBatalHasil] = useState(null); // pesan sukses batal langsung, tampil sebagai banner di modal detail
   const [exporting, setExporting] = useState(null); // nama tipe export yang lagi diproses, misal 'users'
   const [hierarki, setHierarki] = useState(null); // { tree, flat }
   const [hierarkiView, setHierarkiView] = useState('tree'); // 'tree' | 'flat'
@@ -620,10 +622,16 @@ function AdminPageInner() {
   // dalam 1 grup (Promise.all) — biar loadAll()/setOpenPayment(null) cuma
   // jalan SEKALI di akhir batch (lihat pemanggilnya), bukan tiap payment.
   async function patchPayment(id, action, opts = {}) {
-    await fetch('/api/payments', {
+    const res = await fetch('/api/payments', {
       method: 'PATCH', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ payment_id: id, action, reject_reason: action==='reject'?'Ditolak admin':undefined })
     });
+    // Dulu error-nya ketelen diam-diam (mis. booking udah dibatalkan) —
+    // admin ngira ACC berhasil padahal ditolak server.
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      alert(d.error || 'Gagal memproses pembayaran');
+    }
     if (opts.skipReload) return;
     loadAll();
     setOpenPayment(null);
@@ -869,6 +877,7 @@ function AdminPageInner() {
     setExpandJamaahModal(0);
     setEditPaketForm(null);
     setBatalForm(null);
+    setBatalHasil(null);
     setEditJamaahForm(null);
     setDetailBooking({ loading: true });
     const d = await fetch(`/api/bookings/${bookingId}`).then(r => r.json());
@@ -922,12 +931,12 @@ function AdminPageInner() {
   // seluruh booking) — jamaah lain di booking yang sama tetap aktif, seat
   // yang dilepas cuma 1, jumlah_jamaah & total_harga booking dihitung ulang
   // otomatis di server (lihat setujuiPembatalan cabang jamaah_idx).
+  // Dipanggil dari tahap konfirmasi di form (bukan confirm() browser) —
+  // ringkasan target/refund/seat udah ditinjau admin di situ. Error server
+  // ditampilin inline di form, hasil sukses jadi banner di atas modal.
   async function batalkanBookingLangsung() {
     const perJamaah = batalForm.jamaah_idx != null;
     const namaTarget = perJamaah ? (detailBooking.jamaah_data?.[batalForm.jamaah_idx]?.nama || `jamaah ke-${batalForm.jamaah_idx + 1}`) : null;
-    if (!confirm(perJamaah
-      ? `Batalkan ${namaTarget} dari booking ${detailBooking.id}? Jamaah lain di booking ini tetap aktif. Seat langsung dilepas 1.`
-      : `Batalkan booking ${detailBooking.id} sekarang juga? Seat langsung dilepas & jamaah dikabari.`)) return;
     setBatalBusy(true);
     try {
       const res = await fetch('/api/pembatalan', {
@@ -940,13 +949,16 @@ function AdminPageInner() {
         }),
       });
       const d = await res.json();
-      if (!res.ok) { alert(d.error || 'Gagal membatalkan'); setBatalBusy(false); return; }
-      alert(`${perJamaah ? namaTarget + ' dibatalkan' : 'Booking dibatalkan'}. Refund Rp ${Number(d.refund_nominal || 0).toLocaleString('id-ID')}.`);
-      setBatalForm(null);
-      openBookingDetail(detailBooking.id);
+      if (!res.ok) { setBatalForm(f => ({ ...f, konfirmasi: false, error: d.error || 'Gagal membatalkan' })); return; }
+      const bookingId = detailBooking.id;
+      openBookingDetail(bookingId);
+      setBatalHasil(`${perJamaah ? namaTarget + ' dibatalkan' : 'Booking dibatalkan'}. Refund ${rp(d.refund_nominal || 0)}${d.refund_persen ? ` (${d.refund_persen}%)` : ''} — ${d.catatan}`);
       loadAll();
-    } catch { alert('Terjadi kesalahan'); }
-    setBatalBusy(false);
+    } catch {
+      setBatalForm(f => ({ ...f, konfirmasi: false, error: 'Terjadi kesalahan jaringan, coba lagi.' }));
+    } finally {
+      setBatalBusy(false);
+    }
   }
 
   // Export Excel langsung dari tab terkait, pakai filter yang lagi aktif di tab itu.
@@ -3014,37 +3026,125 @@ function AdminPageInner() {
               // (batalForm.jamaah_idx null, dipicu tombol di bawah field booking)
               // atau 1 jamaah spesifik (jamaah_idx terisi, dipicu tombol di
               // card jamaah masing-masing) — sama form-nya, cuma judul/notice beda.
-              const batalFormBody = batalForm && (
-                <div className="bg-red-50 rounded-lg p-3 space-y-2">
-                  <div className="font-bold text-xs text-red-700">
-                    {batalForm.jamaah_idx != null
-                      ? `Batalkan ${b.jamaah_data?.[batalForm.jamaah_idx]?.nama || `jamaah ke-${batalForm.jamaah_idx + 1}`}`
-                      : 'Batalkan Booking Langsung'}
+              // Jamaah yang masih aktif — dipakai buat (a) nyembunyiin tombol
+              // "Batalkan jamaah ini" kalau tinggal 1 orang (itu = batal booking
+              // utuh, pakai tombol booking-nya), (b) estimasi porsi refund.
+              const jamaahAktif = (Array.isArray(b.jamaah_data) ? b.jamaah_data : [])
+                .map((j, i) => ({ j, i })).filter(({ j }) => j?.status_jamaah !== 'dibatalkan');
+
+              const batalFormBody = batalForm && (() => {
+                const perJamaah = batalForm.jamaah_idx != null;
+                const namaTarget = perJamaah ? (b.jamaah_data?.[batalForm.jamaah_idx]?.nama || `jamaah ke-${batalForm.jamaah_idx + 1}`) : null;
+                const dana = b.dana_refund || { totalDibayar: 0, sudahDirefund: 0, sisaBisaDirefund: 0 };
+                const sisa = dana.sisaBisaDirefund;
+                const batalTotal = !perJamaah || jamaahAktif.length <= 1;
+                const kesalahanJmt = batalForm.penyebab === 'kesalahan_jm_travel';
+
+                // Estimasi refund — rumusnya sama persis kayak hitungRefund di
+                // /api/pembatalan (server tetap yang final).
+                let refundEstimasi;
+                if (b.sahabat_eksklusif) refundEstimasi = 0;
+                else if (kesalahanJmt) {
+                  if (batalTotal) refundEstimasi = sisa;
+                  else {
+                    const pakaiHarga = jamaahAktif.every(({ j }) => j.harga_jual != null && Number(j.harga_jual) > 0);
+                    const bobot = ({ j }) => (pakaiHarga ? Number(j.harga_jual) : 1);
+                    const totalBobot = jamaahAktif.reduce((s, x) => s + bobot(x), 0);
+                    const t = jamaahAktif.find(x => x.i === batalForm.jamaah_idx);
+                    refundEstimasi = totalBobot > 0 && t ? Math.round(sisa * bobot(t) / totalBobot) : 0;
+                  }
+                } else refundEstimasi = Number(batalForm.refund_nominal) || 0;
+
+                const butuhNominal = !b.sahabat_eksklusif && !kesalahanJmt;
+                const nominalMentah = String(batalForm.refund_nominal ?? '').trim();
+                const errorNominal = !butuhNominal ? null
+                  : nominalMentah === '' ? 'Isi nominal refund — ketik 0 kalau memang tidak ada refund.'
+                  : !(Number(nominalMentah) >= 0) ? 'Nominal refund tidak valid.'
+                  : Number(nominalMentah) > sisa ? `Melebihi sisa dana yang bisa direfund (${rp(sisa)}).`
+                  : null;
+
+                const seatDipotong = Number(b.seat_dipotong) || 0;
+                const infoSeat = seatDipotong === 0
+                  ? 'Belum ada kuota kursi yang terpotong (DP belum dikonfirmasi) — kuota program tidak berubah.'
+                  : batalTotal ? `${seatDipotong} kursi dikembalikan ke kuota program.` : '1 kursi dikembalikan ke kuota program.';
+
+                return (
+                  <div className="bg-red-50 rounded-lg p-3 space-y-2">
+                    <div className="font-bold text-xs text-red-700">
+                      {perJamaah ? `Batalkan ${namaTarget}` : 'Batalkan Booking Langsung'}
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-red-100 px-3 py-2 text-[11px] space-y-0.5">
+                      <div className="flex justify-between"><span className="text-gray-500">Dana masuk (terkonfirmasi)</span><span className="font-bold text-[#0E2F6E]">{rp(dana.totalDibayar)}</span></div>
+                      {dana.sudahDirefund > 0 && (
+                        <div className="flex justify-between"><span className="text-gray-500">Sudah direfund sebelumnya</span><span className="font-bold text-gray-600">− {rp(dana.sudahDirefund)}</span></div>
+                      )}
+                      <div className="flex justify-between border-t border-gray-100 pt-0.5"><span className="text-gray-500">Maks. bisa direfund</span><span className="font-bold text-red-600">{rp(sisa)}</span></div>
+                    </div>
+
+                    {batalForm.error && (
+                      <div className="text-[11px] font-semibold text-red-700 bg-red-100 rounded-lg px-3 py-2">{batalForm.error}</div>
+                    )}
+
+                    {!batalForm.konfirmasi ? (
+                      <>
+                        {perJamaah && !batalTotal && <div className="text-[10px] text-gray-500">Jamaah lain di booking ini tetap aktif.</div>}
+                        <select value={batalForm.penyebab} onChange={e => setBatalForm({ ...batalForm, penyebab: e.target.value, error: null })}
+                          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm">
+                          <option value="permintaan_jamaah">Permintaan Jamaah</option>
+                          <option value="kesalahan_jm_travel">Kesalahan JM Travel (refund 100% porsi yang dibatalkan)</option>
+                          <option value="lainnya">Lainnya</option>
+                        </select>
+                        {b.sahabat_eksklusif ? (
+                          <div className="text-[10px] text-purple-800 bg-purple-100 rounded-lg px-3 py-2">
+                            Program Sahabat Baitullah — tidak ada refund tunai, voucher dialihfungsikan ke jamaah lain.
+                          </div>
+                        ) : kesalahanJmt ? (
+                          <div className="text-[11px] text-gray-600">Refund otomatis: <b>{rp(refundEstimasi)}</b></div>
+                        ) : (
+                          <div>
+                            <div className="flex gap-2">
+                              <input type="number" min={0} max={sisa} step={1000} inputMode="numeric"
+                                value={batalForm.refund_nominal} onChange={e => setBatalForm({ ...batalForm, refund_nominal: e.target.value, error: null })}
+                                placeholder="Nominal refund (0 kalau tidak ada)"
+                                className={`flex-1 min-w-0 px-3 py-2 rounded-lg border-2 text-sm ${errorNominal && nominalMentah !== '' ? 'border-red-300' : 'border-gray-200'}`} />
+                              <button type="button" onClick={() => setBatalForm({ ...batalForm, refund_nominal: String(sisa), error: null })}
+                                className="shrink-0 px-3 rounded-lg border-2 border-gray-200 bg-white text-[11px] font-bold text-gray-600 hover:bg-gray-50">Maks</button>
+                            </div>
+                            <div className={`text-[10px] mt-1 ${errorNominal && nominalMentah !== '' ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                              {nominalMentah !== '' && !errorNominal ? `= ${rp(Number(nominalMentah))}` : errorNominal}
+                            </div>
+                          </div>
+                        )}
+                        <textarea value={batalForm.catatan_admin} onChange={e => setBatalForm({ ...batalForm, catatan_admin: e.target.value })}
+                          placeholder="Catatan (opsional)" rows={2}
+                          className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
+                        <div className="flex gap-2">
+                          <button onClick={() => setBatalForm({ ...batalForm, konfirmasi: true, error: null })} disabled={!!errorNominal}
+                            className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">Lanjut — Tinjau</button>
+                          <button onClick={() => setBatalForm(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Batal</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-[11px] font-bold text-red-700">Periksa sebelum dieksekusi — tidak bisa dibatalkan:</div>
+                        <ul className="text-[11px] text-gray-700 space-y-1 list-disc pl-4">
+                          <li>{perJamaah ? <>Jamaah <b>{namaTarget}</b> dibatalkan{batalTotal ? ' — ini jamaah aktif terakhir, booking ikut batal total.' : ', jamaah lain tetap aktif.'}</> : <>Booking <b>{b.id}</b> dibatalkan seluruhnya.</>}</li>
+                          <li>Penyebab: <b>{{ permintaan_jamaah: 'Permintaan Jamaah', kesalahan_jm_travel: 'Kesalahan JM Travel', lainnya: 'Lainnya' }[batalForm.penyebab]}</b></li>
+                          <li>Refund: <b>{rp(refundEstimasi)}</b>{refundEstimasi === 0 ? ' (tidak ada dana yang ditransfer balik)' : ''}</li>
+                          <li>{infoSeat}</li>
+                          {batalTotal && <li>Pembayaran yang masih pending (kalau ada) otomatis ditolak.</li>}
+                          <li>Pemesan dikabari lewat notifikasi.</li>
+                        </ul>
+                        <div className="flex gap-2">
+                          <button onClick={batalkanBookingLangsung} disabled={batalBusy} className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">{batalBusy ? 'Memproses...' : 'Ya, Batalkan Sekarang'}</button>
+                          <button onClick={() => setBatalForm({ ...batalForm, konfirmasi: false })} disabled={batalBusy} className="flex-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-600 text-xs font-bold py-2 rounded-full">Kembali</button>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="text-[10px] text-gray-500">
-                    {batalForm.jamaah_idx != null && 'Jamaah lain di booking ini tetap aktif, seat yang dilepas cuma 1. '}
-                    DP: {rp(b.dp_amount)} ({b.dp_status}) · Total: {rp(b.total_harga)}. Nominal refund gak boleh lebih dari yang beneran udah dikonfirmasi dibayar.
-                  </div>
-                  <select value={batalForm.penyebab} onChange={e => setBatalForm({ ...batalForm, penyebab: e.target.value })}
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm">
-                    <option value="permintaan_jamaah">Permintaan Jamaah</option>
-                    <option value="kesalahan_jm_travel">Kesalahan JM Travel (refund 100%)</option>
-                    <option value="lainnya">Lainnya</option>
-                  </select>
-                  {batalForm.penyebab !== 'kesalahan_jm_travel' && (
-                    <input type="number" value={batalForm.refund_nominal} onChange={e => setBatalForm({ ...batalForm, refund_nominal: e.target.value })}
-                      placeholder="Nominal refund (0 kalau gak ada refund)"
-                      className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
-                  )}
-                  <textarea value={batalForm.catatan_admin} onChange={e => setBatalForm({ ...batalForm, catatan_admin: e.target.value })}
-                    placeholder="Catatan (opsional)" rows={2}
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
-                  <div className="flex gap-2">
-                    <button onClick={batalkanBookingLangsung} disabled={batalBusy} className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs font-bold py-2 rounded-full">{batalBusy ? 'Memproses...' : 'Ya, Batalkan Sekarang'}</button>
-                    <button onClick={() => setBatalForm(null)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold py-2 rounded-full">Batal</button>
-                  </div>
-                </div>
-              );
+                );
+              })();
 
               return (
                 <div className="space-y-4">
@@ -3055,6 +3155,13 @@ function AdminPageInner() {
                     </div>
                     <button onClick={() => setDetailBooking(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
                   </div>
+
+                  {batalHasil && (
+                    <div className="flex items-start justify-between gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-800">
+                      <span>✅ {batalHasil}</span>
+                      <button onClick={() => setBatalHasil(null)} className="text-green-600 hover:text-green-800 leading-none">×</button>
+                    </div>
+                  )}
 
                   {/* Bar progres sama persis dengan yang dilihat jamaah. */}
                   {b.status === 'active' && (
@@ -3331,8 +3438,10 @@ function AdminPageInner() {
 
                                 {/* Batalkan 1 jamaah spesifik — jamaah lain di booking
                                     ini tetap aktif, beda dari "Batalkan Booking Langsung"
-                                    di atas yang membatalkan semuanya sekaligus. */}
-                                {BOOKING_BISA_DIUBAH(b.status) && j.status_jamaah !== 'dibatalkan' && (
+                                    di atas yang membatalkan semuanya sekaligus. Disembunyiin
+                                    kalau tinggal 1 jamaah aktif — itu = batal booking utuh,
+                                    pakai tombol booking-nya biar jalurnya jelas. */}
+                                {BOOKING_BISA_DIUBAH(b.status) && j.status_jamaah !== 'dibatalkan' && jamaahAktif.length > 1 && (
                                   <div className="border-t border-gray-200 mt-3 pt-3">
                                     {(!batalForm || batalForm.jamaah_idx !== idx) ? (
                                       (!batalForm && !editJamaahForm) && (
