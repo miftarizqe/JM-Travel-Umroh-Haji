@@ -433,9 +433,12 @@ export default function ProfilPage() {
                 { label: 'Alamat Domisili', val: user.alamat_domisili_display || user.alamat || '-' },
                 { label: 'Status Akun', val: user.status },
               ].map(f => (
-                <div key={f.label} className="flex justify-between py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-gray-400">{f.label}</span>
-                  <span className="font-semibold text-[#0E2F6E]">{f.val}</span>
+                // Nilai panjang (Alamat KTP/Domisili satu baris berlabel) dulu
+                // kebungkus rata kiri & labelnya ikut kejepit — label dikunci
+                // gak boleh menyusut, nilai rata kanan & boleh pecah baris.
+                <div key={f.label} className="flex justify-between items-start gap-4 py-1.5 border-b border-gray-50 last:border-0">
+                  <span className="text-gray-400 shrink-0">{f.label}</span>
+                  <span className="font-semibold text-[#0E2F6E] text-right leading-snug break-words min-w-0">{f.val}</span>
                 </div>
               ))}
 
