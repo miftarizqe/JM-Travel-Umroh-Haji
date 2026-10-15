@@ -11,7 +11,6 @@ import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { trackLead } from '@/lib/analytics';
 import { ambilRefPerwakilan } from '@/lib/referralCapture';
-import { renderPasalMarkup } from '@/lib/pasalMarkup';
 
 export default function CheckoutPage() {
   return (
@@ -82,18 +81,23 @@ function CheckoutPageInner() {
   const [sahabatTerverifikasi, setSahabatTerverifikasi] = useState(null);
   const [cekSahabatStatus, setCekSahabatStatus] = useState('');
   const [buktiPath, setBuktiPath] = useState(null);
-  // Sahabat Baitullah yang checkout program REGULER wajib baca & setujui
+  // Sahabat Baitullah checkout program REGULER SEMPAT wajib baca & setujui
   // Surat Perjanjian Jamaah SEBELUM bayar DP (dikonfirmasi user 2026-10-11)
-  // — dulu baru diminta di tahap ke-4 progres booking, setelah DP &
-  // formulir. Role lain tetap alur lama.
-  const wajibPerjanjianDulu = user?.role === 'sahabat_baitullah';
-  const [pasalPerjanjian, setPasalPerjanjian] = useState(null);
-  const [perjanjianDibaca, setPerjanjianDibaca] = useState(false);
-  useEffect(() => {
-    if (!wajibPerjanjianDulu) return;
-    fetch('/api/pasal?dokumen=jamaah').then(r => r.json())
-      .then(d => setPasalPerjanjian(d.pasal || [])).catch(() => setPasalPerjanjian([]));
-  }, [wajibPerjanjianDulu]);
+  // -- DICABUT (dikonfirmasi user 2026-10-15): mekanisme itu numpang di
+  // prop `perjanjian` CartPaketKamar yang nge-replace tombol "+ Tambahkan
+  // ke Pesanan" jadi checkbox, efek sampingnya keranjang KEBATAS maks 1
+  // item -- gak bisa checkout buat Diri Sendiri + Orang Lain sekaligus
+  // (beda paket pun gak bisa). Sahabat sekarang ikut alur STANDAR sama
+  // persis jamaah biasa: bebas nambah berapa pun item/paket ke keranjang
+  // (lihat "+ Tambahkan ke Pesanan" di CartPaketKamar, gak ada `perjanjian`
+  // prop lagi dikirim dari sini), DP, BARU Isi Formulir Jamaah, BARU Baca &
+  // Setujui Perjanjian (1x per booking lewat /pks?jenis=jamaah, SAMA
+  // mekanismenya kayak jamaah lain -- isi pasalnya pun SAMA PERSIS,
+  // dikonfirmasi user, "perjanjian program umroh semuanya sama apapun
+  // jenis programnya"). Dokumen Perjanjian Jamaah yang dicetak admin
+  // (/admin/cetak-perjanjian) UDAH otomatis keluar satu-satu per jamaah
+  // sesuai isian formulir masing-masing, gak perlu perubahan apa pun di
+  // situ.
   const [buktiNama, setBuktiNama] = useState(null);
   const [loading, setLoading] = useState(false);
   const [bookingIds, setBookingIds] = useState([]);
@@ -1004,38 +1008,6 @@ function CheckoutPageInner() {
               onRemove={i => setCart(prev => prev.filter((_, idx) => idx !== i))}
               onChangeCurrent={setCurrent}
               onSummaryChange={setSummary}
-              perjanjian={wajibPerjanjianDulu ? {
-                dibaca: perjanjianDibaca && pasalPerjanjian?.length > 0,
-                render: checkbox => (
-                  <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-                    <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white px-4 py-3">
-                      <div className="text-sm font-bold">📜 Surat Perjanjian Jamaah Umroh</div>
-                      <div className="text-[11px] opacity-85">Baca sampai selesai lalu centang persetujuan sebelum lanjut ke pembayaran DP.</div>
-                    </div>
-                    <div onScroll={e => {
-                        const el = e.currentTarget;
-                        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 20) setPerjanjianDibaca(true);
-                      }}
-                      ref={el => {
-                        // Isi pendek yang gak sampai bisa di-scroll langsung dianggap terbaca.
-                        if (el && pasalPerjanjian?.length && !perjanjianDibaca && el.scrollHeight <= el.clientHeight + 20) setPerjanjianDibaca(true);
-                      }}
-                      className="p-4 max-h-72 overflow-y-auto text-xs text-gray-600 space-y-3">
-                      {!pasalPerjanjian ? (
-                        <div className="text-center text-gray-400 py-6">Memuat isi perjanjian...</div>
-                      ) : pasalPerjanjian.length === 0 ? (
-                        <div className="text-center text-red-500 py-6">Isi perjanjian belum tersedia. Silakan hubungi admin JM Travel.</div>
-                      ) : pasalPerjanjian.map(p => (
-                        <div key={p.nomor}>
-                          <div className="font-bold text-[#0E2F6E] mb-0.5">Pasal {p.nomor} — {p.judul}</div>
-                          <div className="leading-relaxed">{renderPasalMarkup(p.isi, null)}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="px-4 py-3 border-t border-gray-100">{checkbox}</div>
-                  </div>
-                ),
-              } : undefined}
               dataDiriSendiri={user.role === 'sahabat_baitullah' ? (dataDiriSahabat || { nama: user.name || '', wa: '', jk: '', alamat: '', nik: '' }) : undefined}
               referralPerwId={user.role === 'perwakilan' ? user.id
                 : permanentReferrer ? permanentReferrer.id
