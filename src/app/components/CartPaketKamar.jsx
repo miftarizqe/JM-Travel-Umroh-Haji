@@ -253,6 +253,24 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
 
   const terkunciPerjanjian = !!perjanjian && cart.length > 0;
 
+  // Profil (dataDiriSendiri) di-fetch pemanggil & bisa telat datang — kalau
+  // "Diri Sendiri" keburu diklik sebelum profil kebaca, autofill di onClick
+  // cuma dapat fallback kosong & klik ulang gak ngapa-ngapain (opsi udah
+  // kepilih). Isi jamaah #1 begitu profil datang, cuma field yang masih
+  // kosong — gak nimpa yang udah diketik.
+  useEffect(() => {
+    if (current.untukDiri !== 'sendiri' || !dataDiriSendiri) return;
+    const isi = { namas: dataDiriSendiri.nama, was: dataDiriSendiri.wa, jks: dataDiriSendiri.jk, alamats: dataDiriSendiri.alamat, niks: dataDiriSendiri.nik };
+    const next = { ...current };
+    let berubah = false;
+    for (const [kolom, nilai] of Object.entries(isi)) {
+      const arr = resizeNamas(current[kolom], current.jumlah);
+      if (nilai && !arr[0]) { arr[0] = nilai; next[kolom] = arr; berubah = true; }
+    }
+    if (berubah) onChangeCurrent(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current.untukDiri, dataDiriSendiri?.nama, dataDiriSendiri?.wa, dataDiriSendiri?.jk, dataDiriSendiri?.alamat, dataDiriSendiri?.nik]);
+
   const [cekNikBusy, setCekNikBusy] = useState(false);
 
   async function tambahkan() {
