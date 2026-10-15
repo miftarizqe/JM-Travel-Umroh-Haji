@@ -287,7 +287,19 @@ export async function GET(request) {
        WHERE b.referral_sahabat_id = ? AND b.status IN ('active','menunggu_batal')`,
       [sahabatId]
     );
+    // Checkout buat DIRI SENDIRI (jamaah_data[0].untuk_diri_sendiri) -> gak
+    // diforecast dapet apa-apa sama sekali, baik sahabat biasa maupun HOP
+    // (dikonfirmasi user 2026-10-15, replikasi PERSIS closing.js::
+    // prosesBookingSelesai & laporanUjroh.js biar 3 tempat ini gak nyimpang
+    // lagi -- bug sebelumnya: route INI sempat lolos gak ke-update pas fix
+    // pertama, jadi dashboard sahabat sendiri masih nunjukin forecast ujroh
+    // dari booking checkout-sendiri-nya padahal harusnya nol).
     const forecastClosingLangsung = bookingLangsungAktif.map(b => {
+      let jamaahParsed = b.jamaah_data;
+      if (typeof jamaahParsed === 'string') { try { jamaahParsed = JSON.parse(jamaahParsed); } catch { jamaahParsed = []; } }
+      const checkoutDiriSendiri = Array.isArray(jamaahParsed) && jamaahParsed.some(j => j?.untuk_diri_sendiri === true);
+      if (checkoutDiriSendiri) return null;
+
       let potensi;
       if (isSelfCheckoutHop) {
         let hppTotal = 0;
@@ -300,7 +312,7 @@ export async function GET(request) {
         potensi = Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
       }
       return { id: b.id, prog_name: b.prog_name, jumlah_jamaah: b.jumlah_jamaah, pemesan_nama: b.pemesan_nama, status: b.status, jenis: 'closing_langsung_sahabat', potensi_nominal: potensi };
-    });
+    }).filter(Boolean);
 
     // Referral permanen reguler (perekrut_sahabat_jamaah_id) — TERPISAH,
     // digate publish_type != 'sahabat_baitullah' sama persis kode asli.
