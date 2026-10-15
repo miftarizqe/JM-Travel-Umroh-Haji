@@ -289,6 +289,14 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
     const sahabatMember = await ambilUserRingkas(b.referral_sahabat_id);
     const oMember = orangSahabat(sahabatMember);
     const isSelfCheckout = hopId && String(b.referral_sahabat_id) === String(hopId);
+    // Replikasi PERSIS closing.js::prosesBookingSelesai (dikonfirmasi user
+    // 2026-10-15) -- sahabat yang checkout program reguler buat DIRINYA
+    // SENDIRI (bukan isSelfCheckout di atas, itu khusus akun HOP) gak
+    // diforecast dapet closerNominal, biar forecast gak kejanjiin ujroh yang
+    // emang gak bakal cair pas beneran closing.
+    let jamaahParsed = b.jamaah_data;
+    if (typeof jamaahParsed === 'string') { try { jamaahParsed = JSON.parse(jamaahParsed); } catch { jamaahParsed = []; } }
+    const checkoutDiriSendiri = Array.isArray(jamaahParsed) && jamaahParsed.some(j => j?.untuk_diri_sendiri === true);
     if (isSelfCheckout) {
       let hppTotal = 0;
       for (const g of groupJamaahAktif(b)) {
@@ -300,10 +308,15 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
     } else {
       const closerNominal = Number(b.sahabat_closing_nominal_closer ?? 1_000_000);
       const hopNominal = Number(b.sahabat_closing_langsung_hop_nominal ?? pengaturanSahabat?.sahabat_closing_langsung_hop_nominal ?? 0);
-      tambahForecastSahabat(oMember, 'closing_langsung_sahabat', closerNominal, b, 'Closing Langsung — belum closing');
+      if (!checkoutDiriSendiri) {
+        tambahForecastSahabat(oMember, 'closing_langsung_sahabat', closerNominal, b, 'Closing Langsung — belum closing');
+      }
       if (hopId) {
         const oHop = orangSahabat(await ambilUserRingkas(hopId));
-        tambahForecastSahabat(oHop, 'closing_langsung_sahabat', hopNominal, b, `Bagian Head of Program — closing oleh ${sahabatMember?.name || '-'} — belum closing`);
+        tambahForecastSahabat(oHop, 'closing_langsung_sahabat', hopNominal, b,
+          checkoutDiriSendiri
+            ? `Bagian Head of Program — ${sahabatMember?.name || '-'} checkout program reguler untuk diri sendiri — belum closing`
+            : `Bagian Head of Program — closing oleh ${sahabatMember?.name || '-'} — belum closing`);
       }
     }
   }

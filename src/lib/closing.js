@@ -301,6 +301,21 @@ export async function prosesBookingSelesai(bookingId, actor) {
       const isSelfCheckout = pengaturanSahabat?.head_of_program_user_id
         && String(b.referral_sahabat_id) === String(pengaturanSahabat.head_of_program_user_id);
 
+      // Jamaah #1 ditandai 'untuk_diri_sendiri: true' pas booking dibuat
+      // KALAU sahabat ini checkout program reguler buat DIRINYA SENDIRI
+      // (pilihan "Diri Sendiri" di checkout, lihat booking.js). BEDA dari
+      // isSelfCheckout di atas (itu KHUSUS akun Head of Program checkout
+      // buat dirinya) — ini berlaku buat SEMUA sahabat biasa. Sebelum fix
+      // ini (dikonfirmasi user 2026-10-15, bug ditemukan: "kalo untuk diri
+      // sendiri dia gak dapet ujroh") closerNominal di bawah TETAP cair ke
+      // sahabat sendiri walau dia cuma beli buat dirinya sendiri, bukan
+      // bantu closing orang lain — referral_sahabat_id SELALU keisi id
+      // akun sendiri dari checkout/page.jsx, jadi gerbang lama di booking.js
+      // yang niatnya reroute ke HOP gak pernah ke-trigger.
+      let jamaahParsed = b.jamaah_data;
+      if (typeof jamaahParsed === 'string') { try { jamaahParsed = JSON.parse(jamaahParsed); } catch { jamaahParsed = []; } }
+      const checkoutDiriSendiri = Array.isArray(jamaahParsed) && jamaahParsed.some(j => j?.untuk_diri_sendiri === true);
+
       // Identitas jamaah pemesan booking ini — dipakai buat keterangan
       // detail (nama + no. akun) di tiap baris ledger, biar rekap pengajuan
       // ujroh ke direktur jelas asal-usulnya, bukan cuma nama program
@@ -327,16 +342,37 @@ export async function prosesBookingSelesai(bookingId, actor) {
         if (pengaturanSahabat?.head_of_program_user_id) {
           const hop = await getUser(conn, pengaturanSahabat.head_of_program_user_id);
           const tercatatHop = await catat(conn, bookingId, hop, 'closing_langsung_sahabat', hopNominal, jml, paket,
-            `Bagian Head of Program — closing ${labelAtasNama} oleh ${sahabatMember?.name || '-'} — ${b.prog_name}`);
+            checkoutDiriSendiri
+              ? `Bagian Head of Program — ${sahabatMember?.name || '-'} checkout program reguler untuk diri sendiri — ${b.prog_name}`
+              : `Bagian Head of Program — closing ${labelAtasNama} oleh ${sahabatMember?.name || '-'} — ${b.prog_name}`);
           if (tercatatHop > 0) {
             rincian.push({ penerima: hop.name, id: hop.id, role: hop.role, jenis: 'closing_langsung_sahabat', nominal: tercatatHop });
           }
         }
 
-        const tercatatCloser = await catat(conn, bookingId, sahabatMember, 'closing_langsung_sahabat', closerNominal, jml, paket,
-          `Closing Langsung — ${labelAtasNama} — ${b.prog_name}`);
-        if (tercatatCloser > 0) {
-          rincian.push({ penerima: sahabatMember.name, id: sahabatMember.id, role: sahabatMember.role, jenis: 'closing_langsung_sahabat', nominal: tercatatCloser });
+        if (checkoutDiriSendiri) {
+          // Checkout buat DIRI SENDIRI (dikonfirmasi user 2026-10-15) —
+          // sahabat GAK dapet closerNominal sama sekali (dia beli, bukan
+          // nge-closing-in orang lain). Jatahnya masuk Operasional
+          // Management, jenis+penerima_id 'operasional_sahabat' SAMA
+          // PERSIS pola sisa pendaftaran di status-pendaftaran-sahabat/
+          // route.js — SENGAJA bukan 'closing_langsung_sahabat' (kalau
+          // dipaksa jenis itu, baris ini ikut tersapu ke batch pengajuan
+          // ujroh mingguan padahal gak ada penerima perorangannya).
+          if (closerNominal > 0) {
+            await conn.query(
+              `INSERT INTO komisi_ledger (booking_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, paket, keterangan)
+               VALUES (?, 'operasional_sahabat', 'Operasional Management', 'operasional_sahabat', ?, ?, ?, ?)`,
+              [bookingId, jml, closerNominal, paket, `Jatah closer (checkout diri sendiri, bukan closing orang lain) — ${labelAtasNama} — ${b.prog_name}`]
+            );
+            rincian.push({ penerima: 'Operasional Management', id: 'operasional_sahabat', role: null, jenis: 'operasional_sahabat', nominal: closerNominal });
+          }
+        } else {
+          const tercatatCloser = await catat(conn, bookingId, sahabatMember, 'closing_langsung_sahabat', closerNominal, jml, paket,
+            `Closing Langsung — ${labelAtasNama} — ${b.prog_name}`);
+          if (tercatatCloser > 0) {
+            rincian.push({ penerima: sahabatMember.name, id: sahabatMember.id, role: sahabatMember.role, jenis: 'closing_langsung_sahabat', nominal: tercatatCloser });
+          }
         }
       }
     }
