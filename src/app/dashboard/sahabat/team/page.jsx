@@ -31,10 +31,26 @@ function labelPerekrutAdmin(t) {
 // biar gak ada yang nyangka SEMUA generasi dapat ujroh (dikonfirmasi user
 // 2026-09-06).
 const GEN_MAX_UJROH_SAHABAT = 5;
+
+// Warna per generasi — dipakai bareng di badge, garis pohon, dan angka
+// ringkasan biar hubungan Gen 1 → Gen 2 → dst gampang diikutin mata.
+// Gen 6+ abu (di luar ujroh). Class ditulis utuh biar gak di-purge Tailwind.
+const WARNA_GEN = {
+  1: { garis: 'bg-purple-600', badge: 'bg-purple-100 text-purple-800', teks: 'text-purple-700' },
+  2: { garis: 'bg-blue-500', badge: 'bg-blue-100 text-blue-800', teks: 'text-blue-600' },
+  3: { garis: 'bg-teal-500', badge: 'bg-teal-100 text-teal-800', teks: 'text-teal-600' },
+  4: { garis: 'bg-amber-500', badge: 'bg-amber-100 text-amber-800', teks: 'text-amber-600' },
+  5: { garis: 'bg-rose-500', badge: 'bg-rose-100 text-rose-800', teks: 'text-rose-600' },
+};
+const WARNA_GEN_LUAR = { garis: 'bg-gray-300', badge: 'bg-gray-100 text-gray-400', teks: 'text-gray-400' };
+function warnaGen(level) {
+  return WARNA_GEN[level] || WARNA_GEN_LUAR;
+}
+
 function GenBadge({ level }) {
   const dapatUjroh = level <= GEN_MAX_UJROH_SAHABAT;
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${dapatUjroh ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-400'}`}
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${warnaGen(level).badge}`}
       title={dapatUjroh ? 'Dalam 5 generasi — dapat ujroh' : 'Di luar 5 generasi — tercatat, tidak dapat ujroh'}>
       Gen {level}{!dapatUjroh && ' 🔒'}
     </span>
@@ -71,18 +87,22 @@ function ProgressKesiapan({ persen }) {
 // level leluhur (garis vertikal lurus kalau cabang leluhur itu masih punya
 // adik di bawahnya), ditutup kolom "siku" milik node ini sendiri (nyambung
 // ke atas, nyambung ke bawah juga kalau dia bukan anak terakhir).
-function TreeConnector({ ancestorContinues, isLast }) {
+// Warna garis ngikutin generasi node yang dihubungkan: siku node ini =
+// warna gen dia sendiri, kolom leluhur ke-i = warna gen saudara-saudara
+// di level itu (levelAwal = gen dari kolom paling kiri).
+function TreeConnector({ ancestorContinues, isLast, level, levelAwal }) {
+  const warna = warnaGen(level).garis;
   return (
     <div className="flex items-stretch shrink-0">
       {ancestorContinues.map((continues, i) => (
         <div key={i} className="relative w-5 shrink-0">
-          {continues && <div className="absolute left-1/2 top-0 bottom-0 w-px bg-gray-200 -translate-x-1/2" />}
+          {continues && <div className={`absolute left-1/2 top-0 bottom-0 w-0.5 -translate-x-1/2 ${warnaGen(levelAwal + i).garis}`} />}
         </div>
       ))}
       <div className="relative w-5 shrink-0">
-        <div className="absolute left-1/2 top-0 h-1/2 w-px bg-gray-200 -translate-x-1/2" />
-        {!isLast && <div className="absolute left-1/2 top-1/2 bottom-0 w-px bg-gray-200 -translate-x-1/2" />}
-        <div className="absolute left-1/2 top-1/2 w-2.5 h-px bg-gray-200 -translate-y-1/2" />
+        <div className={`absolute left-1/2 top-0 h-1/2 w-0.5 -translate-x-1/2 ${warna}`} />
+        {!isLast && <div className={`absolute left-1/2 top-1/2 bottom-0 w-0.5 -translate-x-1/2 ${warna}`} />}
+        <div className={`absolute left-1/2 top-1/2 -right-1 h-0.5 -translate-y-1/2 ${warna}`} />
       </div>
     </div>
   );
@@ -100,14 +120,35 @@ function TeamTreeNode({ member, depth, childrenOf, isLast, ancestorContinues }) 
   return (
     <div>
       <div
-        className={`flex items-stretch gap-2 py-2 pr-2 rounded-lg ${punyaAnak ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+        className={`relative flex items-stretch gap-2 pr-2 rounded-lg ${punyaAnak ? 'cursor-pointer hover:bg-gray-50' : ''}`}
         onClick={() => punyaAnak && setOpen(o => !o)}
       >
-        {depth > 0 && <TreeConnector ancestorContinues={ancestorContinues} isLast={isLast} />}
-        <div className="flex-1 flex items-center justify-between gap-2 min-w-0">
+        {/* py-2 sengaja di konten, BUKAN di baris — kalau di baris, garis
+            konektor ikut kepotong padding dan pohonnya keliatan putus2. */}
+        {/* Garis turun dari ▼ ke anak pertama — tanpa ini ada celah dari
+            tengah baris induk sampai bawahnya (paling keliatan di induk Gen 1
+            yang barisnya tinggi). Posisinya = kolom siku anak (depth*20+10px),
+            ▼ juga diluruskan ke titik yang sama. */}
+        {punyaAnak && open && (
+          <div className={`absolute bottom-0 w-0.5 -translate-x-1/2 ${warnaGen(member.level + 1).garis}`}
+            style={{ left: depth * 20 + 10, top: 'calc(50% + 6px)' }} />
+        )}
+        {depth > 0 && (
+          <TreeConnector ancestorContinues={ancestorContinues} isLast={isLast}
+            level={member.level} levelAwal={member.level - depth + 1} />
+        )}
+        <div className="flex-1 flex items-center justify-between gap-2 min-w-0 py-2">
           <div className="flex items-center gap-2 min-w-0">
-            {punyaAnak && (
-              <span className="text-gray-400 text-xs w-3 shrink-0">{open ? '▼' : '▶'}</span>
+            {/* Selalu ada slot selebar ini — ▼/▶ kalau punya anak, titik
+                warna gen kalau enggak — biar nama saudara se-level lurus
+                sejajar (sebelumnya yang punya anak keliatan menjorok kayak
+                anak dari saudara di atasnya). */}
+            {punyaAnak ? (
+              <span className="text-gray-400 text-xs w-5 -ml-2 text-center shrink-0">{open ? '▼' : '▶'}</span>
+            ) : (
+              <span className="w-5 -ml-2 flex items-center justify-center shrink-0">
+                <span className={`w-2 h-2 rounded-full ${warnaGen(member.level).garis}`} />
+              </span>
             )}
             <div className="min-w-0">
               <div className="font-semibold text-[#0E2F6E] text-sm truncate">
@@ -130,7 +171,7 @@ function TeamTreeNode({ member, depth, childrenOf, isLast, ancestorContinues }) 
               depth={depth + 1}
               childrenOf={childrenOf}
               isLast={i === anak.length - 1}
-              ancestorContinues={depth === 0 ? [] : [...ancestorContinues, !isLast]}
+              ancestorContinues={[...ancestorContinues, !isLast]}
             />
           ))}
         </div>
@@ -425,7 +466,7 @@ function TeamContent() {
             </div>
             {genCounts.perGen.map((jml, i) => (
               <div key={i} className="bg-white rounded-xl border border-[#e0e8f0] p-3 text-center">
-                <div className="text-lg font-black text-purple-700">{jml}</div>
+                <div className={`text-lg font-black ${warnaGen(i + 1).teks}`}>{jml}</div>
                 <div className="text-[9px] text-gray-400 mt-0.5">Gen {i + 1}</div>
               </div>
             ))}
@@ -456,8 +497,23 @@ function TeamContent() {
           <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
             {tab === 'pohon' && (
               <div className="p-2">
+                {/* Pangkal pohon = pemilik jaringan. Tanpa baris ini semua
+                    Gen 1 cuma numpuk tanpa garis penghubung, jadi gak keliatan
+                    kalau mereka saudara satu induk. Gen 1 dirender di depth 1
+                    biar dapat siku + batang yang nyambung ke sini. */}
+                <div className="relative flex items-center gap-2 py-2 pr-2">
+                  <span className="w-5 flex items-center justify-center shrink-0 text-sm">👤</span>
+                  <div className="font-bold text-[#0E2F6E] text-sm truncate">
+                    {lihatJaringanOrangLain ? (targetInfo?.name || '...') : 'Anda'}
+                    <span className="text-[10px] text-gray-400 font-normal ml-1.5">({rootIds.length} Gen 1)</span>
+                  </div>
+                  {rootIds.length > 0 && (
+                    <div className={`absolute bottom-0 w-0.5 -translate-x-1/2 ${warnaGen(1).garis}`}
+                      style={{ left: 10, top: 'calc(50% + 10px)' }} />
+                  )}
+                </div>
                 {rootIds.map((m, i) => (
-                  <TeamTreeNode key={m.id} member={m} depth={0} childrenOf={childrenOf}
+                  <TeamTreeNode key={m.id} member={m} depth={1} childrenOf={childrenOf}
                     isLast={i === rootIds.length - 1} ancestorContinues={[]} />
                 ))}
               </div>
