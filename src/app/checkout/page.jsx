@@ -768,7 +768,7 @@ function CheckoutPageInner() {
                   {noRekeningUmrohMandiri && (
                     <div className="bg-white rounded-lg p-2.5 text-sm font-bold text-[#0E2F6E] text-center">{noRekeningUmrohMandiri}</div>
                   )}
-                  <div className="text-xs text-gray-500">Sudah transfer? Unggah bukti transfernya di <button onClick={() => router.push('/dashboard/sahabat/riwayat?section=pending')} className="text-[#1A4FA0] font-bold underline">Riwayat Tabungan Umroh</button> biar admin bisa langsung verifikasi & menambah saldo Anda — kembali ke sini untuk melanjutkan checkout setelah saldo cukup.</div>
+                  <div className="text-xs text-gray-500">Sudah transfer? Unggah bukti transfernya di <button onClick={() => router.push('/dashboard/sahabat/riwayat?tab=cashflow')} className="text-[#1A4FA0] font-bold underline">Riwayat Tabungan Umroh</button> biar admin bisa langsung verifikasi & menambah saldo Anda — kembali ke sini untuk melanjutkan checkout setelah saldo cukup.</div>
                 </div>
               )}
 
