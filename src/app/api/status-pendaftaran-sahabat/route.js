@@ -459,8 +459,13 @@ export async function PATCH(request) {
           // kalau sudah pernah punya.
           await pastikanKodeInviteSahabat(conn, user_id);
           // Kode unik (SBJMxxxx) — baru dijatah SEKARANG, akun beneran aktif
-          // (dikonfirmasi user 2026-09-07), bukan pas daftar.
-          await pastikanKodeUnik(conn, user_id, 'sahabat_baitullah');
+          // (dikonfirmasi user 2026-09-07), bukan pas daftar. `u.kode_unik`
+          // di atas kebaca SEBELUM baris ini jalan (masih NULL) — pakai nilai
+          // return-nya langsung di bawah (bukan u.kode_unik) biar baris ledger
+          // Gen1-5/operasional gak permanen nyimpen "Kode Agen: -" (bug
+          // dilaporkan 2026-10-15, kode_unik baru digenerate tapi `u` gak
+          // pernah di-refresh).
+          const kodeUnikBaru = await pastikanKodeUnik(conn, user_id, 'sahabat_baitullah');
 
           // Program "Sahabat Baitullah": setoran Rp1jt jemaah baru dipecah jadi
           // ujroh 5 generasi ke atas rantai referral + tabungan awal jemaah
@@ -535,7 +540,7 @@ export async function PATCH(request) {
                   await conn.query(
                     `INSERT INTO komisi_ledger (booking_id, ref_id, penerima_id, penerima_nama, jenis, jumlah_jamaah, nominal, keterangan, level)
                      VALUES (NULL, ?, ?, ?, 'komisi_sahabat', 1, ?, ?, ?)`,
-                    [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (Kode Agen: ${u.kode_unik || '-'})`, gen + 1]
+                    [user_id, ancestor.id, ancestor.name || null, nominal, `Ujroh Generasi ${gen + 1} — atas nama ${p.nama} (Kode Agen: ${kodeUnikBaru || '-'})`, gen + 1]
                   );
                 } else {
                   operasionalTambahan += nominal;
@@ -603,7 +608,7 @@ export async function PATCH(request) {
                   user_id, operasionalTotal,
                   operasionalTambahan > 0
                     ? `Sisa pendaftaran ${p.nama} (Rp${operasionalFlat.toLocaleString('id-ID')}) + jatah gen yang gak kebagian ke ancestor beneran (Rp${operasionalTambahan.toLocaleString('id-ID')}) — rantai perekrut abis, kena HOP, dan/atau upline tidak aktif (status akun bukan 'active')`
-                    : `Sisa pendaftaran Sahabat Baitullah — atas nama ${p.nama} (Kode Agen: ${u.kode_unik || '-'})`,
+                    : `Sisa pendaftaran Sahabat Baitullah — atas nama ${p.nama} (Kode Agen: ${kodeUnikBaru || '-'})`,
                 ]
               );
 

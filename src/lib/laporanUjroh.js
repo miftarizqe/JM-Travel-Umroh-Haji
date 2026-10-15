@@ -195,8 +195,16 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
     if (userCache.has(id)) return userCache.get(id);
     // status+perekrut_id ikut diambil -- dipakai buat jalan rantai ancestor
     // forecast komisi generasi di bawah, bukan buat ditampilkan.
+    // bank/no_rekening/nama_pemilik_rekening (generik, punya perwakilan)
+    // SENGAJA tidak dipakai buat sahabat_baitullah/hop -- rekening mereka
+    // cuma 1 (no_rekening_tabungan_umroh + nama_pemilik_rekening_umroh,
+    // selalu BSI, lihat migrations/229) jadi kolom generik itu permanen
+    // NULL buat role ini & keliru ditandai "rekening belum diisi" padahal
+    // udah diisi (bug dilaporkan 2026-10-15).
     const [[u]] = await pool.query(
-      'SELECT id, name, role, status, perekrut_id, kode_unik, bank, no_rekening, nama_pemilik_rekening FROM users WHERE id = ?', [id]
+      `SELECT id, name, role, status, perekrut_id, kode_unik,
+              no_rekening_tabungan_umroh, nama_pemilik_rekening_umroh
+       FROM users WHERE id = ?`, [id]
     );
     userCache.set(id, u || null);
     return u || null;
@@ -206,7 +214,9 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
     if (!sahabatMap.has(u.id)) {
       sahabatMap.set(u.id, {
         id: u.id, name: u.name, kode_unik: u.kode_unik, role: u.role,
-        bank: u.bank, no_rekening: u.no_rekening, nama_pemilik_rekening: u.nama_pemilik_rekening,
+        bank: u.no_rekening_tabungan_umroh ? 'BSI' : null,
+        no_rekening: u.no_rekening_tabungan_umroh,
+        nama_pemilik_rekening: u.nama_pemilik_rekening_umroh,
         realized_total: 0, realized_detail: [],
         forecast_total: 0, forecast_detail: [],
       });
@@ -244,7 +254,7 @@ export async function hitungLaporanUjroh(pool, { from, to } = {}) {
     totalSahabatRealized += Number(r.nominal);
     closingRows.push({
       role: u.role === 'hop' ? 'hop' : 'sahabat_baitullah', nama: u.name, kode_unik: u.kode_unik,
-      bank: u.bank, no_rekening: u.no_rekening, nama_pemilik_rekening: u.nama_pemilik_rekening,
+      bank: o.bank, no_rekening: o.no_rekening, nama_pemilik_rekening: o.nama_pemilik_rekening,
       kategori: 'Rekening Pribadi', jenis: r.jenis, prog_name: r.prog_name, jumlah_jamaah: r.jumlah_jamaah || 1,
       booking_id: r.booking_id, keterangan: r.keterangan, nominal: Number(r.nominal), tanggal_cair: r.created_at,
     });
