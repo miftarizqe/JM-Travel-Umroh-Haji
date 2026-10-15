@@ -476,28 +476,42 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
         </>
       )}
 
-      {/* Jumlah Jamaah */}
+      {/* Jumlah Jamaah — DIKUNCI ke 1 kalau "Checkout Untuk" = Diri Sendiri
+          (dikonfirmasi user 2026-10-15). Alasannya: ujroh closing_langsung_
+          sahabat ditentukan PER BOOKING dari jamaah_data[0].untuk_diri_sendiri
+          (lihat closing.js/laporanUjroh.js) — kalau 1 booking nyampur jamaah
+          diri sendiri + orang lain (jumlah > 1 sambil pilih "Diri Sendiri"),
+          seluruh booking ikut ke-skip dari ujroh padahal ada orang lain yang
+          beneran di-closing-in. Mau daftarin orang lain SEKALIAN? Tambahkan
+          item "Diri Sendiri" ini ke keranjang dulu (qty 1), baru buka item
+          baru pilih "Orang Lain" dengan jumlah & paketnya sendiri. */}
       <div>
         <div className="font-bold text-[#0E2F6E] mb-3">Jumlah Jamaah</div>
         <div className="flex items-center gap-4">
-          <button onClick={() => {
+          <button disabled={current.untukDiri === 'sendiri'} onClick={() => {
               const jumlah = Math.max(1, current.jumlah - 1);
               onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah), niks: resizeNamas(current.niks, jumlah), tanpaNiks: resizeNamas(current.tanpaNiks, jumlah) });
             }}
-            className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors">−</button>
+            className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent">−</button>
           <span className="text-2xl font-black text-[#0E2F6E] w-8 text-center">{current.jumlah}</span>
-          <button onClick={() => {
+          <button disabled={current.untukDiri === 'sendiri'} onClick={() => {
               const jumlah = Math.min(maxJumlah, current.jumlah + 1);
               onChangeCurrent({ ...current, jumlah, namas: resizeNamas(current.namas, jumlah), was: resizeNamas(current.was, jumlah), jks: resizeNamas(current.jks, jumlah), alamats: resizeNamas(current.alamats, jumlah), niks: resizeNamas(current.niks, jumlah), tanpaNiks: resizeNamas(current.tanpaNiks, jumlah) });
             }}
-            className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors">+</button>
+            className="w-10 h-10 rounded-full border-2 border-[#1A4FA0] text-[#1A4FA0] text-xl font-bold hover:bg-[#E8F0FB] transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent">+</button>
           <span className="text-xs text-gray-400">Sisa seat: {Math.max(0, sisaSeat)}</span>
         </div>
+        {current.untukDiri === 'sendiri' && (
+          <div className="text-[10px] text-gray-400 mt-1.5">
+            Checkout untuk diri sendiri selalu 1 jamaah. Mau daftarin orang lain juga? Tambahkan item ini ke keranjang dulu, lalu buka item baru pilih &ldquo;Orang Lain&rdquo;.
+          </div>
+        )}
       </div>
 
       {/* Opsi Diri Sendiri / Orang Lain — cuma buat akun Sahabat Baitullah.
-          Diri Sendiri: jamaah #1 auto-isi dari profil (sisanya, kalau
-          jumlah > 1, tetap manual). Orang Lain: semua isi manual. */}
+          Diri Sendiri: jamaah #1 auto-isi dari profil, jumlah DIKUNCI 1
+          (dikonfirmasi user 2026-10-15, lihat komentar di "Jumlah Jamaah" di
+          atas). Orang Lain: semua isi manual, jumlah bebas. */}
       {dataDiriSendiri && (
         <div>
           <div className="font-bold text-[#0E2F6E] mb-3">Checkout Untuk</div>
@@ -509,12 +523,15 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
               <div key={o.key}
                 onClick={() => {
                   if (current.untukDiri === o.key) return;
-                  const namas = resizeNamas(current.namas, current.jumlah);
-                  const was = resizeNamas(current.was, current.jumlah);
-                  const jks = resizeNamas(current.jks, current.jumlah);
-                  const alamats = resizeNamas(current.alamats, current.jumlah);
-                  const niks = resizeNamas(current.niks, current.jumlah);
-                  const tanpaNiks = resizeNamas(current.tanpaNiks, current.jumlah);
+                  // Pindah ke "Diri Sendiri" -> kunci jumlah ke 1 (dikonfirmasi
+                  // user 2026-10-15), apapun qty yang udah kepilih sebelumnya.
+                  const jumlahBaru = o.key === 'sendiri' ? 1 : current.jumlah;
+                  const namas = resizeNamas(current.namas, jumlahBaru);
+                  const was = resizeNamas(current.was, jumlahBaru);
+                  const jks = resizeNamas(current.jks, jumlahBaru);
+                  const alamats = resizeNamas(current.alamats, jumlahBaru);
+                  const niks = resizeNamas(current.niks, jumlahBaru);
+                  const tanpaNiks = resizeNamas(current.tanpaNiks, jumlahBaru);
                   // Autofill dari profil CUMA buat opsi Diri Sendiri
                   // (dikonfirmasi user 2026-10-12) — Orang Lain selalu manual.
                   if (o.key === 'sendiri') {
@@ -529,7 +546,7 @@ export default function CartPaketKamar({ prog, cart, onAdd, onRemove, current, o
                     // ke-isi otomatis biar gak kebawa jadi data orang lain.
                     namas[0] = ''; was[0] = ''; jks[0] = ''; alamats[0] = ''; niks[0] = ''; tanpaNiks[0] = '';
                   }
-                  onChangeCurrent({ ...current, untukDiri: o.key, namas, was, jks, alamats, niks, tanpaNiks });
+                  onChangeCurrent({ ...current, untukDiri: o.key, jumlah: jumlahBaru, namas, was, jks, alamats, niks, tanpaNiks });
                 }}
                 className={`rounded-xl p-3 border-2 cursor-pointer ${
                   current.untukDiri === o.key ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'
