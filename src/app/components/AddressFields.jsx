@@ -50,8 +50,16 @@ function useWilayahOptions(level, parentId) {
   return { options: active ? options : [], loading: active && loading };
 }
 
-export function AddressFields({ form, setF, suffix, inp, lbl }) {
+// `errors` opsional ({ [namaField+suffix]: pesan }) — field yang ada di
+// situ dikasih border merah + pesan di bawahnya (dipakai wizard
+// daftar-sahabat, 2026-10-15). Pemanggil lain yang gak ngirim tetap normal.
+export function AddressFields({ form, setF, suffix, inp, lbl, errors }) {
   const k = (name) => `${name}${suffix}`;
+  const inpErr = inp.replace('border-gray-200', 'border-red-400 bg-red-50');
+  const c = (name) => (errors?.[k(name)] ? inpErr : inp);
+  const err = (name) => errors?.[k(name)]
+    ? <div data-err="true" className="text-[11px] text-red-600 mt-1">{errors[k(name)]}</div>
+    : null;
 
   // null = belum dipilih manual, turunin dari NAMA yang udah kesimpen di
   // form (dikonfirmasi user 2026-10-06) — dihitung pas render, BUKAN lewat
@@ -82,10 +90,11 @@ export function AddressFields({ form, setF, suffix, inp, lbl }) {
             setProvinsiIdSel(id); setKotaIdSel(''); setKecIdSel('');
             setF(k('provinsi'), provinsiOpt.find(o => o.id === id)?.name || '');
             setF(k('kota'), ''); setF(k('kec'), ''); setF(k('kel'), '');
-          }} className={inp}>
+          }} className={c('provinsi')}>
             <option value="">Pilih Provinsi</option>
             {provinsiOpt.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
+          {err('provinsi')}
         </div>
         <div><label className={lbl}>Kota/Kabupaten *</label>
           <select value={kotaId} disabled={!provinsiId} onChange={e => {
@@ -93,10 +102,11 @@ export function AddressFields({ form, setF, suffix, inp, lbl }) {
             setKotaIdSel(id); setKecIdSel('');
             setF(k('kota'), kotaOpt.find(o => o.id === id)?.name || '');
             setF(k('kec'), ''); setF(k('kel'), '');
-          }} className={inp}>
+          }} className={c('kota')}>
             <option value="">{!provinsiId ? 'Pilih provinsi dulu' : loadingKota ? 'Memuat...' : 'Pilih Kota/Kabupaten'}</option>
             {kotaOpt.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
+          {err('kota')}
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -106,37 +116,39 @@ export function AddressFields({ form, setF, suffix, inp, lbl }) {
             setKecIdSel(id);
             setF(k('kec'), kecOpt.find(o => o.id === id)?.name || '');
             setF(k('kel'), '');
-          }} className={inp}>
+          }} className={c('kec')}>
             <option value="">{!kotaId ? 'Pilih kota/kabupaten dulu' : loadingKec ? 'Memuat...' : 'Pilih Kecamatan'}</option>
             {kecOpt.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
           </select>
+          {err('kec')}
         </div>
         <div><label className={lbl}>Kelurahan *</label>
-          <select value={form[k('kel')] || ''} disabled={!kecId} onChange={e => setF(k('kel'), e.target.value)} className={inp}>
+          <select value={form[k('kel')] || ''} disabled={!kecId} onChange={e => setF(k('kel'), e.target.value)} className={c('kel')}>
             <option value="">{!kecId ? 'Pilih kecamatan dulu' : loadingKel ? 'Memuat...' : 'Pilih Kelurahan'}</option>
             {kelOpt.map(o => <option key={o.id} value={o.name}>{o.name}</option>)}
           </select>
+          {err('kel')}
         </div>
       </div>
       <div><label className={lbl}>Nama Jalan *</label>
-        <input value={form[k('jalan')]} onChange={e=>setF(k('jalan'),e.target.value)} className={inp}/></div>
+        <input value={form[k('jalan')]} onChange={e=>setF(k('jalan'),e.target.value)} className={c('jalan')}/>{err('jalan')}</div>
       <div className="grid grid-cols-3 gap-3">
         <div><label className={lbl}>No. Rumah *</label>
           <input value={form[k('norumah')]} onChange={e=>setF(k('norumah'),onlyDigits(e.target.value,5))}
-            inputMode="numeric" maxLength={5} className={inp}/></div>
+            inputMode="numeric" maxLength={5} className={c('norumah')}/>{err('norumah')}</div>
         <div><label className={lbl}>RT *</label>
           <input value={form[k('rt')]} onChange={e=>setF(k('rt'),onlyDigits(e.target.value,4))}
-            inputMode="numeric" maxLength={4} className={inp}/></div>
+            inputMode="numeric" maxLength={4} className={c('rt')}/>{err('rt')}</div>
         <div><label className={lbl}>RW *</label>
           <input value={form[k('rw')]} onChange={e=>setF(k('rw'),onlyDigits(e.target.value,4))}
-            inputMode="numeric" maxLength={4} className={inp}/></div>
+            inputMode="numeric" maxLength={4} className={c('rw')}/>{err('rw')}</div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div><label className={lbl}>Kode Pos</label>
           <input value={form[k('kp')]} onChange={e=>setF(k('kp'),onlyDigits(e.target.value,6))}
             inputMode="numeric" maxLength={6} className={inp}/></div>
         <div><label className={lbl}>Negara *</label>
-          <input value={form[k('negara')]} onChange={e=>setF(k('negara'),e.target.value)} className={inp}/></div>
+          <input value={form[k('negara')]} onChange={e=>setF(k('negara'),e.target.value)} className={c('negara')}/>{err('negara')}</div>
       </div>
     </>
   );

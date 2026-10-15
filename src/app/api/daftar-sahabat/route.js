@@ -18,7 +18,7 @@ import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 // error, atau null kalau lolos. nik/wa dari users (dikunci, bukan body).
 function cekDataDiri(body, nik, wa) {
   const {
-    nama, tl, ayah, pendidikan,
+    nama, tl, jk, ayah, pendidikan,
     jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara,
     sama_ktp, jalan_dom, norumah_dom, rt_dom, rw_dom, kel_dom, kec_dom, kota_dom, provinsi_dom, negara_dom,
     no_paspor,
@@ -33,17 +33,24 @@ function cekDataDiri(body, nik, wa) {
   // (dikonfirmasi user 2026-10-08, buat syarat Siskopatuh) — dicek
   // server-side juga, bukan cuma client, biar gak bisa dilewatin via
   // request langsung ke endpoint ini.
-  if (tl) {
-    const lahir = new Date(tl);
-    if (!isNaN(lahir)) {
-      const now = new Date();
-      let umur = now.getFullYear() - lahir.getFullYear();
-      const m = now.getMonth() - lahir.getMonth();
-      if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
-      if (umur < 17) {
-        return 'Pendaftar Sahabat Baitullah wajib minimal berusia 17 tahun';
-      }
+  // Tanggal lahir & jenis kelamin WAJIB (2026-10-15) — form-nya gak
+  // di-autofill lagi (dulu default tgl 17 tahun lalu & "Laki-Laki"), jadi
+  // dicek di sini juga biar gak bisa kosong lewat request langsung.
+  const lahir = tl ? new Date(tl) : null;
+  if (!lahir || isNaN(lahir)) {
+    return 'Tanggal lahir wajib diisi';
+  }
+  {
+    const now = new Date();
+    let umur = now.getFullYear() - lahir.getFullYear();
+    const m = now.getMonth() - lahir.getMonth();
+    if (m < 0 || (m === 0 && now.getDate() < lahir.getDate())) umur--;
+    if (umur < 17) {
+      return 'Pendaftar Sahabat Baitullah wajib minimal berusia 17 tahun';
     }
+  }
+  if (!['Laki-Laki', 'Perempuan'].includes(jk)) {
+    return 'Jenis kelamin wajib dipilih';
   }
   if (!ayah || !String(ayah).trim()) {
     return 'Nama ayah kandung wajib diisi';

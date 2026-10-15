@@ -20,6 +20,16 @@ export const RUTE_TERLINDUNGI = [
   '/ajukan-custom-harga',
   '/ganti-password-wajib',
   '/perbaiki-data-akun',
+  // Ketinggalan dari daftar lama (ketemu 2026-10-15): halaman-halaman ini
+  // butuh user login tapi gak dijaga proxy, jadi begitu sesi 4 jam habis
+  // user nyangkut di "Loading..." selamanya, bukan dilempar ke /login.
+  '/daftar-sahabat',
+  '/bayar-dp',
+  '/bayar-pelunasan',
+  '/tambah-jamaah',
+  '/batalkan-program',
+  '/upgrade-perwakilan',
+  '/tanda-tangan',
 ];
 
 export function isRuteTerlindungi(pathname) {

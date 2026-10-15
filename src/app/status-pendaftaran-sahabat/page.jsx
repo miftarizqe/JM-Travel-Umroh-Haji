@@ -152,7 +152,8 @@ export default function StatusPendaftaranSahabatPage() {
   }
 
   useEffect(() => {
-    if (!user) { router.push('/login'); return; }
+    if (user === undefined) return; // masih hydration, lihat useCurrentUser.js
+    if (user === null) { router.push('/login'); return; }
     if (user.role !== 'sahabat_baitullah') { router.push('/'); return; }
     muat();
     fetch('/api/metode-pembayaran?scope=sahabat_baitullah').then(r => r.json()).then(d => setRekeningSahabat(d.metode || [])).catch(() => {});

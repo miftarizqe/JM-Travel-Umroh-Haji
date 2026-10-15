@@ -107,7 +107,8 @@ export default function DashboardSahabatPage() {
   }
 
   useEffect(() => {
-    if (!user) { router.push('/login'); return; }
+    if (user === undefined) return; // masih hydration, lihat useCurrentUser.js
+    if (user === null) { router.push('/login'); return; }
     if (user.role !== 'sahabat_baitullah') { router.push('/'); return; }
     // Belum aktif (masih dalam funnel pendaftaran) — arahkan ke status
     // tracker, bukan dashboard yang isinya masih kosong semua.

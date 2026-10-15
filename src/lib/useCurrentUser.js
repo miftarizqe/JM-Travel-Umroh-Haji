@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { isRuteTerlindungi } from '@/lib/ruteTerlindungi';
 
 function bacaLocalStorage() {
@@ -51,12 +51,43 @@ function bacaLocalStorage() {
 // Jadi tiap page load, kalau ada cache, tanya server SEKALI (dibagi ke
 // semua pemakai hook ini) — sesi gak aktif -> cache dibuang, tampil mode tamu.
 let cekSesiPromise = null;
+
+// Hydration (2026-10-15): pas halaman dibuka lewat page load PENUH (reload,
+// link langsung, & sekarang SELALU sesudah login/register/logout karena
+// pakai window.location — lihat login/page.jsx), HTML-nya dari server yang
+// gak bisa baca localStorage -> render "belum tau user". Kalau render
+// client pertama langsung baca localStorage (lazy init lama), hasilnya
+// beda -> "Hydration failed" & seluruh tree dirender ulang.
+// Fix: useSyncExternalStore + getServerSnapshot = `undefined` ("belum tau").
+// React sendiri yang tau komponen mana lagi hydration — termasuk isi
+// <Suspense> yang hydrate BELAKANGAN (flag global "udah hydrate" gak bisa
+// dipakai: komponen di luar Suspense keburu jalanin effect-nya duluan).
+// Mount biasa (navigasi client/router.push) langsung pakai getSnapshot,
+// gak ada jeda. `null` = beneran gak ada user.
+// Guard "kalau gak login -> /login" WAJIB cek `user === null`, bukan
+// `!user` — itu sumber bug redirect-keluar 2026-09-03 (lihat di atas:
+// dulu getServerSnapshot = null, gak bisa dibedain dari "gak login").
 const pendengarCache = new Set();
 
 function buangCacheUser() {
   try { localStorage.removeItem('user'); } catch {}
-  for (const fn of pendengarCache) fn(null);
+  for (const fn of pendengarCache) fn();
 }
+
+// Storage event cuma nembak antar-TAB (login/logout di tab lain); perubahan
+// di tab yang sama lewat buangCacheUser. Penulisan localStorage lain di tab
+// yang sama ikut kebaca begitu komponen render ulang (getSnapshot dibaca
+// tiap render).
+function langganan(onChange) {
+  pendengarCache.add(onChange);
+  const onStorage = e => { if (e.key === 'user' || e.key === null) onChange(); };
+  window.addEventListener('storage', onStorage);
+  return () => {
+    pendengarCache.delete(onChange);
+    window.removeEventListener('storage', onStorage);
+  };
+}
+const snapshotServer = () => undefined;
 
 function cekSesiServer() {
   if (!cekSesiPromise) {
@@ -74,12 +105,8 @@ function cekSesiServer() {
 // gak nongol SAMA SEKALI (bahkan sekilas) begitu sesi 4 jam-nya habis
 // (dikonfirmasi user 2026-10-14).
 export function useCurrentUser() {
-  const [raw, setRaw] = useState(bacaLocalStorage);
+  const raw = useSyncExternalStore(langganan, bacaLocalStorage, snapshotServer);
   const [sesiTerkonfirmasi, setSesiTerkonfirmasi] = useState(false);
-  useEffect(() => {
-    pendengarCache.add(setRaw);
-    return () => { pendengarCache.delete(setRaw); };
-  }, []);
   useEffect(() => {
     if (!raw) return;
     let batal = false;
@@ -93,17 +120,8 @@ export function useCurrentUser() {
     });
     return () => { batal = true; };
   }, [raw]);
-  // Storage event cuma nembak antar-TAB (login/logout di tab lain) — bukan
-  // pengganti baca awal di atas, cuma jaga-jaga biar tetap sinkron kalau
-  // ada perubahan dari luar komponen ini.
-  useEffect(() => {
-    function onStorage(e) {
-      if (e.key === 'user' || e.key === null) setRaw(bacaLocalStorage());
-    }
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
   const user = useMemo(() => {
+    if (raw === undefined) return undefined;
     if (!raw) return null;
     try {
       return JSON.parse(raw);

@@ -55,6 +55,16 @@ function CheckoutPageInner() {
   const AUTO_LOCK_SUMBER_ROLES = ['perwakilan', 'sahabat_baitullah'];
   const [sumber, setSumber] = useState(() => AUTO_LOCK_SUMBER_ROLES.includes(user?.role) ? user.role : '');
   const [referralKode, setReferralKode] = useState(() => AUTO_LOCK_SUMBER_ROLES.includes(user?.role) ? (user.kode_unik || '') : '');
+  // Page load penuh (mis. habis login, navigasinya sekarang window.location)
+  // -> `user` baru kebaca SESUDAH hydration (lihat useCurrentUser.js), jadi
+  // lazy initializer di atas kebagian `undefined`. Isi sekali begitu user
+  // ada, tanpa nimpa pilihan yang udah diisi.
+  useEffect(() => {
+    if (!AUTO_LOCK_SUMBER_ROLES.includes(user?.role)) return;
+    setSumber(s => s || user.role);
+    setReferralKode(k => k || user.kode_unik || '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role]);
   // Referral perwakilan PERMANEN (dikunci sejak registrasi) — kalau jamaah
   // punya ini, dropdown "Sumber Informasi" diganti banner read-only di
   // bawah, murni kosmetik karena server (buatSatuBooking) SUDAH memaksa
