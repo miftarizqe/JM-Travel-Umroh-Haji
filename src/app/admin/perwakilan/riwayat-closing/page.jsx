@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { statusBookingBadge } from '@/lib/statusBookingBadge';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -119,9 +120,9 @@ export default function RiwayatClosingPerwakilanPage() {
                       <div>
                         <div className="font-bold text-[#0E2F6E]">{b.prog_name}</div>
                         <div className="text-xs text-gray-400">{b.pemesan_nama} · {b.jumlah_jamaah} jamaah · {fmtRp(b.total_harga)}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">Via: <b className="text-[#1A4FA0]">{b.perwakilan_nama}</b> ({b.perwakilan_kode_unik})</div>
+                        <div className="text-xs text-gray-400 mt-0.5">Via: <b className="text-[#1A4FA0]">{b.perwakilan_nama}</b>{b.perwakilan_kode_unik && ` (${b.perwakilan_kode_unik})`}</div>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500">{b.status}</span>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${statusBookingBadge(b.status).cls}`}>{statusBookingBadge(b.status).label}</span>
                     </div>
                   </button>
                   {openLangsung === b.id && (

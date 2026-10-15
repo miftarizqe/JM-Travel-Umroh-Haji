@@ -7,6 +7,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import { warnaProgress } from '@/lib/kesiapanTabungan';
 import TombolWA from '@/app/components/TombolWA';
 import { STAGE_LABELS, formLengkap, getStage } from '@/lib/bookingStage';
+import { statusBookingBadge } from '@/lib/statusBookingBadge';
 
 function fmtTanggal(iso) {
   if (!iso) return '-';
@@ -202,12 +203,12 @@ function RiwayatClosingContent() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-bold text-[#0E2F6E] text-sm truncate">{b.prog_name}</div>
-                        <div className="text-[10px] text-gray-400">{b.jumlah_jamaah} jamaah · Via: {b.sahabat_nama} ({b.sahabat_kode_unik})</div>
+                        <div className="text-[10px] text-gray-400">{b.jumlah_jamaah} jamaah · Via: {b.sahabat_nama}{b.sahabat_kode_unik && ` (${b.sahabat_kode_unik})`}</div>
                         <div className="text-[10px] text-gray-400 mt-0.5">{fmtTanggal(b.created_at)}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
-                          {STATUS_BOOKING_LABEL[b.status] || b.status}
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${statusBookingBadge(b.status).cls}`}>
+                          {statusBookingBadge(b.status).label}
                         </span>
                         <span className="text-[9px] text-gray-400">{isOpen ? 'Tutup ▲' : 'Detail ▼'}</span>
                       </div>
