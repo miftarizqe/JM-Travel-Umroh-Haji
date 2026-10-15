@@ -788,7 +788,7 @@ function FormJamaahPageInner() {
                 tiap label — label beda panjang ke-wrap beda baris & bikin
                 input sebelahan gak sejajar. */}
             {!wajibAyahPendidikan && (
-              <div className="text-xs text-gray-500">Nama ayah/ibu kandung &amp; pendidikan terakhir opsional untuk jamaah di bawah 17 tahun.</div>
+              <div className="text-xs text-gray-500 pb-2">Nama ayah/ibu kandung &amp; pendidikan terakhir opsional untuk jamaah di bawah 17 tahun.</div>
             )}
             <div className="grid grid-cols-2 gap-3">
               <div data-field="ayah" className="flex flex-col">
