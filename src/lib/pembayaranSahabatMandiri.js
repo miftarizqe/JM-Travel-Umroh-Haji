@@ -1,11 +1,10 @@
 // Finalisasi pembayaran booking Program Sahabat Baitullah checkout mandiri —
-// SELURUHNYA dibayar dari saldo tabungan umroh (dikonfirmasi user
-// 2026-09-29 — jalur transfer-pribadi-ke-rekening-PT-Alkhalid buat nutup
-// sisa DICABUT, checkout ditolak total kalau saldo belum cukup). Booking
+// dibayar dari saldo tabungan umroh (+ Transfer Langsung buat sisanya kalau
+// saldo kurang, dibuka lagi 2026-10-16 — sebelumnya dicabut 2026-09-29). Booking
 // dianggap LUNAS begitu baris debit `pemakaian_saldo_sahabat` di
-// komisi_ledger di-acc admin. `bayar` (payments type='lunas') SELALU null
-// di jalur ini sekarang — dicek tetap dipertahankan buat baris booking
-// LAMA (pra-2026-09-29) yang somehow masih nyangkut campuran saldo+topup.
+// komisi_ledger di-acc admin. `bayar` (payments type='lunas') cuma ada
+// kalau saldo kurang & jamaah pilih Transfer Langsung buat sisanya
+// (dibuka lagi, dikonfirmasi user 2026-10-16) — lunas setelah KEDUANYA di-acc.
 import { kirimNotifikasi } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib/invoiceKwitansi';

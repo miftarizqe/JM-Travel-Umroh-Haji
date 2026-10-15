@@ -214,6 +214,14 @@ export async function PATCH(request) {
     const penerimaNotif = [booking?.user_id, booking?.ordered_by].filter((id, i, arr) => id && arr.indexOf(id) === i);
 
     if (action === 'approve') {
+      // ACC dobel = rekening/kuota kecatat dua kali; ACC payment booking yang
+      // udah batal = kuota kepotong & uang kecatat masuk buat booking mati.
+      if (payment.status === 'confirmed') {
+        return Response.json({ error: 'Pembayaran ini sudah dikonfirmasi sebelumnya.' }, { status: 400 });
+      }
+      if (booking?.status === 'dibatalkan') {
+        return Response.json({ error: 'Booking ini sudah dibatalkan, pembayarannya tidak bisa dikonfirmasi.' }, { status: 400 });
+      }
       // Kuota kursi dicek & dipotong DI SINI (dikonfirmasi user 2026-10-13,
       // bukan lagi pas checkout) -- paling duluan, SEBELUM payment ditandai
       // confirmed, biar kalau kuota ternyata udah penuh, gak ada mutasi
