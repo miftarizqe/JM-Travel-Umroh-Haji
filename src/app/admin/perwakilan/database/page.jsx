@@ -342,10 +342,19 @@ export default function DatabasePerwakilanPage() {
               Jaringan" SENGAJA gak ikut di-copy — sama alasan kayak di
               Database Jamaah Sahabat, gak ada "akar" tunggal di halaman
               yang nampilin semua orang. */}
-          {topPerekrut.length > 0 && (
-            <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-              <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🏆 Top {topPerekrut.length} Perekrut</div>
-              <div className="text-xs text-gray-400 mb-2">Berdasarkan total komisi (ujroh closing + margin reseller).</div>
+          {/* Kartu TETAP dirender walau datanya kosong (dikonfirmasi user
+              2026-10-16, bug: sebelumnya dibungkus `topPerekrut.length > 0
+              &&` jadi kartunya ngilang total kalau belum ada komisi
+              tercatat — keliatan kayak fiturnya gak ada, padahal cuma
+              datanya yang kosong) — sama pola kayak versi asli di
+              dashboard HoP, yang selalu nampilin kartu + pesan "belum ada"
+              daripada nyembunyiin section-nya. */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+            <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🏆 Top {topPerekrut.length || 5} Perekrut</div>
+            <div className="text-xs text-gray-400 mb-2">Berdasarkan total komisi (ujroh closing + margin reseller).</div>
+            {topPerekrut.length === 0 ? (
+              <div className="text-xs text-gray-400 py-3">Belum ada perwakilan yang punya komisi tercatat.</div>
+            ) : (
               <ol className="divide-y divide-gray-50">
                 {topPerekrut.map((s, i) => (
                   <li key={s.id} className="py-2 flex items-center gap-3">
@@ -361,8 +370,8 @@ export default function DatabasePerwakilanPage() {
                   </li>
                 ))}
               </ol>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Tab status — dikonfirmasi user 2026-09-07: dulu dropdown filter
               doang, sekarang tab beneran biar Aktif/Pending/Nonaktif/Rejected

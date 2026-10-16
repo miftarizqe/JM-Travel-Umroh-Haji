@@ -562,10 +562,17 @@ export default function DatabaseJamaahPage() {
           tiap orang dihitung dari dirinya sendiri sebagai akar
           (relasiSemuaSahabat), jadi langsung cocok buat ranking
           keseluruhan populasi. */}
-      {topPerekrut.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-          <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🏆 Top {topPerekrut.length} Perekrut</div>
-          <div className="text-xs text-gray-400 mb-2">Berdasarkan total relasi aktif Gen1–Gen5.</div>
+      {/* Kartu TETAP dirender walau datanya kosong (dikonfirmasi user
+          2026-10-16, sama fix kayak di Database Perwakilan) — sebelumnya
+          dibungkus `topPerekrut.length > 0 &&` jadi kartunya ngilang total
+          kalau belum ada yang punya relasi aktif, keliatan kayak fiturnya
+          gak ada. */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🏆 Top {topPerekrut.length || 5} Perekrut</div>
+        <div className="text-xs text-gray-400 mb-2">Berdasarkan total relasi aktif Gen1–Gen5.</div>
+        {topPerekrut.length === 0 ? (
+          <div className="text-xs text-gray-400 py-3">Belum ada sahabat yang punya relasi aktif.</div>
+        ) : (
           <ol className="divide-y divide-gray-50">
             {topPerekrut.map((s, i) => (
               <li key={s.id} className="py-2 flex items-center gap-3">
@@ -581,8 +588,8 @@ export default function DatabaseJamaahPage() {
               </li>
             ))}
           </ol>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Tab status — dikonfirmasi user 2026-09-07: dulu dropdown filter
           doang, sekarang tab beneran biar tiap tahap kepisah jelas per klik,
