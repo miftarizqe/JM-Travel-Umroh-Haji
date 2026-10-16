@@ -21,12 +21,21 @@ export default function DashboardJamaah() {
   const [expandBooking, setExpandBooking] = useState(null);
   const [expandRiwayat, setExpandRiwayat] = useState(null);
   const [konfirmasiLoading, setKonfirmasiLoading] = useState(null);
+  // Pengajuan batal PER-JAMAAH (dikonfirmasi user 2026-10-16) gak ngunci
+  // booking.status ke 'menunggu_batal' lagi (booking-nya tetap aktif buat
+  // jamaah lain yang gak diajukan) — jadi dicek terpisah di sini biar tetap
+  // kelihatan "sedang diajukan" di kartu booking-nya.
+  const [pembatalanMenunggu, setPembatalanMenunggu] = useState([]);
 
   function muatBookings() {
     if (!user) return;
     fetch(`/api/bookings?user_id=${user.id}`)
       .then(r => r.json())
       .then(d => setBookings(d.bookings || []));
+    fetch('/api/pembatalan?status=menunggu')
+      .then(r => r.json())
+      .then(d => setPembatalanMenunggu(d.pembatalan || []))
+      .catch(() => {});
   }
   useEffect(muatBookings, [user]);
 
@@ -53,6 +62,10 @@ export default function DashboardJamaah() {
   const active = bookings.filter(b => b.status === 'active' || b.status === 'menunggu_batal');
   // Booking dibatalkan tetap masuk histori, bukan hilang begitu saja.
   const done = bookings.filter(b => b.status === 'selesai' || b.status === 'dibatalkan');
+
+  function pembatalanJamaahPending(bookingId) {
+    return pembatalanMenunggu.find(p => p.booking_id === bookingId && p.jamaah_idx != null) || null;
+  }
 
   // jamaah_data diseed nama-nya sejak checkout (lihat CartPaketKamar) —
   // dipakai buat label kartu supaya booking gampang dibedakan.
@@ -165,6 +178,9 @@ export default function DashboardJamaah() {
                       ) : (
                         <span className="bg-green-100 text-green-800 text-xs font-bold px-2 py-1 rounded-full">Aktif</span>
                       )}
+                      {b.status === 'active' && pembatalanJamaahPending(b.id) && (
+                        <span className="bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-1 rounded-full">⏳ 1 jamaah diajukan batal</span>
+                      )}
                       {tindakan.length > 0 && (
                         <span className="bg-red-500 text-white text-[10px] font-bold min-w-5 h-5 px-1.5 rounded-full flex items-center justify-center"
                           title="Perlu tindakan">{tindakan.length}</span>
@@ -183,6 +199,11 @@ export default function DashboardJamaah() {
 
                   {isOpen && b.status === 'active' && (
                     <div className="p-4">
+                      {pembatalanJamaahPending(b.id) && (
+                        <div className="bg-yellow-50 text-yellow-700 text-sm text-center py-3 rounded-xl mb-4">
+                          ⏳ Pengajuan pembatalan 1 jamaah di booking ini sedang ditinjau admin JM Travel. Jamaah lain tetap berjalan normal.
+                        </div>
+                      )}
                       {/* Progress 5 tahap — komponen sama dengan admin */}
                       <BookingProgressBar booking={b} className="mb-4" />
 
