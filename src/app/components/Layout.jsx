@@ -495,7 +495,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/sahabat/pencairan' },
         { icon: '🏦', label: 'Pencocokan Saldo BSI', path: '/admin/sahabat/rekonsiliasi' },
-        { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
         // Link "Costing Program" khusus Sahabat Baitullah (dulu ke
         // /admin/programs?publish_type=sahabat_baitullah) DIHAPUS dari sini
         // (dikonfirmasi user 2026-09-06) — dikonsolidasi jadi 1 titik akses
@@ -504,10 +503,14 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // halaman itu sendiri (lihat tab filter di /admin/programs).
         // Nominal komisi "angka fatal" — super_admin only, dikonfirmasi user
         // 2026-08-29 (lihat guard server di /api/admin/pengaturan yang nolak
-        // field sensitif dari admin biasa).
+        // field sensitif dari admin biasa). Posisinya DIGESER ke sini
+        // (dikonfirmasi user 2026-10-17) — deketan sama item keuangan
+        // lainnya (Pencairan Komisi/Pencocokan Saldo), sebelumnya nyempil
+        // di paling bawah padahal bukan item konten kayak Materi Presentasi.
         ...(user?.role === 'super_admin' ? [
           { icon: '🔒', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
         ] : []),
+        { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
       ] },
       { icon: '💼', label: 'Perwakilan', children: [
         { icon: '🪪', label: 'Pendaftaran', path: '/admin/perwakilan' },
@@ -606,11 +609,15 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '📜', label: 'Pengaturan Dokumen', path: '/admin/pengaturan/dokumen' },
       { icon: '📤', label: 'Import Dokumen Fisik', path: '/admin/pengaturan/dokumen-fisik' },
     ] },
+    // Diurutin per tema (dikonfirmasi user 2026-10-17) — promosi/diskon
+    // dulu, baru konten website. TETAP flat (gak dipecah subgrup kayak
+    // Operasional/CS) — 6 item masih wajar dibaca sekali pandang, nambah
+    // nesting cuma bikin extra klik buat grup sekecil ini.
     { icon: '📣', label: 'Marketing & Konten', children: [
       { icon: '🎟️', label: 'Voucher', path: '/admin?tab=voucher' },
+      { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
       { icon: '🖼️', label: 'Galeri', path: '/admin/galeri' },
       { icon: '📰', label: 'Berita & Kegiatan', path: '/admin/berita' },
-      { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
       { icon: '🏠', label: 'Konten Landing Page', path: '/admin/pengaturan/skema-pembayaran' },
       { icon: '✏️', label: 'Teks Landing Page', path: '/admin/pengaturan/teks-landing' },
     ] },
