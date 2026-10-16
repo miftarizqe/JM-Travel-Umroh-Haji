@@ -556,14 +556,14 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '📦', label: 'Kelola Program', path: '/admin?tab=programs' },
       // Cuma super admin — kalkulator/costing ini nyakup komponen biaya
       // vendor (hotel, mutawwif, dll) yang sensitif, gak untuk semua admin
-      // biasa. Proposal Corporate & Company Profile-nya juga dibatasi
-      // super_admin sesuai permintaan, bukan soal sensitif tapi biar kata2 &
-      // harga yang ditawarkan ke corporate klien terjaga konsisten dari 1 pintu.
+      // biasa.
+      // "Proposal Corporate" & "Company Profile Proposal" DICABUT dari
+      // sidebar (dikonfirmasi user 2026-10-16) — halaman/kode-nya SENGAJA
+      // gak dihapus dari repo, cuma link menu-nya aja biar gampang
+      // dipasang balik kalau nanti dibutuhin lagi.
       ...(user?.role === 'super_admin' ? [
         { icon: '🧮', label: 'Costing Program', path: '/admin/program-costing' },
         { icon: '🗂️', label: 'Master Data', path: '/admin/master-data' },
-        { icon: '🤝', label: 'Proposal Corporate', path: '/admin/proposal-corporate' },
-        { icon: '🤝', label: 'Company Profile Proposal', path: '/admin/pengaturan/proposal-profile' },
       ] : []),
     ] },
     { icon: '📦', label: 'Gudang (WMS)', children: [
