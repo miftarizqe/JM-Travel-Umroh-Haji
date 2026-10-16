@@ -312,8 +312,8 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
                 style={{ position: 'absolute', height: 65, objectFit: 'contain' }} />
             )}
           </div>
-          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{pengaturan.nama_penandatangan_keuangan || pengaturan.nama_penandatangan || '-'}</div>
-          <div style={{ color: '#666' }}>{pengaturan.jabatan_penandatangan_keuangan || pengaturan.jabatan_penandatangan || '-'}</div>
+          <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{pengaturan.nama_penandatangan_keuangan || '-'}</div>
+          <div style={{ color: '#666' }}>{pengaturan.jabatan_penandatangan_keuangan || '-'}</div>
         </div>
       </div>
     </div>

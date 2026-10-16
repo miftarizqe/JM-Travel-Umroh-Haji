@@ -152,10 +152,10 @@ function CetakRekapUjrohPerwakilanInner() {
           <div style={{ textAlign: 'center', fontSize: 12, width: 220 }}>
             <div style={{ height: 60 }}></div>
             <div style={{ borderTop: '1px solid #000', paddingTop: 4, fontWeight: 700 }}>
-              {pengaturan.nama_penandatangan_keuangan || pengaturan.nama_penandatangan || '-'}
+              {pengaturan.nama_penandatangan_keuangan || '-'}
             </div>
             <div style={{ color: '#666' }}>
-              Disetujui oleh ({pengaturan.jabatan_penandatangan_keuangan || pengaturan.jabatan_penandatangan || '-'})
+              Disetujui oleh ({pengaturan.jabatan_penandatangan_keuangan || '-'})
             </div>
           </div>
         </div>
