@@ -186,18 +186,20 @@ export default function DashboardJamaah() {
                       {/* Progress 5 tahap — komponen sama dengan admin */}
                       <BookingProgressBar booking={b} className="mb-4" />
 
-                      {/* Program Eksklusif Sahabat Baitullah: tahap Perjanjian
-                          otomatis ✓ (perjanjianSelesai() di bookingStage.js)
-                          karena perjanjiannya = SPK-AK yang ditandatangani
-                          SEKALI pas daftar Sahabat, bukan per-booking. Tetap
-                          kasih jalan buat lihat dokumennya (dikonfirmasi user
-                          2026-10-15) — PDF yang sama dengan di Profil. */}
-                      {b.prog_publish_type === 'sahabat_baitullah' && (
+                      {/* Perjanjian per booking = SPJ (Surat Perjanjian
+                          Jamaah), SAMA buat semua program — reguler,
+                          eksklusif, maupun Program Sahabat Baitullah
+                          (dikonfirmasi user 2026-10-16). SPK-AK Sahabat
+                          cuma dokumen pendaftaran (sekali, ada di Profil),
+                          BUKAN perjanjian checkout — dulu salah ditampilin
+                          di sini. Belum disetujui -> tombol "Baca & Setujui"
+                          di bawah yang muncul, bukan ini. */}
+                      {perjanjianSelesai(b) && (
                         <button
-                          onClick={() => window.open('/api/sahabat/dokumen-legal/unduh-lengkap', '_blank')}
+                          onClick={() => router.push(`/pks?jenis=jamaah&booking_id=${b.id}&lihat=1`)}
                           className="w-full mb-3 border border-[#1A4FA0] text-[#1A4FA0] text-xs font-bold py-2 rounded-full hover:bg-[#E8F0FB] transition-colors"
                         >
-                          📜 Lihat Perjanjian (SPK-AK Sahabat Baitullah)
+                          📜 Lihat Perjanjian (SPJ)
                         </button>
                       )}
 

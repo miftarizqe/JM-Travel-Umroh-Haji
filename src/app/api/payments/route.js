@@ -3,7 +3,7 @@ import { wajibRole, wajibLogin } from '@/lib/auth';
 import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 import { generateOrUpdateKwitansi, generateTandaTerimaUntukPayment } from '@/lib/invoiceKwitansi';
-import { cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
+import { alasanBelumBisaAccSahabat, cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { potongKuotaSeatDp } from '@/lib/booking';
@@ -221,6 +221,12 @@ export async function PATCH(request) {
       }
       if (booking?.status === 'dibatalkan') {
         return Response.json({ error: 'Booking ini sudah dibatalkan, pembayarannya tidak bisa dikonfirmasi.' }, { status: 400 });
+      }
+      // Transfer Langsung sisa checkout Program Sahabat Baitullah — ACC-nya
+      // nunggu formulir & SPJ beres (lihat alasanBelumBisaAccSahabat).
+      if (payment.type === 'lunas') {
+        const alasan = await alasanBelumBisaAccSahabat(pool, payment.booking_id);
+        if (alasan) return Response.json({ error: alasan }, { status: 400 });
       }
       // Kuota kursi dicek & dipotong DI SINI (dikonfirmasi user 2026-10-13,
       // bukan lagi pas checkout) -- paling duluan, SEBELUM payment ditandai

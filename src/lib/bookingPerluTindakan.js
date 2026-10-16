@@ -25,7 +25,7 @@ export function alasanPerluTindakan(b) {
   const alasan = [];
   if (b.form_filled < b.form_total) alasan.push('Formulir jamaah belum lengkap');
   if (b.dp_status === 'confirmed' && b.form_filled >= b.form_total && !b.setuju_pks
-      && !b.perjanjian_scan_path && b.prog_publish_type !== 'sahabat_baitullah') {
+      && !b.perjanjian_scan_path) {
     alasan.push('Perjanjian Jamaah belum disetujui');
   }
   if (parseJamaahData(b.jamaah_data).some(j =>

@@ -6,7 +6,9 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { warnaProgress } from '@/lib/kesiapanTabungan';
 import TombolWA from '@/app/components/TombolWA';
-import { STAGE_LABELS, formLengkap, getStage } from '@/lib/bookingStage';
+import { formLengkap, getStage } from '@/lib/bookingStage';
+import BookingProgressBar from '@/app/components/BookingProgressBar';
+import { statusBookingBadge } from '@/lib/statusBookingBadge';
 
 function fmtTanggal(iso) {
   if (!iso) return '-';
@@ -202,12 +204,12 @@ function RiwayatClosingContent() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="font-bold text-[#0E2F6E] text-sm truncate">{b.prog_name}</div>
-                        <div className="text-[10px] text-gray-400">{b.jumlah_jamaah} jamaah · Via: {b.sahabat_nama} ({b.sahabat_kode_unik})</div>
+                        <div className="text-[10px] text-gray-400">{b.jumlah_jamaah} jamaah · Via: {b.sahabat_nama}{b.sahabat_kode_unik && ` (${b.sahabat_kode_unik})`}</div>
                         <div className="text-[10px] text-gray-400 mt-0.5">{fmtTanggal(b.created_at)}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 whitespace-nowrap">
-                          {STATUS_BOOKING_LABEL[b.status] || b.status}
+                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${statusBookingBadge(b.status).cls}`}>
+                          {statusBookingBadge(b.status).label}
                         </span>
                         <span className="text-[9px] text-gray-400">{isOpen ? 'Tutup ▲' : 'Detail ▼'}</span>
                       </div>
@@ -226,24 +228,8 @@ function RiwayatClosingContent() {
                         </div>
                       ) : (
                         <>
-                          {/* Progress 5 tahap — persis sama kayak dashboard jamaah */}
-                          <div className="flex items-center mb-3">
-                            {STAGE_LABELS.map((label, i) => (
-                              <div key={label} className="flex items-center flex-1 last:flex-none">
-                                <div className="flex flex-col items-center">
-                                  <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                                    i + 1 <= stage ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-400'
-                                  }`}>
-                                    {i + 1 <= stage ? '✓' : i + 1}
-                                  </div>
-                                  <div className={`text-[9px] mt-1 ${i + 1 <= stage ? 'text-[#1A4FA0] font-bold' : 'text-gray-400'}`}>{label}</div>
-                                </div>
-                                {i < STAGE_LABELS.length - 1 && (
-                                  <div className={`flex-1 h-0.5 mx-1 mb-4 ${i + 1 < stage ? 'bg-[#1A4FA0]' : 'bg-gray-200'}`}></div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          {/* Bar progres SAMA komponennya dengan dashboard jamaah & admin. */}
+                          <BookingProgressBar booking={b} className="mb-3" />
 
                           <div className="text-xs text-gray-500 mb-3">
                             DP: <strong>{b.dp_status === 'confirmed' ? '✅ Dikonfirmasi' : b.dp_status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}</strong>

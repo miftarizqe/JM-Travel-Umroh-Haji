@@ -18,6 +18,10 @@ function PKSPageInner() {
   const searchParams = useSearchParams();
   const jenis = searchParams.get('jenis') || 'jamaah';
   const bookingId = searchParams.get('booking_id');
+  // Mode baca-saja — dibuka dari tombol "Lihat Perjanjian (SPJ)" di dashboard
+  // jamaah buat booking yang SUDAH disetujui; gak ada centang/tombol setuju
+  // lagi (dikonfirmasi user 2026-10-16).
+  const lihat = searchParams.get('lihat') === '1';
 
   const [sudahBaca, setSudahBaca] = useState(false);
   const [setuju, setSetuju] = useState(false);
@@ -166,9 +170,15 @@ function PKSPageInner() {
     <Layout title="📜 Perjanjian Kerjasama" showBack confirmLeave={setuju}
       confirmMessage="Yakin ingin keluar? Persetujuan yang sudah dicentang belum disimpan.">
       <div className="max-w-2xl mx-auto">
-        <div className="bg-[#E8F0FB] rounded-xl p-3 mb-4 text-xs text-[#1A4FA0]">
-          Baca sampai selesai, lalu centang persetujuan di bawah. Isi perjanjian ini persis sama dengan dokumen final yang akan Anda tanda tangani.
-        </div>
+        {lihat ? (
+          <div className="bg-green-50 border border-green-200 rounded-xl p-3 mb-4 text-xs text-green-700">
+            ✅ Perjanjian ini sudah Anda setujui. Isinya sama dengan dokumen final yang ditandatangani.
+          </div>
+        ) : (
+          <div className="bg-[#E8F0FB] rounded-xl p-3 mb-4 text-xs text-[#1A4FA0]">
+            Baca sampai selesai, lalu centang persetujuan di bawah. Isi perjanjian ini persis sama dengan dokumen final yang akan Anda tanda tangani.
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden mb-4">
           <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white p-4 text-center">
@@ -200,13 +210,19 @@ function PKSPageInner() {
             </div>
           </div>
 
-          {!sudahBaca && (
+          {!sudahBaca && !lihat && (
             <div className="bg-yellow-50 border-t border-yellow-200 p-2 text-center text-xs text-yellow-700">
               ⬇️ Gulir ke bawah sampai selesai membaca
             </div>
           )}
         </div>
 
+        {lihat ? (
+          <button onClick={() => router.back()}
+            className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full">
+            ← Kembali
+          </button>
+        ) : (<>
         <label className={`flex items-start gap-3 p-4 rounded-xl border-2 transition-all ${
           sudahBaca ? 'bg-white border-gray-200 cursor-pointer' : 'bg-gray-50 border-gray-100 opacity-50 cursor-not-allowed'}`}>
           <input type="checkbox" checked={setuju} disabled={!sudahBaca}
@@ -236,6 +252,7 @@ function PKSPageInner() {
             {loading ? 'Menyimpan...' : '✅ Setujui & Lanjutkan'}
           </button>
         )}
+        </>)}
       </div>
     </Layout>
   );

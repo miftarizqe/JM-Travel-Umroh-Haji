@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
+import { statusBookingBadge } from '@/lib/statusBookingBadge';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -94,7 +95,7 @@ export default function RiwayatClosingSahabatPage() {
                     <div className="flex justify-between items-start">
                       <div>
                         <div className="font-bold text-[#0E2F6E]">{c.name} <span className="text-gray-400 font-normal">({c.kode_unik})</span></div>
-                        <div className="text-xs text-gray-400">Via: <b className="text-[#1A4FA0]">{c.perekrut_nama}</b> ({c.perekrut_kode_unik})</div>
+                        <div className="text-xs text-gray-400">Via: <b className="text-[#1A4FA0]">{c.perekrut_nama}</b>{c.perekrut_kode_unik && ` (${c.perekrut_kode_unik})`}</div>
                         <div className="text-xs text-gray-400 mt-0.5">{c.tanggal_aktif ? new Date(c.tanggal_aktif).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}</div>
                       </div>
                       <span className="text-xs font-bold text-[#C9952A] shrink-0" title="Total ujroh gen ke UPLINE — belum termasuk HOP/tabungan awal/operasional, lihat rincian lengkap →">{fmtRp(c.total_dibagikan)}</span>
@@ -122,7 +123,7 @@ export default function RiwayatClosingSahabatPage() {
                               <div key={r.id} className="flex items-center justify-between bg-white rounded-lg px-2.5 py-1.5 border border-gray-100">
                                 <div className="min-w-0 pr-2">
                                   <div className="font-bold text-gray-700 truncate">{r.penerima_nama}{r.penerima_kode_unik ? ` (${r.penerima_kode_unik})` : ''}</div>
-                                  <div className="text-gray-400 truncate">{r.keterangan}</div>
+                                  <div className="text-gray-600 break-words">{r.keterangan}</div>
                                 </div>
                                 <div className="font-bold text-[#C9952A] shrink-0">{fmtRp(r.nominal)}</div>
                               </div>
@@ -162,9 +163,9 @@ export default function RiwayatClosingSahabatPage() {
                       <div>
                         <div className="font-bold text-[#0E2F6E]">{b.prog_name}</div>
                         <div className="text-xs text-gray-400">{b.pemesan_nama} · {b.jumlah_jamaah} jamaah · {fmtRp(b.total_harga)}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">Via: <b className="text-[#1A4FA0]">{b.sahabat_nama}</b> ({b.sahabat_kode_unik})</div>
+                        <div className="text-xs text-gray-400 mt-0.5">Via: <b className="text-[#1A4FA0]">{b.sahabat_nama}</b>{b.sahabat_kode_unik && ` (${b.sahabat_kode_unik})`}</div>
                       </div>
-                      <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-500">{b.status}</span>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap ${statusBookingBadge(b.status).cls}`}>{statusBookingBadge(b.status).label}</span>
                     </div>
                   </button>
                   {openLangsung === b.id && (
@@ -202,7 +203,7 @@ export default function RiwayatClosingSahabatPage() {
                                   <div className="flex items-center justify-between">
                                     <div className="min-w-0 pr-2">
                                       <div className="font-bold text-gray-700 truncate">{r.penerima_nama}{r.penerima_kode_unik ? ` (${r.penerima_kode_unik})` : ''}</div>
-                                      <div className="text-gray-400 truncate">{r.peran}{r.keterangan ? ` · ${r.keterangan}` : ''}</div>
+                                      <div className="text-gray-600 break-words">{r.peran}{r.keterangan ? ` · ${r.keterangan}` : ''}</div>
                                     </div>
                                     <div className="text-right shrink-0">
                                       <div className="font-bold text-[#C9952A]">{fmtRp(r.nominal)}</div>
