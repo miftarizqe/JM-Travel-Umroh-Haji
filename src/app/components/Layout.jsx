@@ -434,6 +434,16 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   // only tetap sama persis pembatasannya kayak sebelumnya, cuma pindah
   // kelompok. Grup yang isinya jadi kosong (semua anaknya super_admin-only,
   // dibuka user admin biasa) di-filter otomatis pas dipakai (lihat di bawah).
+  //
+  // Urutan TOP-LEVEL grup di bawah ini disusun per FREKUENSI PEMAKAIAN
+  // beneran sehari-hari (dikonfirmasi user 2026-10-16, bukan alfabet/acak —
+  // "loncat-loncat" yang dikeluhkan user sebelumnya itu Gudang yang jarang
+  // dipakai nyempil di antara Pricing & Finance yang sama-sama sering):
+  // Operasional/CS -> Program Kemitraan -> Finance -> Program & Pricing
+  // (sering dipakai, taruh di atas), lalu Gudang -> Akun & Jaringan ->
+  // Pengaturan Sistem -> Marketing & Konten (jarang dipakai, taruh di
+  // bawah). JANGAN diubah urutannya lagi tanpa alasan konkret — ini hasil
+  // konfirmasi eksplisit, bukan placeholder.
   const adminGroups = [
     { icon: '📞', label: 'Operasional / CS', children: [
       { icon: '🧳', label: 'Database Jamaah', path: '/admin/database/jamaah' },
@@ -464,7 +474,15 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '💰', label: 'Database Jamaah', path: '/admin/sahabat/database' },
         { icon: '🎯', label: 'Pengajuan Ganti Target', path: '/admin/sahabat/ganti-target' },
         { icon: '⚠️', label: 'Laporan Data dari HoP', path: '/admin/sahabat/laporan-data' },
-        { icon: '📊', label: 'Dashboard Head of Program', path: '/dashboard/sahabat/hop' },
+        // "Dashboard Head of Program" DICABUT dari sidebar admin
+        // (dikonfirmasi user 2026-10-16) — halamannya (/dashboard/sahabat/
+        // hop) dibangun dari sudut pandang SATU akun spesifik (Head of
+        // Program), bukan tampilan generik buat admin, dan makin
+        // redundan sekarang Top Perekrut + grafik pertumbuhannya udah
+        // ditaruh langsung di Database Jamaah (lihat baris di atas). Akun
+        // HoP sendiri TETAP punya ini sebagai Beranda-nya (navItems.hop
+        // di bawah, gak disentuh) — rute-nya juga gak dihapus, cuma
+        // pintasan sidebar admin-nya yang hilang.
         { icon: '💵', label: 'Pengajuan Setoran Mandiri', path: '/admin/sahabat/setoran-mandiri-pengajuan' },
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing' },
@@ -493,30 +511,16 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // kalau dibuka dari menu Sahabat Baitullah/HoP.
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing-perwakilan' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/perwakilan/pencairan' },
+        // "Hierarki & Closing" (/admin?tab=hierarki) DIHAPUS TOTAL dari sini
+        // (dikonfirmasi user 2026-10-16) — Pohon Hierarki-nya 100% duplikat
+        // tab "Hirarki Pohon" di Database Perwakilan (komponennya sendiri
+        // udah di-copy ke sana, lihat komentar di
+        // admin/perwakilan/database/page.jsx), dan Laporan Ranking udah
+        // ke-cover dropdown "Urut: Total Komisi" di tab yang sama. Endpoint
+        // /api/admin/hierarchy TETAP ada & TIDAK disentuh (masih dipakai
+        // Database Perwakilan + nyimpen cara hitung ranking buat dipindah
+        // ke tempat lain nanti kalau dibutuhkan).
       ] },
-    ] },
-    { icon: '🕌', label: 'Program & Pricing', children: [
-      { icon: '📦', label: 'Kelola Program', path: '/admin?tab=programs' },
-      // Cuma super admin — kalkulator/costing ini nyakup komponen biaya
-      // vendor (hotel, mutawwif, dll) yang sensitif, gak untuk semua admin
-      // biasa. Proposal Corporate & Company Profile-nya juga dibatasi
-      // super_admin sesuai permintaan, bukan soal sensitif tapi biar kata2 &
-      // harga yang ditawarkan ke corporate klien terjaga konsisten dari 1 pintu.
-      ...(user?.role === 'super_admin' ? [
-        { icon: '🧮', label: 'Costing Program', path: '/admin/program-costing' },
-        { icon: '🗂️', label: 'Master Data', path: '/admin/master-data' },
-        { icon: '🤝', label: 'Proposal Corporate', path: '/admin/proposal-corporate' },
-        { icon: '🤝', label: 'Company Profile Proposal', path: '/admin/pengaturan/proposal-profile' },
-      ] : []),
-    ] },
-    { icon: '📦', label: 'Gudang (WMS)', children: [
-      // Status pengiriman per program = admin biasa juga boleh (bukan data
-      // stok yang sensitif, cuma status kirim per jamaah).
-      { icon: '🚚', label: 'Status Pengiriman Perlengkapan', path: '/admin/perlengkapan-pengiriman' },
-      // Stok/ambang-reorder = super_admin only (lihat src/lib/perlengkapan.js).
-      ...(user?.role === 'super_admin' ? [
-        { icon: '🔒', label: 'Kelola Perlengkapan (Gudang)', path: '/admin/perlengkapan' },
-      ] : []),
     ] },
     // Urutan Finance sengaja disusun dasar -> akhir (dikonfirmasi user
     // 2026-09-03), bukan sekadar daftar alfabet/acak: (1) setup rekening,
@@ -548,17 +552,31 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '🧾', label: 'Pengajuan Dana Bulanan', path: '/admin/laporan/pengajuan-dana' },
       ] : []),
     ] },
-    { icon: '📣', label: 'Marketing & Konten', children: [
-      { icon: '🎟️', label: 'Voucher', path: '/admin?tab=voucher' },
-      { icon: '🖼️', label: 'Galeri', path: '/admin/galeri' },
-      { icon: '📰', label: 'Berita & Kegiatan', path: '/admin/berita' },
-      { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
-      { icon: '🏠', label: 'Konten Landing Page', path: '/admin/pengaturan/skema-pembayaran' },
-      { icon: '✏️', label: 'Teks Landing Page', path: '/admin/pengaturan/teks-landing' },
+    { icon: '🕌', label: 'Program & Pricing', children: [
+      { icon: '📦', label: 'Kelola Program', path: '/admin?tab=programs' },
+      // Cuma super admin — kalkulator/costing ini nyakup komponen biaya
+      // vendor (hotel, mutawwif, dll) yang sensitif, gak untuk semua admin
+      // biasa. Proposal Corporate & Company Profile-nya juga dibatasi
+      // super_admin sesuai permintaan, bukan soal sensitif tapi biar kata2 &
+      // harga yang ditawarkan ke corporate klien terjaga konsisten dari 1 pintu.
+      ...(user?.role === 'super_admin' ? [
+        { icon: '🧮', label: 'Costing Program', path: '/admin/program-costing' },
+        { icon: '🗂️', label: 'Master Data', path: '/admin/master-data' },
+        { icon: '🤝', label: 'Proposal Corporate', path: '/admin/proposal-corporate' },
+        { icon: '🤝', label: 'Company Profile Proposal', path: '/admin/pengaturan/proposal-profile' },
+      ] : []),
+    ] },
+    { icon: '📦', label: 'Gudang (WMS)', children: [
+      // Status pengiriman per program = admin biasa juga boleh (bukan data
+      // stok yang sensitif, cuma status kirim per jamaah).
+      { icon: '🚚', label: 'Status Pengiriman Perlengkapan', path: '/admin/perlengkapan-pengiriman' },
+      // Stok/ambang-reorder = super_admin only (lihat src/lib/perlengkapan.js).
+      ...(user?.role === 'super_admin' ? [
+        { icon: '🔒', label: 'Kelola Perlengkapan (Gudang)', path: '/admin/perlengkapan' },
+      ] : []),
     ] },
     { icon: '👥', label: 'Akun & Jaringan', children: [
       { icon: '👥', label: 'Pengguna', path: '/admin?tab=users' },
-      { icon: '🌳', label: 'Hierarki & Closing', path: '/admin?tab=hierarki' },
       // Log siapa-ngapain-kapan — khusus super_admin (dikonfirmasi user
       // 2026-08-21), bukan buat visibilitas admin biasa.
       ...(user?.role === 'super_admin' ? [
@@ -569,6 +587,14 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '⚙️', label: 'Pengaturan Umum', path: '/admin/pengaturan' },
       { icon: '📜', label: 'Pengaturan Dokumen', path: '/admin/pengaturan/dokumen' },
       { icon: '📤', label: 'Import Dokumen Fisik', path: '/admin/pengaturan/dokumen-fisik' },
+    ] },
+    { icon: '📣', label: 'Marketing & Konten', children: [
+      { icon: '🎟️', label: 'Voucher', path: '/admin?tab=voucher' },
+      { icon: '🖼️', label: 'Galeri', path: '/admin/galeri' },
+      { icon: '📰', label: 'Berita & Kegiatan', path: '/admin/berita' },
+      { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
+      { icon: '🏠', label: 'Konten Landing Page', path: '/admin/pengaturan/skema-pembayaran' },
+      { icon: '✏️', label: 'Teks Landing Page', path: '/admin/pengaturan/teks-landing' },
     ] },
   ].filter(g => g.children.length > 0);
 
@@ -656,7 +682,13 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       .catch(() => {});
     muat();
     const id = setInterval(() => { if (document.visibilityState === 'visible') muat(); }, 60000);
-    return () => { batal = true; clearInterval(id); };
+    // Refetch INSTAN begitu halaman admin manapun beresin tindakan (lihat
+    // src/lib/sidebarBadges.js) — interval 60 detik di atas tetap jalan
+    // sebagai fallback (mis. mutasi dari tab/device lain), bukan satu2nya
+    // jalur lagi (dikonfirmasi user 2026-10-16, sebelumnya badge nyangkut
+    // sampai refresh manual).
+    window.addEventListener('jmtravel:sidebar-badges-refresh', muat);
+    return () => { batal = true; clearInterval(id); window.removeEventListener('jmtravel:sidebar-badges-refresh', muat); };
   }, [badgeEndpoint, pathname]);
   const totalBadge = Object.values(sidebarBadges).reduce((t, n) => t + n, 0);
 

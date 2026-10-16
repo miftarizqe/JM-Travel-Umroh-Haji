@@ -3,6 +3,7 @@ import { wajibRole } from '@/lib/auth';
 import { wajibAdminAtauHopSahabat } from '@/lib/hopAuth';
 import { persenKesiapan } from '@/lib/kesiapanTabungan';
 import { JENIS_SALDO_SAHABAT, JENIS_UJROH_SAHABAT } from '@/lib/saldoSahabat';
+import { relasiSemuaSahabat } from '@/lib/jaringanSahabat';
 
 // HoP gak berhak tau NIK & SEMUA rekening (bank biasa, tabungan umroh) — PRIVASI, cuma admin/super_admin (dikonfirmasi user 2026-10-05,
 // awalnya cuma rekening tabungan umroh, diperluas ke NIK & bank biasa juga).
@@ -195,6 +196,24 @@ export async function GET(request) {
       }
     }
 
+    // Top 5 perekrut berdasarkan total relasi aktif Gen1-Gen5 — disalin dari
+    // dashboard Head of Program (dikonfirmasi user 2026-10-16), reuse fungsi
+    // shared yang sama (relasiSemuaSahabat, bukan khusus-HoP — tiap sahabat
+    // dihitung dari dirinya sendiri sebagai akar, jadi langsung cocok buat
+    // ranking SELURUH populasi di Database Jamaah).
+    // Filter ke 'active' doang (BUKAN total > 0, dikonfirmasi user
+    // 2026-10-16) — biar kartu tetap nampilin Top 5 nama beneran meski
+    // semuanya 0 relasi (belum sempat closing), bukan nyembunyiin diri jadi
+    // pesan kosong. 'pending'/'rejected' tetep gak masuk — mereka belum
+    // sahabat aktif, gak masuk akal nongol di ranking "perekrut".
+    const TOP_N = 5;
+    const relasi = await relasiSemuaSahabat(pool);
+    const topPerekrut = relasi
+      .filter(s => s.status === 'active')
+      .sort((a, b) => b.total - a.total)
+      .slice(0, TOP_N)
+      .map(s => ({ id: s.id, name: s.name, kode_unik: s.kode_unik, gen: s.gen, total: s.total }));
+
     // Tanpa `page` -> balikin semua baris (konsumen: /api/admin/sahabat
     // buat cluster reminder yang nyisir seluruh data, bukan 1 halaman).
     // Redaksi berlaku buat SIAPAPUN yang bukan admin/super_admin asli
@@ -207,7 +226,7 @@ export async function GET(request) {
       const [rows] = await pool.query(
         `SELECT ${selectCols} ${baseFrom} ORDER BY u.kode_unik ASC`
       );
-      return Response.json({ jamaah: isHop ? redaksiUntukHop(rows) : rows, ringkasan });
+      return Response.json({ jamaah: isHop ? redaksiUntukHop(rows) : rows, ringkasan, top_perekrut: topPerekrut });
     }
 
     const [[{ total }]] = await pool.query(
@@ -218,7 +237,7 @@ export async function GET(request) {
       [...params, perPage, (page - 1) * perPage]
     );
 
-    return Response.json({ jamaah: isHop ? redaksiUntukHop(rows) : rows, total, page, per_page: perPage, ringkasan });
+    return Response.json({ jamaah: isHop ? redaksiUntukHop(rows) : rows, total, page, per_page: perPage, ringkasan, top_perekrut: topPerekrut });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

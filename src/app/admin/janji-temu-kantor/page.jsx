@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 function fmtTanggal(iso) {
   if (!iso) return '-';
@@ -42,6 +43,7 @@ export default function JanjiTemuKantorPage() {
   }, [user, isAdmin, router]);
 
   function muat() {
+    refreshSidebarBadges();
     fetch('/api/admin/sahabat/database').then(r => r.json()).then(d => setSahabat(d.jamaah || [])).catch(() => setSahabat([]));
     fetch('/api/admin/perwakilan/database').then(r => r.json()).then(d => setPerwakilan(d.perwakilan || [])).catch(() => setPerwakilan([]));
   }

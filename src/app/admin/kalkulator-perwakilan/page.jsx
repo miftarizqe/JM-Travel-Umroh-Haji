@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 const rp = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -26,6 +27,7 @@ export default function KalkulatorPerwakilanAdminPage() {
   const [filterStatus, setFilterStatus] = useState('diajukan');
 
   function muat() {
+    refreshSidebarBadges();
     const params = new URLSearchParams();
     if (filterStatus) params.set('status', filterStatus);
     fetch(`/api/admin/kalkulator-perwakilan?${params.toString()}`).then(r => r.json())

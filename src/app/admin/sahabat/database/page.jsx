@@ -144,6 +144,7 @@ export default function DatabaseJamaahPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [ringkasan, setRingkasan] = useState({ total: 0, aktif: 0, proses: 0, siap_berangkat: 0 });
+  const [topPerekrut, setTopPerekrut] = useState([]);
   const PER_PAGE = 25;
   const [expand, setExpand] = useState(null); // user_id lagi dibuka detailnya
   const [editing, setEditing] = useState(null); // user_id lagi diedit target-nya
@@ -190,6 +191,7 @@ export default function DatabaseJamaahPage() {
       setJamaah(d.jamaah || []);
       setTotal(d.total || 0);
       if (d.ringkasan) setRingkasan(d.ringkasan);
+      setTopPerekrut(d.top_perekrut || []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }
@@ -550,6 +552,43 @@ export default function DatabaseJamaahPage() {
           <div className="text-xl font-bold text-amber-600">{ringkasan.siap_berangkat}</div>
           <div className="text-[10px] text-gray-400">≥80% Siap Berangkat{filterSiap ? ' ✓' : ''}</div>
         </button>
+      </div>
+
+      {/* Disalin dari dashboard Head of Program (dikonfirmasi user
+          2026-10-16) — beda dari "Kedalaman Jaringan" (chart lain di
+          dashboard HoP yang SENGAJA gak di-copy ke sini: itu ngukur jarak
+          dari SATU akar/akun HoP spesifik, gak ada padanan "akar" di
+          halaman ini yang nampilin SEMUA jamaah). Top Perekrut beda —
+          tiap orang dihitung dari dirinya sendiri sebagai akar
+          (relasiSemuaSahabat), jadi langsung cocok buat ranking
+          keseluruhan populasi. */}
+      {/* Kartu TETAP dirender walau datanya kosong (dikonfirmasi user
+          2026-10-16, sama fix kayak di Database Perwakilan) — sebelumnya
+          dibungkus `topPerekrut.length > 0 &&` jadi kartunya ngilang total
+          kalau belum ada yang punya relasi aktif, keliatan kayak fiturnya
+          gak ada. */}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🏆 Top {topPerekrut.length || 5} Perekrut</div>
+        <div className="text-xs text-gray-400 mb-2">Berdasarkan total relasi aktif Gen1–Gen5.</div>
+        {topPerekrut.length === 0 ? (
+          <div className="text-xs text-gray-400 py-3">Belum ada sahabat yang punya relasi aktif.</div>
+        ) : (
+          <ol className="divide-y divide-gray-50">
+            {topPerekrut.map((s, i) => (
+              <li key={s.id} className="py-2 flex items-center gap-3">
+                <span className="w-5 text-center text-xs font-black text-gray-400">{i + 1}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-[#0E2F6E] text-sm truncate">{s.name}</div>
+                  <div className="text-[10px] text-gray-400">{s.kode_unik || '-'} · Gen1 {s.gen[0]}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-black text-[#0E2F6E]">{s.total}</div>
+                  <div className="text-[10px] text-gray-400">relasi</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
 
       {/* Tab status — dikonfirmasi user 2026-09-07: dulu dropdown filter

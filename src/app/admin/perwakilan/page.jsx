@@ -3,6 +3,58 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
+
+const BULAN_GRAFIK = 6;
+const namaBulan = (kunci) => {
+  const [y, m] = kunci.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('id-ID', { month: 'short' });
+};
+
+// Pendaftar baru per bulan (BULAN_GRAFIK bulan terakhir, termasuk bulan ini)
+// — disalin dari dashboard Head of Program & mirror /admin/sahabat
+// (dikonfirmasi user 2026-10-16), dihitung client-side dari `list` yang udah
+// kefetch (GET /api/admin/perwakilan gak difilter status, jadi udah
+// mencakup SEMUA pendaftar — gak perlu fetch/endpoint baru selain nambah
+// u.created_at ke SELECT-nya).
+function hitungPertumbuhan(list) {
+  const sekarang = new Date();
+  const pertumbuhan = [];
+  for (let i = BULAN_GRAFIK - 1; i >= 0; i--) {
+    const d = new Date(sekarang.getFullYear(), sekarang.getMonth() - i, 1);
+    pertumbuhan.push({ bulan: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, baru: 0 });
+  }
+  const idxBulan = new Map(pertumbuhan.map((p, i) => [p.bulan, i]));
+  for (const p of list) {
+    if (!p.created_at) continue;
+    const d = new Date(p.created_at);
+    const i = idxBulan.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    if (i !== undefined) pertumbuhan[i].baru++;
+  }
+  return pertumbuhan;
+}
+
+// Kolom satu seri (satu warna brand), puncak membulat, nilai di atas batang.
+function GrafikPertumbuhan({ data }) {
+  const maks = Math.max(1, ...data.map(d => d.baru));
+  return (
+    <div className="flex items-end gap-2 h-36" role="img"
+      aria-label={`Pendaftar baru per bulan: ${data.map(d => `${namaBulan(d.bulan)} ${d.baru}`).join(', ')}`}>
+      {data.map((d, i) => {
+        const terakhir = i === data.length - 1;
+        return (
+          <div key={d.bulan} className="flex-1 h-full flex flex-col items-center justify-end group" title={`${namaBulan(d.bulan)}: ${d.baru} pendaftar`}>
+            <div className="text-[10px] font-bold text-[#0E2F6E] mb-0.5">{d.baru}</div>
+            <div className={`w-full max-w-8 rounded-t ${terakhir ? 'bg-[#1A4FA0]' : 'bg-[#1A4FA0]/60'} group-hover:bg-[#0E2F6E] transition-colors`}
+              style={{ height: `${Math.max(2, (d.baru / maks) * 100)}px` }} />
+            <div className="w-full border-t border-gray-200" />
+            <div className={`text-[10px] mt-1 ${terakhir ? 'font-bold text-[#0E2F6E]' : 'text-gray-400'}`}>{namaBulan(d.bulan)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 // Urutan proses pendaftaran perwakilan s.d. aktif — SAMA PERSIS
 // pathUntukMetode()/STEP_PENDAFTARAN di /api/status-pendaftaran/route.js,
@@ -71,6 +123,7 @@ export default function AdminPerwakilanPage() {
   const [copiedInvite, setCopiedInvite] = useState(false);
 
   function muat() {
+    refreshSidebarBadges();
     fetch('/api/admin/perwakilan').then(r => r.json()).then(d => {
       setList(d.pendaftaran || []);
       setLoading(false);
@@ -160,6 +213,7 @@ export default function AdminPerwakilanPage() {
   }, [list]);
 
   const detail = useMemo(() => list.find(p => p.user_id === detailUserId) || null, [list, detailUserId]);
+  const pertumbuhan = useMemo(() => hitungPertumbuhan(list), [list]);
 
   if (!user || !['admin', 'super_admin'].includes(user.role)) {
     return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
@@ -269,6 +323,12 @@ export default function AdminPerwakilanPage() {
             </div>
           )
         )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+        <div className="font-bold text-[#0E2F6E] mb-1 text-sm">📈 Pendaftar Baru per Bulan</div>
+        <div className="text-xs text-gray-400 mb-3">Perwakilan yang mendaftar, {BULAN_GRAFIK} bulan terakhir.</div>
+        {loading ? <div className="text-xs text-gray-400 py-6 text-center">Memuat...</div> : <GrafikPertumbuhan data={pertumbuhan} />}
       </div>
 
       {loading ? (

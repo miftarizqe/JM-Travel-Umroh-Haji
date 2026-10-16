@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 const FILTER = [
   { key: 'terbuka', label: '⏳ Terbuka' },
@@ -23,6 +24,7 @@ export default function AdminLaporanDataSahabatPage() {
   const [busy, setBusy] = useState(null);
 
   function muat() {
+    refreshSidebarBadges();
     setLaporan(null);
     fetch(`/api/admin/sahabat/laporan-data?status=${filter}`).then(r => r.json())
       .then(d => setLaporan(d.laporan || [])).catch(() => setLaporan([]));

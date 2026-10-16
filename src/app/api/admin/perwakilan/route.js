@@ -18,7 +18,7 @@ export async function GET(request) {
     const [rows] = await pool.query(
       `SELECT u.id AS user_id, u.name AS nama, u.kode_unik, u.email, u.wa,
               u.status AS user_status, u.role, u.role_kedua, u.perekrut_id,
-              u.terverifikasi, u.foto_path, u.setuju_pks,
+              u.terverifikasi, u.foto_path, u.setuju_pks, u.created_at,
               perekrut.name AS perekrut_nama,
               ap.id AS pendaftaran_id, ap.status AS pendaftaran_status,
               ap.metode AS pendaftaran_metode, ap.untuk_role_kedua

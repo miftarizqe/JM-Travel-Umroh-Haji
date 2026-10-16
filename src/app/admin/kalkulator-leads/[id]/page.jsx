@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import TombolWA from '@/app/components/TombolWA';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 const rp = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -63,6 +64,7 @@ export default function KalkulatorLeadDetailPage() {
   const [rincianLoading, setRincianLoading] = useState(false);
 
   function muat() {
+    refreshSidebarBadges();
     fetch(`/api/admin/kalkulator-leads?id=${params.id}`)
       .then(r => r.json())
       .then(d => { setLead(d.lead || null); setCatatan(d.lead?.catatan_admin || ''); setLoading(false); })

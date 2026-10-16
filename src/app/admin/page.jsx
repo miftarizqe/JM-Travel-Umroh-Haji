@@ -1,5 +1,5 @@
 'use client';
-import { Fragment, Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
@@ -23,6 +23,7 @@ import BookingProgressBar from '@/app/components/BookingProgressBar';
 import { formLengkap, perjanjianSelesai } from '@/lib/bookingStage';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 import { porsiRefund } from '@/lib/danaRefund';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
@@ -133,68 +134,6 @@ function Field({ label, value, full }) {
   );
 }
 
-// Ratakan pohon jadi daftar baris urutan DFS (tiap orang langsung diikuti downline-nya),
-// dengan info depth per baris — dipakai tabel genealogi (gaya laporan MLM: Young Living dkk).
-function flattenGenealogi(nodes, depth = 0) {
-  let rows = [];
-  for (const node of nodes) {
-    rows.push({ ...node, depth });
-    if (node.children && node.children.length > 0) {
-      rows = rows.concat(flattenGenealogi(node.children, depth + 1));
-    }
-  }
-  return rows;
-}
-
-// Reseller margin perwakilan cuma jalan 1 tingkat dari SI PEREKRUT (lihat
-// closing.js — walau loopnya secara teknis bisa lanjut sampai 20 hop kalau
-// tiap upline punya harga jual sendiri di perwakilan_harga, DALAM PRAKTIK
-// cuma 1 tingkat yang keisi harganya, dikonfirmasi user 2026-09-06). Badge
-// ini nandain gen 1 (relatif ke akar tree yang ditampilkan) vs gen 2+ yang
-// cuma tercatat struktur doang, sama pola kayak GenBadge Sahabat Baitullah.
-const GEN_MAX_UJROH_PERWAKILAN = 1;
-function GenBadgePerwakilan({ depth }) {
-  const dapatUjroh = depth <= GEN_MAX_UJROH_PERWAKILAN;
-  return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${dapatUjroh ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-400'}`}
-      title={dapatUjroh ? 'Gen 1 dari akar ini — berpotensi dapat margin reseller' : 'Di luar gen 1 — tercatat, di luar margin reseller akar ini'}>
-      Gen {depth}{!dapatUjroh && ' 🔒'}
-    </span>
-  );
-}
-
-// Node pohon hierarki perwakilan — bisa expand/collapse rekursif.
-// Root (depth 0) default kebuka, level di bawahnya default tertutup.
-function HierarkiNode({ node, depth, expanded, onToggle, onClickUser }) {
-  const isExpanded = expanded[node.id] !== undefined ? expanded[node.id] : depth === 0;
-  const hasChildren = node.children && node.children.length > 0;
-  return (
-    <div>
-      <div className="flex items-center gap-2 py-2 border-b border-gray-100" style={{ paddingLeft: depth * 20 }}>
-        {hasChildren ? (
-          <button onClick={() => onToggle(node.id, isExpanded)} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-[#1A4FA0] flex-shrink-0 text-xs">
-            {isExpanded ? '▼' : '▶'}
-          </button>
-        ) : <span className="w-5 flex-shrink-0"></span>}
-        <div onClick={() => onClickUser(node)} className="flex-1 cursor-pointer flex items-center gap-2 flex-wrap min-w-0">
-          <span className="font-semibold text-[#0E2F6E] text-sm hover:underline">{node.name}</span>
-          {depth > 0 && <GenBadgePerwakilan depth={depth} />}
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">{node.role}</span>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${node.status==='active'?'bg-green-50 text-green-700':'bg-gray-100 text-gray-500'}`}>{node.status}</span>
-          <span className="text-xs text-gray-400">{node.kode_unik}</span>
-        </div>
-        <div className="text-xs text-gray-500 text-right flex-shrink-0">
-          <div>{node.total_downline} downline · {node.jumlah_booking} booking</div>
-          <div className="font-bold text-[#C9952A]">{rp(node.total_komisi)}</div>
-        </div>
-      </div>
-      {hasChildren && isExpanded && node.children.map(c => (
-        <HierarkiNode key={c.id} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onClickUser={onClickUser} />
-      ))}
-    </div>
-  );
-}
-
 const AKSI_LABEL = {
   approve_dp: 'Approve DP', reject_dp: 'Reject DP',
   approve_pelunasan: 'Approve Pelunasan', reject_pelunasan: 'Reject Pelunasan',
@@ -252,7 +191,7 @@ function AdminPageInner() {
   // diajukan, siap berangkat, di bawah progress, closing referral & langsung)
   // PINDAH kesini dari /admin/sahabat, biar admin gak perlu cek satu-satu
   // section — Pendaftaran sekarang murni funnel status. Lazy-load pas tab
-  // dashboard dibuka aja (pola sama kayak tab bookings/hierarki di bawah).
+  // dashboard dibuka aja (pola sama kayak tab bookings di bawah).
   const [sahabatPendaftaran, setSahabatPendaftaran] = useState([]);
   const [sahabatJamaahDb, setSahabatJamaahDb] = useState([]);
   const [sahabatPencairan, setSahabatPencairan] = useState(null);
@@ -303,12 +242,6 @@ function AdminPageInner() {
   const [batalBusy, setBatalBusy] = useState(false);
   const [batalHasil, setBatalHasil] = useState(null); // pesan sukses batal langsung, tampil sebagai banner di modal detail
   const [exporting, setExporting] = useState(null); // nama tipe export yang lagi diproses, misal 'users'
-  const [hierarki, setHierarki] = useState(null); // { tree, flat }
-  const [hierarkiView, setHierarkiView] = useState('tree'); // 'tree' | 'flat'
-  const [hierarkiFrom, setHierarkiFrom] = useState('');
-  const [hierarkiTo, setHierarkiTo] = useState('');
-  const [expandedNodes, setExpandedNodes] = useState({});
-  const [expandedFlatRows, setExpandedFlatRows] = useState({});
   const [expandCluster, setExpandCluster] = useState(null);
   const [expandProgBooking, setExpandProgBooking] = useState(null);
   const [expandJamaahModal, setExpandJamaahModal] = useState(0);
@@ -326,7 +259,6 @@ function AdminPageInner() {
   // Sort per tabel (klik header kolom) — key = nama tabel, value = {field, dir}
   const [sortState, setSortState] = useState({
     users: { field: 'name', dir: 'asc' },
-    ranking: { field: 'total_komisi', dir: 'desc' },
     voucher: { field: 'kode', dir: 'asc' },
     auditlog: { field: 'created_at', dir: 'desc' },
     bookings: { field: 'created_at', dir: 'desc' },
@@ -346,7 +278,7 @@ function AdminPageInner() {
   // Disinkron langsung di render (bukan efek) biar gak kena flag
   // react-hooks/set-state-in-effect — dibandingkan ke nilai terakhir yang
   // sudah disinkron, bukan ke activeTab itu sendiri.
-  const TAB_KEYS = ['dashboard', 'payments', 'pembatalan', 'users', 'programs', 'hierarki', 'customharga', 'voucher', 'auditlog', 'bookings'];
+  const TAB_KEYS = ['dashboard', 'payments', 'pembatalan', 'users', 'programs', 'customharga', 'voucher', 'auditlog', 'bookings'];
   const [syncedTabParam, setSyncedTabParam] = useState(null);
   const tabParam = searchParams.get('tab');
   if (tabParam !== syncedTabParam) {
@@ -380,6 +312,7 @@ function AdminPageInner() {
   }, [user]);
 
   async function loadAll() {
+    refreshSidebarBadges();
     // HoP (Ringkasan Admin khusus Sahabat): cuma ringkasan dashboard versi HoP —
     // data pembayaran/pengguna/program/voucher/pembatalan bukan wewenang HoP
     // (endpoint-nya juga menolak HoP sejak 2026-10-05).
@@ -559,24 +492,6 @@ function AdminPageInner() {
   const sahabatUjrohBelumDiajukan = sahabatPencairan?.belum_diajukan_count || 0;
   const perwakilanUjrohBelumDiajukan = perwakilanPencairan?.belum_diajukan_count || 0;
 
-  function loadHierarki() {
-    const qs = new URLSearchParams();
-    if (hierarkiFrom) qs.set('from', hierarkiFrom);
-    if (hierarkiTo) qs.set('to', hierarkiTo);
-    fetch(`/api/admin/hierarchy?${qs.toString()}`)
-      .then(r => r.json())
-      .then(d => setHierarki(d))
-      .catch(() => {});
-  }
-
-  // Auto-muat ulang saat tab dibuka ATAU tanggal filter diganti — didebounce
-  // dikit biar gak nembak fetch tiap ketikan, TANPA perlu tombol "Terapkan".
-  useEffect(() => {
-    if (activeTab !== 'hierarki') return;
-    const t = setTimeout(() => loadHierarki(), 350);
-    return () => clearTimeout(t);
-  }, [activeTab, hierarkiFrom, hierarkiTo]);
-
   async function buatVoucher() {
     if (!vForm.kode.trim()) { alert('Kode voucher wajib diisi!'); return; }
     if (!vForm.potongan || vForm.potongan <= 0) { alert('Nominal potongan wajib diisi!'); return; }
@@ -714,10 +629,6 @@ function AdminPageInner() {
     const d = await res.json().catch(() => ({}));
     alert(res.ok ? d.message : (d.error || 'Gagal menghapus akun.'));
     if (res.ok) loadAll();
-  }
-
-  function toggleHierarkiNode(id, isExpanded) {
-    setExpandedNodes(prev => ({ ...prev, [id]: !isExpanded }));
   }
 
   async function openProgramDetail(p) {
@@ -2427,162 +2338,6 @@ function AdminPageInner() {
               })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ================= HIERARKI & CLOSING TAB ================= */}
-      {activeTab === 'hierarki' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-start flex-wrap gap-2">
-            <div>
-              <h3 className="font-bold text-[#0E2F6E] mb-1">🌳 Hierarki & Laporan Closing</h3>
-              <p className="text-xs text-gray-400">Struktur perekrutan perwakilan (berjenjang) beserta performa closing & komisi masing-masing.</p>
-            </div>
-            <button onClick={() => downloadExcel('closing', { from: hierarkiFrom, to: hierarkiTo })} disabled={exporting==='closing'}
-              className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-600 text-xs font-bold px-3 py-2 rounded-full whitespace-nowrap">
-              {exporting==='closing' ? 'Menyiapkan...' : '⬇️ Export Laporan Closing'}
-            </button>
-          </div>
-
-          <div className="flex flex-wrap items-end gap-2 bg-white rounded-xl border border-[#e0e8f0] p-3">
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1">Dari Tanggal</label>
-              <InputTanggal value={hierarkiFrom} onChange={e => setHierarkiFrom(e.target.value)} className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
-            </div>
-            <div>
-              <label className="block text-[10px] text-gray-400 mb-1">Sampai Tanggal</label>
-              <InputTanggal value={hierarkiTo} onChange={e => setHierarkiTo(e.target.value)} className="px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
-            </div>
-            {(hierarkiFrom || hierarkiTo) && (
-              <button onClick={() => { setHierarkiFrom(''); setHierarkiTo(''); }}
-                className="text-gray-400 hover:text-red-500 text-xs font-bold px-3 py-2">✕ Reset</button>
-            )}
-            <p className="text-[10px] text-gray-400 w-full">Hasil update otomatis begitu tanggal diisi. Kosongkan tanggal untuk melihat performa sepanjang waktu (all-time).</p>
-          </div>
-
-          <div className="flex gap-2">
-            {[{k:'tree',label:'🌳 Pohon Hierarki'},{k:'genealogi',label:'📋 Tabel Genealogi'},{k:'flat',label:'📊 Laporan Ranking'}].map(v => (
-              <button key={v.k} onClick={() => setHierarkiView(v.k)}
-                className={`text-sm font-bold px-4 py-2 rounded-full ${hierarkiView===v.k?'bg-[#1A4FA0] text-white':'bg-white text-gray-500 border border-gray-200'}`}>
-                {v.label}
-              </button>
-            ))}
-          </div>
-
-          <CollapsibleSection title={<h4 className="font-bold text-[#0E2F6E] text-sm">
-            {hierarkiView==='tree'?'🌳 Pohon Hierarki':hierarkiView==='genealogi'?'📋 Tabel Genealogi':'📊 Laporan Ranking'}
-          </h4>}>
-          {!hierarki ? (
-            <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">Memuat...</div>
-          ) : hierarkiView === 'tree' ? (
-            <div className="bg-white rounded-xl border border-[#e0e8f0] p-4">
-              {hierarki.tree.length === 0 ? (
-                <div className="text-center text-sm text-gray-400 py-6">Belum ada perwakilan.</div>
-              ) : hierarki.tree.map(node => (
-                <HierarkiNode key={node.id} node={node} depth={0} expanded={expandedNodes} onToggle={toggleHierarkiNode} onClickUser={openUserDetail} />
-              ))}
-            </div>
-          ) : hierarkiView === 'genealogi' ? (
-            <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-x-auto">
-              <table className="w-full text-sm whitespace-nowrap">
-                <thead><tr className="bg-[#0E2F6E] text-white text-xs">
-                  <th className="px-4 py-3 text-left">#</th>
-                  <th className="px-4 py-3 text-left">Nama (berjenjang)</th>
-                  <th className="px-4 py-3 text-left">Level</th>
-                  <th className="px-4 py-3 text-left">Kode</th>
-                  <th className="px-4 py-3 text-left">Role</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-right">Downline Langsung</th>
-                  <th className="px-4 py-3 text-right">Total Downline</th>
-                  <th className="px-4 py-3 text-right">Booking</th>
-                  <th className="px-4 py-3 text-right">Jamaah</th>
-                  <th className="px-4 py-3 text-right">Total Komisi</th>
-                </tr></thead>
-                <tbody>
-                  {flattenGenealogi(hierarki.tree).map((f, i) => (
-                    <tr key={f.id} onClick={() => openUserDetail(f)}
-                      className={`cursor-pointer hover:bg-blue-50 ${i%2===0?'bg-white':'bg-gray-50'}`}>
-                      <td className="px-4 py-3 text-gray-400">{i+1}</td>
-                      <td className="px-4 py-3 font-semibold text-[#0E2F6E]" style={{ paddingLeft: 16 + f.depth * 24 }}>
-                        {f.depth > 0 && <span className="text-gray-300 mr-1">└</span>}
-                        {f.name}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">{f.depth + 1}</td>
-                      <td className="px-4 py-3 text-gray-500">{f.kode_unik}</td>
-                      <td className="px-4 py-3 text-gray-500">{f.role}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${f.status==='active'?'bg-green-100 text-green-700':'bg-gray-200 text-gray-500'}`}>{f.status}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right text-gray-500">{f.children?.length || 0}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{f.total_downline}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{f.jumlah_booking}</td>
-                      <td className="px-4 py-3 text-right text-gray-500">{f.jumlah_jamaah}</td>
-                      <td className="px-4 py-3 text-right font-bold text-[#C9952A]">{rp(f.total_komisi)}</td>
-                    </tr>
-                  ))}
-                  {hierarki.tree.length===0 && <tr><td colSpan={11} className="px-4 py-6 text-center text-gray-400">Belum ada perwakilan.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-              <table className="w-full text-sm">
-                <thead><tr className="bg-[#0E2F6E] text-white text-xs">
-                  <th className="px-4 py-3 text-left">#</th>
-                  <SortTh field="name" sort={sortState.ranking} onSort={f => toggleSort('ranking', f)}>Nama</SortTh>
-                  <SortTh field="role" sort={sortState.ranking} onSort={f => toggleSort('ranking', f)}>Role</SortTh>
-                  <SortTh field="status" sort={sortState.ranking} onSort={f => toggleSort('ranking', f)}>Status</SortTh>
-                  <th className="px-4 py-3 text-left">Perekrut</th>
-                  <SortTh field="jumlah_booking" sort={sortState.ranking} onSort={f => toggleSort('ranking', f)}>Booking</SortTh>
-                  <SortTh field="jumlah_jamaah" sort={sortState.ranking} onSort={f => toggleSort('ranking', f)}>Jamaah</SortTh>
-                  <SortTh field="total_komisi" sort={sortState.ranking} onSort={f => toggleSort('ranking', f)}>Total Komisi</SortTh>
-                </tr></thead>
-                <tbody>
-                  {urutkan(hierarki.flat, sortState.ranking.field, sortState.ranking.dir).map((f,i) => (
-                    <Fragment key={f.id}>
-                      <tr onClick={() => setExpandedFlatRows(prev => ({...prev, [f.id]: !prev[f.id]}))}
-                        className={`cursor-pointer hover:bg-blue-50 ${i%2===0?'bg-white':'bg-gray-50'}`}>
-                        <td className="px-4 py-3 text-gray-400">{i+1}</td>
-                        <td className="px-4 py-3 font-semibold text-[#0E2F6E]">
-                          {f.komisi_breakdown.length>0 && <span className="text-gray-400 mr-1">{expandedFlatRows[f.id]?'▼':'▶'}</span>}
-                          {f.name}<div className="text-[10px] text-gray-400 font-normal">{f.kode_unik}</div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{f.role}</td>
-                        <td className="px-4 py-3">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${f.status==='active'?'bg-green-100 text-green-700':'bg-gray-200 text-gray-500'}`}>{f.status}</span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500" onClick={e => e.stopPropagation()}>
-                          {f.perekrut_nama ? (
-                            <span onClick={() => openUserDetail({ id: f.perekrut_id })} className="text-[#1A4FA0] hover:underline cursor-pointer">{f.perekrut_nama}</span>
-                          ) : '-'}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{f.jumlah_booking}</td>
-                        <td className="px-4 py-3 text-gray-500">{f.jumlah_jamaah}</td>
-                        <td className="px-4 py-3 font-bold text-[#C9952A]">{rp(f.total_komisi)}</td>
-                      </tr>
-                      {expandedFlatRows[f.id] && f.komisi_breakdown.length > 0 && (
-                        <tr className="bg-gray-50">
-                          <td colSpan={8} className="px-4 py-3">
-                            <div className="text-[10px] font-semibold text-gray-400 uppercase mb-1">Breakdown Komisi</div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                              {f.komisi_breakdown.map(k => (
-                                <div key={k.jenis} className="flex justify-between text-xs bg-white rounded px-2 py-1 border border-gray-100">
-                                  <span className="text-gray-500">{k.jenis} ({k.jumlah}x)</span>
-                                  <span className="font-bold text-[#C9952A]">{rp(k.total)}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-                  {hierarki.flat.length===0 && <tr><td colSpan={8} className="px-4 py-6 text-center text-gray-400">Belum ada data.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-          )}
-          </CollapsibleSection>
         </div>
       )}
 

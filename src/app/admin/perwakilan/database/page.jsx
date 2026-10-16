@@ -131,6 +131,7 @@ export default function DatabasePerwakilanPage() {
   const [tab, setTab] = useState('daftar');
   const [akar, setAkar] = useState([]);
   const [loadingAkar, setLoadingAkar] = useState(true);
+  const [topPerekrut, setTopPerekrut] = useState([]);
   const [cariAkar, setCariAkar] = useState('');
   // Riwayat Closing PINDAH jadi halaman sendiri, /admin/perwakilan/
   // riwayat-closing (dikonfirmasi user 2026-09-06) — state & fetch-nya ikut
@@ -156,6 +157,18 @@ export default function DatabasePerwakilanPage() {
     if (!['admin', 'super_admin'].includes(user.role)) { router.replace('/login'); return; }
     fetch('/api/admin/hierarchy').then(r => r.json()).then(d => {
       setAkar(d.tree || []);
+      // Top Perekrut (dikonfirmasi user 2026-10-16, disalin dari dashboard
+      // Head of Program Sahabat, "disesuaikan" buat Perwakilan) — rank by
+      // TOTAL KOMISI (bukan jumlah relasi/downline kayak versi Sahabat),
+      // soalnya reseller margin Perwakilan cuma jalan 1 tingkat dari
+      // perekrut langsung (GEN_MAX_UJROH_PERWAKILAN=1) — jumlah downline
+      // mentah gak sebanding performanya, komisi beneran lebih relevan.
+      // `flat` dari endpoint ini udah pre-sorted by total_komisi DESC,
+      // tinggal diambil top 5-nya. Filter ke 'active' doang (BUKAN
+      // total_komisi > 0, dikonfirmasi user 2026-10-16) — biar kartu tetap
+      // nampilin Top 5 nama beneran meski semuanya 0 komisi (belum sempat
+      // closing), bukan nyembunyiin diri jadi pesan kosong.
+      setTopPerekrut((d.flat || []).filter(f => f.status === 'active').slice(0, 5));
       setLoadingAkar(false);
     }).catch(() => setLoadingAkar(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -323,6 +336,44 @@ export default function DatabasePerwakilanPage() {
               <div className="text-xl font-bold text-yellow-600">{ringkasan.proses}</div>
               <div className="text-[10px] text-gray-400">Dalam Proses</div>
             </button>
+          </div>
+
+          {/* Disalin dari dashboard Head of Program Sahabat, DISESUAIKAN
+              (dikonfirmasi user 2026-10-16) — rank by TOTAL KOMISI (bukan
+              jumlah relasi/downline kayak versi Sahabat), lihat alasannya
+              di komentar deket setTopPerekrut di atas. "Kedalaman
+              Jaringan" SENGAJA gak ikut di-copy — sama alasan kayak di
+              Database Jamaah Sahabat, gak ada "akar" tunggal di halaman
+              yang nampilin semua orang. */}
+          {/* Kartu TETAP dirender walau datanya kosong (dikonfirmasi user
+              2026-10-16, bug: sebelumnya dibungkus `topPerekrut.length > 0
+              &&` jadi kartunya ngilang total kalau belum ada komisi
+              tercatat — keliatan kayak fiturnya gak ada, padahal cuma
+              datanya yang kosong) — sama pola kayak versi asli di
+              dashboard HoP, yang selalu nampilin kartu + pesan "belum ada"
+              daripada nyembunyiin section-nya. */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+            <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🏆 Top {topPerekrut.length || 5} Perekrut</div>
+            <div className="text-xs text-gray-400 mb-2">Berdasarkan total komisi (ujroh closing + margin reseller).</div>
+            {topPerekrut.length === 0 ? (
+              <div className="text-xs text-gray-400 py-3">Belum ada perwakilan yang punya komisi tercatat.</div>
+            ) : (
+              <ol className="divide-y divide-gray-50">
+                {topPerekrut.map((s, i) => (
+                  <li key={s.id} className="py-2 flex items-center gap-3">
+                    <span className="w-5 text-center text-xs font-black text-gray-400">{i + 1}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-[#0E2F6E] text-sm truncate">{s.name}</div>
+                      <div className="text-[10px] text-gray-400">{s.kode_unik || '-'}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-black text-[#C9952A]">{fmtRp(s.total_komisi)}</div>
+                      <div className="text-[10px] text-gray-400">{s.jumlah_booking} booking</div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
 
           {/* Tab status — dikonfirmasi user 2026-09-07: dulu dropdown filter

@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
 import { namaPengajuan } from '@/lib/pengajuanUjroh';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -55,6 +56,7 @@ export default function PencairanDetailPage() {
   const isSuperAdmin = user?.role === 'super_admin';
 
   function muat() {
+    refreshSidebarBadges();
     fetch(`/api/admin/sahabat/komisi-rekap?pengajuan_id=${id}`).then(r => r.json()).then(d => {
       setData(d);
       setLoading(false);

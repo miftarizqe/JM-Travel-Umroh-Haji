@@ -6,6 +6,7 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
 import { namaPengajuan } from '@/lib/pengajuanUjroh';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 function fmtTanggal(iso) {
@@ -40,6 +41,7 @@ export default function PencairanKomisiPage() {
   const [periodeSelesai, setPeriodeSelesai] = useState('');
 
   function muat() {
+    refreshSidebarBadges();
     fetch('/api/admin/sahabat/pencairan-ringkasan').then(r => r.json()).then(d => {
       setData(d);
       setLoading(false);
