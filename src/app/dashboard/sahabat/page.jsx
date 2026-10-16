@@ -10,7 +10,7 @@ import DownlineModalSahabat from '@/app/components/DownlineModalSahabat';
 import TombolWA from '@/app/components/TombolWA';
 import { getStage, langkahBooking } from '@/lib/bookingStage';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
-import { adaDokumenPendukungDitolak } from '@/lib/dokumenPendukung';
+import { adaDokumenPendukungDitolak, adaDokumenPendukungMenunggu } from '@/lib/dokumenPendukung';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -299,13 +299,20 @@ export default function DashboardSahabatPage() {
                   </div>
                   {stage === 5 ? (
                     // Sinkron sama /dashboard/jamaah (dikonfirmasi user
-                    // 2026-10-15) -- jangan nampilin "Lunas" ijo polos kalau
-                    // ada dokumen pendukung yang ditolak admin, nyesatin.
+                    // 2026-10-15 buat 'ditolak', diperluas ke 'menunggu'
+                    // 2026-10-16) -- jangan nampilin "Lunas" ijo polos kalau
+                    // ada dokumen pendukung yang ditolak ATAU masih
+                    // menunggu verifikasi admin (apapun riwayatnya,
+                    // termasuk abis diperbaiki dari ditolak), nyesatin.
                     // Amber + nada positif, bukan merah/❌ (dikonfirmasi user,
                     // "jangan merah silang, bikin yang lebih manusiawi").
                     adaDokumenPendukungDitolak(b.jamaah_data) ? (
                       <div className="mt-2 bg-amber-50 text-amber-700 text-xs text-center py-2 rounded-full font-bold">
                         📋 Lunas — ada dokumen yang perlu diperbaiki
+                      </div>
+                    ) : adaDokumenPendukungMenunggu(b.jamaah_data) ? (
+                      <div className="mt-2 bg-amber-50 text-amber-700 text-xs text-center py-2 rounded-full font-bold">
+                        ⏳ Lunas — dokumen pendukung sedang diverifikasi admin
                       </div>
                     ) : (
                       <div className="mt-2 bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">

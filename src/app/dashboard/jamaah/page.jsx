@@ -8,7 +8,7 @@ import DokumenPendukungStatus from '@/app/components/DokumenPendukungStatus';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { formLengkap, getStage, perjanjianSelesai, pembayaranSudahDiAcc } from '@/lib/bookingStage';
-import { adaDokumenPendukungDitolak } from '@/lib/dokumenPendukung';
+import { adaDokumenPendukungDitolak, adaDokumenPendukungMenunggu } from '@/lib/dokumenPendukung';
 import { alasanPerluTindakan } from '@/lib/bookingPerluTindakan';
 import { dpPerluResubmit } from '@/lib/dpPayments';
 import BookingProgressBar from '@/app/components/BookingProgressBar';
@@ -411,19 +411,29 @@ export default function DashboardJamaah() {
                           📜 Baca & Setujui Perjanjian →
                         </button>
                       )}
-                      {/* Ada dokumen pendukung yang ditolak admin -> JANGAN
-                          nampilin "Lunas" polos ijo, nyesatin keliatan
-                          "beres semua" padahal masih ada yang wajib
-                          dibenerin (dikonfirmasi user 2026-10-15, bug
+                      {/* Ada dokumen pendukung yang ditolak ATAU masih
+                          menunggu verifikasi admin -> JANGAN nampilin
+                          "Lunas" polos ijo, nyesatin keliatan "beres semua"
+                          padahal masih ada yang perlu dibenerin/ditunggu
+                          (dikonfirmasi user 2026-10-15 buat 'ditolak', bug
                           ditemukan dari booking sahabat3: 5 dokumen, 1
                           ditolak, tapi badge-nya tetep ijo "Selamat
-                          menunaikan ibadah"). Notif ke jamaah udah otomatis
-                          terkirim SAAT admin nolak dokumennya (lihat
-                          kirimNotifikasi di /api/admin/dokumen-pendukung),
-                          gak perlu notif tambahan di sini. Warna amber + copy
-                          positif (BUKAN merah/❌) — ini jamaah yang BARU AJA
-                          lunasin bayaran, bukan orang yang bikin kesalahan;
-                          nadanya jangan kayak nuduh/nolak (dikonfirmasi user
+                          menunaikan ibadah"; diperluas ke 'menunggu'
+                          2026-10-16 -- bug kedua: dokumen yang DIPERBAIKI
+                          abis ditolak balik status ke 'menunggu' [bukan
+                          'ditolak' lagi], jadi gak kedeteksi fungsi lama &
+                          banner ijo nongol lagi padahal admin belum sempat
+                          verifikasi ulang. Dikonfirmasi user: berlaku SEMUA
+                          status 'menunggu', apapun riwayatnya -- termasuk
+                          dokumen yang emang baru pertama kali diunggah,
+                          belum pernah ditolak). Notif ke jamaah udah
+                          otomatis terkirim SAAT admin nolak dokumennya
+                          (lihat kirimNotifikasi di
+                          /api/admin/dokumen-pendukung), gak perlu notif
+                          tambahan di sini. Warna amber + copy positif (BUKAN
+                          merah/❌) — ini jamaah yang BARU AJA lunasin
+                          bayaran, bukan orang yang bikin kesalahan; nadanya
+                          jangan kayak nuduh/nolak (dikonfirmasi user
                           2026-10-15, "jangan merah silang, bikin yang lebih
                           manusiawi"). */}
                       {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && adaDokumenPendukungDitolak(b.jamaah_data) && (
@@ -431,7 +441,12 @@ export default function DashboardJamaah() {
                           📋 Lunas — tinggal lengkapi dokumen pendukung yang perlu diperbaiki di &ldquo;Dokumen Saya&rdquo; di bawah, ya.
                         </div>
                       )}
-                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && !adaDokumenPendukungDitolak(b.jamaah_data) && (
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && !adaDokumenPendukungDitolak(b.jamaah_data) && adaDokumenPendukungMenunggu(b.jamaah_data) && (
+                        <div className="bg-amber-50 text-amber-700 text-xs text-center py-2 rounded-full font-bold">
+                          ⏳ Lunas — dokumen pendukung Anda sedang diverifikasi admin.
+                        </div>
+                      )}
+                      {stage === 5 && formLengkap(b) && perjanjianSelesai(b) && !adaDokumenPendukungDitolak(b.jamaah_data) && !adaDokumenPendukungMenunggu(b.jamaah_data) && (
                         <div className="bg-green-50 text-green-700 text-xs text-center py-2 rounded-full font-bold">
                           ✅ Lunas — Selamat menunaikan ibadah!
                         </div>
