@@ -9,7 +9,7 @@ const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png'];
 // Whitelist kolom yang boleh diisi lewat endpoint ini — biar gak bisa
 // nimpa kolom sembarangan di tabel pengaturan cuma dari nama field kiriman.
 const KOLOM_OK = [
-  'ttd_penandatangan_keuangan_path', 'cap_perusahaan_path', 'ttd_penandatangan_jamaah_path',
+  'ttd_penandatangan_keuangan_path', 'cap_perusahaan_path',
   'panduan_buka_rekening_bsi_path', 'panduan_buka_tabungan_umroh_path',
 ];
 // Panduan step-by-step (dikonfirmasi user 2026-09-20) boleh PDF juga — beda

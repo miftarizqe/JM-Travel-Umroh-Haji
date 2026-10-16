@@ -283,8 +283,7 @@ export default function CetakPerjanjian() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, breakInside: 'avoid' }}>
-                <TtdBoxHtml pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} keterangan={jabatanPenandatangan}
-                  ttdImg={pengaturan.ttd_penandatangan_jamaah_path} capImg={pengaturan.cap_perusahaan_path} />
+                <TtdBoxHtml pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} keterangan={jabatanPenandatangan} />
                 <TtdBoxHtml pihak="PIHAK KEDUA" sub="Jamaah" nama={namaTtdKedua} keterangan={keteranganTtdKedua} />
               </div>
             </div>
