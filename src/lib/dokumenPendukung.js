@@ -52,6 +52,17 @@ export function adaDokumenPendukungDitolak(jamaahDataRaw) {
   return jamaah.some(j => DOC_KEYS.some(key => statusDokumen(j, key)?.status === 'ditolak'));
 }
 
+// Sama kayak adaDokumenPendukungDitolak, tapi buat status 'menunggu' —
+// dokumen yang udah diunggah tapi admin belum sempat verifikasi, APAPUN
+// riwayatnya (baru pertama kali upload ATAU abis diperbaiki setelah
+// ditolak, dua-duanya dianggap sama — dikonfirmasi user 2026-10-16). Dipakai
+// bareng adaDokumenPendukungDitolak buat nentuin banner "Lunas" boleh hijau
+// polos atau enggak (lihat dashboard/jamaah & dashboard/sahabat).
+export function adaDokumenPendukungMenunggu(jamaahDataRaw) {
+  const jamaah = parseJamaahData(jamaahDataRaw);
+  return jamaah.some(j => DOC_KEYS.some(key => statusDokumen(j, key)?.status === 'menunggu'));
+}
+
 // BE: hitung ulang doc_status saat formulir disimpan. `lama` = jamaah_data yang
 // tersimpan di DB, `baru` = kiriman client. Dicocokkan per index (urutan jamaah
 // di form = urutan di DB). Dokumen yang path-nya sama dengan yang tersimpan
