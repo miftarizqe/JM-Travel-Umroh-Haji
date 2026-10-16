@@ -64,6 +64,9 @@ export default function LaporanKeuanganProgramPage() {
   const [to, setTo] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Basis Kas/Akrual (dikonfirmasi user 2026-10-16) — lihat catatan sama di
+  // /admin/laporan/keuangan-perusahaan/[periode]. Akrual = default.
+  const [basis, setBasis] = useState('akrual');
 
   useEffect(() => {
     if (!user) return;
@@ -79,6 +82,7 @@ export default function LaporanKeuanganProgramPage() {
     if (from) qs.set('from', from);
     if (to) qs.set('to', to);
     if (progId) qs.set('prog_id', progId);
+    qs.set('basis', basis);
     fetch(`/api/admin/laporan-keuangan-program?${qs}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false); })
@@ -86,7 +90,7 @@ export default function LaporanKeuanganProgramPage() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { muat(); }, []);
+  useEffect(() => { muat(); }, [basis]);
 
   if (!user || !['admin','super_admin'].includes(user.role)) {
     return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
@@ -99,6 +103,7 @@ export default function LaporanKeuanganProgramPage() {
     if (from) qs.set('from', from);
     if (to) qs.set('to', to);
     if (progId) qs.set('prog_id', progId);
+    qs.set('basis', basis);
     window.open(`/api/admin/export?${qs}`, '_blank');
   }
 
@@ -106,6 +111,22 @@ export default function LaporanKeuanganProgramPage() {
     <Layout title="📊 Laporan Keuangan Program" backHref="/admin?tab=dashboard">
       <div className="text-xs text-gray-400 mb-4">
         Pendapatan dipecah eksplisit (harga program, opsi tambahan, diskon voucher) supaya tidak ada yang tersembunyi, ditambah HPP dan komisi/ujroh yang sudah dicairkan — dari booking yang DP-nya sudah dikonfirmasi & tidak dibatalkan. Rincian siapa yang harus ditransfer & ke rekening mana ada di Laporan Closing &amp; Forecast Ujroh.
+        {basis === 'akrual' && ' Basis Akrual: "Per Bulan" di bawah ini artinya bulan KEBERANGKATAN program, bukan bulan booking dibuat.'}
+      </div>
+
+      {/* Basis Kas/Akrual */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { key: 'akrual', label: '✅ Akrual (sudah berangkat)' },
+          { key: 'kas', label: '💰 Kas (uang masuk)' },
+        ].map(b => (
+          <button key={b.key} onClick={() => setBasis(b.key)}
+            className={`text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-colors ${
+              basis === b.key ? 'border-[#1A4FA0] bg-[#E8F0FB] text-[#1A4FA0]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+            }`}>
+            {b.label}
+          </button>
+        ))}
       </div>
 
       {/* Filter */}

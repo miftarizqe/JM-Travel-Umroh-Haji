@@ -83,9 +83,14 @@ function FormTransaksi({ form, setForm, akunList, kategoriList, programList, sav
       <div>
         {/* Tag opsional ke 1 program — fondasi laporan Realisasi vs Budget
             (bandingin duit yang BENERAN keluar/masuk di sini vs HPP budget
-            program itu). Kosong = transaksi company-wide, gak nempel ke
-            program manapun (gaji, sewa, dst) — perilaku lama gak berubah. */}
-        <label className={lbl}>Program (opsional — biar bisa dibandingin budget vs realisasi)</label>
+            program itu), DAN (2026-10-16) dipakai Laba Rugi basis Akrual buat
+            nahan HPP vendor ini sampai program-nya beneran berangkat, biar
+            ketemu bareng pendapatannya di periode yang sama. Kosong =
+            transaksi company-wide, gak nempel ke program manapun (gaji,
+            sewa, dst) — perilaku lama gak berubah, SELALU dihitung di
+            periode kejadian apapun basisnya (gak bisa ditahan, gak ada
+            program buat nunggu keberangkatannya). */}
+        <label className={lbl}>Program (opsional — buat Realisasi vs Budget & Laba Rugi Akrual)</label>
         <select value={form.program_id} onChange={e => setForm({ ...form, program_id: e.target.value })} className={inp}>
           <option value="">— Tanpa program —</option>
           {programList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}

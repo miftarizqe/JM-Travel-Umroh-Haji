@@ -537,7 +537,8 @@ async function buildLaporanKeuanganProgram(searchParams) {
   const from = searchParams.get('from');
   const to = searchParams.get('to');
   const progId = searchParams.get('prog_id');
-  const { per_program, per_bulan } = await hitungLaporanKeuanganProgram(pool, { from, to, progId });
+  const basis = searchParams.get('basis') === 'kas' ? 'kas' : 'akrual';
+  const { per_program, per_bulan } = await hitungLaporanKeuanganProgram(pool, { from, to, progId, basis });
 
   const kolomRingkasan = (labelKolom) => [
     { header: labelKolom, key: 'label', width: 22 },

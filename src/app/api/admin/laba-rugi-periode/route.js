@@ -4,6 +4,8 @@ import { catatAudit } from '@/lib/audit';
 
 const RE_BULAN = /^\d{4}-\d{2}$/;
 const RE_TAHUN = /^\d{4}$/;
+const BASIS_VALID = ['kas', 'akrual'];
+function basisDariParam(v) { return v === 'kas' ? 'kas' : 'akrual'; }
 
 // Pastikan Cashflow yang jadi sumber angka udah dikunci dulu sebelum Laba
 // Rugi ikut dikunci — jangan sampai P&L "final" di atas ledger yang masih
@@ -30,7 +32,8 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const periode = searchParams.get('periode');
     if (!periode) return Response.json({ error: 'Parameter periode wajib diisi' }, { status: 400 });
-    const [[row]] = await pool.query('SELECT * FROM laba_rugi_periode WHERE periode = ?', [periode]);
+    const basis = basisDariParam(searchParams.get('basis'));
+    const [[row]] = await pool.query('SELECT * FROM laba_rugi_periode WHERE periode = ? AND basis = ?', [periode, basis]);
     return Response.json({ periode: row || null });
   } catch (error) {
     console.error(error);
@@ -43,14 +46,14 @@ export async function POST(request) {
   const auth = wajibSuperAdmin(request);
   if (auth.error) return auth.error;
   try {
-    const { periode, tipe, data_snapshot } = await request.json();
-    if (!periode || !['bulan', 'tahun'].includes(tipe) || !data_snapshot) {
+    const { periode, tipe, data_snapshot, basis } = await request.json();
+    if (!periode || !['bulan', 'tahun'].includes(tipe) || !data_snapshot || !BASIS_VALID.includes(basis)) {
       return Response.json({ error: 'Data tidak lengkap' }, { status: 400 });
     }
     if (tipe === 'bulan' && !RE_BULAN.test(periode)) return Response.json({ error: 'Format periode bulan tidak valid' }, { status: 400 });
     if (tipe === 'tahun' && !RE_TAHUN.test(periode)) return Response.json({ error: 'Format periode tahun tidak valid' }, { status: 400 });
 
-    const [[existing]] = await pool.query('SELECT * FROM laba_rugi_periode WHERE periode = ?', [periode]);
+    const [[existing]] = await pool.query('SELECT * FROM laba_rugi_periode WHERE periode = ? AND basis = ?', [periode, basis]);
     if (existing?.status === 'submitted') {
       return Response.json({ error: 'Periode ini sudah dikunci' }, { status: 400 });
     }
@@ -60,14 +63,14 @@ export async function POST(request) {
 
     if (existing) {
       await pool.query(
-        `UPDATE laba_rugi_periode SET status = 'submitted', data_snapshot = ?, submitted_at = NOW(), submitted_by = ? WHERE periode = ?`,
-        [JSON.stringify(data_snapshot), auth.user.id, periode]
+        `UPDATE laba_rugi_periode SET status = 'submitted', data_snapshot = ?, submitted_at = NOW(), submitted_by = ? WHERE periode = ? AND basis = ?`,
+        [JSON.stringify(data_snapshot), auth.user.id, periode, basis]
       );
     } else {
       await pool.query(
-        `INSERT INTO laba_rugi_periode (periode, tipe, status, data_snapshot, submitted_at, submitted_by)
-         VALUES (?, ?, 'submitted', ?, NOW(), ?)`,
-        [periode, tipe, JSON.stringify(data_snapshot), auth.user.id]
+        `INSERT INTO laba_rugi_periode (periode, tipe, basis, status, data_snapshot, submitted_at, submitted_by)
+         VALUES (?, ?, ?, 'submitted', ?, NOW(), ?)`,
+        [periode, tipe, basis, JSON.stringify(data_snapshot), auth.user.id]
       );
     }
 
@@ -76,7 +79,7 @@ export async function POST(request) {
       aksi: 'submit_laba_rugi',
       target_type: 'laba_rugi_periode',
       target_id: periode,
-      keterangan: `Laba Rugi ${tipe === 'bulan' ? 'bulan' : 'tahun'} ${periode} disubmit & dikunci`,
+      keterangan: `Laba Rugi ${tipe === 'bulan' ? 'bulan' : 'tahun'} ${periode} (basis ${basis}) disubmit & dikunci`,
     });
 
     return Response.json({ message: 'Laba Rugi disubmit & dikunci!' });
@@ -94,15 +97,16 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const periode = searchParams.get('periode');
     if (!periode) return Response.json({ error: 'Parameter periode wajib diisi' }, { status: 400 });
+    const basis = basisDariParam(searchParams.get('basis'));
 
-    const [[existing]] = await pool.query('SELECT * FROM laba_rugi_periode WHERE periode = ?', [periode]);
+    const [[existing]] = await pool.query('SELECT * FROM laba_rugi_periode WHERE periode = ? AND basis = ?', [periode, basis]);
     if (!existing || existing.status !== 'submitted') {
       return Response.json({ error: 'Periode ini belum dikunci' }, { status: 400 });
     }
 
     await pool.query(
-      `UPDATE laba_rugi_periode SET status = 'draft', data_snapshot = NULL, submitted_at = NULL, submitted_by = NULL WHERE periode = ?`,
-      [periode]
+      `UPDATE laba_rugi_periode SET status = 'draft', data_snapshot = NULL, submitted_at = NULL, submitted_by = NULL WHERE periode = ? AND basis = ?`,
+      [periode, basis]
     );
 
     await catatAudit(pool, {
@@ -110,7 +114,7 @@ export async function DELETE(request) {
       aksi: 'buka_laba_rugi',
       target_type: 'laba_rugi_periode',
       target_id: periode,
-      keterangan: `Laba Rugi ${periode} dibuka kembali`,
+      keterangan: `Laba Rugi ${periode} (basis ${basis}) dibuka kembali`,
     });
 
     return Response.json({ message: 'Laba Rugi dibuka kembali.' });

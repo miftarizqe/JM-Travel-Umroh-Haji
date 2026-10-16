@@ -81,8 +81,9 @@ function gabungKategori(...daftarList) {
  *
  * Khusus super admin (lihat wajibSuperAdmin di src/lib/auth.js).
  */
-export async function hitungLaporanKeuanganPerusahaan(pool, { from, to } = {}) {
-  const { grand_total: bisnis } = await hitungLaporanKeuanganProgram(pool, { from, to });
+export async function hitungLaporanKeuanganPerusahaan(pool, { from, to, basis = 'kas' } = {}) {
+  const akrual = basis === 'akrual';
+  const { grand_total: bisnis } = await hitungLaporanKeuanganProgram(pool, { from, to, basis });
 
   const params = [];
   let where = ' WHERE 1=1';
@@ -94,6 +95,22 @@ export async function hitungLaporanKeuanganPerusahaan(pool, { from, to } = {}) {
   let hppWhere = " WHERE t.tipe = 'out' AND k.adalah_hpp_vendor = 1";
   if (from) { hppWhere += ' AND t.tanggal >= ?'; hppParams.push(from); }
   if (to) { hppWhere += ' AND t.tanggal <= ?'; hppParams.push(to); }
+  // Basis akrual: HPP vendor harus "nunggu" program yang ditagihnya beneran
+  // berangkat, biar ketemu bareng pendapatannya di periode yang sama
+  // (prinsip matching) — bukan nongol duluan di bulan vendor dibayar
+  // (biasanya JAUH sebelum keberangkatan) sementara pendapatannya baru
+  // diakui belakangan, yang bikin bulan2 awal keliatan "rugi" palsu &
+  // bulan keberangkatan keliatan "untung" ngaco gede (dikonfirmasi user
+  // 2026-10-16). Transaksi yang GAK ditag ke program_id gak bisa ditahan —
+  // gak ada "program" buat nunggu keberangkatannya — jadi tetap dihitung di
+  // periode kejadian apapun basisnya. KNOWN LIMITATION: makin rajin admin
+  // isi Kode/Tag Program pas input transaksi vendor, makin akurat matching
+  // akrualnya; yang gak ditag ya apa adanya kayak basis kas.
+  if (akrual) {
+    hppWhere += ` AND (t.program_id IS NULL OR t.program_id IN (
+      SELECT id FROM programs WHERE tanggal_berangkat IS NOT NULL AND tanggal_berangkat <= CURDATE()
+    ))`;
+  }
   const [[hppRealRow]] = await pool.query(
     `SELECT COALESCE(SUM(t.nominal), 0) AS total
      FROM cashflow_transaksi t JOIN cashflow_kategori k ON k.id = t.kategori_id
@@ -193,14 +210,14 @@ export async function hitungLaporanKeuanganPerusahaan(pool, { from, to } = {}) {
  * kategori dengan array 12 angka (urut Jan..Des) + total setahun, biar tabel
  * gampang dirender (kolom = bulan, baris = item P&L).
  */
-export async function hitungLaporanLabaRugiTahunan(pool, tahun) {
+export async function hitungLaporanLabaRugiTahunan(pool, tahun, basis = 'kas') {
   const bulanList = [];
   const perBulan = [];
   for (let m = 1; m <= 12; m++) {
     const bulanStr = `${tahun}-${String(m).padStart(2, '0')}`;
     const akhir = new Date(Number(tahun), m, 0).getDate();
     const data = await hitungLaporanKeuanganPerusahaan(pool, {
-      from: `${bulanStr}-01`, to: `${bulanStr}-${String(akhir).padStart(2, '0')}`,
+      from: `${bulanStr}-01`, to: `${bulanStr}-${String(akhir).padStart(2, '0')}`, basis,
     });
     bulanList.push(bulanStr);
     perBulan.push(data);

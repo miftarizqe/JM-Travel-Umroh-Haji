@@ -23,6 +23,46 @@ const SUMBER_LABEL = {
   operasional_sahabat: 'Alokasi Operasional/Management', saldo_awal_manual: 'Saldo Awal (input manual)',
 };
 
+// Cek Dana Jamaah (dikonfirmasi user 2026-10-16, diadaptasi dari sheet
+// "Rekap Kas" template Excel owner) — saldo Alkhalid harus >= dana jamaah
+// yang udah masuk tapi programnya belum berangkat, biar gak ada dana
+// jamaah yang kepake buat hal lain. `dana_jamaah_belum_berangkat` itu angka
+// "SEKARANG" (gak ada snapshot historis per bulan), jadi verdict ijo/merah
+// CUMA ditampilin kalau `bulan` yang dipilih = bulan berjalan — bulan lain
+// cuma dikasih catatan, bukan verdict yang bisa menyesatkan.
+function CekDanaJamaah({ cek, bulan }) {
+  if (!cek) return null;
+  if (bulan !== bulanIni()) {
+    return (
+      <div className="border border-gray-200 rounded-xl bg-gray-50 p-3 text-xs text-gray-400">
+        💡 Cek Dana Jamaah cuma akurat buat bulan berjalan (data ini real-time, bukan snapshot {labelBulan(bulan)}) — pindah ke bulan ini untuk cek real-time.
+      </div>
+    );
+  }
+  return (
+    <div className={`border rounded-xl p-4 ${cek.aman ? 'border-green-200 bg-green-50' : 'border-red-300 bg-red-50'}`}>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div className={`text-xs font-bold ${cek.aman ? 'text-green-700' : 'text-red-700'}`}>
+            {cek.aman ? '✅ Cek Dana Jamaah — Aman' : '⚠️ Cek Dana Jamaah — Saldo Kurang!'}
+          </div>
+          <div className="text-[11px] text-gray-500 mt-0.5">
+            Saldo Alkhalid {fmtRp(cek.saldo_alkhalid)} vs dana jamaah belum berangkat {fmtRp(cek.dana_jamaah_belum_berangkat)}
+          </div>
+        </div>
+        <div className={`font-black ${cek.aman ? 'text-green-700' : 'text-red-600'}`}>
+          {cek.selisih >= 0 ? '+' : ''}{fmtRp(cek.selisih)}
+        </div>
+      </div>
+      {!cek.aman && (
+        <div className="text-[11px] text-red-600 mt-2">
+          Saldo Rek Utama (Alkhalid) di bawah total dana jamaah yang belum berangkat — kemungkinan ada dana jamaah yang kepakai buat hal lain selain nganter jamaah itu sendiri.
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Dashboard 3 rekening JM Travel (2026-09-02, dikonfirmasi user):
 // Alkhalid Jaya Megah + Sahabat Baitullah (baru, dari rekening_ledger) +
 // Cashflow (SUDAH ADA, cuma disurface bareng di sini — link ke halaman
@@ -223,6 +263,7 @@ export default function RekeningDashboardPage() {
         <div className="text-center text-gray-400 py-10">Memuat...</div>
       ) : (
         <div className="space-y-3">
+          <CekDanaJamaah cek={data?.cek_dana_jamaah} bulan={bulan} />
           <RekeningCard kode="alkhalid" label="Alkhalid Jaya Megah" icon="🏢" warna="border-blue-200" ringkasan={data?.alkhalid} />
           <RekeningCard kode="sahabat_baitullah" label="Sahabat Baitullah" icon="🤝" warna="border-amber-200" ringkasan={data?.sahabat_baitullah} />
 
