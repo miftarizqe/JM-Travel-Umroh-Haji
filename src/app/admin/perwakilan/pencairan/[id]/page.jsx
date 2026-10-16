@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { namaPengajuanPerwakilan } from '@/lib/pengajuanUjrohPerwakilan';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -46,6 +47,7 @@ export default function PencairanPerwakilanDetailPage() {
   const isSuperAdmin = user?.role === 'super_admin';
 
   function muat() {
+    refreshSidebarBadges();
     fetch(`/api/admin/perwakilan/rekap-ujroh?pengajuan_id=${id}`).then(r => r.json()).then(d => {
       setData(d);
       setLoading(false);

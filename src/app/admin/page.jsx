@@ -23,6 +23,7 @@ import BookingProgressBar from '@/app/components/BookingProgressBar';
 import { formLengkap, perjanjianSelesai } from '@/lib/bookingStage';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 import { porsiRefund } from '@/lib/danaRefund';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
@@ -380,6 +381,7 @@ function AdminPageInner() {
   }, [user]);
 
   async function loadAll() {
+    refreshSidebarBadges();
     // HoP (Ringkasan Admin khusus Sahabat): cuma ringkasan dashboard versi HoP —
     // data pembayaran/pengguna/program/voucher/pembatalan bukan wewenang HoP
     // (endpoint-nya juga menolak HoP sejak 2026-10-05).

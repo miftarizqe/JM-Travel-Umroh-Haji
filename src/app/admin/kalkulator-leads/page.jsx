@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 const rp = (n) => `Rp ${Math.round(Number(n) || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -28,6 +29,7 @@ export default function KalkulatorLeadsPage() {
   const [filterTindakLanjut, setFilterTindakLanjut] = useState('');
 
   function muat() {
+    refreshSidebarBadges();
     const params = new URLSearchParams();
     if (filterStatus) params.set('status', filterStatus);
     if (filterTindakLanjut) params.set('status_tindak_lanjut', filterTindakLanjut);

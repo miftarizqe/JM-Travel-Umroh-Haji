@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { STATUS_DOKUMEN } from '@/lib/dokumenPendukung';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 const FILTER = [
   { key: 'menunggu', label: '⏳ Menunggu' },
@@ -67,6 +68,7 @@ function AdminDokumenPendukungContent() {
   const [pilih, setPilih] = useState(null); // kunciJamaah yang lagi dibuka
 
   function muat() {
+    refreshSidebarBadges();
     return fetch('/api/admin/dokumen-pendukung?status=semua').then(r => r.json())
       .then(d => { setItems(d.items || []); setLoading(false); })
       .catch(() => setLoading(false));

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 // Urutan proses pendaftaran perwakilan s.d. aktif — SAMA PERSIS
 // pathUntukMetode()/STEP_PENDAFTARAN di /api/status-pendaftaran/route.js,
@@ -71,6 +72,7 @@ export default function AdminPerwakilanPage() {
   const [copiedInvite, setCopiedInvite] = useState(false);
 
   function muat() {
+    refreshSidebarBadges();
     fetch('/api/admin/perwakilan').then(r => r.json()).then(d => {
       setList(d.pendaftaran || []);
       setLoading(false);

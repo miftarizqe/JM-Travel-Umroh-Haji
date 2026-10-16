@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 function fmtTanggalJam(iso) {
@@ -23,6 +24,7 @@ export default function AdminSetoranMandiriPengajuanPage() {
   const [busyId, setBusyId] = useState(null);
 
   function muat() {
+    refreshSidebarBadges();
     fetch('/api/admin/sahabat/setoran-mandiri-pengajuan').then(r => r.json()).then(d => {
       setList(d.pengajuan || []);
       setLoading(false);

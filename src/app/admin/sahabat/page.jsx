@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
 import { IsianAlasanTolak, catatanTolakPermanen } from '@/app/components/ModalTolakPermanen';
+import { refreshSidebarBadges } from '@/lib/sidebarBadges';
 
 // Urutan proses pendaftaran s.d. aktif (SAMA PERSIS STEP_PENDAFTARAN_SAHABAT
 // di /api/status-pendaftaran-sahabat/route.js — jangan diubah sendiri2,
@@ -106,6 +107,7 @@ export default function AdminSahabatPage() {
   const [copiedInvite, setCopiedInvite] = useState(false);
 
   function muat() {
+    refreshSidebarBadges();
     fetch('/api/admin/sahabat').then(r => r.json()).then(d => {
       setList(d.pendaftaran || []);
       setLoading(false);

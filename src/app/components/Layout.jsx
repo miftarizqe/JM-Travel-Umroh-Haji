@@ -666,7 +666,13 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       .catch(() => {});
     muat();
     const id = setInterval(() => { if (document.visibilityState === 'visible') muat(); }, 60000);
-    return () => { batal = true; clearInterval(id); };
+    // Refetch INSTAN begitu halaman admin manapun beresin tindakan (lihat
+    // src/lib/sidebarBadges.js) — interval 60 detik di atas tetap jalan
+    // sebagai fallback (mis. mutasi dari tab/device lain), bukan satu2nya
+    // jalur lagi (dikonfirmasi user 2026-10-16, sebelumnya badge nyangkut
+    // sampai refresh manual).
+    window.addEventListener('jmtravel:sidebar-badges-refresh', muat);
+    return () => { batal = true; clearInterval(id); window.removeEventListener('jmtravel:sidebar-badges-refresh', muat); };
   }, [badgeEndpoint, pathname]);
   const totalBadge = Object.values(sidebarBadges).reduce((t, n) => t + n, 0);
 
