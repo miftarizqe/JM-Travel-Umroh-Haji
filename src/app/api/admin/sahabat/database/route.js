@@ -201,10 +201,15 @@ export async function GET(request) {
     // shared yang sama (relasiSemuaSahabat, bukan khusus-HoP — tiap sahabat
     // dihitung dari dirinya sendiri sebagai akar, jadi langsung cocok buat
     // ranking SELURUH populasi di Database Jamaah).
+    // Filter ke 'active' doang (BUKAN total > 0, dikonfirmasi user
+    // 2026-10-16) — biar kartu tetap nampilin Top 5 nama beneran meski
+    // semuanya 0 relasi (belum sempat closing), bukan nyembunyiin diri jadi
+    // pesan kosong. 'pending'/'rejected' tetep gak masuk — mereka belum
+    // sahabat aktif, gak masuk akal nongol di ranking "perekrut".
     const TOP_N = 5;
     const relasi = await relasiSemuaSahabat(pool);
     const topPerekrut = relasi
-      .filter(s => s.total > 0)
+      .filter(s => s.status === 'active')
       .sort((a, b) => b.total - a.total)
       .slice(0, TOP_N)
       .map(s => ({ id: s.id, name: s.name, kode_unik: s.kode_unik, gen: s.gen, total: s.total }));

@@ -164,8 +164,11 @@ export default function DatabasePerwakilanPage() {
       // perekrut langsung (GEN_MAX_UJROH_PERWAKILAN=1) — jumlah downline
       // mentah gak sebanding performanya, komisi beneran lebih relevan.
       // `flat` dari endpoint ini udah pre-sorted by total_komisi DESC,
-      // tinggal diambil top 5-nya.
-      setTopPerekrut((d.flat || []).filter(f => f.total_komisi > 0).slice(0, 5));
+      // tinggal diambil top 5-nya. Filter ke 'active' doang (BUKAN
+      // total_komisi > 0, dikonfirmasi user 2026-10-16) — biar kartu tetap
+      // nampilin Top 5 nama beneran meski semuanya 0 komisi (belum sempat
+      // closing), bukan nyembunyiin diri jadi pesan kosong.
+      setTopPerekrut((d.flat || []).filter(f => f.status === 'active').slice(0, 5));
       setLoadingAkar(false);
     }).catch(() => setLoadingAkar(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
