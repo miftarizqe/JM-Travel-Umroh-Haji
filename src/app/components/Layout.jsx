@@ -445,19 +445,26 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   // bawah). JANGAN diubah urutannya lagi tanpa alasan konkret — ini hasil
   // konfirmasi eksplisit, bukan placeholder.
   const adminGroups = [
+    // Dipecah jadi subgrup "Booking & Pembayaran" + 2 item mandiri
+    // (dikonfirmasi user 2026-10-16) — "Kalkulator & Harga" yang sempat
+    // jadi subgrup di sini PINDAH ke "Program & Pricing" (dikonfirmasi
+    // user 2026-10-17 — walau timnya sama kayak CS, temanya lebih nyambung
+    // ke Pricing).
     { icon: '📞', label: 'Operasional / CS', children: [
+      // Alur transaksi 1 booking dari awal sampai akhir, urutan ngikutin
+      // kejadiannya beneran (dikonfirmasi user 2026-10-16): checkout ->
+      // muncul di daftar -> bayar -> upload dokumen pendukung -> (kalau
+      // ada) batal.
+      { icon: '📦', label: 'Booking & Pembayaran', children: [
+        { icon: '➕', label: 'Order Jamaah', path: '/programs' },
+        { icon: '📋', label: 'Daftar Booking', path: '/admin?tab=bookings' },
+        { icon: '💳', label: 'Pembayaran', path: '/admin?tab=payments' },
+        { icon: '📎', label: 'Verifikasi Dokumen Pendukung', path: '/admin/dokumen-pendukung' },
+        { icon: '🚫', label: 'Pembatalan', path: '/admin?tab=pembatalan' },
+      ] },
+      // Direktori/referensi yang dipakai terus-menerus lintas alur, bukan
+      // "langkah" di salah satu subgrup di atas — makanya mandiri.
       { icon: '🧳', label: 'Database Jamaah', path: '/admin/database/jamaah' },
-      { icon: '📎', label: 'Verifikasi Dokumen Pendukung', path: '/admin/dokumen-pendukung' },
-      { icon: '📋', label: 'Daftar Booking', path: '/admin?tab=bookings' },
-      { icon: '💳', label: 'Pembayaran', path: '/admin?tab=payments' },
-      { icon: '🚫', label: 'Pembatalan', path: '/admin?tab=pembatalan' },
-      { icon: '💰', label: 'Custom Harga', path: '/admin?tab=customharga' },
-      { icon: '➕', label: 'Order Jamaah', path: '/programs' },
-      { icon: '🧮', label: 'Ajuan Budget Kalkulator', path: '/admin/kalkulator-leads' },
-      // Ajuan Kalkulator Perwakilan SENGAJA tetap di sini (bukan pindah ke
-      // "Program Kemitraan" > Perwakilan) — itu review quote/leads harga,
-      // beda total dari pendaftaran akun (dikonfirmasi user 2026-09-06).
-      { icon: '🧮', label: 'Ajuan Kalkulator Perwakilan', path: '/admin/kalkulator-perwakilan' },
       // Lintas role (Sahabat Baitullah + Perwakilan) — dikonfirmasi user
       // 2026-10-05, sengaja gak ditaruh di subgrup role tertentu di bawah
       // (Program Kemitraan) karena bukan milik 1 role doang.
@@ -488,7 +495,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/sahabat/pencairan' },
         { icon: '🏦', label: 'Pencocokan Saldo BSI', path: '/admin/sahabat/rekonsiliasi' },
-        { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
         // Link "Costing Program" khusus Sahabat Baitullah (dulu ke
         // /admin/programs?publish_type=sahabat_baitullah) DIHAPUS dari sini
         // (dikonfirmasi user 2026-09-06) — dikonsolidasi jadi 1 titik akses
@@ -497,10 +503,14 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // halaman itu sendiri (lihat tab filter di /admin/programs).
         // Nominal komisi "angka fatal" — super_admin only, dikonfirmasi user
         // 2026-08-29 (lihat guard server di /api/admin/pengaturan yang nolak
-        // field sensitif dari admin biasa).
+        // field sensitif dari admin biasa). Posisinya DIGESER ke sini
+        // (dikonfirmasi user 2026-10-17) — deketan sama item keuangan
+        // lainnya (Pencairan Komisi/Pencocokan Saldo), sebelumnya nyempil
+        // di paling bawah padahal bukan item konten kayak Materi Presentasi.
         ...(user?.role === 'super_admin' ? [
           { icon: '🔒', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
         ] : []),
+        { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
       ] },
       { icon: '💼', label: 'Perwakilan', children: [
         { icon: '🪪', label: 'Pendaftaran', path: '/admin/perwakilan' },
@@ -554,16 +564,27 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     ] },
     { icon: '🕌', label: 'Program & Pricing', children: [
       { icon: '📦', label: 'Kelola Program', path: '/admin?tab=programs' },
+      // Pindahan dari "Operasional/CS" (dikonfirmasi user 2026-10-17) —
+      // review harga/quote, temanya lebih nyambung ke Pricing walau tim
+      // yang ngerjain sama kayak CS. BUKAN super_admin-only (beda dari
+      // Costing Program/Master Data di bawah) — ini tetap kerjaan admin
+      // biasa sehari-hari, cuma pindah grup.
+      { icon: '💰', label: 'Custom Harga', path: '/admin?tab=customharga' },
+      { icon: '🧮', label: 'Ajuan Budget Kalkulator', path: '/admin/kalkulator-leads' },
+      // Ajuan Kalkulator Perwakilan SENGAJA di sini (bukan di "Program
+      // Kemitraan" > Perwakilan) — itu review quote/leads harga, beda
+      // total dari pendaftaran akun (dikonfirmasi user 2026-09-06).
+      { icon: '🧮', label: 'Ajuan Kalkulator Perwakilan', path: '/admin/kalkulator-perwakilan' },
       // Cuma super admin — kalkulator/costing ini nyakup komponen biaya
       // vendor (hotel, mutawwif, dll) yang sensitif, gak untuk semua admin
-      // biasa. Proposal Corporate & Company Profile-nya juga dibatasi
-      // super_admin sesuai permintaan, bukan soal sensitif tapi biar kata2 &
-      // harga yang ditawarkan ke corporate klien terjaga konsisten dari 1 pintu.
+      // biasa.
+      // "Proposal Corporate" & "Company Profile Proposal" DICABUT dari
+      // sidebar (dikonfirmasi user 2026-10-16) — halaman/kode-nya SENGAJA
+      // gak dihapus dari repo, cuma link menu-nya aja biar gampang
+      // dipasang balik kalau nanti dibutuhin lagi.
       ...(user?.role === 'super_admin' ? [
         { icon: '🧮', label: 'Costing Program', path: '/admin/program-costing' },
         { icon: '🗂️', label: 'Master Data', path: '/admin/master-data' },
-        { icon: '🤝', label: 'Proposal Corporate', path: '/admin/proposal-corporate' },
-        { icon: '🤝', label: 'Company Profile Proposal', path: '/admin/pengaturan/proposal-profile' },
       ] : []),
     ] },
     { icon: '📦', label: 'Gudang (WMS)', children: [
@@ -588,11 +609,15 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '📜', label: 'Pengaturan Dokumen', path: '/admin/pengaturan/dokumen' },
       { icon: '📤', label: 'Import Dokumen Fisik', path: '/admin/pengaturan/dokumen-fisik' },
     ] },
+    // Diurutin per tema (dikonfirmasi user 2026-10-17) — promosi/diskon
+    // dulu, baru konten website. TETAP flat (gak dipecah subgrup kayak
+    // Operasional/CS) — 6 item masih wajar dibaca sekali pandang, nambah
+    // nesting cuma bikin extra klik buat grup sekecil ini.
     { icon: '📣', label: 'Marketing & Konten', children: [
       { icon: '🎟️', label: 'Voucher', path: '/admin?tab=voucher' },
+      { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
       { icon: '🖼️', label: 'Galeri', path: '/admin/galeri' },
       { icon: '📰', label: 'Berita & Kegiatan', path: '/admin/berita' },
-      { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
       { icon: '🏠', label: 'Konten Landing Page', path: '/admin/pengaturan/skema-pembayaran' },
       { icon: '✏️', label: 'Teks Landing Page', path: '/admin/pengaturan/teks-landing' },
     ] },
