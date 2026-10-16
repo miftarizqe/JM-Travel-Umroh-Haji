@@ -503,14 +503,15 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // kalau dibuka dari menu Sahabat Baitullah/HoP.
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing-perwakilan' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/perwakilan/pencairan' },
-        // PINDAH dari "Akun & Jaringan" (dikonfirmasi user 2026-10-16) —
-        // API-nya (/api/admin/hierarchy) WHERE role = 'perwakilan' doang,
-        // Sahabat Baitullah gak kesentuh sama sekali, jadi namanya
-        // "Akun & Jaringan" nyesatin (kesannya semua role). Pohon
-        // Hierarki/Tabel Genealogi/Laporan Ranking di sini BUKAN duplikat
-        // item lain di subgrup Perwakilan ini (yang semuanya list datar) —
-        // cuma 1 tempat ini yang nampilin struktur rekrutan berjenjang.
-        { icon: '🌳', label: 'Hierarki & Closing', path: '/admin?tab=hierarki' },
+        // "Hierarki & Closing" (/admin?tab=hierarki) DIHAPUS TOTAL dari sini
+        // (dikonfirmasi user 2026-10-16) — Pohon Hierarki-nya 100% duplikat
+        // tab "Hirarki Pohon" di Database Perwakilan (komponennya sendiri
+        // udah di-copy ke sana, lihat komentar di
+        // admin/perwakilan/database/page.jsx), dan Laporan Ranking udah
+        // ke-cover dropdown "Urut: Total Komisi" di tab yang sama. Endpoint
+        // /api/admin/hierarchy TETAP ada & TIDAK disentuh (masih dipakai
+        // Database Perwakilan + nyimpen cara hitung ranking buat dipindah
+        // ke tempat lain nanti kalau dibutuhkan).
       ] },
     ] },
     // Urutan Finance sengaja disusun dasar -> akhir (dikonfirmasi user
