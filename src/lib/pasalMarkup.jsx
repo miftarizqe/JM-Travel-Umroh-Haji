@@ -151,12 +151,28 @@ export function KopPasalDokumen({ pengaturan }) {
 // di dalam wrapper flex+justifyContent:center (PIHAK KETIGA dkk), soalnya
 // 45% dari wrapper yang udah di-center bikin kotaknya nempel kiri, bukan
 // beneran ketengah (dikonfirmasi bug dari screenshot user 2026-09-10).
-export function TtdBoxHtml({ pihak, sub, nama, keterangan, width = '45%' }) {
+// `ttdImg`/`capImg` opsional (dikonfirmasi user 2026-10-16, samain pola
+// Invoice/Kwitansi/TTU di DokumenCetak.jsx) — kalau diisi, gambar tanda
+// tangan & cap perusahaan JM Travel ikut nampil di kotak TTD PIHAK PERTAMA
+// (perusahaan), BUKAN buat jamaah/pihak lain yang tetap tanda tangan fisik
+// kosongan seperti biasa. Caller yang mutusin box mana yang dikasih prop
+// ini (lihat cetak-perjanjian/[booking_id]/page.jsx).
+export function TtdBoxHtml({ pihak, sub, nama, keterangan, width = '45%', ttdImg, capImg }) {
   return (
     <div style={{ textAlign: 'center', width, breakInside: 'avoid' }}>
       {pihak && <div>{pihak}</div>}
       {sub && <div style={{ fontWeight: 700 }}>{sub}</div>}
-      <div style={{ height: 70 }}></div>
+      <div style={{ height: 70, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {capImg && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={capImg} alt="Cap Perusahaan"
+            style={{ position: 'absolute', left: '15%', top: '50%', transform: 'translateY(-50%) rotate(-10deg)', width: 65, opacity: 0.85 }} />
+        )}
+        {ttdImg && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={ttdImg} alt="Tanda Tangan" style={{ position: 'absolute', height: 60, objectFit: 'contain' }} />
+        )}
+      </div>
       <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>({nama})</div>
       {keterangan && <div style={{ fontSize: UKURAN_DOKUMEN.nomor, marginTop: 2 }}>{keterangan}</div>}
     </div>

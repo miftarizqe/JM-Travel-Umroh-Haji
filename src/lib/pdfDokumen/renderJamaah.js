@@ -1,6 +1,6 @@
 // Generate PDF Surat Perjanjian Jamaah Umroh — konten identik dengan
 // src/app/admin/cetak-perjanjian/[booking_id]/page.jsx (HTML).
-import { Document, Page, Text, View, renderToBuffer } from '@react-pdf/renderer';
+import { Document, Page, Text, View, Image, renderToBuffer } from '@react-pdf/renderer';
 import { styles, Kop, Field, SPASI_SEBELUM_PASAL_PDF, UKURAN_PDF } from './pdfStyles';
 import { renderPasalMarkupPdf } from '@/lib/pasalMarkupPdf';
 import { tambahNomorHalaman } from './nomorHalaman';
@@ -33,12 +33,17 @@ export async function renderJamaahPdf({ booking, pasal, signer, pengaturan, logo
   const jabatanPenandatangan = signer?.jabatan || 'Direktur Pengembangan Bisnis & Sumber Daya Manusia';
   const tglBooking = new Date(booking.created_at);
 
-  const TtdBox = ({ pihak, sub, nama, keterangan }) => (
+  // ttdImg/capImg (dikonfirmasi user 2026-10-16, samain pola HTML di
+  // cetak-perjanjian/[booking_id]/page.jsx) — cuma dipasang di TtdBox
+  // PIHAK PERTAMA (lihat pemanggilan di bawah), jamaah tetap kosongan.
+  const TtdBox = ({ pihak, sub, nama, keterangan, ttdImg, capImg }) => (
     <View style={styles.ttdBox}>
       <Text>{pihak}</Text>
       <Text style={{ fontFamily: 'Times-Bold' }}>{sub}</Text>
-      <View style={styles.ttdSpace}>
+      <View style={[styles.ttdSpace, { position: 'relative', alignItems: 'center', justifyContent: 'center' }]}>
         {untukTtdDigital && <Text style={{ fontSize: 6, color: '#999' }}>(menunggu TTD digital)</Text>}
+        {capImg && <Image src={capImg} style={{ position: 'absolute', left: '15%', width: 45, opacity: 0.85, transform: 'rotate(-10deg)' }} />}
+        {ttdImg && <Image src={ttdImg} style={{ position: 'absolute', height: 40 }} />}
       </View>
       <Text style={styles.ttdLine}>({nama})</Text>
       {keterangan && <Text style={{ fontSize: 9, marginTop: 2 }}>{keterangan}</Text>}
@@ -104,7 +109,8 @@ export async function renderJamaahPdf({ booking, pasal, signer, pengaturan, logo
         </View>
 
         <View style={styles.ttdRow}>
-          <TtdBox pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} keterangan={jabatanPenandatangan} />
+          <TtdBox pihak="PIHAK PERTAMA" sub="PT. Alkhalid Jaya Megah" nama={namaPenandatangan} keterangan={jabatanPenandatangan}
+            ttdImg={pengaturan?.ttd_penandatangan_jamaah_path} capImg={pengaturan?.cap_perusahaan_path} />
           <TtdBox pihak="PIHAK KEDUA" sub="Jamaah" nama={booking.pemesan_nama || '................'} />
         </View>
 

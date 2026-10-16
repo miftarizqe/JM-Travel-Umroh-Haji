@@ -124,7 +124,8 @@ const TTD_PREVIEW = {
     { pihak: 'PIHAK KETIGA', sub: 'Perekrut', nama: 'Nama Perekrut Contoh' },
   ],
   jamaah: (p) => [
-    { sub: 'PT. Alkhalid Jaya Megah', nama: p.nama_penandatangan_jamaah || 'Ahmad Zaky Arief Bestary' },
+    { sub: 'PT. Alkhalid Jaya Megah', nama: p.nama_penandatangan_jamaah || 'Ahmad Zaky Arief Bestary',
+      ttdImg: p.ttd_penandatangan_jamaah_path, capImg: p.cap_perusahaan_path },
     { sub: 'Pemesan / Jamaah', nama: 'Nama Contoh' },
   ],
   spk_ak: (p) => [
@@ -466,6 +467,7 @@ export default function AdminPengaturanDokumenPage() {
   const [signerSaved, setSignerSaved] = useState(false);
   const [uploadingTtd, setUploadingTtd] = useState(false);
   const [uploadingCap, setUploadingCap] = useState(false);
+  const [uploadingTtdJamaah, setUploadingTtdJamaah] = useState(false);
   const [uploadingPanduanBsi, setUploadingPanduanBsi] = useState(false);
   const [uploadingPanduanUmroh, setUploadingPanduanUmroh] = useState(false);
 
@@ -651,6 +653,21 @@ export default function AdminPengaturanDokumenPage() {
                 placeholder={f.placeholder} className={inp} />
             </div>
           ))}
+        </div>
+        {/* TTD digital Pihak Pertama khusus SPJ (dikonfirmasi user
+            2026-10-16, samain pola Invoice/Kwitansi/TTU) — Cap Perusahaan
+            REUSE gambar yang sama kayak Keuangan di bawah, gak perlu upload
+            ulang (stempel fisiknya sama). */}
+        <div className="mb-3">
+          <label className={lbl}>Tanda Tangan Digital Pihak Pertama — SPJ (gambar, background transparan lebih bagus)</label>
+          {signerForm.ttd_penandatangan_jamaah_path && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={signerForm.ttd_penandatangan_jamaah_path} alt="TTD SPJ" className="h-16 mb-2 border border-gray-100 rounded-lg bg-gray-50 px-2" />
+          )}
+          <input type="file" accept="image/jpeg,image/png" disabled={uploadingTtdJamaah}
+            onChange={e => { uploadGambarSigner('ttd_penandatangan_jamaah_path', e.target.files?.[0], setUploadingTtdJamaah); e.target.value = ''; }}
+            className="text-xs" />
+          {uploadingTtdJamaah && <div className="text-xs text-gray-400 mt-1">Mengunggah...</div>}
         </div>
 
         <hr className="border-gray-100 my-4" />
