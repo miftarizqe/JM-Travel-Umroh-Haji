@@ -445,12 +445,11 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   // bawah). JANGAN diubah urutannya lagi tanpa alasan konkret — ini hasil
   // konfirmasi eksplisit, bukan placeholder.
   const adminGroups = [
-    // Dipecah jadi 2 subgrup + 2 item mandiri (dikonfirmasi user
-    // 2026-10-16) — sebelumnya 10 item flat gak ada urutan/pengelompokan
-    // yang jelas. "Custom Harga"/"Ajuan Kalkulator" SENGAJA TETAP di
-    // Operasional/CS (bukan pindah ke Program & Pricing) — tim yang
-    // nanganin harga & CS orangnya SAMA (dikonfirmasi user), jadi dipisah
-    // subgrup DI DALAM Operasional/CS aja, bukan dipindah grup top-level.
+    // Dipecah jadi subgrup "Booking & Pembayaran" + 2 item mandiri
+    // (dikonfirmasi user 2026-10-16) — "Kalkulator & Harga" yang sempat
+    // jadi subgrup di sini PINDAH ke "Program & Pricing" (dikonfirmasi
+    // user 2026-10-17 — walau timnya sama kayak CS, temanya lebih nyambung
+    // ke Pricing).
     { icon: '📞', label: 'Operasional / CS', children: [
       // Alur transaksi 1 booking dari awal sampai akhir, urutan ngikutin
       // kejadiannya beneran (dikonfirmasi user 2026-10-16): checkout ->
@@ -462,17 +461,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '💳', label: 'Pembayaran', path: '/admin?tab=payments' },
         { icon: '📎', label: 'Verifikasi Dokumen Pendukung', path: '/admin/dokumen-pendukung' },
         { icon: '🚫', label: 'Pembatalan', path: '/admin?tab=pembatalan' },
-      ] },
-      // Review harga/quote SEBELUM booking beneran kejadian — beda jenis
-      // kerjaan dari subgrup di atas (nilai/approve angka, bukan proses
-      // transaksi), walau dikerjain orang yang sama.
-      { icon: '🧮', label: 'Kalkulator & Harga', children: [
-        { icon: '💰', label: 'Custom Harga', path: '/admin?tab=customharga' },
-        { icon: '🧮', label: 'Ajuan Budget Kalkulator', path: '/admin/kalkulator-leads' },
-        // Ajuan Kalkulator Perwakilan SENGAJA di sini (bukan di "Program
-        // Kemitraan" > Perwakilan) — itu review quote/leads harga, beda
-        // total dari pendaftaran akun (dikonfirmasi user 2026-09-06).
-        { icon: '🧮', label: 'Ajuan Kalkulator Perwakilan', path: '/admin/kalkulator-perwakilan' },
       ] },
       // Direktori/referensi yang dipakai terus-menerus lintas alur, bukan
       // "langkah" di salah satu subgrup di atas — makanya mandiri.
@@ -573,6 +561,17 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     ] },
     { icon: '🕌', label: 'Program & Pricing', children: [
       { icon: '📦', label: 'Kelola Program', path: '/admin?tab=programs' },
+      // Pindahan dari "Operasional/CS" (dikonfirmasi user 2026-10-17) —
+      // review harga/quote, temanya lebih nyambung ke Pricing walau tim
+      // yang ngerjain sama kayak CS. BUKAN super_admin-only (beda dari
+      // Costing Program/Master Data di bawah) — ini tetap kerjaan admin
+      // biasa sehari-hari, cuma pindah grup.
+      { icon: '💰', label: 'Custom Harga', path: '/admin?tab=customharga' },
+      { icon: '🧮', label: 'Ajuan Budget Kalkulator', path: '/admin/kalkulator-leads' },
+      // Ajuan Kalkulator Perwakilan SENGAJA di sini (bukan di "Program
+      // Kemitraan" > Perwakilan) — itu review quote/leads harga, beda
+      // total dari pendaftaran akun (dikonfirmasi user 2026-09-06).
+      { icon: '🧮', label: 'Ajuan Kalkulator Perwakilan', path: '/admin/kalkulator-perwakilan' },
       // Cuma super admin — kalkulator/costing ini nyakup komponen biaya
       // vendor (hotel, mutawwif, dll) yang sensitif, gak untuk semua admin
       // biasa.
