@@ -16,6 +16,8 @@ import { infoDanaRefund, porsiRefund } from '@/lib/danaRefund';
  *  - Sudah bayar DP  -> harus MENGAJUKAN, admin yang memutuskan
  *  - Refund 100% kalau kesalahan JM Travel
  *  - Selain itu mengikuti S&K (nominal ditentukan admin)
+ *  - Booking isi > 1 jamaah -> jamaah boleh ngajuin batal SATU orang aja
+ *    (jamaah_idx), gak harus seluruh booking (dikonfirmasi user 2026-10-16)
  */
 
 // GET /api/pembatalan               -> pengajuan milik user login
@@ -30,7 +32,7 @@ export async function GET(request) {
     const isAdmin = auth.user.role === 'admin' || auth.user.role === 'super_admin';
 
     let query = `
-      SELECT p.*, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah,
+      SELECT p.*, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.jamaah_data,
              b.total_harga, b.dp_amount, b.dp_status,
              u.name AS pemohon_nama, u.wa AS pemohon_wa
       FROM pembatalan p
@@ -66,10 +68,12 @@ export async function GET(request) {
 // dateng langsung minta batal, staff kantor gak perlu suruh jamaahnya login
 // & ngajuin sendiri dulu (dikonfirmasi user 2026-07-28).
 //
-// jamaah_idx (opsional, ADMIN LANGSUNG SAJA) — batalkan SATU jamaah spesifik
-// di dalam booking (index array jamaah_data), bukan seluruh booking. Booking
-// bisa isi banyak orang, kadang cuma 1 yang batal (dikonfirmasi user
-// 2026-08-15). Kosong = perilaku lama, batalkan seluruh booking.
+// jamaah_idx (opsional) — batalkan SATU jamaah spesifik di dalam booking
+// (index array jamaah_data), bukan seluruh booking. Booking bisa isi banyak
+// orang, kadang cuma 1 yang batal. Dulu ADMIN LANGSUNG SAJA (2026-08-15),
+// SEKARANG jamaah sendiri juga boleh ngajuin (dikonfirmasi user 2026-10-16) —
+// lewat antrian "menunggu" yang sama kayak batal-seluruh-booking, admin yang
+// tetap memutuskan. Kosong = perilaku lama, batalkan seluruh booking.
 export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
@@ -80,9 +84,6 @@ export async function POST(request) {
 
     if (!booking_id) {
       return Response.json({ error: 'booking_id wajib diisi' }, { status: 400 });
-    }
-    if (jamaah_idx != null && !(isAdmin && admin_langsung)) {
-      return Response.json({ error: 'Pembatalan per-jamaah cuma bisa dieksekusi langsung oleh admin.' }, { status: 400 });
     }
 
     // Jamaah cuma boleh batalin booking miliknya sendiri; admin boleh
@@ -190,13 +191,13 @@ export async function POST(request) {
       }, { status: 201 });
     }
 
-    // Cegah pengajuan ganda — buat pembatalan whole-booking (jamaah_idx
-    // NULL) cukup cek booking_id-nya aja; buat per-jamaah cek kombinasi
-    // booking_id+jamaah_idx-nya spesifik (null-safe pakai <=>, biar row
-    // whole-booking yang lain gak ikut keblokir).
+    // Cegah pengajuan ganda — SATU booking cuma boleh ada 1 pengajuan
+    // "menunggu" pada satu waktu, apapun jamaah_idx-nya (whole-booking &
+    // per-jamaah gak boleh numpuk bareng, bikin bingung admin mutusin yang
+    // mana duluan).
     const [ada] = await pool.query(
-      "SELECT id FROM pembatalan WHERE booking_id = ? AND jamaah_idx <=> ? AND status = 'menunggu'",
-      [booking_id, jamaah_idx ?? null]
+      "SELECT id FROM pembatalan WHERE booking_id = ? AND status = 'menunggu'",
+      [booking_id]
     );
     if (ada.length > 0) {
       return Response.json({ error: 'Pengajuan pembatalan sedang diproses.' }, { status: 409 });
@@ -210,12 +211,25 @@ export async function POST(request) {
        dpSudahDibayar ? 1 : 0, totalDibayar]
     );
 
-    await pool.query("UPDATE bookings SET status = 'menunggu_batal' WHERE id = ?", [booking_id]);
+    // Whole-booking (jamaah_idx NULL) -> kunci SELURUH booking, gak ada
+    // transaksi lain (bayar/dokumen/dll) sampai admin mutusin, sama kayak
+    // dulu. Per-jamaah -> booking TETAP aktif (jamaah lain yang gak
+    // diajukan harus tetap bisa jalan normal), cukup row pembatalan
+    // 'menunggu' di atas yang jadi penandanya (dedupe check di atas udah
+    // cegah numpuk pengajuan lain) (dikonfirmasi user 2026-10-16).
+    let namaJamaahDiajukan = null;
+    if (jamaah_idx == null) {
+      await pool.query("UPDATE bookings SET status = 'menunggu_batal' WHERE id = ?", [booking_id]);
+    } else {
+      namaJamaahDiajukan = parseJamaahData(b.jamaah_data)[jamaah_idx]?.nama || `jamaah ke-${jamaah_idx + 1}`;
+    }
 
     await kirimNotifikasiAdmin(pool, {
       tipe: 'pembatalan_baru',
       judul: 'Pengajuan Pembatalan Baru',
-      pesan: `Booking ${booking_id} (${b.prog_name || ''}) mengajukan pembatalan, sudah dibayar Rp ${totalDibayar.toLocaleString('id-ID')}.`,
+      pesan: namaJamaahDiajukan
+        ? `Booking ${booking_id} (${b.prog_name || ''}) mengajukan pembatalan 1 jamaah (${namaJamaahDiajukan}), sudah dibayar Rp ${totalDibayar.toLocaleString('id-ID')}.`
+        : `Booking ${booking_id} (${b.prog_name || ''}) mengajukan pembatalan, sudah dibayar Rp ${totalDibayar.toLocaleString('id-ID')}.`,
       link: '/admin',
     });
 
@@ -611,7 +625,13 @@ export async function PATCH(request) {
          diproses_oleh=?, diproses_at=NOW() WHERE id = ?`,
         [catatan_admin || null, auth.user.id, id]
       );
-      await pool.query("UPDATE bookings SET status = 'active' WHERE id = ?", [p.booking_id]);
+      // Per-jamaah (jamaah_idx terisi) gak pernah ngunci booking.status ke
+      // 'menunggu_batal' pas diajukan (lihat POST) -- booking-nya tetap
+      // 'active' dari awal, jadi di sini gak perlu (dan gak boleh) dipaksa
+      // ke 'active' lagi kalau somehow statusnya udah berubah ke lain hal.
+      if (p.jamaah_idx == null) {
+        await pool.query("UPDATE bookings SET status = 'active' WHERE id = ?", [p.booking_id]);
+      }
 
       await kirimNotifikasi(pool, {
         user_id: p.user_id,

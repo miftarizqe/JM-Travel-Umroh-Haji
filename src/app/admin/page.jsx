@@ -1774,12 +1774,21 @@ function AdminPageInner() {
 
           {pembatalan.length === 0 ? (
             <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">Belum ada pengajuan pembatalan.</div>
-          ) : pembatalan.map(p => (
+          ) : pembatalan.map(p => {
+            const namaJamaahP = p.jamaah_idx != null
+              ? (parseJamaahData(p.jamaah_data)[p.jamaah_idx]?.nama || `jamaah ke-${p.jamaah_idx + 1}`)
+              : null;
+            return (
             <div key={p.id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
               <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => setOpenPembatalan(openPembatalan===p.id?null:p.id)}>
                 <div>
                   <div className="font-bold text-[#0E2F6E] text-sm">{p.pemohon_nama || 'User'} — {p.booking_id}</div>
                   <div className="text-xs text-gray-400">{p.prog_name} · {tgl(p.created_at)} · Sudah dibayar {rp(p.total_sudah_dibayar)}</div>
+                  {namaJamaahP ? (
+                    <div className="text-xs font-bold text-amber-600 mt-0.5">🙋 Batal 1 jamaah saja: {namaJamaahP}</div>
+                  ) : (
+                    <div className="text-xs font-bold text-red-500 mt-0.5">🚫 Batal SELURUH booking ({p.jumlah_jamaah} jamaah)</div>
+                  )}
                 </div>
                 <span className={`text-xs font-bold px-2 py-1 rounded-full ${
                   p.status==='disetujui'?'bg-green-100 text-green-700':p.status==='ditolak'?'bg-red-100 text-red-600':'bg-yellow-100 text-yellow-700'
@@ -1853,7 +1862,8 @@ function AdminPageInner() {
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

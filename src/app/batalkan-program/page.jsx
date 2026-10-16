@@ -50,6 +50,13 @@ function BatalkanProgramPageInner() {
   const [loading, setLoading] = useState(true);
   const [proses, setProses] = useState(false);
   const [danaSaldo, setDanaSaldo] = useState(null); // dana_refund kalau booking program Sahabat Baitullah
+  // Pengajuan "menunggu" milik akun ini buat booking ini — bisa whole-booking
+  // ATAU per-jamaah (dikonfirmasi user 2026-10-16), dua-duanya sama-sama
+  // ngeblok pengajuan baru sampai admin mutusin yang lama.
+  const [pembatalanPending, setPembatalanPending] = useState(null);
+  // null = batalkan SELURUH booking (perilaku lama); angka = index jamaah
+  // spesifik di jamaah_data yang mau dibatalin doang.
+  const [pilihanJamaahIdx, setPilihanJamaahIdx] = useState(null);
 
   const isDirty = !!alasan.trim() || setuju;
   useUnsavedGuard(isDirty);
@@ -72,7 +79,20 @@ function BatalkanProgramPageInner() {
         }
       })
       .catch(() => setLoading(false));
+
+    fetch('/api/pembatalan?status=menunggu')
+      .then(r => r.json())
+      .then(d => setPembatalanPending((d.pembatalan || []).find(p => p.booking_id === bookingId) || null))
+      .catch(() => {});
   }, [bookingId]);
+
+  function parseJamaahData(jd) {
+    if (typeof jd === 'string') { try { jd = JSON.parse(jd); } catch { jd = null; } }
+    return Array.isArray(jd) ? jd : [];
+  }
+  const jamaahAktif = booking ? parseJamaahData(booking.jamaah_data)
+    .map((j, idx) => ({ ...j, idx }))
+    .filter(j => j.status_jamaah !== 'dibatalkan') : [];
 
   async function ajukan() {
     if (!alasan.trim()) {
@@ -84,14 +104,18 @@ function BatalkanProgramPageInner() {
       return;
     }
 
-    if (!confirm('Ajukan pembatalan? Keputusan ada pada admin JM Travel.')) return;
+    const namaDipilih = pilihanJamaahIdx != null ? jamaahAktif.find(j => j.idx === pilihanJamaahIdx)?.nama : null;
+    const konfirmasiTeks = namaDipilih
+      ? `Ajukan pembatalan untuk "${namaDipilih}" saja? Jamaah lain di booking ini tetap jalan. Keputusan ada pada admin JM Travel.`
+      : 'Ajukan pembatalan SELURUH booking ini? Keputusan ada pada admin JM Travel.';
+    if (!confirm(konfirmasiTeks)) return;
 
     setProses(true);
     try {
       const res = await fetch('/api/pembatalan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: bookingId, alasan }),
+        body: JSON.stringify({ booking_id: bookingId, alasan, jamaah_idx: pilihanJamaahIdx }),
       });
       const d = await res.json();
       if (res.ok) {
@@ -136,13 +160,20 @@ function BatalkanProgramPageInner() {
       </Layout>
     );
   }
-  if (booking.status === 'menunggu_batal') {
+  if (booking.status === 'menunggu_batal' || pembatalanPending) {
+    const namaJamaahPending = pembatalanPending?.jamaah_idx != null
+      ? (parseJamaahData(booking.jamaah_data)[pembatalanPending.jamaah_idx]?.nama || `jamaah ke-${pembatalanPending.jamaah_idx + 1}`)
+      : null;
     return (
       <Layout title="❌ Batalkan Program" backHref="/dashboard/jamaah">
         <div className="max-w-md mx-auto bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
           <div className="text-3xl mb-2">⏳</div>
           <h4 className="font-bold text-yellow-800 mb-1">Pengajuan Sedang Diproses</h4>
-          <p className="text-sm text-yellow-700">Admin JM Travel sedang meninjau pengajuan pembatalan Anda.</p>
+          <p className="text-sm text-yellow-700">
+            {namaJamaahPending
+              ? `Admin JM Travel sedang meninjau pengajuan pembatalan jamaah "${namaJamaahPending}" di booking ini. Jamaah lain tetap berjalan normal.`
+              : 'Admin JM Travel sedang meninjau pengajuan pembatalan Anda.'}
+          </p>
         </div>
       </Layout>
     );
@@ -216,6 +247,35 @@ function BatalkanProgramPageInner() {
           </div>
         )}
 
+        {/* Pilih cakupan pembatalan — cuma muncul kalau booking ini isi
+            lebih dari 1 jamaah aktif (dikonfirmasi user 2026-10-16): batalin
+            SATU orang doang (jamaah lain tetap jalan), atau seluruh booking
+            sekaligus. Default "seluruh booking" (perilaku lama). */}
+        {jamaahAktif.length > 1 && (
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-5">
+            <label className="block text-xs font-semibold text-[#0E2F6E] mb-2">
+              Siapa yang Dibatalkan? *
+            </label>
+            <div className="space-y-2">
+              <label className={`flex items-center gap-2 rounded-lg border-2 p-3 cursor-pointer ${pilihanJamaahIdx === null ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200'}`}>
+                <input type="radio" checked={pilihanJamaahIdx === null} onChange={() => setPilihanJamaahIdx(null)}
+                  className="w-4 h-4 accent-[#1A4FA0]" />
+                <span className="text-sm font-semibold text-[#0E2F6E]">Seluruh booking ({jamaahAktif.length} jamaah)</span>
+              </label>
+              {jamaahAktif.map(j => (
+                <label key={j.idx} className={`flex items-center gap-2 rounded-lg border-2 p-3 cursor-pointer ${pilihanJamaahIdx === j.idx ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200'}`}>
+                  <input type="radio" checked={pilihanJamaahIdx === j.idx} onChange={() => setPilihanJamaahIdx(j.idx)}
+                    className="w-4 h-4 accent-[#1A4FA0]" />
+                  <span className="text-sm font-semibold text-[#0E2F6E]">{j.nama || `Jamaah ke-${j.idx + 1}`} saja</span>
+                </label>
+              ))}
+            </div>
+            {pilihanJamaahIdx != null && (
+              <p className="text-[11px] text-gray-400 mt-2">Jamaah lain di booking ini tidak terpengaruh dan tetap bisa melanjutkan proses seperti biasa.</p>
+            )}
+          </div>
+        )}
+
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-5">
           <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">
             Alasan Pembatalan *
@@ -252,7 +312,7 @@ function BatalkanProgramPageInner() {
           </button>
           <button onClick={ajukan} disabled={proses || !setuju}
             className="flex-[2] bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-full disabled:opacity-40">
-            {proses ? 'Memproses...' : '📤 Ajukan Pembatalan'}
+            {proses ? 'Memproses...' : pilihanJamaahIdx != null ? '📤 Ajukan Pembatalan 1 Jamaah' : '📤 Ajukan Pembatalan'}
           </button>
         </div>
       </div>
