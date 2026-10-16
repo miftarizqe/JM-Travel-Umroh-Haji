@@ -445,19 +445,38 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
   // bawah). JANGAN diubah urutannya lagi tanpa alasan konkret — ini hasil
   // konfirmasi eksplisit, bukan placeholder.
   const adminGroups = [
+    // Dipecah jadi 2 subgrup + 2 item mandiri (dikonfirmasi user
+    // 2026-10-16) — sebelumnya 10 item flat gak ada urutan/pengelompokan
+    // yang jelas. "Custom Harga"/"Ajuan Kalkulator" SENGAJA TETAP di
+    // Operasional/CS (bukan pindah ke Program & Pricing) — tim yang
+    // nanganin harga & CS orangnya SAMA (dikonfirmasi user), jadi dipisah
+    // subgrup DI DALAM Operasional/CS aja, bukan dipindah grup top-level.
     { icon: '📞', label: 'Operasional / CS', children: [
+      // Alur transaksi 1 booking dari awal sampai akhir, urutan ngikutin
+      // kejadiannya beneran (dikonfirmasi user 2026-10-16): checkout ->
+      // muncul di daftar -> bayar -> upload dokumen pendukung -> (kalau
+      // ada) batal.
+      { icon: '📦', label: 'Booking & Pembayaran', children: [
+        { icon: '➕', label: 'Order Jamaah', path: '/programs' },
+        { icon: '📋', label: 'Daftar Booking', path: '/admin?tab=bookings' },
+        { icon: '💳', label: 'Pembayaran', path: '/admin?tab=payments' },
+        { icon: '📎', label: 'Verifikasi Dokumen Pendukung', path: '/admin/dokumen-pendukung' },
+        { icon: '🚫', label: 'Pembatalan', path: '/admin?tab=pembatalan' },
+      ] },
+      // Review harga/quote SEBELUM booking beneran kejadian — beda jenis
+      // kerjaan dari subgrup di atas (nilai/approve angka, bukan proses
+      // transaksi), walau dikerjain orang yang sama.
+      { icon: '🧮', label: 'Kalkulator & Harga', children: [
+        { icon: '💰', label: 'Custom Harga', path: '/admin?tab=customharga' },
+        { icon: '🧮', label: 'Ajuan Budget Kalkulator', path: '/admin/kalkulator-leads' },
+        // Ajuan Kalkulator Perwakilan SENGAJA di sini (bukan di "Program
+        // Kemitraan" > Perwakilan) — itu review quote/leads harga, beda
+        // total dari pendaftaran akun (dikonfirmasi user 2026-09-06).
+        { icon: '🧮', label: 'Ajuan Kalkulator Perwakilan', path: '/admin/kalkulator-perwakilan' },
+      ] },
+      // Direktori/referensi yang dipakai terus-menerus lintas alur, bukan
+      // "langkah" di salah satu subgrup di atas — makanya mandiri.
       { icon: '🧳', label: 'Database Jamaah', path: '/admin/database/jamaah' },
-      { icon: '📎', label: 'Verifikasi Dokumen Pendukung', path: '/admin/dokumen-pendukung' },
-      { icon: '📋', label: 'Daftar Booking', path: '/admin?tab=bookings' },
-      { icon: '💳', label: 'Pembayaran', path: '/admin?tab=payments' },
-      { icon: '🚫', label: 'Pembatalan', path: '/admin?tab=pembatalan' },
-      { icon: '💰', label: 'Custom Harga', path: '/admin?tab=customharga' },
-      { icon: '➕', label: 'Order Jamaah', path: '/programs' },
-      { icon: '🧮', label: 'Ajuan Budget Kalkulator', path: '/admin/kalkulator-leads' },
-      // Ajuan Kalkulator Perwakilan SENGAJA tetap di sini (bukan pindah ke
-      // "Program Kemitraan" > Perwakilan) — itu review quote/leads harga,
-      // beda total dari pendaftaran akun (dikonfirmasi user 2026-09-06).
-      { icon: '🧮', label: 'Ajuan Kalkulator Perwakilan', path: '/admin/kalkulator-perwakilan' },
       // Lintas role (Sahabat Baitullah + Perwakilan) — dikonfirmasi user
       // 2026-10-05, sengaja gak ditaruh di subgrup role tertentu di bawah
       // (Program Kemitraan) karena bukan milik 1 role doang.
