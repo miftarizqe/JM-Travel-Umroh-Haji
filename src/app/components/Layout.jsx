@@ -503,6 +503,14 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // kalau dibuka dari menu Sahabat Baitullah/HoP.
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing-perwakilan' },
         { icon: '💸', label: 'Pencairan Komisi', path: '/admin/perwakilan/pencairan' },
+        // PINDAH dari "Akun & Jaringan" (dikonfirmasi user 2026-10-16) —
+        // API-nya (/api/admin/hierarchy) WHERE role = 'perwakilan' doang,
+        // Sahabat Baitullah gak kesentuh sama sekali, jadi namanya
+        // "Akun & Jaringan" nyesatin (kesannya semua role). Pohon
+        // Hierarki/Tabel Genealogi/Laporan Ranking di sini BUKAN duplikat
+        // item lain di subgrup Perwakilan ini (yang semuanya list datar) —
+        // cuma 1 tempat ini yang nampilin struktur rekrutan berjenjang.
+        { icon: '🌳', label: 'Hierarki & Closing', path: '/admin?tab=hierarki' },
       ] },
     ] },
     // Urutan Finance sengaja disusun dasar -> akhir (dikonfirmasi user
@@ -560,7 +568,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     ] },
     { icon: '👥', label: 'Akun & Jaringan', children: [
       { icon: '👥', label: 'Pengguna', path: '/admin?tab=users' },
-      { icon: '🌳', label: 'Hierarki & Closing', path: '/admin?tab=hierarki' },
       // Log siapa-ngapain-kapan — khusus super_admin (dikonfirmasi user
       // 2026-08-21), bukan buat visibilitas admin biasa.
       ...(user?.role === 'super_admin' ? [
