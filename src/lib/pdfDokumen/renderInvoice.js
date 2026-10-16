@@ -97,9 +97,9 @@ export async function renderInvoicePdf({ dokumen, booking, pengaturan, logoPath,
               {untukTtdDigital && <Text style={{ fontSize: 8, color: '#999', marginTop: 2 }}>(menunggu TTD digital)</Text>}
             </View>
             <Text style={{ fontFamily: 'Helvetica-Bold', textDecoration: 'underline' }}>
-              {pengaturan.nama_penandatangan_keuangan || pengaturan.nama_penandatangan || '-'}
+              {pengaturan.nama_penandatangan_keuangan || '-'}
             </Text>
-            <Text style={{ color: '#666' }}>{pengaturan.jabatan_penandatangan_keuangan || pengaturan.jabatan_penandatangan || '-'}</Text>
+            <Text style={{ color: '#666' }}>{pengaturan.jabatan_penandatangan_keuangan || '-'}</Text>
           </View>
         </View>
       </Page>

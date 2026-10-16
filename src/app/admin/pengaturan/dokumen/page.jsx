@@ -9,42 +9,13 @@ import {
   KopPasalDokumen, TtdBoxHtml, FONT_DOKUMEN, UKURAN_DOKUMEN, SPASI_SEBELUM_PASAL,
 } from '@/lib/pasalMarkup';
 
-const SIGNER_FIELDS = [
-  { key: 'nama_penandatangan', label: 'Nama Penandatangan (Pihak Pertama)', placeholder: 'Mis. Ahmad Zaky Arief Bestary' },
-  { key: 'jabatan_penandatangan', label: 'Jabatan Penandatangan', placeholder: 'Mis. Direktur Pengembangan Bisnis & SDM' },
-];
-
-// Penandatangan Invoice/Kwitansi SENGAJA dipisah dari SIGNER_FIELDS di atas —
-// dokumen keuangan biasanya ditandatangani org finance, beda orang dari yang
-// tanda tangan SPKA-Ins (biasanya direksi/BD). Kosongin field ini
-// kalau mau tetap pakai penandatangan umum (ada fallback otomatis).
+// Penandatangan Invoice/Kwitansi/TTU — SATU-SATUNYA signer yang masih
+// dikonfigurasi lewat Pengaturan Dokumen (dikonfirmasi user 2026-10-16;
+// dulu ada 4 sub-bagian lain di sini, semua dicabut — lihat komentar di
+// JSX "PENANDATANGAN" buat alasannya).
 const SIGNER_KEUANGAN_FIELDS = [
-  { key: 'nama_penandatangan_keuangan', label: 'Nama Penandatangan', placeholder: 'Kosongkan buat pakai Penandatangan Umum di atas' },
+  { key: 'nama_penandatangan_keuangan', label: 'Nama Penandatangan', placeholder: 'Mis. Nama Staff Keuangan' },
   { key: 'jabatan_penandatangan_keuangan', label: 'Jabatan Penandatangan', placeholder: 'Mis. Staff Keuangan' },
-];
-
-// SPJ (Perjanjian Jamaah) SEKARANG 2-pihak & SPK-AK 3-pihak (Jamaah + Head
-// of Program + Management) — penandatangan Management masing-masing field
-// TERPISAH, boleh beda orang dari Penandatangan Umum SPK-PWK di atas
-// (dikonfirmasi user 2026-09-09).
-const SIGNER_JAMAAH_FIELDS = [
-  { key: 'nama_penandatangan_jamaah', label: 'Nama Penandatangan', placeholder: 'Mis. Ahmad Zaky Arief Bestary' },
-  { key: 'jabatan_penandatangan_jamaah', label: 'Jabatan Penandatangan', placeholder: 'Mis. Direktur Operasional' },
-];
-const SIGNER_SPK_AK_FIELDS = [
-  { key: 'nama_penandatangan_spk_ak', label: 'Nama Penandatangan', placeholder: 'Mis. Ahmad Zaky Arief Bestary' },
-  { key: 'jabatan_penandatangan_spk_ak', label: 'Jabatan Penandatangan', placeholder: 'Mis. Direktur Pengembangan Bisnis & SDM' },
-];
-
-// SK-CIF (Penerima Kuasa) — penandatangan SENDIRI, TERPISAH dari Head of
-// Program & Penandatangan Umum (dikoreksi 2026-09-10 setelah dicocokkan ke
-// file final user "Surat Kuasa CIF.docx" — Penerima Kuasa di situ
-// "Muhammad Zaki / Direktur Utama", bukan siapapun yang jadi Head of
-// Program). Butuh NIK juga (identitas Penerima Kuasa dicetak di dokumen).
-const SIGNER_SK_CIF_FIELDS = [
-  { key: 'nama_penandatangan_sk_cif', label: 'Nama Penandatangan', placeholder: 'Mis. Muhammad Zaki' },
-  { key: 'nik_penandatangan_sk_cif', label: 'No. Identitas (NIK)', placeholder: 'Mis. 3174010207780003' },
-  { key: 'jabatan_penandatangan_sk_cif', label: 'Jabatan Penandatangan', placeholder: 'Mis. Direktur Utama' },
 ];
 
 const DOKUMEN_LIST = [
@@ -511,7 +482,7 @@ export default function AdminPengaturanDokumenPage() {
     setSignerSaving(true);
     try {
       const body = {};
-      [...SIGNER_FIELDS, ...SIGNER_KEUANGAN_FIELDS, ...SIGNER_JAMAAH_FIELDS, ...SIGNER_SPK_AK_FIELDS, ...SIGNER_SK_CIF_FIELDS].forEach(f => { body[f.key] = signerForm[f.key]; });
+      SIGNER_KEUANGAN_FIELDS.forEach(f => { body[f.key] = signerForm[f.key]; });
       const res = await fetch('/api/admin/pengaturan', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -602,81 +573,30 @@ export default function AdminPengaturanDokumenPage() {
           efek samping kayak absolute positioning. */}
       <div className="no-print">
       <div className="text-xs text-gray-400 mb-4">
-        Kumpulan pengaturan buat dokumen legal (SPK-PWK/SPJ/Surat Perjanjian Jamaah Sahabat Baitullah/SK-CIF) — penandatangan & isi pasal, gak perlu ubah kode lagi.
+        Kumpulan pengaturan buat dokumen legal (SPK-PWK/SPJ/Surat Perjanjian Jamaah Sahabat Baitullah/SK-CIF) — penandatangan Invoice/Kwitansi/TTU & isi pasal, gak perlu ubah kode lagi.
       </div>
 
-      {/* PENANDATANGAN */}
+      {/* PENANDATANGAN — khusus Invoice/Kwitansi/TTU (dikonfirmasi user
+          2026-10-16). Dulu ada 4 sub-bagian lain (Umum/SPK-PWK, SPJ, SPK-AK
+          Sahabat Baitullah, SK-CIF) — SEMUA dicabut dari sini: SK-CIF/SPK-AK/
+          SPK-AK Non-Muslim/Surat Pemblokiran teksnya udah 100% dari template
+          PDF final (lihat DOKUMEN_TEMPLATE di lib/dokumenTemplate.js, nama
+          penandatanganmu SUDAH baked langsung ke file PDF-nya, bukan ditarik
+          dari sini lagi), dan SPK-PWK/SPJ nama penandatangannya gak pernah
+          ganti jadi cukup fallback kode (lihat renderSpkaIns.js/
+          renderJamaah.js — "Ahmad Zaky Arief Bestary"). Kolom DB-nya
+          (nama_penandatangan, nama_penandatangan_jamaah, dst) SENGAJA
+          DIBIARKAN ada (gak di-drop) biar dokumen SK-CIF yang masih aktif
+          baca nama_penandatangan_sk_cif via ambilSignerSkCif() gak kepengaruh
+          — cuma UI-nya yang dicabut biar gak ada yang keketik iseng lagi di
+          sini (akar masalah bug "Plihak pertama" kemarin). */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
-        <div className="font-bold text-[#0E2F6E] mb-1">✍️ Penandatangan</div>
+        <div className="font-bold text-[#0E2F6E] mb-1">🧾 Penandatangan Invoice/Kwitansi/TTU (Keuangan)</div>
         <div className="text-xs text-gray-400 mb-3">
-          Dipakai di dokumen SPK-PWK.
-          Begitu dokumen seseorang dibekukan (nomor surat sudah digenerate), dokumennya TETAP pakai nama/jabatan versi saat itu walau field ini diedit lagi nanti.
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3 mb-3">
-          {SIGNER_FIELDS.map(f => (
-            <div key={f.key}>
-              <label className={lbl}>{f.label}</label>
-              <input value={signerForm[f.key] || ''} onChange={e => ubahSigner(f.key, e.target.value)}
-                placeholder={f.placeholder} className={inp} />
-            </div>
-          ))}
-        </div>
-        <hr className="border-gray-100 my-4" />
-
-        <div className="font-bold text-[#0E2F6E] mb-1">🧾 Penandatangan Invoice/Kwitansi (Keuangan)</div>
-        <div className="text-xs text-gray-400 mb-3">
-          Biasanya beda orang dari penandatangan SPKA di atas (org finance, bukan direksi/BD). Kosongkan buat pakai Penandatangan Umum.
+          Nama, jabatan, tanda tangan digital & cap perusahaan yang dicetak di Invoice, Kwitansi, dan Tanda Terima Uang.
         </div>
         <div className="grid sm:grid-cols-2 gap-3 mb-3">
           {SIGNER_KEUANGAN_FIELDS.map(f => (
-            <div key={f.key}>
-              <label className={lbl}>{f.label}</label>
-              <input value={signerForm[f.key] || ''} onChange={e => ubahSigner(f.key, e.target.value)}
-                placeholder={f.placeholder} className={inp} />
-            </div>
-          ))}
-        </div>
-
-        <hr className="border-gray-100 my-4" />
-
-        <div className="font-bold text-[#0E2F6E] mb-1">📄 Penandatangan SPJ (Perjanjian Jamaah)</div>
-        <div className="text-xs text-gray-400 mb-3">
-          Pihak Management JM Travel di Surat Perjanjian Jamaah Umroh — boleh beda orang dari Penandatangan Umum di atas.
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3 mb-3">
-          {SIGNER_JAMAAH_FIELDS.map(f => (
-            <div key={f.key}>
-              <label className={lbl}>{f.label}</label>
-              <input value={signerForm[f.key] || ''} onChange={e => ubahSigner(f.key, e.target.value)}
-                placeholder={f.placeholder} className={inp} />
-            </div>
-          ))}
-        </div>
-
-        <hr className="border-gray-100 my-4" />
-
-        <div className="font-bold text-[#0E2F6E] mb-1">🤝 Penandatangan Surat Perjanjian Jamaah Sahabat Baitullah</div>
-        <div className="text-xs text-gray-400 mb-3">
-          Pihak Management JM Travel (Pihak Pertama) di Surat Perjanjian Jamaah Sahabat Baitullah maupun Surat Perjanjian Referral Non-Muslim (dipakai bersama, sama-sama Pihak Pertama) — Pihak Ketiga (Head of Program) diatur terpisah lewat halaman Pengaturan Komisi Sahabat.
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3 mb-3">
-          {SIGNER_SPK_AK_FIELDS.map(f => (
-            <div key={f.key}>
-              <label className={lbl}>{f.label}</label>
-              <input value={signerForm[f.key] || ''} onChange={e => ubahSigner(f.key, e.target.value)}
-                placeholder={f.placeholder} className={inp} />
-            </div>
-          ))}
-        </div>
-
-        <hr className="border-gray-100 my-4" />
-
-        <div className="font-bold text-[#0E2F6E] mb-1">🔑 Penandatangan SK-CIF (Penerima Kuasa)</div>
-        <div className="text-xs text-gray-400 mb-3">
-          Wakil PT. Alkhalid Jaya Megah yang menerima kuasa dari jamaah di SK-CIF — penandatangan SENDIRI, TERPISAH dari Head of Program & Penandatangan Umum di atas.
-        </div>
-        <div className="grid sm:grid-cols-2 gap-3 mb-3">
-          {SIGNER_SK_CIF_FIELDS.map(f => (
             <div key={f.key}>
               <label className={lbl}>{f.label}</label>
               <input value={signerForm[f.key] || ''} onChange={e => ubahSigner(f.key, e.target.value)}

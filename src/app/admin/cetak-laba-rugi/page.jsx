@@ -27,6 +27,7 @@ function CetakLabaRugiInner() {
   const tahun = searchParams?.get('tahun') || '';
   const from = searchParams?.get('from') || '';
   const to = searchParams?.get('to') || '';
+  const basis = searchParams?.get('basis') === 'kas' ? 'kas' : 'akrual';
   const [pl, setPl] = useState(null);
   const [loading, setLoading] = useState(true);
   const [ditolak, setDitolak] = useState(false);
@@ -41,10 +42,11 @@ function CetakLabaRugiInner() {
     const qs = new URLSearchParams();
     if (tahun) qs.set('tahun', tahun);
     else { if (from) qs.set('from', from); if (to) qs.set('to', to); }
+    qs.set('basis', basis);
     fetch(`/api/admin/laporan-keuangan-perusahaan?${qs}`).then(r => r.json())
       .then(a => { setPl(a); setLoading(false); })
       .catch(() => setLoading(false));
-  }, [tahun, from, to, router]);
+  }, [tahun, from, to, basis, router]);
 
   if (loading) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Memuat data...</div>;
   if (ditolak) return <div style={{ padding: 40, fontFamily: 'Arial' }}>🔒 Khusus super admin.</div>;
@@ -58,11 +60,11 @@ function CetakLabaRugiInner() {
           🖨️ Print / Save PDF
         </button>
         <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
-          Laporan Laba Rugi{tahun ? ` (Tahun ${tahun})` : from || to ? ` (${from || '...'} s/d ${to || '...'})` : ''} · di dialog print pilih &quot;Save as PDF&quot;
+          Laporan Laba Rugi{tahun ? ` (Tahun ${tahun})` : from || to ? ` (${from || '...'} s/d ${to || '...'})` : ''} · basis {basis === 'akrual' ? 'Akrual' : 'Kas'} · di dialog print pilih &quot;Save as PDF&quot;
         </div>
       </div>
 
-      {tahun ? <SheetTahunan pl={pl} tahun={tahun} /> : <SheetBulanan pl={pl} from={from} to={to} />}
+      {tahun ? <SheetTahunan pl={pl} tahun={tahun} basis={basis} /> : <SheetBulanan pl={pl} from={from} to={to} basis={basis} />}
 
       <style>{`
         @media print {
@@ -80,13 +82,13 @@ function CetakLabaRugiInner() {
   );
 }
 
-function SheetBulanan({ pl, from, to }) {
+function SheetBulanan({ pl, from, to, basis }) {
   const totalBiaya = Number(pl.komisi || 0) + Number(pl.hpp || 0) + Number(pl.total_pengeluaran_operasional || 0) + Number(pl.total_reimburse_pending || 0);
   return (
     <div className="sheet" style={{ background: '#fff', width: 700, margin: '0 auto', padding: 30, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
       <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Laporan Laba Rugi</div>
       <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginBottom: 16 }}>
-        {from || to ? `Periode: ${from || '...'} s/d ${to || '...'}` : 'Seluruh periode'}
+        {from || to ? `Periode: ${from || '...'} s/d ${to || '...'}` : 'Seluruh periode'} · Basis {basis === 'akrual' ? 'Akrual (sudah berangkat)' : 'Kas (uang masuk)'}
       </div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -132,7 +134,7 @@ function SheetBulanan({ pl, from, to }) {
   );
 }
 
-function SheetTahunan({ pl, tahun }) {
+function SheetTahunan({ pl, tahun, basis }) {
   const jumlahkan = (arr) => arr.reduce((s, v) => s + Number(v || 0), 0);
   const baris = (label, arr, total, bold) => (
     <tr key={label} style={bold ? { fontWeight: 700 } : undefined}>
@@ -145,7 +147,7 @@ function SheetTahunan({ pl, tahun }) {
   return (
     <div className="sheet" style={{ background: '#fff', width: 1000, margin: '0 auto', padding: 30, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
       <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Laporan Laba Rugi</div>
-      <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginBottom: 16 }}>Tahun {tahun}</div>
+      <div style={{ textAlign: 'center', fontSize: 11, color: '#666', marginBottom: 16 }}>Tahun {tahun} · Basis {basis === 'akrual' ? 'Akrual (sudah berangkat)' : 'Kas (uang masuk)'}</div>
 
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>

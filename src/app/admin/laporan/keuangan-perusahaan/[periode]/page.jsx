@@ -37,13 +37,18 @@ export default function LaporanKeuanganPerusahaanDetailPage() {
   const [statusKunci, setStatusKunci] = useState(null); // row laba_rugi_periode | null
   const [alasanBelumBisaKunci, setAlasanBelumBisaKunci] = useState('');
   const [busy, setBusy] = useState(false);
+  // Basis akrual (sudah berangkat) vs kas (uang masuk, cara lama) — dua
+  // mode independen, masing-masing bisa dikunci terpisah (dikonfirmasi user
+  // 2026-10-16). Default Akrual karena itu yang lebih bener secara
+  // akuntansi, Kas tetap ada sebagai pilihan, bukan dihapus.
+  const [basis, setBasis] = useState('akrual');
   const rentang = periode ? hitungRentang(periode) : null;
 
   function muat() {
     if (!rentang) { setLoading(false); return; }
     setLoading(true);
     Promise.all([
-      fetch(`/api/admin/laba-rugi-periode?periode=${periode}`).then(r => r.json()),
+      fetch(`/api/admin/laba-rugi-periode?periode=${periode}&basis=${basis}`).then(r => r.json()),
       fetch('/api/admin/cashflow/periode').then(r => r.json()),
     ]).then(([statusRes, cashflowRes]) => {
       const row = statusRes.periode;
@@ -68,7 +73,7 @@ export default function LaporanKeuanganPerusahaanDetailPage() {
         return;
       }
 
-      const qs = rentang.tipe === 'tahun' ? new URLSearchParams({ tahun: periode }) : new URLSearchParams({ from: rentang.from, to: rentang.to });
+      const qs = rentang.tipe === 'tahun' ? new URLSearchParams({ tahun: periode, basis }) : new URLSearchParams({ from: rentang.from, to: rentang.to, basis });
       fetch(`/api/admin/laporan-keuangan-perusahaan?${qs}`).then(r => r.json())
         .then(a => { setPl(a); setLoading(false); })
         .catch(() => setLoading(false));
@@ -81,15 +86,15 @@ export default function LaporanKeuanganPerusahaanDetailPage() {
   }, [user]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
-  useEffect(() => { muat(); }, [periode]);
+  useEffect(() => { muat(); }, [periode, basis]);
 
   async function submitKunci() {
-    if (!confirm(`Kunci Laba Rugi ${rentang.judul}? Nominal gak akan berubah lagi walau data Cashflow diedit belakangan.`)) return;
+    if (!confirm(`Kunci Laba Rugi ${rentang.judul} (basis ${basis === 'akrual' ? 'Akrual' : 'Kas'})? Nominal gak akan berubah lagi walau data Cashflow diedit belakangan.`)) return;
     setBusy(true);
     try {
       const res = await fetch('/api/admin/laba-rugi-periode', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ periode, tipe: rentang.tipe, data_snapshot: pl }),
+        body: JSON.stringify({ periode, tipe: rentang.tipe, basis, data_snapshot: pl }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal mengunci'); setBusy(false); return; }
@@ -102,7 +107,7 @@ export default function LaporanKeuanganPerusahaanDetailPage() {
     if (!confirm('Buka kembali Laba Rugi ini untuk dihitung ulang secara live?')) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/laba-rugi-periode?periode=${periode}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/laba-rugi-periode?periode=${periode}&basis=${basis}`, { method: 'DELETE' });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal membuka kembali'); setBusy(false); return; }
       muat();
@@ -129,12 +134,33 @@ export default function LaporanKeuanganPerusahaanDetailPage() {
 
   return (
     <Layout title={`🔒 Laba Rugi — ${rentang.judul}`} backHref="/admin/laporan/keuangan-perusahaan">
+      {/* Basis Kas/Akrual — dua mode independen (dikonfirmasi user
+          2026-10-16): Kas = cara lama (pendapatan diakui begitu DP
+          dikonfirmasi, apapun status keberangkatan). Akrual = pendapatan &
+          HPP baru diakui begitu program udah BERANGKAT — lebih akurat
+          secara akuntansi, dijadiin default, tapi Kas TETAP ada & gak
+          dihapus. Masing-masing basis status kuncinya independen (lihat
+          statusKunci yang ikut re-fetch tiap basis berubah). */}
+      <div className="flex gap-2 mb-4">
+        {[
+          { key: 'akrual', label: '✅ Akrual (sudah berangkat)' },
+          { key: 'kas', label: '💰 Kas (uang masuk)' },
+        ].map(b => (
+          <button key={b.key} onClick={() => setBasis(b.key)}
+            className={`text-xs font-bold px-3 py-1.5 rounded-full border-2 transition-colors ${
+              basis === b.key ? 'border-[#1A4FA0] bg-[#E8F0FB] text-[#1A4FA0]' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+            }`}>
+            {b.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className={`text-xs font-bold px-2.5 py-1 rounded ${terkunci ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700'}`}>
-          {terkunci ? `🔒 Terkunci · disubmit ${new Date(statusKunci.submitted_at).toLocaleDateString('id-ID')}` : '📝 Belum dikunci — angka masih live'}
+          {terkunci ? `🔒 Terkunci (basis ${basis === 'akrual' ? 'Akrual' : 'Kas'}) · disubmit ${new Date(statusKunci.submitted_at).toLocaleDateString('id-ID')}` : `📝 Belum dikunci (basis ${basis === 'akrual' ? 'Akrual' : 'Kas'}) — angka masih live`}
         </div>
         <div className="flex gap-2">
-          <a href={`/admin/cetak-laba-rugi?${rentang.tipe === 'tahun' ? `tahun=${periode}` : `from=${rentang.from}&to=${rentang.to}`}`}
+          <a href={`/admin/cetak-laba-rugi?basis=${basis}&${rentang.tipe === 'tahun' ? `tahun=${periode}` : `from=${rentang.from}&to=${rentang.to}`}`}
             target="_blank" rel="noopener noreferrer"
             className="bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-bold px-5 py-2.5 rounded-xl">
             🖨️ Cetak / PDF

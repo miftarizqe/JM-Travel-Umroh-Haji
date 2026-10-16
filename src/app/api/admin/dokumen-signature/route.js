@@ -194,7 +194,7 @@ async function siapkanData(dokumen, refId) {
   }
   return {
     generatePdf: () => renderInvoicePdf({ dokumen: dok, booking, pengaturan, logoPath, untukTtdDigital: true }),
-    signer: { nama: pengaturan.nama_penandatangan_keuangan || pengaturan.nama_penandatangan, email: null, wa: null },
+    signer: { nama: pengaturan.nama_penandatangan_keuangan || null, email: null, wa: null },
     materaiCtx: { jenis: dok.jenis, status: dok.status, nominal: dok.nominal },
   };
 }

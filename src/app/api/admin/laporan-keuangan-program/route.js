@@ -9,10 +9,14 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   try {
     const { searchParams } = new URL(request.url);
+    // Default 'akrual' di level API (dikonfirmasi user 2026-10-16) — lihat
+    // catatan sama di /api/admin/laporan-keuangan-perusahaan.
+    const basis = searchParams.get('basis') === 'kas' ? 'kas' : 'akrual';
     const data = await hitungLaporanKeuanganProgram(pool, {
       from: searchParams.get('from'),
       to: searchParams.get('to'),
       progId: searchParams.get('prog_id'),
+      basis,
     });
     return Response.json(data);
   } catch (error) {

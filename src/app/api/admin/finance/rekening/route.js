@@ -1,6 +1,7 @@
 import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { hitungSaldoAkhirPeriode } from '@/lib/cashflow';
+import { hitungDanaJamaahBelumBerangkat } from '@/lib/danaJamaah';
 
 // GET /api/admin/finance/rekening?bulan=YYYY-MM — dashboard 3 rekening JM
 // Travel (dikonfirmasi user 2026-09-02): Alkhalid Jaya Megah, Sahabat
@@ -71,10 +72,26 @@ export async function GET(request) {
       return Response.json({ error: 'Format bulan harus YYYY-MM' }, { status: 400 });
     }
 
-    const [alkhalid, sahabatBaitullah] = await Promise.all([
+    const [alkhalid, sahabatBaitullah, danaJamaahBelumBerangkat] = await Promise.all([
       saldoRekeningLedger('alkhalid', bulan),
       saldoRekeningLedger('sahabat_baitullah', bulan),
+      hitungDanaJamaahBelumBerangkat(pool),
     ]);
+    // Cek Dana Jamaah (dikonfirmasi user 2026-10-16, diadaptasi dari sheet
+    // "Rekap Kas" template Excel owner) — saldo Alkhalid HARUS >= total dana
+    // jamaah yang udah masuk tapi programnya belum berangkat, biar gak ada
+    // dana jamaah yang kepake buat operasional/hal lain (lihat
+    // hitungDanaJamaahBelumBerangkat). danaJamaahBelumBerangkat itu angka
+    // "SEKARANG" (gak ada konsep snapshot historis per bulan), jadi
+    // perbandingannya CUMA akurat kalau `bulan` yang dipilih = bulan
+    // berjalan — FE yang mutusin nampilin verdict ijo/merah atau catatan
+    // "gak akurat buat histori" berdasarkan itu.
+    const cekDanaJamaah = {
+      dana_jamaah_belum_berangkat: danaJamaahBelumBerangkat,
+      saldo_alkhalid: alkhalid.saldo_akhir,
+      selisih: alkhalid.saldo_akhir - danaJamaahBelumBerangkat,
+      aman: alkhalid.saldo_akhir >= danaJamaahBelumBerangkat,
+    };
 
     const [[periodeCashflow]] = await pool.query('SELECT id, status FROM cashflow_periode WHERE bulan = ?', [bulan]);
     let cashflow = null;
@@ -88,7 +105,7 @@ export async function GET(request) {
       };
     }
 
-    return Response.json({ bulan, alkhalid, sahabat_baitullah: sahabatBaitullah, cashflow });
+    return Response.json({ bulan, alkhalid, sahabat_baitullah: sahabatBaitullah, cashflow, cek_dana_jamaah: cekDanaJamaah });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });

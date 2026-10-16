@@ -34,23 +34,48 @@ function agregasi(list, keyFn, labelFn) {
  * Rincian SIAPA harus ditransfer & ke rekening mana bukan urusan laporan
  * ini — itu ada di /admin/laporan/ujroh-closing (per perwakilan).
  * Laporan ini cuma angka "komisi" gelondongan sebagai komponen biaya.
+ *
+ * `basis` (dikonfirmasi user 2026-10-16, diadaptasi dari template Excel
+ * akuntansi travel yang dipakai owner):
+ *  - 'kas' (default lib, demi backward-compat siapa pun yang manggil tanpa
+ *    basis): pendapatan diakui begitu DP dikonfirmasi, APAPUN booking.status
+ *    (active/selesai) — ini "uang masuk", bukan laba/rugi yang akurat secara
+ *    akuntansi (DP buat program yang baru berangkat bulan depan ikut
+ *    kehitung "pendapatan" bulan ini, padahal biaya vendornya belum tentu
+ *    dibayar/dikeluarkan).
+ *  - 'akrual': pendapatan (DAN HPP/komisi booking itu — otomatis ikut
+ *    karena di-join per booking yang sama) baru diakui begitu
+ *    booking.status = 'selesai' (program udah BERANGKAT — status ini
+ *    sendiri otomatis dari sweep cron di closing.js begitu
+ *    tanggal_berangkat lewat, gak ada tindakan manual baru). Konsekuensi
+ *    PENTING: filter tanggal (from/to) & pengelompokan "bulan" per baris
+ *    IKUT PINDAH ke tanggal_berangkat PROGRAM, bukan created_at booking —
+ *    kalau tetap pakai created_at, laporan akrual bulan berjalan bisa
+ *    kosong melompong (booking yang dibuat bulan ini jarang ada yang udah
+ *    'selesai' bulan yang sama), dan booking yang dibuat bulan lalu tapi
+ *    baru berangkat bulan ini malah gak kehitung di bulan yang seharusnya.
  */
-export async function hitungLaporanKeuanganProgram(pool, { from, to, progId } = {}) {
+export async function hitungLaporanKeuanganProgram(pool, { from, to, progId, basis = 'kas' } = {}) {
+  const akrual = basis === 'akrual';
+  const kolomTanggal = akrual ? 'p.tanggal_berangkat' : 'b.created_at';
   const params = [];
-  let where = ` WHERE b.status IN ('active','selesai') AND b.dp_status = 'confirmed'`;
-  if (from) { where += ' AND b.created_at >= ?'; params.push(`${from} 00:00:00`); }
-  if (to) { where += ' AND b.created_at <= ?'; params.push(`${to} 23:59:59`); }
+  let where = akrual
+    ? ` WHERE b.status = 'selesai' AND b.dp_status = 'confirmed'`
+    : ` WHERE b.status IN ('active','selesai') AND b.dp_status = 'confirmed'`;
+  if (from) { where += ` AND ${kolomTanggal} >= ?`; params.push(akrual ? from : `${from} 00:00:00`); }
+  if (to) { where += ` AND ${kolomTanggal} <= ?`; params.push(akrual ? to : `${to} 23:59:59`); }
   if (progId) { where += ' AND b.prog_id = ?'; params.push(progId); }
 
   const [rows] = await pool.query(
     `SELECT b.id, b.prog_id, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.jamaah_data,
             b.total_harga, b.opsi_tambahan_total, b.voucher_nominal, b.created_at,
+            p.tanggal_berangkat,
             p.hpp_deluxe_quad, p.hpp_deluxe_triple, p.hpp_deluxe_double,
             p.hpp_eksekutif_quad, p.hpp_eksekutif_triple, p.hpp_eksekutif_double,
             p.hpp_signature_quad, p.hpp_signature_triple, p.hpp_signature_double
      FROM bookings b LEFT JOIN programs p ON p.id = b.prog_id
      ${where}
-     ORDER BY b.created_at ASC`,
+     ORDER BY ${kolomTanggal} ASC`,
     params
   );
 
@@ -83,7 +108,7 @@ export async function hitungLaporanKeuanganProgram(pool, { from, to, progId } = 
     const komisi = komisiMap[b.id] || 0;
     return {
       prog_id: b.prog_id, prog_name: b.prog_name, jumlah_jamaah: b.jumlah_jamaah || 1,
-      bulan: new Date(b.created_at).toISOString().slice(0, 7),
+      bulan: new Date(akrual ? b.tanggal_berangkat : b.created_at).toISOString().slice(0, 7),
       pendapatan_program: pendapatanProgram, opsi_tambahan: opsiTambahan,
       diskon_voucher: diskonVoucher, pendapatan_bersih: pendapatanBersih,
       hpp, laba_kotor: pendapatanBersih - hpp, komisi,
