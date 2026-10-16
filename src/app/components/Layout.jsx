@@ -474,7 +474,15 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '💰', label: 'Database Jamaah', path: '/admin/sahabat/database' },
         { icon: '🎯', label: 'Pengajuan Ganti Target', path: '/admin/sahabat/ganti-target' },
         { icon: '⚠️', label: 'Laporan Data dari HoP', path: '/admin/sahabat/laporan-data' },
-        { icon: '📊', label: 'Dashboard Head of Program', path: '/dashboard/sahabat/hop' },
+        // "Dashboard Head of Program" DICABUT dari sidebar admin
+        // (dikonfirmasi user 2026-10-16) — halamannya (/dashboard/sahabat/
+        // hop) dibangun dari sudut pandang SATU akun spesifik (Head of
+        // Program), bukan tampilan generik buat admin, dan makin
+        // redundan sekarang Top Perekrut + grafik pertumbuhannya udah
+        // ditaruh langsung di Database Jamaah (lihat baris di atas). Akun
+        // HoP sendiri TETAP punya ini sebagai Beranda-nya (navItems.hop
+        // di bawah, gak disentuh) — rute-nya juga gak dihapus, cuma
+        // pintasan sidebar admin-nya yang hilang.
         { icon: '💵', label: 'Pengajuan Setoran Mandiri', path: '/admin/sahabat/setoran-mandiri-pengajuan' },
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing' },
