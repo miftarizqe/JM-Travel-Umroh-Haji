@@ -307,6 +307,23 @@ function CheckoutPageInner() {
       .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '' }));
   }, [user]);
 
+  // Blokir checkbox "Ini saya sendiri" dari awal kalau NIK akun ini udah
+  // kedaftar di booking aktif lain di program yang sama (dikonfirmasi user
+  // 2026-10-16: "jegat dari awal", bukan nunggu kena alert pas submit).
+  // Cek pakai endpoint yang sama dengan validasi final (/api/bookings/cek-nik),
+  // jadi hasilnya konsisten sama yang bakal kejadian kalau tetap dipaksa submit.
+  const [diriSendiriBookingId, setDiriSendiriBookingId] = useState(null);
+  useEffect(() => {
+    const nik = dataDiriSahabat?.nik?.trim();
+    if (!progId || !nik) { setDiriSendiriBookingId(null); return; }
+    fetch('/api/bookings/cek-nik', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prog_id: progId, niks: [nik] }),
+    }).then(r => r.json())
+      .then(d => setDiriSendiriBookingId(d.terpakai ? (d.booking_id || 'lain') : null))
+      .catch(() => setDiriSendiriBookingId(null));
+  }, [progId, dataDiriSahabat?.nik]);
+
   useEffect(() => {
     if (step !== 3) return;
     const interval = setInterval(() => {
@@ -1145,6 +1162,7 @@ function CheckoutPageInner() {
               prog={prog} list={cart} onChangeList={setCart}
               onSummaryChange={setSummary}
               dataDiriSendiri={dataDiriSahabat}
+              diriSendiriBookingId={diriSendiriBookingId}
               allowHargaCustom={user.role === 'admin' || user.role === 'super_admin'}
               referralPerwId={user.role === 'perwakilan' ? user.id
                 : permanentReferrer ? permanentReferrer.id

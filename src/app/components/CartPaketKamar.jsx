@@ -118,7 +118,7 @@ export function jamaahKosong(prog) {
 // tambahan + harga admin per kartu). `useCustomHotelHarga` WAJIB di
 // komponen terpisah (bukan di-inline di loop parent) -- aturan Hooks React,
 // tiap kartu butuh hitungan harga custom hotel-nya sendiri-sendiri.
-function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom }) {
+function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
   const kamarKey = kamarKeyOf(item.kamar);
   const hargaNormal = prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 
@@ -138,8 +138,18 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHarga
   // Alamat kirim SENGAJA TETAP manual/gak dikunci (alamat pengiriman bisa
   // beda dari alamat identitas).
   const diriSendiriTersedia = idx === 0 && !!dataDiriSendiri;
+  // NIK akun ini udah kedaftar di booking aktif lain di program yang sama
+  // (dicek di checkout/page.jsx pakai endpoint yang sama dengan validasi
+  // final) -> checkbox dijegat dari awal, gak nunggu alert pas submit
+  // (dikonfirmasi user 2026-10-16).
+  const diriSendiriDiblokir = diriSendiriTersedia && !!diriSendiriBookingId;
   const nikTerkunci = !!item.diriSendiri && !!dataDiriSendiri?.nik;
   const fieldTerkunci = !!item.diriSendiri;
+
+  useEffect(() => {
+    if (diriSendiriDiblokir && item.diriSendiri) onChange({ ...item, diriSendiri: false, nama: '', jk: '', nik: '', wa: '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diriSendiriDiblokir]);
 
   function toggleDiriSendiri(checked) {
     if (checked) {
@@ -170,11 +180,20 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHarga
       </div>
 
       {diriSendiriTersedia && (
-        <label className="flex items-center gap-2 bg-[#FEF3DC] rounded-lg px-3 py-2 cursor-pointer">
-          <input type="checkbox" checked={!!item.diriSendiri} onChange={e => toggleDiriSendiri(e.target.checked)}
-            className="w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
-          <span className="text-xs font-semibold text-[#8a6516]">🙋 Ini saya sendiri — Nama/JK/NIK/No. Telp otomatis dari data akun & terkunci</span>
-        </label>
+        diriSendiriDiblokir ? (
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
+            <input type="checkbox" checked={false} disabled className="w-4 h-4 flex-shrink-0 opacity-50" />
+            <span className="text-xs font-semibold text-gray-500">
+              🙋 Anda sudah terdaftar sendiri di program ini{diriSendiriBookingId && diriSendiriBookingId !== 'lain' ? ` (booking ${diriSendiriBookingId})` : ''} — satu orang gak bisa checkout diri sendiri dua kali di program yang sama.
+            </span>
+          </div>
+        ) : (
+          <label className="flex items-center gap-2 bg-[#FEF3DC] rounded-lg px-3 py-2 cursor-pointer">
+            <input type="checkbox" checked={!!item.diriSendiri} onChange={e => toggleDiriSendiri(e.target.checked)}
+              className="w-4 h-4 accent-[#1A4FA0] flex-shrink-0" />
+            <span className="text-xs font-semibold text-[#8a6516]">🙋 Ini saya sendiri — Nama/JK/NIK/No. Telp otomatis dari data akun & terkunci</span>
+          </label>
+        )
       )}
 
       {semuaHargaSama ? (
@@ -319,7 +338,7 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHarga
 // `allowHargaCustom` (bool) — tampilkan input "Set Harga Sendiri" per kartu
 // (admin/super_admin doang, closing Direct/Kantor sering pakai harga
 // negosiasi).
-export default function CartPaketKamar({ prog, list, onChangeList, extra, onSummaryChange, referralPerwId, dataDiriSendiri, allowHargaCustom }) {
+export default function CartPaketKamar({ prog, list, onChangeList, extra, onSummaryChange, referralPerwId, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
   const [opsiTambahanList] = useOpsiTambahan(prog?.id);
   const semuaHargaSama = semuaHargaSamaCek(prog);
   const sisaSeat = (prog?.total_seat || 0) - (prog?.used_seat || 0) - list.length;
@@ -415,7 +434,7 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
           <JamaahCard key={idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
             onRemove={() => hapusJamaah(idx)} canRemove={list.length > 1}
             prog={prog} semuaHargaSama={semuaHargaSama} opsiTambahanList={opsiTambahanList}
-            dataDiriSendiri={dataDiriSendiri} allowHargaCustom={allowHargaCustom} />
+            dataDiriSendiri={dataDiriSendiri} allowHargaCustom={allowHargaCustom} diriSendiriBookingId={diriSendiriBookingId} />
         ))}
       </div>
 
