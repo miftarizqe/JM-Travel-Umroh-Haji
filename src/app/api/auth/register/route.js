@@ -6,6 +6,7 @@ import { buatLimiter, ipKlien, responsTerlaluBanyak } from '@/lib/rateLimit';
 import { verifikasiRecaptcha } from '@/lib/recaptcha';
 import { emailValid, nikValid, normalisasiWA, varianWA } from '@/lib/validasiAkun';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
+import { pernahBerangkatUmroh } from '@/lib/riwayatUmroh';
 
 // Cegah spam pembuatan akun: 10 registrasi per IP per jam.
 const limitIP = buatLimiter(10, 60 * 60 * 1000);
@@ -94,6 +95,24 @@ export async function POST(request) {
       );
       if (p.length === 0) {
         return Response.json({ error: 'Perekrut tidak ditemukan atau sedang tidak aktif' }, { status: 400 });
+      }
+    }
+    // Daftar Perwakilan TANPA kode referral cuma boleh kalau NIK-nya beneran
+    // tercatat SUDAH BERANGKAT umroh bersama JM Travel (dikonfirmasi user
+    // 2026-09-06, digate server-side 2026-10-17) — sebelumnya cuma dicek di
+    // /register lewat fetch /api/cek-riwayat-umroh buat live-feedback UI,
+    // TAPI gak pernah divalidasi ulang di sini, jadi POST langsung ke
+    // endpoint ini bisa bikin akun perwakilan tanpa referral & tanpa riwayat
+    // umroh sama sekali. perwakilan beda dari sahabat_baitullah (WAJIB
+    // undangan, gak ada jalur alternatif) — di sini referral ATAU riwayat
+    // umroh, salah satu cukup.
+    if (role === 'perwakilan' && !perekrutId) {
+      const eligible = await pernahBerangkatUmroh(pool, nik);
+      if (!eligible) {
+        return Response.json(
+          { error: 'Daftar Perwakilan tanpa kode referral cuma bisa kalau Anda pernah berangkat umroh bersama JM Travel. Masukkan kode referral Perwakilan, atau hubungi admin JM Travel.' },
+          { status: 400 }
+        );
       }
     }
     // Sahabat Baitullah WAJIB lewat link undangan: kode_invite_sahabat (acak,
