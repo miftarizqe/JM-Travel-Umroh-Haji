@@ -12,6 +12,10 @@
 // fisiknya nempel di dokumen SPK-PWK yang dicetak pas kantor/paket.
 export function langkahBerikutnyaPerwakilan(cek) {
   if (!cek?.pendaftaran) return null; // belum pernah isi formulir sama sekali
+  // Admin minta perbaikan data (dikonfirmasi user 2026-10-17, mirror
+  // sahabat) — progres PKS/metode TETAP, cuma data diri yang perlu diulang
+  // lewat PUT /api/daftar-perwakilan sebelum lanjut ke step berikutnya.
+  if (cek.pendaftaran.perbaikan_diminta_at) return '/daftar-perwakilan';
   if (!cek.prasyarat?.pks_disetujui) return '/pks?jenis=perwakilan';
   if (!cek.prasyarat?.metode_dipilih) return '/daftar-perwakilan/metode';
   return '/status-pendaftaran';

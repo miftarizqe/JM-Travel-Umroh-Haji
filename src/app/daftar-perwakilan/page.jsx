@@ -53,6 +53,10 @@ export default function DaftarPerwakilanPage() {
   const [uploadingKtp, setUploadingKtp] = useState(false);
   const [profil, setProfil] = useState(null);
   const [pengaturan] = usePengaturan();
+  // Admin minta perbaikan data (dikonfirmasi user 2026-10-17, mirror
+  // /daftar-sahabat 2026-10-11) — null = belum dicek, false = gak perlu
+  // perbaikan, object = perlu, isinya { catatan, data }.
+  const [perbaikan, setPerbaikan] = useState(null);
 
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim() || !!form.pkj.trim();
   useUnsavedGuard(isDirty);
@@ -64,6 +68,28 @@ export default function DaftarPerwakilanPage() {
 
     // Cek prasyarat — jangan biarkan step diloncati
     fetch('/api/status-pendaftaran').then(r => r.json()).then(d => setCek(d)).catch(()=>{});
+    // Admin minta perbaikan data? Prefill form dari isian TERAKHIR yang
+    // dikirim (dikonfirmasi user 2026-10-17, mirror /daftar-sahabat) — di
+    // dalam .then() yang sama biar urutan apply-nya pasti SETELAH prefill
+    // dari profil di bawah (dikirim lebih dulu secara kode, tapi sama-sama
+    // async; di sini aman karena setForm-nya nunggu fetch ini resolve).
+    fetch('/api/daftar-perwakilan').then(r => r.json()).then(d => {
+      setPerbaikan(d.perlu_perbaikan ? d : false);
+      if (!d.perlu_perbaikan || !d.data) return;
+      const p = d.data;
+      setForm(prev => ({
+        ...prev,
+        nama: p.nama || prev.nama, tempat_lahir: p.tempat_lahir || prev.tempat_lahir,
+        tl: p.tl || prev.tl, jk: p.jk || prev.jk,
+        ibu: p.ibu || prev.ibu, ayah: p.ayah || prev.ayah, foto_ktp_path: p.foto_ktp_path || prev.foto_ktp_path,
+        pkj: p.pkj || prev.pkj, pendidikan: p.pendidikan || prev.pendidikan,
+        bank: p.bank || prev.bank, norek: p.norek || prev.norek, pemilik: p.pemilik || prev.pemilik,
+        jalan: p.jalan || prev.jalan, norumah: p.norumah || prev.norumah, rt: p.rt || prev.rt, rw: p.rw || prev.rw,
+        kp: p.kp || prev.kp, kel: p.kel || prev.kel, kec: p.kec || prev.kec, kota: p.kota || prev.kota,
+        provinsi: p.provinsi || prev.provinsi, negara: p.negara || prev.negara,
+        sama_ktp: p.sama_ktp,
+      }));
+    }).catch(() => setPerbaikan(false));
     // Perekrut boleh perwakilan aktif lain — sama seperti register/page.jsx
     fetch('/api/referral-list').then(r => r.json()).then(d => { setPerwList(d.perwakilan||[]); }).catch(()=>{});
     // User yang daftar LANGSUNG sebagai perwakilan (role sudah 'perwakilan'
@@ -180,6 +206,21 @@ export default function DaftarPerwakilanPage() {
     if (!validStep()) return;
     setLoading(true);
     try {
+      // Mode perbaikan (dikonfirmasi user 2026-10-17, mirror /daftar-sahabat)
+      // -> PUT ke baris yang sama, progres PKS/metode TETAP, langsung
+      // lanjut ke step berikutnya yang BENERAN belum selesai, bukan selalu
+      // ke PKS dari awal lagi.
+      if (perbaikan) {
+        const res = await fetch('/api/daftar-perwakilan', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        });
+        const d = await res.json();
+        if (!res.ok) { alert(d.error); setLoading(false); return; }
+        const cekBaru = await fetch('/api/status-pendaftaran').then(r => r.json()).catch(() => null);
+        router.push(langkahBerikutnyaPerwakilan(cekBaru) || '/status-pendaftaran');
+        return;
+      }
       const res = await fetch('/api/daftar-perwakilan', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ ...form, perekrut_id: perekrutIdTerkirim })   // user_id diambil dari token, tidak dikirim
@@ -218,7 +259,11 @@ export default function DaftarPerwakilanPage() {
           className="bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">Unggah Foto →</button>
       </div></div></Layout>;
   }
-  if (cek?.pendaftaran) {
+  // Admin minta perbaikan data -> JANGAN dialihkan ke kartu "Sudah
+  // Mendaftar" di bawah (itu bakal nunjuk balik ke halaman ini sendiri,
+  // bikin loop) — tampilkan formulir asli, prefilled dari isian terakhir
+  // (dikonfirmasi user 2026-10-17, mirror /daftar-sahabat).
+  if (cek?.pendaftaran && !perbaikan) {
     // Formulir udah pernah dikirim — arahkan ke langkah LANJUTAN yang belum
     // selesai (PKS/pilih metode), bukan selalu ke status tracker mentah,
     // biar applicant yang keluar di tengah jalan gak nyangkut.
@@ -261,6 +306,13 @@ export default function DaftarPerwakilanPage() {
             </div>
           ))}
         </div>
+
+        {perbaikan && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4 text-sm">
+            <div className="font-bold text-red-700 mb-1">⚠️ Admin meminta Anda memperbaiki data pendaftaran</div>
+            <div className="text-red-600">{perbaikan.catatan}</div>
+          </div>
+        )}
 
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
 
@@ -406,9 +458,9 @@ export default function DaftarPerwakilanPage() {
               ))}
             </div>
             <div className="bg-[#E8F0FB] rounded-lg p-3 text-xs text-[#1A4FA0]">
-              Setelah kirim, Anda akan diminta <b>TTD digital</b> formulir ini, lalu membaca &
-              menyetujui <b>Perjanjian Kerjasama Perwakilan</b>, lalu memilih metode pendaftaran
-              (datang ke kantor / kirim paket).
+              Setelah kirim, Anda akan diminta membaca & menyetujui <b>Perjanjian Kerjasama Perwakilan</b>,
+              lalu memilih metode pendaftaran (datang ke kantor / kirim paket). Perjanjian Kerjasama
+              Perwakilan (SPKA-Ins) ditandatangani secara fisik, bukan TTD digital.
             </div>
           </>)}
 

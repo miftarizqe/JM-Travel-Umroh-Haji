@@ -37,17 +37,27 @@ function sesiHabis(token) {
   }
 }
 
-// Sahabat Baitullah ditolak permanen (klaim `ditolak`, lihat
-// /api/auth/login & verifikasiToken) — semua halaman ditahan ke sini.
-const HALAMAN_DITOLAK = '/status-pendaftaran-sahabat';
-function tokenDitolak(token) {
+// Sahabat Baitullah & Perwakilan ditolak permanen (klaim `ditolak`, lihat
+// /api/auth/login & verifikasiToken) — semua halaman ditahan ke halaman
+// status masing-masing role (dikonfirmasi user 2026-10-17 — sebelumnya
+// cuma sahabat yang punya halaman ini, perwakilan selalu diblok total
+// gak pernah bisa login walau ditolak).
+const HALAMAN_DITOLAK_PER_ROLE = {
+  sahabat_baitullah: '/status-pendaftaran-sahabat',
+  perwakilan: '/status-pendaftaran',
+};
+function payloadToken(token) {
   try {
     const b64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)));
-    return !!payload.ditolak;
+    return JSON.parse(atob(b64 + '='.repeat((4 - (b64.length % 4)) % 4)));
   } catch {
-    return false;
+    return null;
   }
+}
+function halamanDitolakUntuk(token) {
+  const payload = payloadToken(token);
+  if (!payload?.ditolak) return null;
+  return HALAMAN_DITOLAK_PER_ROLE[payload.role] || null;
 }
 
 function loginAtToken(token) {
@@ -124,9 +134,10 @@ export function proxy(request) {
   }
 
   let res = NextResponse.next();
-  if (login && tokenDitolak(raw) && pathname !== HALAMAN_DITOLAK) {
+  const halamanDitolak = login ? halamanDitolakUntuk(raw) : null;
+  if (halamanDitolak && pathname !== halamanDitolak) {
     // Ditolak permanen -> ditahan di halaman status (modal "ditolak").
-    res = NextResponse.redirect(new URL(HALAMAN_DITOLAK, request.url));
+    res = NextResponse.redirect(new URL(halamanDitolak, request.url));
   } else if (login && (pathname === '/login' || pathname === '/register')) {
     // Sudah login tapi buka /login atau /register -> ke beranda
     res = NextResponse.redirect(new URL('/', request.url));

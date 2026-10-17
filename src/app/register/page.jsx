@@ -93,17 +93,31 @@ function RegisterPageInner() {
   // user 2026-09-06) — dicek publik (belum ada akun), cuma balikin boolean,
   // gak expose detail booking siapa pun.
   const [pernahUmroh, setPernahUmroh] = useState(false);
+  // Nama tersamar ("A***d B******n") pas NIK ketemu riwayat umroh — buat
+  // popup cek NIK self-verify (dikonfirmasi user 2026-10-17, lihat
+  // samarkanNama() di src/lib/riwayatUmroh.js).
+  const [pernahUmrohNama, setPernahUmrohNama] = useState(null);
+  const [pernahUmrohChecking, setPernahUmrohChecking] = useState(false);
   useEffect(() => {
     const nik = form.nik.trim();
-    if (nik.length !== 16) { setPernahUmroh(false); return; }
+    if (nik.length !== 16) { setPernahUmroh(false); setPernahUmrohNama(null); setPernahUmrohChecking(false); return; }
+    setPernahUmrohChecking(true);
     const timer = setTimeout(() => {
       fetch(`/api/cek-riwayat-umroh?nik=${encodeURIComponent(nik)}`)
         .then(r => r.json())
-        .then(d => setPernahUmroh(!!d.pernahUmroh))
-        .catch(() => setPernahUmroh(false));
+        .then(d => { setPernahUmroh(!!d.pernahUmroh); setPernahUmrohNama(d.nama_masked || null); })
+        .catch(() => { setPernahUmroh(false); setPernahUmrohNama(null); })
+        .finally(() => setPernahUmrohChecking(false));
     }, 400);
     return () => clearTimeout(timer);
   }, [form.nik]);
+  // Popup cek NIK di depan (dikonfirmasi user 2026-10-17) — cuma buat jalur
+  // Perwakilan yang role-nya udah terkunci dari awal (landing page/link),
+  // biar calon pendaftar tau eligible/enggak SEBELUM capek isi nama/WA/
+  // email/password dulu baru ketauan di step 2 butuh kode referral. Jalur
+  // pilih role manual di step 2 (tampilkanPilihan=true) TETAP pakai alur
+  // lama (kode referral di step 2) — belum ikut diubah, di luar scope ini.
+  const [popupNikSelesai, setPopupNikSelesai] = useState(false);
   // Sama persis pola kode referral Perwakilan di atas, tapi buat gerbang
   // rekrut-sahabat-baru (dikonfirmasi user 2026-09-03: "gada lg bs milih
   // siapa yg rekrut" — dropdown bebas diganti kode invite acak, mirror
@@ -389,8 +403,94 @@ function RegisterPageInner() {
 
   const steps = ['Data Diri', 'Tipe Akun'];
 
+  // Popup cek NIK di depan, khusus jalur Perwakilan yang role-nya udah
+  // terkunci dari awal (dikonfirmasi user 2026-10-17). Kalau datang lewat
+  // link referral pribadi (perekrutTerkunciPerwakilan udah ke-set), gak
+  // perlu cek eligibility sama sekali — referral-nya udah cukup, popup
+  // cuma minta NIK aja. Selain itu: cek live ke riwayat umroh, kalau
+  // ketemu tampilkan nama tersamar buat self-verify, kalau enggak minta
+  // kode referral di sini juga (reuse state kodeReferralPerwakilan — sudah
+  // divalidasi live lewat effect terpisah di atas, gak peduli di JSX
+  // mana inputnya dirender).
+  const tampilkanPopupNik = roleAwal === 'perwakilan' && roleValid && !popupNikSelesai;
+  const nikPopupBolehLanjut = form.nik.trim().length === 16
+    && (!!perekrutTerkunciPerwakilan || pernahUmroh || !!form.perekrut_id);
+
   return (
     <div className="min-h-screen bg-[#eef1f8] flex items-center justify-center px-4 py-8 font-sans">
+      {tampilkanPopupNik && (
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="text-center">
+              <div className="text-3xl mb-1">🪪</div>
+              <h2 className="text-lg font-bold text-[#0E2F6E]">Masukkan NIK Anda</h2>
+              <p className="text-sm text-gray-400 mt-1">
+                {perekrutTerkunciPerwakilan
+                  ? 'Buat cek kelengkapan data pendaftaran Perwakilan.'
+                  : 'Kami cek dulu apakah Anda eligible daftar Perwakilan tanpa kode referral.'}
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">No. KTP (NIK 16 digit) *</label>
+              <input
+                className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm transition-colors"
+                placeholder="16 digit angka"
+                maxLength={16}
+                inputMode="numeric"
+                value={form.nik}
+                onChange={e => setForm({ ...form, nik: e.target.value.replace(/\D/g, '') })}
+              />
+            </div>
+
+            {!perekrutTerkunciPerwakilan && form.nik.trim().length === 16 && (
+              pernahUmrohChecking ? (
+                <div className="text-xs text-gray-400">Mengecek riwayat umroh...</div>
+              ) : pernahUmroh ? (
+                <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl px-4 py-3">
+                  <div className="font-bold mb-0.5">✅ Ditemukan: {pernahUmrohNama}</div>
+                  Anda tercatat pernah berangkat umroh bersama JM Travel — eligible daftar Perwakilan tanpa kode referral.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+                    Anda belum pernah umroh bersama JM Travel. Isi kode referral Perwakilan Anda di bawah, atau hubungi admin JM Travel kalau menurut Anda ini keliru.
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Perwakilan</label>
+                    <input
+                      value={kodeReferralPerwakilan}
+                      onChange={e => setKodeReferralPerwakilan(e.target.value)}
+                      placeholder="Contoh: 7XQK92B"
+                      className={`w-full px-4 py-2.5 rounded-xl border-2 focus:outline-none text-sm ${kodeReferralInvalid ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
+                    />
+                    {kodeReferralChecking && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
+                    {kodeReferralInvalid && !kodeReferralChecking && (
+                      <div className="text-[10px] text-red-500 mt-1">Kode referral tidak ditemukan atau perwakilan tidak aktif.</div>
+                    )}
+                  </div>
+                  <a href={waLink(pengaturan.wa_kantor, 'Assalamu\'alaikum JM Travel, saya ingin daftar sebagai Perwakilan tapi belum punya kode referral.') || '#'}
+                    target="_blank" rel="noopener noreferrer"
+                    className="block text-center text-xs text-[#1A4FA0] font-semibold hover:underline">
+                    Hubungi Admin via WhatsApp →
+                  </a>
+                </div>
+              )
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => keluar('/')}
+                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">
+                Batal
+              </button>
+              <button disabled={!nikPopupBolehLanjut} onClick={() => setPopupNikSelesai(true)}
+                className="flex-[2] bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-40 text-white font-bold py-2.5 rounded-full text-sm">
+                Lanjutkan →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="w-full max-w-md">
 
         {/* Logo */}
@@ -448,7 +548,24 @@ function RegisterPageInner() {
                 {id:'nik', label:'No. KTP (NIK 16 digit) *', placeholder:'16 digit angka', maxLength:16, numeric:true},
                 {id:'wa', label:'No. WhatsApp *', placeholder:'08xxxxxxxxxx', maxLength:13, numeric:true},
                 {id:'email', label:'Email *', placeholder:'email@domain.com'},
-              ].map(f => (
+              ].map(f => {
+                // NIK udah dikunci dari popup cek NIK di depan (dikonfirmasi
+                // user 2026-10-17) — read-only di sini biar gak nyampur sama
+                // hasil cek eligibility yang udah divalidasi, "Ubah" buka
+                // lagi popupnya (reset hasil cek juga).
+                if (f.id === 'nik' && roleAwal === 'perwakilan' && roleValid && popupNikSelesai) {
+                  return (
+                    <div key={f.id}>
+                      <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">{f.label}</label>
+                      <div className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-sm text-gray-600 flex items-center justify-between">
+                        <span>{form.nik}</span>
+                        <button type="button" onClick={() => setPopupNikSelesai(false)}
+                          className="text-xs font-bold text-[#1A4FA0] hover:underline">Ubah</button>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
                 <div key={f.id}>
                   <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">{f.label}</label>
                   <input
@@ -466,7 +583,8 @@ function RegisterPageInner() {
                     }}
                   />
                 </div>
-              ))}
+                );
+              })}
               <div>
                 <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">Agama *</label>
                 <select

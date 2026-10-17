@@ -21,7 +21,8 @@ export async function GET(request) {
               u.terverifikasi, u.foto_path, u.setuju_pks, u.created_at,
               perekrut.name AS perekrut_nama,
               ap.id AS pendaftaran_id, ap.status AS pendaftaran_status,
-              ap.metode AS pendaftaran_metode, ap.untuk_role_kedua
+              ap.metode AS pendaftaran_metode, ap.untuk_role_kedua,
+              ap.catatan_admin, ap.perbaikan_diminta_at
        FROM users u
        LEFT JOIN users perekrut ON perekrut.id = u.perekrut_id
        LEFT JOIN agen_pendaftaran ap ON ap.id = (
