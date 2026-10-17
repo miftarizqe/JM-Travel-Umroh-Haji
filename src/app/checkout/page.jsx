@@ -10,7 +10,7 @@ import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { trackLead } from '@/lib/analytics';
-import { ambilRefPerwakilan } from '@/lib/referralCapture';
+import { ambilRefPerwakilan, ambilRefAgenId } from '@/lib/referralCapture';
 
 export default function CheckoutPage() {
   return (
@@ -528,6 +528,10 @@ function CheckoutPageInner() {
             : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
             : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
+          // Link referral agen (dikonfirmasi user 2026-10-17) — murni tag
+          // invisible dari localStorage (/a/[kode]), gak ada UI/pilihan
+          // manual sama sekali, gak terkait sumber_info/referral_kode di atas.
+          referral_agen_id: ambilRefAgenId() || undefined,
           // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
           // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
           // diorderkan perwakilan/sahabat/admin lewat checkout salah

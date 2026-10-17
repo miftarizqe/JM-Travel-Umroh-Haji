@@ -598,6 +598,11 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     ] },
     { icon: '👥', label: 'Akun & Jaringan', children: [
       { icon: '👥', label: 'Pengguna', path: '/admin?tab=users' },
+      // Akun agen — link referral ringan, gak ada funnel/komisi otomatis
+      // (dikonfirmasi user 2026-10-17). Nempel di sini, bukan di Program
+      // Kemitraan — ini soal kelola akun, bukan funnel pendaftaran kayak
+      // Perwakilan/Sahabat Baitullah.
+      { icon: '🔗', label: 'Link Referral Agen', path: '/admin/agen' },
       // Log siapa-ngapain-kapan — khusus super_admin (dikonfirmasi user
       // 2026-08-21), bukan buat visibilitas admin biasa.
       ...(user?.role === 'super_admin' ? [
