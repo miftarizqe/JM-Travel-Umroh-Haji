@@ -54,10 +54,12 @@ export async function GET(request) {
     );
     const pendaftaran = ag[0] || null;
 
-    // Checklist prasyarat — supaya step tidak bisa diloncati
+    // Checklist prasyarat — supaya step tidak bisa diloncati. foto_profil
+    // DICABUT dari sini (dikonfirmasi user 2026-10-17) — gak ada lagi
+    // kewajiban bikin ID Card, mirror Sahabat Baitullah yang dari awal
+    // emang gak punya prasyarat ini.
     const prasyarat = {
       akun_terverifikasi: !!u.terverifikasi,
-      foto_profil: !!u.foto_path,
       formulir_terkirim: !!pendaftaran,
       pks_disetujui: !!u.setuju_pks,
       metode_dipilih: !!(pendaftaran && pendaftaran.metode),

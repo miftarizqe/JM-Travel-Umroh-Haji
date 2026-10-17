@@ -249,16 +249,10 @@ export default function DaftarPerwakilanPage() {
   // Admin tetap review manual di titik "Aktifkan" ujung funnel
   // (/api/status-pendaftaran), dan cekPemesanBolehOrder tetap nahan akun
   // sebelum status beneran 'active' — jadi gak ada yang kelewat.
-  if (cek && !cek.prasyarat?.foto_profil) {
-    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
-        <div className="text-3xl mb-2">📷</div>
-        <h4 className="font-bold text-yellow-800 mb-1">Unggah Foto Profil Dulu</h4>
-        <p className="text-sm text-yellow-700 mb-3">Foto wajib untuk ID Card perwakilan.</p>
-        <button onClick={() => router.push('/upload-foto')}
-          className="bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">Unggah Foto →</button>
-      </div></div></Layout>;
-  }
+  //
+  // Gerbang "wajib unggah foto profil dulu" DICABUT (dikonfirmasi user
+  // 2026-10-17) — gak ada lagi kewajiban bikin ID Card, mirror Sahabat
+  // Baitullah yang dari awal emang gak punya gerbang ini sama sekali.
   // Admin minta perbaikan data -> JANGAN dialihkan ke kartu "Sudah
   // Mendaftar" di bawah (itu bakal nunjuk balik ke halaman ini sendiri,
   // bikin loop) — tampilkan formulir asli, prefilled dari isian terakhir
