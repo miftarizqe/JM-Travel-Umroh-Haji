@@ -24,8 +24,16 @@ const BULAN_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli'
 
 const errStatus = (message, status) => Object.assign(new Error(message), { status });
 
-/** @returns {Promise<{ pdfBuffer: Uint8Array, nomor: string, dokumen: string }>} */
-export async function buatPdfSpkAkUntukUser(pool, userId) {
+/**
+ * @param {{ rangkap?: 'jamaah'|'management' }} [opts] - KHUSUS admin (dikonfirmasi
+ *   user 2026-10-17), buat ambil rangkap "management" secara terpisah pas metode
+ *   jamaah "kirim" (biasanya cuma dapat rangkap "jamaah" doang, lihat komentar di
+ *   bawah) — office butuh rangkap management buat dicetak & dikirim manual ke
+ *   jamaah. Default (gak diisi) = perilaku lama persis, JANGAN diubah: dipakai
+ *   jamaah unduh sendiri di /api/sahabat/unduh-spk-ak.
+ * @returns {Promise<{ pdfBuffer: Uint8Array, nomor: string, dokumen: string }>}
+ */
+export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
   const [[user]] = await pool.query(
     `SELECT id, name, wa, email, alamat, alamat_ktp, role, agama, no_paspor, metode_ttd_sahabat,
             alamat_ktp_jalan, alamat_ktp_no_rumah, alamat_ktp_rt, alamat_ktp_rw,
@@ -81,6 +89,14 @@ export async function buatPdfSpkAkUntukUser(pool, userId) {
     // Ling/Ahmad Zaky statis) dicetak & dikirim terpisah oleh kantor
     // sendiri langsung ke jamaah, BUKAN diunduh jamaah, biar gak nunggu
     // jamaah muter-balik 2 dokumen dulu (dikonfirmasi user 2026-10-03).
+    // Admin minta 1 rangkap spesifik (dikonfirmasi user 2026-10-17) --
+    // menang dari logic metode di bawah, berlaku buat kedua metode (kirim
+    // ATAU kantor) biar admin tetap bisa ambil rangkap jamaah terpisah juga
+    // kalau jamaahnya minta diprintin ulang.
+    if (opts.rangkap === 'jamaah' || opts.rangkap === 'management') {
+      const pdfBuffer = await generateSpkAkRangkapPdf(opts.rangkap, dataRangkap);
+      return { pdfBuffer, nomor, dokumen };
+    }
     if (user.metode_ttd_sahabat === 'kantor') {
       const [rangkapJamaah, rangkapManagement] = await Promise.all([
         generateSpkAkRangkapPdf('jamaah', dataRangkap),

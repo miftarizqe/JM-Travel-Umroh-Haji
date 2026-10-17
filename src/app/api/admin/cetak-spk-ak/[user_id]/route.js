@@ -16,7 +16,16 @@ export async function GET(request, { params }) {
     if (!isAdmin && String(auth.user.id) !== String(user_id)) {
       return Response.json({ error: 'Anda tidak berwenang atas dokumen ini' }, { status: 403 });
     }
-    return responsPdfSpkAk(await buatPdfSpkAkUntukUser(pool, user_id));
+    // ?rangkap=jamaah|management -- KHUSUS admin (dikonfirmasi user
+    // 2026-10-17), biar bisa ambil rangkap "management" buat metode "kirim"
+    // (yang defaultnya cuma dapat rangkap jamaah doang, lihat
+    // buatPdfSpkAkUntukUser). Jamaah sendiri (bukan admin) gak boleh pilih
+    // rangkap bebas -- tetap kunci ke perilaku default sesuai metode-nya.
+    const { searchParams } = new URL(request.url);
+    const rangkapDiminta = searchParams.get('rangkap');
+    const opts = isAdmin && (rangkapDiminta === 'jamaah' || rangkapDiminta === 'management')
+      ? { rangkap: rangkapDiminta } : {};
+    return responsPdfSpkAk(await buatPdfSpkAkUntukUser(pool, user_id, opts));
   } catch (error) {
     if (error.status) return Response.json({ error: error.message }, { status: error.status });
     console.error(error);
