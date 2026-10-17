@@ -28,7 +28,7 @@ export async function pastikanKodeUnik(conn, userId, role) {
   const [[user]] = await conn.query('SELECT kode_unik FROM users WHERE id = ?', [userId]);
   if (user?.kode_unik) return user.kode_unik;
 
-  const prefix = role === 'perwakilan' ? 'PJM' : role === 'sahabat_baitullah' ? 'SBJM' : 'JUJM';
+  const prefix = role === 'perwakilan' ? 'PJM' : role === 'sahabat_baitullah' ? 'SBJM' : role === 'agen' ? 'AGN' : 'JUJM';
   const kodeUnik = await nomorKodeUnikBerikutnya(conn, prefix);
   await conn.query('UPDATE users SET kode_unik = ? WHERE id = ?', [kodeUnik, userId]);
   return kodeUnik;
