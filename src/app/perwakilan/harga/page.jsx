@@ -68,6 +68,20 @@ export default function AturHargaPerwakilan() {
 
   if (!user || loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
+  // Akun belum aktif gak boleh ngajuin custom harga ke admin (ditemukan &
+  // digate 2026-10-18, mirror gerbang yang sama di Kalkulator Perwakilan).
+  if (user.status !== 'active') {
+    return (
+      <Layout title="💰 Harga Jual">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center max-w-md mx-auto">
+          <div className="text-3xl mb-2">⏳</div>
+          <h4 className="font-bold text-yellow-800 mb-1">Akun Anda Belum Aktif</h4>
+          <p className="text-sm text-yellow-600">Selesaikan dulu proses pendaftaran Perwakilan sebelum bisa lihat harga & mengajukan harga custom.</p>
+        </div>
+      </Layout>
+    );
+  }
+
   const prog = programs.find(p => p.prog_id === selected);
 
   return (

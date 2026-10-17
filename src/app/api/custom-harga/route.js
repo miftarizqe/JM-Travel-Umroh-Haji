@@ -40,10 +40,15 @@ export async function POST(request) {
     }
 
     // Ambil nama & role pengaju + nama program
-    const [u] = await pool.query('SELECT name, role FROM users WHERE id = ?', [pengaju_id]);
+    const [u] = await pool.query('SELECT name, role, status FROM users WHERE id = ?', [pengaju_id]);
     const [p] = await pool.query('SELECT name FROM programs WHERE id = ?', [prog_id]);
     if (u.length === 0) return Response.json({ error: 'Pengaju tidak ditemukan' }, { status: 404 });
     if (p.length === 0) return Response.json({ error: 'Program tidak ditemukan' }, { status: 404 });
+    // Akun belum aktif gak boleh ngajuin custom harga (ditemukan & digate
+    // 2026-10-18, mirror gerbang yang sama di Kalkulator Perwakilan).
+    if (u[0].status !== 'active') {
+      return Response.json({ error: 'Akun Anda belum aktif. Selesaikan dulu proses pendaftaran sebelum bisa mengajukan harga custom.' }, { status: 403 });
+    }
 
     await pool.query(
       `INSERT INTO custom_harga_request
