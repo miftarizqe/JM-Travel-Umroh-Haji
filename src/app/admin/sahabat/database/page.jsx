@@ -1019,6 +1019,16 @@ export default function DatabaseJamaahPage() {
                             🖨️ Cetak Dokumen
                           </button>
                         )}
+                        {/* Metode "kirim" cuma dapat rangkap jamaah dari tombol
+                            "Cetak Dokumen" di atas (dikonfirmasi user 2026-10-17)
+                            — rangkap management buat kantor cetak & kirim
+                            manual ke jamaah butuh jalur terpisah di sini. */}
+                        {j.metode_ttd_sahabat === 'kirim' && (
+                          <button onClick={() => window.open(`/admin/cetak-spk-ak/${j.user_id}?rangkap=management`, '_blank')}
+                            className="text-[10px] font-bold text-[#C9952A] bg-[#FEF3DC] px-2 py-1 rounded-full hover:bg-yellow-100 shrink-0">
+                            🖨️ Rangkap Management
+                          </button>
+                        )}
                         {/* Scan KTP ikut ditaruh di sebelah tombol cetak
                             (dikonfirmasi user 2026-10-09) — sering kepake
                             bareng pas nyiapin paket dokumen fisik buat BSI. */}
