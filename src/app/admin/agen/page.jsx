@@ -5,14 +5,13 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
-const rp = (n) => `Rp${Number(n || 0).toLocaleString('id-ID')}`;
 
-// Akun "agen" — login minimal cuma buat ambil link referral pribadi,
-// gak ada funnel pendaftaran/dashboard (dikonfirmasi user 2026-10-17).
-// Admin bikin akun langsung di sini (nama/NIK/email/WA/password), kode
-// referral & link kebuat otomatis. Kolom "Estimasi Komisi" MURNI referensi
-// buat admin rekap & bayar leader manual di luar sistem — gak ada payout
-// otomatis/komisi_ledger sama sekali.
+// "Database Account" agen — login minimal cuma buat ambil link referral
+// pribadi, gak ada funnel pendaftaran/dashboard (dikonfirmasi user
+// 2026-10-17). Admin bikin akun langsung di sini (nama/NIK/email/WA/
+// password), kode referral & link kebuat otomatis. Riwayat closing & komisi
+// (yang sekarang beneran tercatat di komisi_ledger) pindah ke halaman
+// Riwayat Closing & Pencairan Komisi masing-masing, bukan di sini lagi.
 export default function AdminAgenPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
@@ -79,9 +78,9 @@ export default function AdminAgenPage() {
   const lbl = "block text-xs font-semibold text-gray-500 mb-1";
 
   return (
-    <Layout title="🔗 Link Referral Agen" backHref="/admin?tab=dashboard">
+    <Layout title="🔗 Database Account Agen" backHref="/admin?tab=dashboard">
       <div className="text-xs text-gray-400 mb-4">
-        Akun ringan khusus buat ambil link referral pribadi — gak ada funnel pendaftaran, langsung aktif. Siapa pun yang buka link-nya diarahkan ke landing page dengan tombol WA diswitch ke nomor agen, dan booking yang masuk ke-tag otomatis. Estimasi komisi di bawah (Rp3,5jt/jamaah − voucher) murni referensi buat kamu rekap & bayar leader manual — gak ada pembayaran otomatis dari sistem.
+        Akun ringan khusus buat ambil link referral pribadi — gak ada funnel pendaftaran, langsung aktif. Siapa pun yang buka link-nya diarahkan ke landing page dengan tombol WA diswitch ke nomor agen, dan booking yang masuk ke-tag otomatis. Riwayat closing & komisi (Rp3,5jt/jamaah − voucher) ada di menu <b>Riwayat Closing</b> & <b>Pencairan Komisi</b>.
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">
@@ -136,11 +135,6 @@ export default function AdminAgenPage() {
                     {r.status === 'active' ? 'Nonaktifkan' : 'Aktifkan'}
                   </button>
                 </div>
-              </div>
-              <div className="flex gap-4 mt-2 text-xs text-gray-500">
-                <span>📦 {r.jumlah_booking} booking</span>
-                <span>👥 {r.total_jamaah} jamaah</span>
-                <span className="font-bold text-[#C9952A]">💰 Estimasi komisi: {rp(r.total_komisi)}</span>
               </div>
             </div>
           ))}

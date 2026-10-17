@@ -531,6 +531,17 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // Database Perwakilan + nyimpen cara hitung ranking buat dipindah
         // ke tempat lain nanti kalau dibutuhkan).
       ] },
+      // Subgrup "Agen" — link referral ringan ke 1 leader manual di luar
+      // sistem, komisi 3,5jt/jamaah−voucher yang SEKARANG beneran tercatat
+      // di komisi_ledger lewat closing.js + pengajuan pencairan sendiri
+      // (dikonfirmasi user 2026-10-17 — pindah dari "Akun & Jaringan",
+      // sejajar Perwakilan/Sahabat Baitullah karena sama-sama program
+      // kemitraan, bukan sekadar kelola akun biasa).
+      { icon: '🔗', label: 'Agen', children: [
+        { icon: '🪪', label: 'Database Account', path: '/admin/agen' },
+        { icon: '📜', label: 'Riwayat Closing', path: '/admin/agen/riwayat-closing' },
+        { icon: '💸', label: 'Pencairan Komisi', path: '/admin/agen/pencairan' },
+      ] },
     ] },
     // Urutan Finance sengaja disusun dasar -> akhir (dikonfirmasi user
     // 2026-09-03), bukan sekadar daftar alfabet/acak: (1) setup rekening,
@@ -598,11 +609,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     ] },
     { icon: '👥', label: 'Akun & Jaringan', children: [
       { icon: '👥', label: 'Pengguna', path: '/admin?tab=users' },
-      // Akun agen — link referral ringan, gak ada funnel/komisi otomatis
-      // (dikonfirmasi user 2026-10-17). Nempel di sini, bukan di Program
-      // Kemitraan — ini soal kelola akun, bukan funnel pendaftaran kayak
-      // Perwakilan/Sahabat Baitullah.
-      { icon: '🔗', label: 'Link Referral Agen', path: '/admin/agen' },
       // Log siapa-ngapain-kapan — khusus super_admin (dikonfirmasi user
       // 2026-08-21), bukan buat visibilitas admin biasa.
       ...(user?.role === 'super_admin' ? [

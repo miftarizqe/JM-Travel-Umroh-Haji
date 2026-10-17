@@ -6,6 +6,7 @@ import { wajibRole } from '@/lib/auth';
 import { saldoSahabat, catatPerubahanSaldo, JENIS_SALDO_SAHABAT } from '@/lib/saldoSahabat';
 import { alasanBelumBisaAccSahabat, cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { catatRekening } from '@/lib/rekeningLedger';
+import { rekeningUntukBooking } from '@/lib/rekeningUntukBooking';
 import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
@@ -129,15 +130,22 @@ export async function PATCH(request, { params }) {
       if (conn) conn.release();
     }
 
-    // Rekening Sahabat Baitullah — uang keluar, cuma buat baris yang beneran
+    // Rekening sumber dana — uang keluar, cuma buat baris yang beneran
     // butuh bukti TF eksternal (buktiPath ada) — pemakaian_saldo_sahabat &
     // setoran_mandiri_sahabat SENGAJA gak dihitung, itu bukan transfer keluar
     // dari rekening pool ini (yang pertama saldo internal dipakai buat
     // booking sendiri, yang kedua duitnya emang gak pernah masuk rekening
     // JM Travel sama sekali — langsung ke rekening pribadi jamaah).
+    // Rekening-nya ditentukan dari TIPE PROGRAM booking ini (dikonfirmasi
+    // user 2026-10-17 — dulu HARDCODE selalu 'sahabat_baitullah', padahal
+    // referral_closing_reguler_sahabat itu closing ke program REGULER,
+    // harusnya keluar dari rekening utama). Baris tanpa booking_id (mis.
+    // tabungan_awal_sahabat) tetap fallback 'sahabat_baitullah' seperti
+    // sebelumnya — itu emang bukan transaksi program reguler.
     if (confirmed && !sudahConfirmed && buktiPath) {
+      const rekening = await rekeningUntukBooking(pool, rows[0].booking_id, 'sahabat_baitullah');
       await catatRekening(pool, {
-        rekening: 'sahabat_baitullah', jenis: 'keluar', sumber_tipe: 'ujroh_tf',
+        rekening, jenis: 'keluar', sumber_tipe: 'ujroh_tf',
         sumber_id: id, nominal: Number(rows[0].nominal || 0),
         keterangan: 'Ujroh Sahabat Baitullah — TF keluar',
       });
