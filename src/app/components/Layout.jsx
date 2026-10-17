@@ -646,8 +646,14 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     perwakilan: [
       { icon: '🏠', label: 'Beranda', path: '/dashboard/perwakilan' },
       { icon: '🕌', label: 'Program', path: '/programs' },
-      { icon: '🌳', label: 'Downline', path: '/dashboard/downline' },
+      // Booking Saya & Team (relabel dari "Downline") disamakan ke pola
+      // Sahabat Baitullah (dikonfirmasi user 2026-10-18) — /dashboard/jamaah
+      // generik (query by user_id, gak gate role), sama persis yang dipakai
+      // Sahabat buat "Booking Saya" sendiri.
+      { icon: '📦', label: 'Booking Saya', path: '/dashboard/jamaah' },
+      { icon: '🌳', label: 'Team', path: '/dashboard/downline' },
       { icon: '💰', label: 'Harga', path: '/perwakilan/harga' },
+      { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/perwakilan/riwayat-closing' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],
