@@ -8,7 +8,16 @@ const JENIS_LABEL = {
   ujroh_perwakilan: 'Ujroh closing',
   closing_langsung_sahabat: 'Closing langsung',
   referral_closing_reguler_sahabat: 'Ujroh Referral Sahabat',
+  ujroh_agen: 'Ujroh Agen',
 };
+
+// Komisi akun "agen" (link referral ringan, dikonfirmasi user 2026-10-17) —
+// flat Rp3.500.000 PER JAMAAH, dipotong voucher_nominal booking itu,
+// dibatasi minimal Rp0 (gak pernah negatif). Lahir PENDING (dikonfirmasi_at
+// NULL), baru "cair" lewat pengajuan_ujroh_agen (mirror pola
+// pengajuan_ujroh_perwakilan), sama sekali gak peduli referral_perw_id/
+// referral_sahabat_id booking ini — independen, boleh bareng-bareng.
+const KOMISI_AGEN_PER_JAMAAH = 3_500_000;
 
 async function catat(conn, bookingId, penerima, jenis, nominal, jml, paket, ket) {
   if (!penerima?.id || nominal <= 0) return 0;
@@ -257,6 +266,20 @@ export async function prosesBookingSelesai(bookingId, actor) {
             }
             current = current.perekrut_id ? await getUser(conn, current.perekrut_id) : null;
           }
+        }
+      }
+    }
+
+    // Komisi agen (dikonfirmasi user 2026-10-17) — independen dari blok
+    // perwakilan di atas, gak ikut rantai reseller/kategori apa pun.
+    if (b.referral_agen_id) {
+      const agen = await getUser(conn, b.referral_agen_id);
+      if (agen) {
+        const komisiAgen = Math.max(0, KOMISI_AGEN_PER_JAMAAH * jml - Number(b.voucher_nominal || 0));
+        if (komisiAgen > 0) {
+          await catat(conn, bookingId, agen, 'ujroh_agen', komisiAgen, jml, paket,
+            `Ujroh Agen — ${b.prog_name}`);
+          rincian.push({ penerima: agen.name, id: agen.id, role: agen.role, jenis: 'ujroh_agen', nominal: komisiAgen });
         }
       }
     }

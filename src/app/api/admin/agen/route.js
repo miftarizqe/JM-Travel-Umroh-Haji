@@ -5,28 +5,18 @@ import { emailValid, nikValid, normalisasiWA, varianWA } from '@/lib/validasiAku
 import { pastikanKodeUnik } from '@/lib/kodeUnik';
 import { catatAudit } from '@/lib/audit';
 
-// Komisi per jamaah buat rekap manual leader (dikonfirmasi user 2026-10-17)
-// — BUKAN ditulis ke komisi_ledger atau mentrigger pembayaran apa pun,
-// murni angka referensi buat admin negosiasi/bayar leader di luar sistem.
-// voucher_nominal booking dikurangkan dari total komisi, dibatasi minimal 0.
-const KOMISI_PER_JAMAAH = 3_500_000;
-
-// GET /api/admin/agen — list akun role='agen' + agregat booking/komisi.
+// GET /api/admin/agen — list akun role='agen' ("Database Account"). Murni
+// data akun — jumlah booking/komisi pindah ke halaman Riwayat Closing &
+// Pencairan Komisi masing-masing (dikonfirmasi user 2026-10-17, komisi
+// sekarang beneran tercatat di komisi_ledger lewat closing.js, bukan
+// dihitung on-the-fly lagi di sini).
 export async function GET(request) {
   const auth = wajibRole(request, ['admin', 'super_admin']);
   if (auth.error) return auth.error;
   try {
     const [rows] = await pool.query(
-      `SELECT u.id, u.name, u.nik, u.email, u.wa, u.kode_unik, u.status, u.created_at,
-              COUNT(b.id) AS jumlah_booking,
-              COALESCE(SUM(b.jumlah_jamaah), 0) AS total_jamaah,
-              COALESCE(SUM(GREATEST(0, ? * b.jumlah_jamaah - b.voucher_nominal)), 0) AS total_komisi
-       FROM users u
-       LEFT JOIN bookings b ON b.referral_agen_id = u.id AND b.status NOT IN ('batal', 'dibatalkan')
-       WHERE u.role = 'agen'
-       GROUP BY u.id
-       ORDER BY u.created_at DESC`,
-      [KOMISI_PER_JAMAAH]
+      `SELECT id, name, nik, email, wa, kode_unik, status, created_at
+       FROM users WHERE role = 'agen' ORDER BY created_at DESC`
     );
     return Response.json({ agen: rows });
   } catch (error) {

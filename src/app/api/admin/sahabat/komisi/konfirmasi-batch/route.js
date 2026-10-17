@@ -6,6 +6,7 @@ import { wajibRole } from '@/lib/auth';
 import { saldoSahabat, catatPerubahanSaldo, JENIS_SALDO_SAHABAT } from '@/lib/saldoSahabat';
 import { alasanBelumBisaAccSahabat, cekDanFinalisasiLunasSahabat } from '@/lib/pembayaranSahabatMandiri';
 import { catatRekening } from '@/lib/rekeningLedger';
+import { rekeningUntukBooking } from '@/lib/rekeningUntukBooking';
 import { pesanUkuranFile } from '@/lib/batasUpload';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
@@ -140,26 +141,33 @@ export async function PATCH(request) {
       }
     }
 
-    // 1 baris rekening_ledger PER KELOMPOK pengajuan_ujroh_id (null-safe) —
-    // bukan per komisi_ledger row lagi, lihat komentar di atas.
+    // 1 baris rekening_ledger PER KELOMPOK (pengajuan_ujroh_id + rekening) —
+    // bukan per komisi_ledger row lagi, lihat komentar di atas. Rekening
+    // ditentukan per-baris dari booking_id-nya masing-masing (dikonfirmasi
+    // user 2026-10-17 — 1 batch pengajuan_ujroh bisa aja isinya campur
+    // closing program reguler & Sahabat Baitullah sekaligus karena
+    // pengajuan_ujroh dikelompokkan PER PERIODE, bukan per program, jadi
+    // gak bisa asumsi 1 rekening buat 1 batch lagi — baris tanpa booking_id
+    // tetap fallback 'sahabat_baitullah').
     if (buktiPath && butuhBuktiRows.length > 0) {
       const kelompok = new Map();
       for (const r of butuhBuktiRows) {
-        const key = r.pengajuan_ujroh_id || 'lepas';
-        if (!kelompok.has(key)) kelompok.set(key, []);
-        kelompok.get(key).push(r);
+        const rekening = await rekeningUntukBooking(pool, r.booking_id, 'sahabat_baitullah');
+        const key = `${r.pengajuan_ujroh_id || 'lepas'}:${rekening}`;
+        if (!kelompok.has(key)) kelompok.set(key, { pengajuanId: r.pengajuan_ujroh_id, rekening, items: [] });
+        kelompok.get(key).items.push(r);
       }
-      for (const [key, items] of kelompok) {
+      for (const { pengajuanId, rekening, items } of kelompok.values()) {
         const total = items.reduce((s, r) => s + Number(r.nominal || 0), 0);
         const namaSet = [...new Set(items.map(r => r.penerima_nama).filter(Boolean))];
         const namaLabel = namaSet.length === 1 ? namaSet[0] : `${namaSet.length} penerima`;
         let periodeLabel = '';
-        if (key !== 'lepas') {
-          const [[pengajuan]] = await pool.query('SELECT periode_mulai, periode_selesai FROM pengajuan_ujroh WHERE id = ?', [key]);
+        if (pengajuanId) {
+          const [[pengajuan]] = await pool.query('SELECT periode_mulai, periode_selesai FROM pengajuan_ujroh WHERE id = ?', [pengajuanId]);
           if (pengajuan) periodeLabel = ` — Periode ${fmtTgl(pengajuan.periode_mulai)}–${fmtTgl(pengajuan.periode_selesai)}`;
         }
         await catatRekening(pool, {
-          rekening: 'sahabat_baitullah', jenis: 'keluar', sumber_tipe: 'ujroh_tf',
+          rekening, jenis: 'keluar', sumber_tipe: 'ujroh_tf',
           sumber_id: items.map(r => r.id).join(','), nominal: total,
           keterangan: `Ujroh Sahabat Baitullah — ${namaLabel}${periodeLabel}${items.length > 1 ? ` (${items.length} item)` : ''}`,
         });
