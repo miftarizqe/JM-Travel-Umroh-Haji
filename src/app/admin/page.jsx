@@ -1853,7 +1853,17 @@ function AdminPageInner() {
               </CollapsibleSection>
             );
           })()}
-          {['perwakilan','jamaah'].map(role => {
+          {/* sahabat_baitullah ikutan di sini (dikonfirmasi user 2026-10-17)
+              — tab ini buat EDIT akun (nama/email/WA/NIK, reset password,
+              nonaktifkan, hapus), beda tujuan dari /admin/sahabat/database
+              yang isinya progress funnel BSI/SK-CIF. Perekrut/upline tetap
+              relevan ditampilin, TAPI ID Card (eksklusif Perwakilan, lihat
+              /api/admin/id-card) & ACC/Tolak langsung TETAP gak dikasih ke
+              sahabat — approve generik di sini cuma flip status='active'
+              mentah-mentah, bypass seluruh funnel verifikasi TF/SK-CIF/dst,
+              jadi pending sahabat diarahkan ke /admin/sahabat juga, mirror
+              pola perwakilan yang udah ada. */}
+          {['perwakilan','jamaah','sahabat_baitullah'].map(role => {
             const roleUsers = urutkan(
               users
                 .filter(u => u.role === role)
@@ -1861,8 +1871,10 @@ function AdminPageInner() {
                 .filter(u => !filterUserStatus || u.status === filterUserStatus),
               sortState.users.field, sortState.users.dir
             );
-            const label = role==='perwakilan'?'🏢 Perwakilan':'🧳 Jamaah';
+            const label = role==='perwakilan' ? '🏢 Perwakilan' : role==='sahabat_baitullah' ? '🤝 Jamaah Sahabat Baitullah' : '🧳 Jamaah';
             const isMitra = role==='perwakilan';
+            const tampilkanPerekrut = role==='perwakilan' || role==='sahabat_baitullah';
+            const halamanPendaftaran = role==='perwakilan' ? '/admin/perwakilan' : role==='sahabat_baitullah' ? '/admin/sahabat' : null;
             return (
               <CollapsibleSection key={role} title={<h3 className="font-bold text-[#0E2F6E]">{label}</h3>} badge={roleUsers.length}>
                 <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
@@ -1871,7 +1883,7 @@ function AdminPageInner() {
                       <SortTh field="name" sort={sortState.users} onSort={f => toggleSort('users', f)}>Nama</SortTh>
                       <th className="px-4 py-3 text-left">Kontak</th>
                       <SortTh field="status" sort={sortState.users} onSort={f => toggleSort('users', f)}>Status</SortTh>
-                      {isMitra && <th className="px-4 py-3 text-left">Perekrut</th>}
+                      {tampilkanPerekrut && <th className="px-4 py-3 text-left">Perekrut</th>}
                       <th className="px-4 py-3 text-left">Aksi</th>
                       {isMitra && <th className="px-4 py-3 text-left">ID Card</th>}
                     </tr></thead>
@@ -1890,7 +1902,7 @@ function AdminPageInner() {
                               return <span className={`text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap ${b.cls}`}>{b.label}</span>;
                             })()}
                           </td>
-                          {isMitra && (
+                          {tampilkanPerekrut && (
                             <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                               {u.perekrut_nama ? (
                                 <span onClick={() => openUserDetail({ id: u.perekrut_id })} className="text-[#1A4FA0] hover:underline cursor-pointer">{u.perekrut_nama}</span>
@@ -1899,13 +1911,17 @@ function AdminPageInner() {
                           )}
                           <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                             {u.status==='pending' ? (
-                              isMitra ? (
-                                // ACC/Tolak/cetak PKS perwakilan sekarang di
-                                // /admin/perwakilan (grup Program Kemitraan) — biar
-                                // gak ada dua tempat aksi buat data yang sama.
-                                <button onClick={() => router.push('/admin/perwakilan')}
+                              halamanPendaftaran ? (
+                                // ACC/Tolak/cetak PKS perwakilan & sahabat
+                                // (verifikasi TF, SK-CIF, dst) sekarang di
+                                // halaman pendaftaran masing-masing — biar gak
+                                // ada dua tempat aksi buat data yang sama, dan
+                                // approve generik di sini SENGAJA gak dipakai
+                                // buat dua role ini (cuma flip status='active'
+                                // mentah, bypass funnel verifikasi).
+                                <button onClick={() => router.push(halamanPendaftaran)}
                                   className="text-xs font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">
-                                  ⏳ Lihat di Pendaftaran Perwakilan →
+                                  ⏳ Lihat di Pendaftaran {role==='sahabat_baitullah' ? 'Sahabat Baitullah' : 'Perwakilan'} →
                                 </button>
                               ) : (
                                 <div className="flex gap-2">
@@ -1913,7 +1929,7 @@ function AdminPageInner() {
                                   <button onClick={() => patchUser(u.id,'reject')} className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-3 py-1 rounded-full">❌ Tolak</button>
                                 </div>
                               )
-                            ) : isMitra && (u.status==='active'||u.status==='nonaktif') ? (
+                            ) : tampilkanPerekrut && (u.status==='active'||u.status==='nonaktif') ? (
                               <button onClick={() => toggleUser(u)}
                                 className={`text-xs font-bold px-3 py-1 rounded-full ${u.status==='active'?'bg-red-100 text-red-600 hover:bg-red-200':'bg-green-100 text-green-700 hover:bg-green-200'}`}>
                                 {u.status==='active'?'Nonaktifkan':'Aktifkan'}
@@ -1938,7 +1954,7 @@ function AdminPageInner() {
                           )}
                         </tr>
                       ))}
-                      {roleUsers.length===0 && <tr><td colSpan={isMitra?6:4} className="px-4 py-6 text-center text-gray-400">Belum ada.</td></tr>}
+                      {roleUsers.length===0 && <tr><td colSpan={isMitra?6:tampilkanPerekrut?5:4} className="px-4 py-6 text-center text-gray-400">Belum ada.</td></tr>}
                     </tbody>
                   </table>
                 </div>
