@@ -44,8 +44,15 @@ export async function POST(request) {
     // sahabat_baitullah TIDAK PERNAH pakai perekrut_id dari body (dikonfirmasi
     // user 2026-10-01: "pendaftaran hanya via invitation link, tidak bisa salah
     // referral") — perekrutnya dicari SERVER dari kode undangan di bawah.
-    let perekrutId = (body.perekrut_id && role === 'perwakilan')
-      ? String(body.perekrut_id).trim() : null;
+    //
+    // perwakilan SEKARANG ikut pola yang sama (gap ditemukan 2026-10-17 —
+    // sebelumnya body.perekrut_id dipercaya langsung asal ID-nya valid &
+    // aktif, jadi POST manual ke endpoint ini bisa nyomot/nukar perekrut ke
+    // siapapun yang lagi aktif tanpa pernah lewat link/kode undangan
+    // beneran). body.perekrut_id diabaikan total di sini — satu-satunya
+    // sumber kebenaran adalah body.kode_referral_perwakilan (kode_invite_perwakilan),
+    // dicocokkan ke server di bawah.
+    let perekrutId = null;
 
     // Validasi field wajib
     if (!name || !email || !waInput || !nik || !agama || !password || !role) {
@@ -79,22 +86,25 @@ export async function POST(request) {
       return Response.json({ error: PESAN_PERWAKILAN_COMING_SOON }, { status: 400 });
     }
 
-    // Perekrut (kalau dipilih) menentukan rantai komisi override.
-    // Aturan: perwakilan hanya bisa direkrut perwakilan lain, sahabat hanya
-    // bisa direkrut anggota sahabat lain (komisi flat sekali per rekrutan,
-    // bukan rantai override berjenjang kayak perwakilan).
-    // admin/super_admin JUGA valid jadi perekrut (dikonfirmasi user
-    // 2026-09-19) — link referral admin (lihat /api/admin/kode-invite)
-    // dianggap "direkrut langsung manajemen JM Travel", BUKAN rantai
-    // member-ke-member — konsekuensinya di cascade ujroh registrasi, bukan
-    // di sini (lihat status-pendaftaran-sahabat/route.js & status-pendaftaran/route.js).
-    if (perekrutId && role === 'perwakilan') {
-      const [p] = await pool.query(
-        `SELECT id FROM users WHERE id = ? AND (role IN ('perwakilan','admin','super_admin') OR role_kedua = 'perwakilan') AND status = 'active'`,
-        [perekrutId]
-      );
-      if (p.length === 0) {
-        return Response.json({ error: 'Perekrut tidak ditemukan atau sedang tidak aktif' }, { status: 400 });
+    // Perekrut perwakilan (kalau ada) menentukan rantai komisi override.
+    // Dicari SERVER dari kode undangan (kode_invite_perwakilan) — SAMA
+    // PERSIS pola sahabat_baitullah di bawah, lihat kolom KOLOM_PER_TIPE di
+    // /api/referral-list/verify-invite. admin/super_admin/hop JUGA valid
+    // jadi perekrut (dikonfirmasi user 2026-09-19) — link referral admin
+    // (lihat /api/admin/kode-invite) dianggap "direkrut langsung manajemen
+    // JM Travel", BUKAN rantai member-ke-member — konsekuensinya di cascade
+    // ujroh registrasi, bukan di sini.
+    if (role === 'perwakilan') {
+      const kodeReferralPerwakilan = String(body.kode_referral_perwakilan || '').trim().toUpperCase();
+      if (kodeReferralPerwakilan) {
+        const [p] = await pool.query(
+          `SELECT id FROM users WHERE kode_invite_perwakilan = ? AND (role IN ('perwakilan','admin','super_admin','hop') OR role_kedua = 'perwakilan') AND status = 'active'`,
+          [kodeReferralPerwakilan]
+        );
+        if (p.length === 0) {
+          return Response.json({ error: 'Kode referral tidak valid atau pemiliknya sedang tidak aktif. Minta link referral terbaru.' }, { status: 400 });
+        }
+        perekrutId = p[0].id;
       }
     }
     // Daftar Perwakilan TANPA kode referral cuma boleh kalau NIK-nya beneran

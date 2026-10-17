@@ -7,9 +7,12 @@ import SearchableSelect from '@/app/components/SearchableSelect';
 
 let idCounter = 0;
 
+// Formulir Pendaftaran Mitra DICABUT dari daftar ini (dikonfirmasi user
+// 2026-10-17) — bukan dokumen yang perlu ditandatangani/diunggah scan-nya,
+// cetak-formulir-mitra sekarang murni ringkasan data, mirror Sahabat
+// Baitullah yang memang gak punya dokumen setara ini sama sekali.
 const JENIS_LIST = [
   { key: 'pks', label: 'SPK-PWK', uploadUrl: '/api/admin/upload-dokumen-pks-fisik', contoh: 'SPKAINS' },
-  { key: 'formulir', label: 'Formulir Pendaftaran', uploadUrl: '/api/admin/upload-formulir-fisik', contoh: 'FORMULIR' },
   { key: 'ktp', label: 'Foto KTP', uploadUrl: '/api/admin/upload-ktp-fisik', contoh: 'KTP' },
   { key: 'foto', label: 'Foto Profil', uploadUrl: '/api/admin/upload-foto-profil', contoh: 'FOTO' },
 ];

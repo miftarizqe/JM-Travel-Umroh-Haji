@@ -144,7 +144,9 @@ export default function CetakPksMitra() {
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <PrintBtn user={user} nomor={nomor} dibekukan={dibekukan} dibekukanAt={dibekukanAt} />
-      <DokumenSignatureAksi dokumen="spka_ins" refId={user.id} onCetakFisik={() => window.print()} hideCetakFisik />
+      {/* Kirim TTD Digital DICABUT (dikonfirmasi user 2026-10-12) — praktik sekarang
+          100% fisik, provider TTD digital masih mock. Mirror Perjanjian Jamaah. */}
+      <DokumenSignatureAksi dokumen="spka_ins" refId={user.id} onCetakFisik={() => window.print()} hideCetakFisik hideKirimDigital />
       <UploadScanDokumen label="Dokumen fisik" uploadUrl="/api/admin/upload-dokumen-pks-fisik" userId={user.id} path={user.dokumen_pks_fisik_path} uploadedAt={user.dokumen_pks_fisik_uploaded_at} onUploaded={tandaiTerunggah} />
       <div className="sheet" style={{ background: '#fff', width: 760, minHeight: '29.7cm', margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)', fontFamily: FONT_DOKUMEN, fontSize: UKURAN_DOKUMEN.normal, lineHeight: 1.6, color: '#111' }}>
         <KopPasalDokumen pengaturan={pengaturan} />
