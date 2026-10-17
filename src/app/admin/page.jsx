@@ -736,6 +736,24 @@ function AdminPageInner() {
     alert(res.ok ? `Password ${u.name} berhasil direset. Sampaikan password baru ini ke yang bersangkutan.` : (d.error || 'Gagal reset password'));
   }
 
+  // Edit email langsung dari modal detail (dikonfirmasi user 2026-10-17) —
+  // backend-nya (action 'edit_data') sebenarnya udah lama dukung banyak
+  // field (nik, wa, nama_ibu, dst), cuma belum ada UI buat trigger-nya di
+  // sini, cuma Reset Password doang. Refresh modal + list sesudahnya biar
+  // email baru langsung kelihatan, gak nunggu modal ditutup-buka lagi.
+  async function editEmail(u) {
+    const baru = prompt(`Email baru untuk ${u.name}:`, u.email || '');
+    if (!baru || baru === u.email) return;
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ user_id: u.id, action: 'edit_data', fields: { email: baru } }),
+    });
+    const d = await res.json();
+    if (!res.ok) { alert(d.error || 'Gagal mengubah email'); return; }
+    loadAll();
+    openUserDetail({ id: u.id });
+  }
+
   // Antrian yang masih nunggu tindakan admin buat 1 booking — dipakai
   // penanda ⚡ di tabel Daftar Booking & section "Perlu Tindakan" di modal
   // detail (dikonfirmasi user 2026-10-12: dulu modal cuma nampilin status,
@@ -2695,7 +2713,7 @@ function AdminPageInner() {
               <div className="text-center text-red-500 py-10">{detailUser.error}</div>
             ) : (() => {
               const u = detailUser.user;
-              const roleLabel = {perwakilan:'🏢 Perwakilan', jamaah:'🧳 Jamaah', admin:'⚙️ Admin', super_admin:'🔒 Super Admin', hop:'🛡️ Head of Program'}[u.role] || u.role;
+              const roleLabel = {perwakilan:'🏢 Perwakilan', jamaah:'🧳 Jamaah', sahabat_baitullah:'🤝 Jamaah Sahabat Baitullah', admin:'⚙️ Admin', super_admin:'🔒 Super Admin', hop:'🛡️ Head of Program'}[u.role] || u.role;
               return (
                 <div className="space-y-4">
                   <div className="flex justify-between items-start">
@@ -2718,7 +2736,13 @@ function AdminPageInner() {
                   <div className="grid grid-cols-2 gap-3">
                     <Field label="Status" value={u.status} />
                     <Field label="Terverifikasi" value={u.terverifikasi ? 'Ya' : 'Belum'} />
-                    <Field label="Email" value={u.email} />
+                    <div>
+                      <div className="text-[10px] text-gray-400 uppercase tracking-wide">Email</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-gray-700 break-words">{u.email || '-'}</div>
+                        <button onClick={() => editEmail(u)} className="text-[10px] font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">✏️ Edit</button>
+                      </div>
+                    </div>
                     <Field label="WhatsApp" value={u.wa} />
                     <Field label="NIK" value={u.nik} />
                     <Field label="Tanggal Lahir" value={tgl(u.tanggal_lahir)} />
@@ -2729,9 +2753,17 @@ function AdminPageInner() {
                     <Field label="Alamat" value={u.alamat} full />
                     <Field label="Kode Pos" value={u.kode_pos} />
                     <Field label="Bergabung" value={tgl(u.created_at)} />
-                    <Field label="Status Pendaftaran" value={u.reg_status} />
-                    <Field label="Metode Daftar" value={u.reg_metode} />
-                    <Field label="Jadwal" value={u.reg_jadwal} />
+                    {/* reg_status/reg_metode/reg_jadwal itu kolom funnel
+                        PENDAFTARAN PERWAKILAN doang (kantor/paket, jadwal
+                        kunjungan) — ditampilin ke SEMUA role sebelumnya,
+                        bikin akun jamaah/sahabat yang udah 'active' kelihatan
+                        "ngaco" karena reg_status-nya nyangkut 'pending' dari
+                        dulu (kolom itu emang gak pernah dipakai/diupdate
+                        buat role selain perwakilan). Ditemukan user
+                        2026-10-17. */}
+                    {u.role === 'perwakilan' && <Field label="Status Pendaftaran" value={u.reg_status} />}
+                    {u.role === 'perwakilan' && <Field label="Metode Daftar" value={u.reg_metode} />}
+                    {u.role === 'perwakilan' && <Field label="Jadwal" value={u.reg_jadwal} />}
                     {u.reg_notes && <Field label="Catatan Pendaftaran" value={u.reg_notes} full />}
                     <Field label="Setuju PKS" value={u.setuju_pks ? `Ya (${tgl(u.setuju_pks_at)})` : 'Belum'} />
                   </div>
