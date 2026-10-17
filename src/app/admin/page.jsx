@@ -2738,8 +2738,8 @@ function AdminPageInner() {
                     <Field label="Terverifikasi" value={u.terverifikasi ? 'Ya' : 'Belum'} />
                     <div>
                       <div className="text-[10px] text-gray-400 uppercase tracking-wide">Email</div>
-                      <div className="flex items-center gap-2">
-                        <div className="font-semibold text-gray-700 break-words">{u.email || '-'}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-semibold text-gray-700 break-words min-w-0">{u.email || '-'}</div>
                         <button onClick={() => editEmail(u)} className="text-[10px] font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">✏️ Edit</button>
                       </div>
                     </div>
