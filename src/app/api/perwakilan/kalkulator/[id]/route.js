@@ -18,7 +18,7 @@ export async function PATCH(request, { params }) {
     }
 
     const [[lead]] = await pool.query(
-      `SELECT l.*, u.name AS perwakilan_nama, t.nama AS template_nama
+      `SELECT l.*, u.name AS perwakilan_nama, u.status AS perwakilan_status, t.nama AS template_nama
        FROM kalkulator_perwakilan_lead l
        JOIN users u ON u.id = l.perwakilan_id
        JOIN kalkulator_template_publik t ON t.id = l.template_id
@@ -28,6 +28,11 @@ export async function PATCH(request, { params }) {
     if (!lead) return Response.json({ error: 'Quote tidak ditemukan' }, { status: 404 });
     if (String(lead.perwakilan_id) !== String(auth.user.id)) {
       return Response.json({ error: 'Akses ditolak. Quote ini bukan milik Anda.' }, { status: 403 });
+    }
+    // Akun belum aktif gak boleh ngajuin quote ke admin — mirror gerbang di
+    // POST .../simpan (ditemukan & digate 2026-10-18).
+    if (lead.perwakilan_status !== 'active') {
+      return Response.json({ error: 'Akun Anda belum aktif. Selesaikan dulu proses pendaftaran sebelum bisa mengajukan quote.' }, { status: 403 });
     }
     if (lead.status !== 'draft') {
       return Response.json({ error: 'Quote ini sudah diajukan/diproses sebelumnya.' }, { status: 400 });

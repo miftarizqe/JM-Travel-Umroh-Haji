@@ -13,6 +13,16 @@ export async function POST(request) {
   const auth = wajibRole(request, ['perwakilan']);
   if (auth.error) return auth.error;
   try {
+    // Akun belum aktif (masih funnel pendaftaran) TIDAK boleh bikin/ubah
+    // quote — hasilnya dimaksudkan buat ditawarkan ke jamaah, gak pantas
+    // dipakai orang yang belum diverifikasi admin sebagai perwakilan resmi
+    // (ditemukan & digate 2026-10-18). Query ulang dari DB, bukan percaya
+    // status di JWT yang bisa basi kalau admin baru aja ACC.
+    const [[akun]] = await pool.query('SELECT status FROM users WHERE id = ?', [auth.user.id]);
+    if (akun?.status !== 'active') {
+      return Response.json({ error: 'Akun Anda belum aktif. Selesaikan dulu proses pendaftaran sebelum bisa membuat quote.' }, { status: 403 });
+    }
+
     const {
       id, template_id, paket, kamar, tanggal_berangkat, addon_config,
       hpp_snapshot, margin_perwakilan, nama_quote, catatan_perwakilan,
