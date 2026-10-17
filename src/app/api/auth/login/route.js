@@ -55,12 +55,15 @@ export async function POST(request) {
         { status: 403 }
       );
     }
-    // Sahabat Baitullah yang ditolak permanen TETAP boleh login (dikonfirmasi
-    // user 2026-10-15) — tertahan di /status-pendaftaran-sahabat lewat klaim
-    // `ditolak` di token (lihat src/proxy.js & verifikasiToken). Role lain
-    // yang ditolak tetap diblok kayak dulu.
-    const ditolakSahabat = user.status === 'rejected' && user.role === 'sahabat_baitullah';
-    if (user.status === 'rejected' && !ditolakSahabat) {
+    // Sahabat Baitullah & Perwakilan yang ditolak permanen TETAP boleh login
+    // (dikonfirmasi user 2026-10-15 utk sahabat, diikutkan ke perwakilan
+    // 2026-10-17 — sebelumnya perwakilan ditolak terkunci login SELAMANYA,
+    // gak ada jalan balik walau agen_pendaftaran sendiri udah siap nerima
+    // pendaftaran ulang) — tertahan di halaman status masing-masing lewat
+    // klaim `ditolak` di token (lihat src/proxy.js & verifikasiToken). Role
+    // lain yang ditolak tetap diblok kayak dulu.
+    const ditolakKemitraan = user.status === 'rejected' && ['sahabat_baitullah', 'perwakilan'].includes(user.role);
+    if (user.status === 'rejected' && !ditolakKemitraan) {
       return Response.json(
         { error: 'Pendaftaran Anda ditolak. Hubungi admin JM Travel.' },
         { status: 403 }
@@ -75,7 +78,7 @@ export async function POST(request) {
 
     const loginAt = Math.floor(Date.now() / 1000);
     const token = jwt.sign(
-      { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name, login_at: loginAt, ...(ditolakSahabat ? { ditolak: true } : {}) },
+      { id: user.id, role: user.role, role_kedua: user.role_kedua || null, name: user.name, login_at: loginAt, ...(ditolakKemitraan ? { ditolak: true } : {}) },
       ambilJwtSecret(),
       { expiresIn: DURASI_SESI_DETIK }
     );

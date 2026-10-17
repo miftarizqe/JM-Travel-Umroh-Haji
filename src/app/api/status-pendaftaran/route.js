@@ -93,14 +93,75 @@ export async function GET(request) {
   }
 }
 
-// PATCH /api/status-pendaftaran — admin memajukan status (tidak boleh melompat)
-// body: { pendaftaran_id, status_baru, catatan_admin? }
+// PATCH /api/status-pendaftaran — admin memajukan status (tidak boleh melompat),
+// atau aksi minta_perbaikan/izinkan_daftar_ulang (mirror
+// /api/status-pendaftaran-sahabat, dikonfirmasi user 2026-10-17).
+// body: { pendaftaran_id, status_baru, catatan_admin? } ATAU
+//       { action: 'minta_perbaikan'|'izinkan_daftar_ulang', user_id, catatan_admin? }
 export async function PATCH(request) {
   const auth = wajibRole(request, ['admin']);
   if (auth.error) return auth.error;
 
   try {
-    const { pendaftaran_id, status_baru, catatan_admin } = await request.json();
+    const body = await request.json();
+    const { action, user_id: actionUserId } = body;
+
+    // "Minta Perbaiki" = tolak tapi calon perwakilan TETAP bisa login & isi
+    // ulang data diri (dikonfirmasi user 2026-10-17, mirror sahabat
+    // 2026-10-11) — beda dari status_baru='ditolak' di bawah yang ngunci
+    // users.status='rejected' permanen. Progres setuju PKS/metode TETAP,
+    // cuma data diri yang perlu diulang via PUT /api/daftar-perwakilan.
+    if (action === 'minta_perbaikan') {
+      const catatan = String(body.catatan_admin || '').trim();
+      if (!actionUserId) return Response.json({ error: 'user_id wajib diisi' }, { status: 400 });
+      if (!catatan) return Response.json({ error: 'Alasan / data yang perlu diperbaiki wajib diisi' }, { status: 400 });
+      const [[p]] = await pool.query(
+        'SELECT id, status FROM agen_pendaftaran WHERE user_id = ? ORDER BY id DESC LIMIT 1', [actionUserId]
+      );
+      if (!p) return Response.json({ error: 'Pendaftaran tidak ditemukan' }, { status: 404 });
+      if (p.status === 'active' || p.status === 'ditolak') {
+        return Response.json({ error: 'Pendaftaran ini sudah aktif/ditolak.' }, { status: 400 });
+      }
+      await pool.query(
+        'UPDATE agen_pendaftaran SET perbaikan_diminta_at = NOW(), catatan_admin = ? WHERE id = ?',
+        [catatan, p.id]
+      );
+      await pool.query(
+        "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('perwakilan', ?, 'perlu_perbaikan', ?)",
+        [actionUserId, catatan]
+      );
+      await kirimNotifikasi(pool, {
+        user_id: actionUserId,
+        tipe: 'perwakilan_perlu_perbaikan',
+        judul: 'Data Pendaftaran Perlu Diperbaiki',
+        pesan: `Pendaftaran Perwakilan Anda ditolak admin. Alasan: ${catatan}. Silakan perbaiki data diri Anda.`,
+        link: '/daftar-perwakilan',
+      });
+      return Response.json({ message: 'Calon perwakilan diminta memperbaiki data pendaftarannya.' });
+    }
+
+    // Admin kasih kesempatan kedua ke akun yang sebelumnya ditolak permanen
+    // — buka login lagi (users.status balik 'pending') & izinkan isi ulang
+    // form daftar-perwakilan (lihat guard di POST /api/daftar-perwakilan yang
+    // ngabaikan baris lama berstatus 'ditolak'). Baris agen_pendaftaran lama
+    // TETAP 'ditolak' sebagai riwayat — submission berikutnya bikin baris baru.
+    if (action === 'izinkan_daftar_ulang') {
+      if (!actionUserId) return Response.json({ error: 'user_id wajib diisi' }, { status: 400 });
+      const [[p]] = await pool.query(
+        'SELECT id, status FROM agen_pendaftaran WHERE user_id = ? ORDER BY id DESC LIMIT 1', [actionUserId]
+      );
+      if (!p || p.status !== 'ditolak') {
+        return Response.json({ error: 'Cuma pendaftaran yang statusnya ditolak yang bisa diizinkan daftar ulang' }, { status: 400 });
+      }
+      await pool.query("UPDATE users SET status = 'pending' WHERE id = ?", [actionUserId]);
+      await pool.query(
+        "INSERT INTO pendaftaran_status_log (tipe, user_id, status_baru, catatan) VALUES ('perwakilan', ?, 'diizinkan_daftar_ulang', ?)",
+        [actionUserId, body.catatan_admin || null]
+      );
+      return Response.json({ message: 'Akun diizinkan daftar ulang — calon perwakilan bisa login & isi ulang data pendaftaran.' });
+    }
+
+    const { pendaftaran_id, status_baru, catatan_admin } = body;
     if (!pendaftaran_id || !status_baru) {
       return Response.json({ error: 'pendaftaran_id dan status_baru wajib diisi' }, { status: 400 });
     }

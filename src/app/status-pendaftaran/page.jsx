@@ -7,6 +7,7 @@ import { usePengaturan, waLink, waDisplay } from '@/lib/usePengaturan';
 export default function StatusPendaftaranPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
+  const [pendaftaran, setPendaftaran] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pengaturan] = usePengaturan();
 
@@ -27,9 +28,84 @@ export default function StatusPendaftaranPage() {
         setLoading(false);
       })
       .catch(() => { setUser(parsed); setLoading(false); });
+    // Detail pendaftaran (catatan_admin/perbaikan_diminta_at) — gak ada di
+    // /api/profil, dikonfirmasi user 2026-10-17 buat halaman "Ditolak
+    // Permanen" & "Perlu Diperbaiki" di bawah (mirror
+    // /status-pendaftaran-sahabat).
+    fetch('/api/status-pendaftaran').then(r => r.json()).then(d => setPendaftaran(d.pendaftaran || null)).catch(() => {});
   }, []);
 
+  async function keluarAkun() {
+    try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
+    try { localStorage.removeItem('user'); } catch {}
+    window.location.assign('/login'); // navigasi penuh, lihat logout() di Layout.jsx
+  }
+
   if (loading || !user) return <Layout><div className="flex items-center justify-center py-20 text-gray-400">Loading...</div></Layout>;
+
+  // Ditolak PERMANEN admin (dikonfirmasi user 2026-10-17, mirror
+  // /status-pendaftaran-sahabat 2026-10-15): tetap bisa login, tapi
+  // tertahan di sini (proxy) dengan modal besar yang gak bisa ditutup —
+  // sebelumnya perwakilan ditolak langsung diblok total gak bisa login
+  // sama sekali, gak ada jalan buat tau alasannya apalagi daftar ulang.
+  if (user.status === 'rejected' || pendaftaran?.status === 'ditolak') {
+    const waAdmin = waLink(pengaturan?.wa_kantor, `Assalamu'alaikum JM Travel, pendaftaran Perwakilan saya atas nama ${user?.name || ''} ditolak. Mohon informasinya.`) || '#';
+    return (
+      <Layout title="📋 Status Pendaftaran Perwakilan">
+        <div className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="judul-ditolak"
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 text-center space-y-4">
+            <div className="text-6xl">⛔</div>
+            <h2 id="judul-ditolak" className="text-xl font-bold text-red-700">Pendaftaran Ditolak Permanen</h2>
+            <p className="text-sm text-gray-600">
+              Mohon maaf, pendaftaran Perwakilan Anda <b>ditolak secara permanen</b> oleh admin JM Travel,
+              sehingga tidak bisa dilanjutkan.
+            </p>
+            {pendaftaran?.catatan_admin && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 text-left">
+                <div className="font-bold mb-0.5">Alasan:</div>
+                {pendaftaran.catatan_admin}
+              </div>
+            )}
+            <p className="text-xs text-gray-500">Kalau menurut Anda ini keliru, silakan hubungi admin JM Travel.</p>
+            <div className="flex flex-col gap-2 pt-1">
+              <a href={waAdmin} target="_blank" rel="noopener noreferrer"
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-full text-sm transition-colors">
+                💬 Hubungi Admin via WhatsApp
+              </a>
+              <button onClick={keluarAkun}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full text-sm transition-colors cursor-pointer">
+                Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // Admin minta perbaikan data (dikonfirmasi user 2026-10-17) — login tetap
+  // kebuka, cuma diarahkan balik ke formulir buat benerin data sebelum
+  // lanjut. Halaman ini ditampilkan kalau applicant mampir ke sini langsung
+  // (lewat link lama/bookmark) — alur normal udah diarahkan otomatis dari
+  // /daftar-perwakilan lewat langkahBerikutnyaPerwakilan().
+  if (pendaftaran?.perbaikan_diminta_at) {
+    return (
+      <Layout title="📋 Status Pendaftaran Perwakilan" showBack>
+        <div className="max-w-md mx-auto">
+          <div className="bg-red-50 border border-red-200 rounded-xl p-5 text-center">
+            <div className="text-3xl mb-2">⚠️</div>
+            <h4 className="font-bold text-red-700 mb-1">Data Perlu Diperbaiki</h4>
+            {pendaftaran.catatan_admin && <p className="text-sm text-red-600 mb-3">{pendaftaran.catatan_admin}</p>}
+            <button onClick={() => router.push('/daftar-perwakilan')}
+              className="bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">
+              Perbaiki Data →
+            </button>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   const isViaPacket = user.reg_metode === 'paket';
 

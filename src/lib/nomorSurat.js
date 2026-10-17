@@ -103,7 +103,15 @@ export async function ambilAtauBuatTanggalBeku(pool, rowId, kolomTanggal, tabel 
   if (rows.length === 0) return null;
   if (rows[0].tanggal) return new Date(rows[0].tanggal);
 
-  const sekarang = new Date();
+  // Prioritaskan tanggal SETUJU beneran (setuju_pks_at) daripada tanggal pas
+  // dokumen ini PERTAMA KALI di-generate/dibaca — dua momen itu bisa beda
+  // hari kalau PDF-nya baru ke-generate belakangan (dikonfirmasi user
+  // 2026-10-17: SPK-AK Afif Masduki setuju 9 Oktober, tapi PDF-nya baru
+  // kebuka/digenerate 17 Oktober, dokumennya harus tetap kebaca 9 Oktober).
+  // Fallback ke now() kalau setuju_pks_at belum keisi (dokumen digenerate
+  // sebelum ada yang setuju sama sekali) -- perilaku lama, gak berubah.
+  const [[row]] = await pool.query(`SELECT setuju_pks_at FROM ${tabel} WHERE id = ?`, [rowId]);
+  const sekarang = row?.setuju_pks_at ? new Date(row.setuju_pks_at) : new Date();
   await pool.query(`UPDATE ${tabel} SET ${kolomTanggal} = ? WHERE id = ?`, [sekarang, rowId]);
   return sekarang;
 }

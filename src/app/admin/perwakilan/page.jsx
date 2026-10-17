@@ -159,6 +159,44 @@ export default function AdminPerwakilanPage() {
     setBusy(false);
   }
 
+  // "Minta Perbaikan" = tolak tapi calon perwakilan TETAP bisa login & isi
+  // ulang data diri; "Tolak Permanen" (tombol existing di atas, status_baru
+  // 'ditolak') ngunci login selamanya (dikonfirmasi user 2026-10-17, mirror
+  // /admin/sahabat).
+  async function mintaPerbaikan(userId) {
+    const catatan = (prompt('Apa yang perlu diperbaiki calon perwakilan ini?') || '').trim();
+    if (!catatan) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/status-pendaftaran', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'minta_perbaikan', user_id: userId, catatan_admin: catatan }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusy(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusy(false);
+  }
+
+  // Kasih kesempatan kedua ke akun yang ditolak permanen — buka login
+  // lagi & izinkan isi ulang form (dikonfirmasi user 2026-10-17, mirror
+  // /admin/sahabat/database).
+  async function izinkanDaftarUlang(userId) {
+    if (!confirm('Izinkan akun ini daftar ulang? Login akan dibuka lagi & calon perwakilan bisa isi ulang data pendaftaran.')) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/status-pendaftaran', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'izinkan_daftar_ulang', user_id: userId }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusy(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusy(false);
+  }
+
   // Legacy: akun pending yang gak pernah punya baris agen_pendaftaran
   // (pra-fitur formulir digital) — ACC/Tolak langsung lewat /api/admin/users,
   // sama persis jalur lama di tab generik.
@@ -387,10 +425,28 @@ export default function AdminPerwakilanPage() {
                 </button>
               )}
               {detail.pendaftaran_id && detail.status !== 'active' && detail.status !== 'ditolak' && (
-                <button disabled={busy} onClick={() => { if (confirm('Tolak pendaftaran ini?')) aksiPendaftaran(detail.pendaftaran_id, 'ditolak'); }}
-                  className="bg-gray-100 text-gray-500 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                  Tolak
+                <>
+                  <button disabled={busy} onClick={() => mintaPerbaikan(detail.user_id)}
+                    className="bg-yellow-100 text-yellow-700 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
+                    ✏️ Minta Perbaikan
+                  </button>
+                  <button disabled={busy} onClick={() => { if (confirm('Tolak PERMANEN pendaftaran ini? Login calon perwakilan akan ikut terkunci.')) aksiPendaftaran(detail.pendaftaran_id, 'ditolak'); }}
+                    className="bg-gray-100 text-gray-500 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
+                    Tolak Permanen
+                  </button>
+                </>
+              )}
+              {detail.status === 'ditolak' && (
+                <button disabled={busy} onClick={() => izinkanDaftarUlang(detail.user_id)}
+                  className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
+                  🔓 Izinkan Daftar Ulang
                 </button>
+              )}
+              {detail.perbaikan_diminta_at && detail.status !== 'active' && detail.status !== 'ditolak' && (
+                <div className="w-full bg-yellow-50 border border-yellow-200 rounded-lg p-2.5 text-xs text-yellow-700">
+                  <div className="font-bold">⏳ Menunggu calon perwakilan memperbaiki data:</div>
+                  {detail.catatan_admin}
+                </div>
               )}
               <button onClick={() => window.open(`/admin/cetak-pks-mitra/${detail.user_id}`, '_blank')}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-full text-sm">
