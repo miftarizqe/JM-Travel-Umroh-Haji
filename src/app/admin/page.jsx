@@ -1953,7 +1953,14 @@ function AdminPageInner() {
                                 {u.status==='active'?'Nonaktifkan':'Aktifkan'}
                               </button>
                             ) : <span className="text-xs text-gray-400">-</span>}
-                            {user.role === 'super_admin' && (
+                            {/* Sahabat Baitullah SENGAJA gak dikasih tombol ini
+                                dulu (dikonfirmasi user 2026-10-17) — section
+                                ini baru nongol hari ini (sebelumnya sahabat
+                                gak ada di tab Pengguna sama sekali), gak mau
+                                otomatis nambah eksposur ke aksi permanen tanpa
+                                diminta eksplisit. Perwakilan/Jamaah gak
+                                berubah, masih sama kayak sebelumnya. */}
+                            {user.role === 'super_admin' && role !== 'sahabat_baitullah' && (
                               <button onClick={() => hapusAkun(u)}
                                 className="block mt-1 text-[11px] font-bold text-red-500 hover:text-red-700 whitespace-nowrap">
                                 🗑 Hapus Akun
