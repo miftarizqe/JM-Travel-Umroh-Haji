@@ -20,7 +20,6 @@ export default function DashboardPerwakilan() {
   const [openDownlineId, setOpenDownlineId] = useState(null);
   const [expandTerkonfirmasi, setExpandTerkonfirmasi] = useState(false);
   const [expandForecast, setExpandForecast] = useState(null); // null | 'pribadi' | 'downline'
-  const [expandLost, setExpandLost] = useState(null); // null | 'pribadi' | 'downline'
   const [statusDaftar, setStatusDaftar] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [kodeInvite, setKodeInvite] = useState(null);
@@ -60,7 +59,6 @@ export default function DashboardPerwakilan() {
   const historyProgram = [...riwayatClosing, ...riwayatBatal]
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const forecastDownline = data?.forecast?.downline_bookings || [];
-  const lostDownline = data?.lost?.downline_bookings || [];
 
   // Kode/link rekrut perwakilan baru SEKARANG pakai kode_invite_perwakilan
   // (acak, TERPISAH dari kode_unik yang sekuensial/predictable) — kode_unik
@@ -304,53 +302,6 @@ export default function DashboardPerwakilan() {
               <div key={b.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2">
                 <span className="text-gray-600">{b.prog_name} · {b.id} · dari {b.closer_nama || '-'}</span>
                 <span className="font-bold text-[#C9952A]">{rp(b.potensi_nominal)}</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
-      {/* Lost — ujroh/margin yang HILANG karena booking dibatalkan. Beda dari
-          Forecast: begitu booking batal, dia diam-diam hilang dari Forecast
-          (dikeluarkan dari daftar 'active') tanpa jejak — kartu ini nyimpen
-          jejaknya biar keliatan berapa yang hilang, bukan cuma menguap. */}
-      <div className="grid grid-cols-2 gap-4 mb-2">
-        <div onClick={() => setExpandLost(expandLost==='pribadi'?null:'pribadi')}
-          className={`bg-white rounded-xl border-2 p-4 cursor-pointer transition-all ${expandLost==='pribadi'?'border-red-400':'border-[#e0e8f0] hover:border-red-400'}`}>
-          <div className="text-xs text-gray-400 mb-1">❌ Lost — Closing Sendiri</div>
-          <div className="font-black text-red-500 text-lg">{rp(data?.lost?.potensi_pribadi || 0)}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Batal sebelum closing · {expandLost==='pribadi'?'Tutup ▲':'Lihat rincian ▼'}</div>
-        </div>
-        <div onClick={() => setExpandLost(expandLost==='downline'?null:'downline')}
-          className={`bg-white rounded-xl border-2 p-4 cursor-pointer transition-all ${expandLost==='downline'?'border-red-400':'border-[#e0e8f0] hover:border-red-400'}`}>
-          <div className="text-xs text-gray-400 mb-1">❌ Lost — Margin Downline</div>
-          <div className="font-black text-red-500 text-lg">{rp(data?.lost?.potensi_override || 0)}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Batal sebelum closing downline · {expandLost==='downline'?'Tutup ▲':'Lihat rincian ▼'}</div>
-        </div>
-      </div>
-
-      {expandLost && (
-        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6 space-y-2">
-          <div className="font-bold text-[#0E2F6E] text-sm mb-1">
-            📋 Riwayat Batal — {expandLost==='pribadi'?'Closing Sendiri':'Margin Downline'}
-          </div>
-          {expandLost==='pribadi' && (
-            riwayatBatal.length === 0 ? (
-              <div className="text-xs text-gray-400">Belum ada booking yang batal.</div>
-            ) : riwayatBatal.map(b => (
-              <div key={b.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2">
-                <span className="text-gray-600">{b.prog_name} · {b.paket} · {b.id}</span>
-                <span className="font-bold text-red-500">{rp(b.ujroh)}</span>
-              </div>
-            ))
-          )}
-          {expandLost==='downline' && (
-            lostDownline.length === 0 ? (
-              <div className="text-xs text-gray-400">Belum ada closing downline yang batal.</div>
-            ) : lostDownline.map(b => (
-              <div key={b.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2">
-                <span className="text-gray-600">{b.prog_name} · {b.id} · dari {b.closer_nama || '-'}</span>
-                <span className="font-bold text-red-500">{rp(b.potensi_nominal)}</span>
               </div>
             ))
           )}
