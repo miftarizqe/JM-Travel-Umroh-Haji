@@ -345,7 +345,7 @@ export default function DashboardSahabatPage() {
             <div className="opacity-85">Ujroh 5-Generasi: Gen1 {fmtRp(skema.gen?.[0])} · Gen2 {fmtRp(skema.gen?.[1])} · Gen3 {fmtRp(skema.gen?.[2])} · Gen4 {fmtRp(skema.gen?.[3])} · Gen5 {fmtRp(skema.gen?.[4])}</div>
             <div className="opacity-85">Cair sekali per rekrutan yang jadi aktif — dibayar ke perekrut langsung (Gen1) sampai 5 tingkat ke atas rantai referral.</div>
             <div className="opacity-85">Saldo Awal Pendaftaran: {fmtRp(skema.tabungan_awal)} · Closing Langsung (checkout diri sendiri): margin penuh (harga jual − HPP) ke Head of Program</div>
-            {skema.is_hop && <div className="opacity-85">Komisi Head of Program: {fmtRp(skema.hop_nominal)} per registrasi baru</div>}
+            {skema.is_hop && <div className="opacity-85">Ujroh Head of Program: {fmtRp(skema.hop_nominal)} per registrasi baru</div>}
             <div className="mt-2 text-yellow-300">Terkonfirmasi = sudah di-ACC &amp; ditransfer manual ke Tabungan Umroh oleh admin.</div>
           </div>
         </div>
@@ -529,7 +529,7 @@ export default function DashboardSahabatPage() {
         {skema.is_hop && (
           <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
             <div className="font-bold text-purple-800 mb-1">👑 Anda Head of Program</div>
-            <p className="text-sm text-purple-600">Anda dapat komisi {fmtRp(skema.hop_nominal)} per registrasi anggota baru di seluruh jaringan Sahabat Baitullah, plus bagian dari closing langsung jamaah lain. Buka <button onClick={() => router.push('/dashboard/sahabat/team')} className="underline font-bold">Team</button> untuk melihat & lompat ke jaringan siapa pun, bukan cuma downline Anda sendiri.</p>
+            <p className="text-sm text-purple-600">Anda dapat ujroh {fmtRp(skema.hop_nominal)} per registrasi anggota baru di seluruh jaringan Sahabat Baitullah, plus bagian dari closing langsung jamaah lain. Buka <button onClick={() => router.push('/dashboard/sahabat/team')} className="underline font-bold">Team</button> untuk melihat & lompat ke jaringan siapa pun, bukan cuma downline Anda sendiri.</p>
           </div>
         )}
 

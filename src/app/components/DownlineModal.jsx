@@ -87,7 +87,7 @@ export default function DownlineModal({ userId, targetId: targetIdAwal, onClose 
         ) : (
           <div className="space-y-4">
             <div className="bg-[#E8F0FB] rounded-xl p-4">
-              <div className="text-xs text-[#1A4FA0]">Total komisi yang Anda dapat dari {data.target.name}</div>
+              <div className="text-xs text-[#1A4FA0]">Total ujroh yang Anda dapat dari {data.target.name}</div>
               <div className="text-xl font-black text-[#C9952A]">{rp(totalKomisiSaya)}</div>
             </div>
 
@@ -120,7 +120,7 @@ export default function DownlineModal({ userId, targetId: targetIdAwal, onClose 
                           ))}
                         </div>
                       ) : (
-                        <div className="mt-1 text-[10px] text-gray-300">Belum ada komisi cair dari booking ini.</div>
+                        <div className="mt-1 text-[10px] text-gray-300">Belum ada ujroh cair dari booking ini.</div>
                       )}
                     </div>
                   ))}

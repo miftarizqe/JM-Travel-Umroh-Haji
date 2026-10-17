@@ -493,7 +493,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '💵', label: 'Pengajuan Setoran Mandiri', path: '/admin/sahabat/setoran-mandiri-pengajuan' },
         { icon: '📜', label: 'Riwayat Closing', path: '/admin/sahabat/riwayat-closing' },
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing' },
-        { icon: '💸', label: 'Pencairan Komisi', path: '/admin/sahabat/pencairan' },
+        { icon: '💸', label: 'Pencairan Ujroh', path: '/admin/sahabat/pencairan' },
         { icon: '🏦', label: 'Pencocokan Saldo BSI', path: '/admin/sahabat/rekonsiliasi' },
         // Link "Costing Program" khusus Sahabat Baitullah (dulu ke
         // /admin/programs?publish_type=sahabat_baitullah) DIHAPUS dari sini
@@ -505,10 +505,10 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // 2026-08-29 (lihat guard server di /api/admin/pengaturan yang nolak
         // field sensitif dari admin biasa). Posisinya DIGESER ke sini
         // (dikonfirmasi user 2026-10-17) — deketan sama item keuangan
-        // lainnya (Pencairan Komisi/Pencocokan Saldo), sebelumnya nyempil
+        // lainnya (Pencairan Ujroh/Pencocokan Saldo), sebelumnya nyempil
         // di paling bawah padahal bukan item konten kayak Materi Presentasi.
         ...(user?.role === 'super_admin' ? [
-          { icon: '🔒', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
+          { icon: '🔒', label: 'Pengaturan Ujroh', path: '/admin/sahabat/pengaturan-komisi' },
         ] : []),
         { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
       ] },
@@ -520,16 +520,28 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         // 2026-10-12) — sebelumnya numpang 1 halaman sama-sama, "nyasar"
         // kalau dibuka dari menu Sahabat Baitullah/HoP.
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing-perwakilan' },
-        { icon: '💸', label: 'Pencairan Komisi', path: '/admin/perwakilan/pencairan' },
+        { icon: '💸', label: 'Pencairan Ujroh', path: '/admin/perwakilan/pencairan' },
         // "Hierarki & Closing" (/admin?tab=hierarki) DIHAPUS TOTAL dari sini
         // (dikonfirmasi user 2026-10-16) — Pohon Hierarki-nya 100% duplikat
         // tab "Hirarki Pohon" di Database Perwakilan (komponennya sendiri
         // udah di-copy ke sana, lihat komentar di
         // admin/perwakilan/database/page.jsx), dan Laporan Ranking udah
-        // ke-cover dropdown "Urut: Total Komisi" di tab yang sama. Endpoint
+        // ke-cover dropdown "Urut: Total Ujroh" di tab yang sama. Endpoint
         // /api/admin/hierarchy TETAP ada & TIDAK disentuh (masih dipakai
         // Database Perwakilan + nyimpen cara hitung ranking buat dipindah
         // ke tempat lain nanti kalau dibutuhkan).
+      ] },
+      // Subgrup "Agen" — link referral ringan ke 1 leader manual di luar
+      // sistem, komisi 3,5jt/jamaah−voucher yang SEKARANG beneran tercatat
+      // di komisi_ledger lewat closing.js + pengajuan pencairan sendiri
+      // (dikonfirmasi user 2026-10-17 — pindah dari "Akun & Jaringan",
+      // sejajar Perwakilan/Sahabat Baitullah karena sama-sama program
+      // kemitraan, bukan sekadar kelola akun biasa).
+      { icon: '🔗', label: 'Agen', children: [
+        { icon: '🪪', label: 'Database Account', path: '/admin/agen' },
+        { icon: '📜', label: 'Riwayat Closing', path: '/admin/agen/riwayat-closing' },
+        { icon: '💰', label: 'Forecast Ujroh', path: '/admin/agen/forecast-ujroh' },
+        { icon: '💸', label: 'Pencairan Ujroh', path: '/admin/agen/pencairan' },
       ] },
     ] },
     // Urutan Finance sengaja disusun dasar -> akhir (dikonfirmasi user
@@ -668,7 +680,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
         { icon: '💰', label: 'Forecast Ujroh', path: '/admin/laporan/ujroh-closing' },
         { icon: '💸', label: 'Pencairan', path: '/admin/sahabat/pencairan' },
         { icon: '🎞️', label: 'Materi Presentasi', path: '/admin/sahabat/materi' },
-        { icon: '⚙️', label: 'Pengaturan Komisi', path: '/admin/sahabat/pengaturan-komisi' },
+        { icon: '⚙️', label: 'Pengaturan Ujroh', path: '/admin/sahabat/pengaturan-komisi' },
       ] },
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],

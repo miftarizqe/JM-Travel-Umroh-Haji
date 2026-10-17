@@ -226,7 +226,7 @@ export default function PaketTematikManager() {
           </div>
 
           <div className="border-t border-gray-200 pt-3">
-            <div className="text-xs font-bold text-gray-500 mb-2">Dasar Biaya (HPP/Margin/Komisi — internal, gak pernah dilihat pengunjung)</div>
+            <div className="text-xs font-bold text-gray-500 mb-2">Dasar Biaya (HPP/Margin/Ujroh — internal, gak pernah dilihat pengunjung)</div>
             <KalkulatorTerpadu
               aktif={true} onToggle={() => {}}
               shared={kalkulatorShared} setShared={setKalkulatorShared}

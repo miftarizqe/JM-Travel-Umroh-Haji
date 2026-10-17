@@ -310,7 +310,7 @@ export default function AdminPerwakilanPage() {
       <div className="text-xs text-gray-400 mb-4">
         Reminder per tahap proses pendaftaran kemitraan Perwakilan, sampai aktif. Klik nama buat buka detail &amp; aksi. Profil lengkap (read-only) ada di{' '}
         <a href="/admin/perwakilan/database" className="text-[#1A4FA0] font-semibold hover:underline">Database Perwakilan</a>, pencairan ujroh ada di{' '}
-        <a href="/admin/perwakilan/pencairan" className="text-[#1A4FA0] font-semibold hover:underline">Pencairan Komisi</a>.
+        <a href="/admin/perwakilan/pencairan" className="text-[#1A4FA0] font-semibold hover:underline">Pencairan Ujroh</a>.
       </div>
 
       <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">

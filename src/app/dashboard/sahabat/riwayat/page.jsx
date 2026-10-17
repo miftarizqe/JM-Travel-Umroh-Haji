@@ -28,7 +28,7 @@ const KATEGORI_LABEL = {
   komisi_sahabat: { label: 'Ujroh Rekrutan', warna: 'bg-purple-50 text-purple-700' },
   closing_langsung_sahabat: { label: 'Closing Jamaah', warna: 'bg-blue-50 text-blue-700' },
   tabungan_awal_sahabat: { label: 'Saldo Awal Pendaftaran', warna: 'bg-teal-50 text-teal-700' },
-  head_of_program_registrasi: { label: 'Komisi Head of Program', warna: 'bg-amber-50 text-amber-700' },
+  head_of_program_registrasi: { label: 'Ujroh Head of Program', warna: 'bg-amber-50 text-amber-700' },
   pemakaian_saldo_sahabat: { label: 'Pemakaian Saldo', warna: 'bg-red-50 text-red-700' },
   setoran_mandiri_sahabat: { label: 'Setoran Mandiri', warna: 'bg-emerald-50 text-emerald-700' },
   referral_closing_reguler_sahabat: { label: 'Referral Closing Reguler', warna: 'bg-indigo-50 text-indigo-700' },

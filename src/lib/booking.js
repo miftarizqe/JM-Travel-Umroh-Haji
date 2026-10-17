@@ -121,7 +121,7 @@ export async function buatSatuBooking(conn, params) {
   const {
     user_id, prog_id, paket, kamar, jumlah_jamaah, namas, was, jks, alamats,
     kode_unik_dp, sumber_info, referral_kode, batch_id,
-    referral_perw_id, referral_sahabat_id, ordered_by, ordered_by_role,
+    referral_perw_id, referral_sahabat_id, referral_agen_id, ordered_by, ordered_by_role,
     bukti_path, bukti_nama, harga_custom_per_jamaah,
     voucher_kode_final = null, voucher_nominal = 0,
     opsi_tambahan_ids = [],
@@ -375,14 +375,14 @@ export async function buatSatuBooking(conn, params) {
     `INSERT INTO bookings
     (id, user_id, prog_id, prog_name, paket, kamar, jumlah_jamaah, jamaah_data,
     dp_amount, kode_unik_dp, total_harga, voucher_kode, voucher_nominal, form_total,
-    sumber_info, referral_kode, referral_perw_id, referral_sahabat_id,
+    sumber_info, referral_kode, referral_perw_id, referral_sahabat_id, referral_agen_id,
     ordered_by, ordered_by_role, opsi_tambahan_data, opsi_tambahan_total)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [bookingId, user_id, prog_id, prog.name, paket, kamar||'Triple',
     jumlah_jamaah||1, jamaahDataAwal, dpAmount, kode_unik_dp||0, totalSetelahVoucher,
     voucher_kode_final, voucher_nominal || 0,
     jumlah_jamaah||1, sumber_info||null, referral_kode||null,
-    referralPerwIdFinal||null, referralSahabatFinal,
+    referralPerwIdFinal||null, referralSahabatFinal, referral_agen_id||null,
     ordered_by||user_id, ordered_by_role||'jamaah',
     JSON.stringify(opsiTambahanSnapshot), opsiTambahanTotal]
   );

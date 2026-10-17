@@ -15,7 +15,7 @@ const KATEGORI_LABEL = {
   komisi_sahabat: 'Ujroh Rekrutan',
   closing_langsung_sahabat: 'Closing Jamaah',
   tabungan_awal_sahabat: 'Saldo Awal Pendaftaran',
-  head_of_program_registrasi: 'Komisi Head of Program',
+  head_of_program_registrasi: 'Ujroh Head of Program',
 };
 
 const th = { border: '1px solid #000', padding: '4px 6px', fontSize: 10, fontWeight: 700, textAlign: 'center', background: '#f0f0f0' };

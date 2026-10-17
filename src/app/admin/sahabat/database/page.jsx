@@ -103,7 +103,7 @@ const STATUS_WARNA = {
 // Jenis Transaksi (bukan "Per Program" — banyak jenis saldo sahabat, mis.
 // komisi rekrutan/tabungan awal, gak nempel ke booking manapun).
 const JENIS_SALDO_LABEL = {
-  komisi_sahabat: 'Komisi Rekrutan (5 Generasi)', closing_langsung_sahabat: 'Closing Langsung',
+  komisi_sahabat: 'Ujroh Rekrutan (5 Generasi)', closing_langsung_sahabat: 'Closing Langsung',
   referral_closing_reguler_sahabat: 'Referral Closing Reguler', tabungan_awal_sahabat: 'Tabungan Awal',
   head_of_program_registrasi: 'Head of Program (Registrasi)', pemakaian_saldo_sahabat: 'Pemakaian Saldo',
   setoran_mandiri_sahabat: 'Setoran Mandiri', koreksi_saldo_sahabat: 'Koreksi Saldo (Admin)',

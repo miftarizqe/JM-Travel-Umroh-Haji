@@ -148,7 +148,7 @@ export default function RiwayatClosingSahabatPage() {
           <div className="font-bold text-[#0E2F6E] mb-1">💳 Closing Langsung</div>
           <div className="text-xs text-gray-400 mb-3">
             Jamaah booking langsung (bukan nabung) atas bantuan Jamaah Sahabat Baitullah — nominal &amp; persen split diatur di{' '}
-            <a href="/admin/sahabat/pengaturan-komisi" className="text-[#1A4FA0] font-semibold hover:underline">Pengaturan Komisi</a>.
+            <a href="/admin/sahabat/pengaturan-komisi" className="text-[#1A4FA0] font-semibold hover:underline">Pengaturan Ujroh</a>.
           </div>
           {loading ? (
             <div className="text-center text-gray-400 py-6 text-sm">Memuat...</div>

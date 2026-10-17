@@ -208,7 +208,7 @@ function LaporanBulanan({ pl, judul }) {
         </div>
 
         <div className="font-bold text-gray-500 uppercase text-xs mb-1 mt-5">Biaya</div>
-        <div className="flex justify-between py-1"><span className="text-gray-600">Komisi/Ujroh</span><span className="font-semibold">{rp(pl?.komisi)}</span></div>
+        <div className="flex justify-between py-1"><span className="text-gray-600">Ujroh</span><span className="font-semibold">{rp(pl?.komisi)}</span></div>
         <div className="flex justify-between py-1"><span className="text-gray-600">HPP (Hotel/Maskapai/Vendor)</span><span className="font-semibold">{rp(pl?.hpp)}</span></div>
         {pl?.pengeluaran_operasional?.map(k => (
           <div key={k.label} className="flex justify-between py-1">
@@ -281,7 +281,7 @@ function TabelTahunan({ pl, judul }) {
           {baris('Total Pendapatan', pl.pendapatan_total, pl.pendapatan_total.reduce((s, v) => s + Number(v || 0), 0), true)}
 
           <tr><td colSpan={pl.bulan_list.length + 2} className="px-2 py-1 text-[10px] font-bold text-gray-400 uppercase bg-gray-50">Biaya</td></tr>
-          {baris('Komisi/Ujroh', pl.komisi, pl.komisi.reduce((s, v) => s + Number(v || 0), 0))}
+          {baris('Ujroh', pl.komisi, pl.komisi.reduce((s, v) => s + Number(v || 0), 0))}
           {baris('HPP (Hotel/Maskapai/Vendor)', pl.hpp, pl.hpp.reduce((s, v) => s + Number(v || 0), 0))}
           {pl.pengeluaran_rows.map(k => baris(k.label, k.per_bulan, k.total))}
           {pl.reimburse_rows.map(k => baris(`⏳ ${k.label} (belum dibayar)`, k.per_bulan, k.total))}
