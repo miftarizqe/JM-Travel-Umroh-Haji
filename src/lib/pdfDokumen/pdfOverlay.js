@@ -1,6 +1,5 @@
 // Helper bersama buat nempel teks di atas template PDF final — dipakai
-// skCifOverlay.js & suratPemblokiranOverlay.js (pola sama persis kartu ID
-// member, src/lib/id-card/generate.js). Koordinat field per dokumen diukur
+// skCifOverlay.js & suratPemblokiranOverlay.js. Koordinat field per dokumen diukur
 // presisi pakai `pdftotext -bbox nama-template.pdf` (poppler-utils):
 // yMin/yMax hasil situ diukur dari ATAS halaman, dikonversi ke koordinat
 // pdf-lib (dari BAWAH, dipakai drawText) via `pageHeight - yMax + 2`.

@@ -229,7 +229,6 @@ function AdminPageInner() {
   });
   const [auditLog, setAuditLog] = useState([]);
   const [auditFilter, setAuditFilter] = useState('');
-  const [downloadingIdCard, setDownloadingIdCard] = useState(null);
   const [detailUser, setDetailUser] = useState(null);
   const [tolakAkun, setTolakAkun] = useState(null); // akun yang mau ditolak permanen (ModalTolakPermanen)
   const [tolakAkunBusy, setTolakAkunBusy] = useState(false);
@@ -692,29 +691,6 @@ function AdminPageInner() {
       window.open(`/admin/cetak-invoice/${dAuto.id}`, '_blank');
     } catch {
       alert('Terjadi kesalahan saat menyiapkan Tanda Terima Uang');
-    }
-  }
-
-  async function downloadIdCard(u) {
-    setDownloadingIdCard(u.id);
-    try {
-      const res = await fetch(`/api/admin/id-card/${u.id}`);
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        alert(d.error || 'Gagal membuat ID card');
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ID-Card-${u.kode_unik || u.name}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert('Terjadi kesalahan saat membuat ID card');
-    } finally {
-      setDownloadingIdCard(null);
     }
   }
 
@@ -1875,9 +1851,8 @@ function AdminPageInner() {
               — tab ini buat EDIT akun (nama/email/WA/NIK, reset password,
               nonaktifkan, hapus), beda tujuan dari /admin/sahabat/database
               yang isinya progress funnel BSI/SK-CIF. Perekrut/upline tetap
-              relevan ditampilin, TAPI ID Card (eksklusif Perwakilan, lihat
-              /api/admin/id-card) & ACC/Tolak langsung TETAP gak dikasih ke
-              sahabat — approve generik di sini cuma flip status='active'
+              relevan ditampilin, TAPI ACC/Tolak langsung TETAP gak dikasih
+              ke sahabat — approve generik di sini cuma flip status='active'
               mentah-mentah, bypass seluruh funnel verifikasi TF/SK-CIF/dst,
               jadi pending sahabat diarahkan ke /admin/sahabat juga, mirror
               pola perwakilan yang udah ada. */}
@@ -1890,7 +1865,6 @@ function AdminPageInner() {
               sortState.users.field, sortState.users.dir
             );
             const label = role==='perwakilan' ? '🏢 Perwakilan' : role==='sahabat_baitullah' ? '🤝 Jamaah Sahabat Baitullah' : '🧳 Jamaah';
-            const isMitra = role==='perwakilan';
             const tampilkanPerekrut = role==='perwakilan' || role==='sahabat_baitullah';
             const halamanPendaftaran = role==='perwakilan' ? '/admin/perwakilan' : role==='sahabat_baitullah' ? '/admin/sahabat' : null;
             return (
@@ -1903,7 +1877,6 @@ function AdminPageInner() {
                       <SortTh field="status" sort={sortState.users} onSort={f => toggleSort('users', f)}>Status</SortTh>
                       {tampilkanPerekrut && <th className="px-4 py-3 text-left">Perekrut</th>}
                       <th className="px-4 py-3 text-left">Aksi</th>
-                      {isMitra && <th className="px-4 py-3 text-left">ID Card</th>}
                     </tr></thead>
                     <tbody>
                       {roleUsers.map((u,i) => (
@@ -1967,19 +1940,9 @@ function AdminPageInner() {
                               </button>
                             )}
                           </td>
-                          {isMitra && (
-                            <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                              <div className="flex flex-col gap-1 items-start">
-                                <button onClick={() => downloadIdCard(u)} disabled={downloadingIdCard===u.id}
-                                  className="text-xs font-bold text-[#1A4FA0] hover:text-[#0E2F6E] disabled:opacity-40 whitespace-nowrap">
-                                  {downloadingIdCard===u.id ? 'Memproses...' : '📇 Download'}
-                                </button>
-                              </div>
-                            </td>
-                          )}
                         </tr>
                       ))}
-                      {roleUsers.length===0 && <tr><td colSpan={isMitra?6:tampilkanPerekrut?5:4} className="px-4 py-6 text-center text-gray-400">Belum ada.</td></tr>}
+                      {roleUsers.length===0 && <tr><td colSpan={tampilkanPerekrut?5:4} className="px-4 py-6 text-center text-gray-400">Belum ada.</td></tr>}
                     </tbody>
                   </table>
                 </div>

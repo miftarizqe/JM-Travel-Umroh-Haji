@@ -119,7 +119,6 @@ function UploadFotoPageInner() {
       confirmMessage="Foto masih diunggah, yakin ingin keluar?">
       <div className="max-w-md mx-auto">
         <div className="bg-[#E8F0FB] rounded-xl p-4 mb-6 text-sm text-[#1A4FA0]">
-          Foto profil akan dipakai untuk mencetak ID Card Anda.
           Gunakan foto formal, wajah terlihat jelas. Bisa dilewati dulu dan diisi belakangan lewat halaman Profil.
         </div>
 

@@ -224,7 +224,6 @@ export default function ProfilPage() {
         <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white rounded-2xl p-6 mb-6">
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
-              {/* Foto profil — dipakai untuk cetak ID Card */}
               <div className="relative flex-shrink-0">
                 {user.foto_path ? (
                   <img src={user.foto_path} alt={user.name}

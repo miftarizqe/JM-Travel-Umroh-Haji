@@ -94,7 +94,6 @@ export default function UpgradePerwakilanPage() {
               '✅ Perwakilan bebas menentukan harga jual ke jamaah',
               '✅ Selisih harga jual dengan HPP menjadi ujroh milik Perwakilan',
               '✅ Perubahan harga di luar ketentuan wajib diajukan & disetujui manajemen',
-              '✅ Difasilitasi ID Card resmi Perwakilan JM Travel',
             ].map(t => <div key={t}>{t}</div>)}
           </div>
         </div>

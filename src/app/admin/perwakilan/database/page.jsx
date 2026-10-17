@@ -542,7 +542,6 @@ export default function DatabasePerwakilanPage() {
                           </button>
                         )}
                         <button onClick={() => window.open(`/admin/cetak-pks-mitra/${row.user_id}`, '_blank')} className="text-gray-500 font-bold hover:underline">📜 Perjanjian Kerjasama</button>
-                        <button onClick={() => window.open(`/api/admin/id-card/${row.user_id}`, '_blank')} className="text-gray-500 font-bold hover:underline">🪪 ID Card</button>
                         {row.foto_ktp_path && (
                           <a href={row.foto_ktp_path} target="_blank" rel="noopener noreferrer" className="text-gray-500 font-bold hover:underline">📄 Foto KTP</a>
                         )}
