@@ -82,7 +82,7 @@ export async function PUT(request) {
     }
     const adaFieldSensitif = [...kolomDikirim, ...kolomAngkaDikirim].some(k => KOLOM_SENSITIF.includes(k));
     if (adaFieldSensitif && auth.user.role !== 'super_admin') {
-      return Response.json({ error: 'Ubah nominal komisi Sahabat Baitullah cuma bisa dilakukan super_admin.' }, { status: 403 });
+      return Response.json({ error: 'Ubah nominal ujroh Sahabat Baitullah cuma bisa dilakukan super_admin.' }, { status: 403 });
     }
 
     // Ganti akun Head of Program — kode_unik-nya ikut berpindah format:

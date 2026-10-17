@@ -354,9 +354,9 @@ export default function DatabasePerwakilanPage() {
               daripada nyembunyiin section-nya. */}
           <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
             <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🏆 Top {topPerekrut.length || 5} Perekrut</div>
-            <div className="text-xs text-gray-400 mb-2">Berdasarkan total komisi (ujroh closing + margin reseller).</div>
+            <div className="text-xs text-gray-400 mb-2">Berdasarkan total ujroh (closing + margin reseller).</div>
             {topPerekrut.length === 0 ? (
-              <div className="text-xs text-gray-400 py-3">Belum ada perwakilan yang punya komisi tercatat.</div>
+              <div className="text-xs text-gray-400 py-3">Belum ada perwakilan yang punya ujroh tercatat.</div>
             ) : (
               <ol className="divide-y divide-gray-50">
                 {topPerekrut.map((s, i) => (
@@ -398,7 +398,7 @@ export default function DatabasePerwakilanPage() {
               <option value="kode">Urut: Kode Unik</option>
               <option value="nama">Urut: Nama</option>
               <option value="created_at">Urut: Tanggal Gabung</option>
-              <option value="komisi">Urut: Total Komisi</option>
+              <option value="komisi">Urut: Total Ujroh</option>
               <option value="status">Urut: Status</option>
             </select>
             <button onClick={() => setDir(d => d === 'asc' ? 'desc' : 'asc')}
@@ -552,7 +552,7 @@ export default function DatabasePerwakilanPage() {
                         <div className="font-bold text-[#0E2F6E] mb-1.5">Riwayat Ujroh</div>
                         <div className="text-[10px] text-gray-400 mb-2">
                           Read-only — konfirmasi TF wajib lewat batch pengajuan di{' '}
-                          <a href="/admin/perwakilan/pencairan" className="text-[#1A4FA0] font-semibold hover:underline">Pencairan Komisi</a>.
+                          <a href="/admin/perwakilan/pencairan" className="text-[#1A4FA0] font-semibold hover:underline">Pencairan Ujroh</a>.
                         </div>
                         {(komisiPerUser[row.user_id] || []).length === 0 ? (
                           <div className="text-gray-400">Belum ada riwayat.</div>

@@ -17,7 +17,7 @@ const JENIS_LABEL = {
 // NULL), baru "cair" lewat pengajuan_ujroh_agen (mirror pola
 // pengajuan_ujroh_perwakilan), sama sekali gak peduli referral_perw_id/
 // referral_sahabat_id booking ini — independen, boleh bareng-bareng.
-const KOMISI_AGEN_PER_JAMAAH = 3_500_000;
+export const KOMISI_AGEN_PER_JAMAAH = 3_500_000;
 
 async function catat(conn, bookingId, penerima, jenis, nominal, jml, paket, ket) {
   if (!penerima?.id || nominal <= 0) return 0;

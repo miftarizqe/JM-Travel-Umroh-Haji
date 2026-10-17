@@ -88,7 +88,7 @@ function FormKategori({ value, onChange, onSimpan, onBatal }) {
         <button onClick={onBatal} className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold px-5 py-2.5 rounded-xl">Batal</button>
       </div>
       <div className="text-xs text-gray-400">
-        Matikan ini kalau kategori sebenarnya sudah dihitung otomatis dari sumber lain (mis. HPP/Komisi dari data booking, Pendapatan Booking dari pembayaran) atau bukan pendapatan/beban operasional (mis. modal pribadi owner) — biar gak kehitung dobel di Laba Rugi.
+        Matikan ini kalau kategori sebenarnya sudah dihitung otomatis dari sumber lain (mis. HPP/Ujroh dari data booking, Pendapatan Booking dari pembayaran) atau bukan pendapatan/beban operasional (mis. modal pribadi owner) — biar gak kehitung dobel di Laba Rugi.
       </div>
     </div>
   );

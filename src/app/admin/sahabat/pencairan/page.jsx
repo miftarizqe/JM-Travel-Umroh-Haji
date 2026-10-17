@@ -110,9 +110,9 @@ export default function PencairanKomisiPage() {
   }
 
   return (
-    <Layout title="💸 Pencairan Komisi" backHref="/admin/sahabat">
+    <Layout title="💸 Pencairan Ujroh" backHref="/admin/sahabat">
       <div className="text-xs text-gray-400 mb-4">
-        Ringkasan ujroh/komisi Sahabat Baitullah — sudah dibayar, masih pending, dan batch pengajuan mingguan buat approval direktur sebelum eksekusi transfer.
+        Ringkasan ujroh Sahabat Baitullah — sudah dibayar, masih pending, dan batch pengajuan mingguan buat approval direktur sebelum eksekusi transfer.
       </div>
 
       {loading ? (
@@ -122,7 +122,7 @@ export default function PencairanKomisiPage() {
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="bg-white rounded-xl border border-gray-200 p-3 text-center">
               <div className="text-base font-bold text-green-600">{fmtRp(data?.terbayar)}</div>
-              <div className="text-[10px] text-gray-400">Komisi Terbayar</div>
+              <div className="text-[10px] text-gray-400">Ujroh Terbayar</div>
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-3 text-center">
               <div className="text-base font-bold text-yellow-600">{fmtRp(data?.belum_diajukan_total)}</div>

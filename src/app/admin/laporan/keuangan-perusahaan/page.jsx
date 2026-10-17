@@ -44,7 +44,7 @@ export default function LaporanKeuanganPerusahaanHub() {
   return (
     <Layout title="🔒 Laporan Keuangan Perusahaan" backHref="/admin?tab=dashboard">
       <div className="text-xs text-gray-400 mb-4">
-        Khusus super admin. Menggabungkan pendapatan &amp; komisi dari Laporan Keuangan Program dengan pengeluaran operasional (gaji, sewa, marketing, dll) — jadi laba/rugi bersih PERUSAHAAN yang sesungguhnya, bukan cuma per booking. Riwayat di sini ikut bulan-bulan yang sudah dibuat di{' '}
+        Khusus super admin. Menggabungkan pendapatan &amp; ujroh dari Laporan Keuangan Program dengan pengeluaran operasional (gaji, sewa, marketing, dll) — jadi laba/rugi bersih PERUSAHAAN yang sesungguhnya, bukan cuma per booking. Riwayat di sini ikut bulan-bulan yang sudah dibuat di{' '}
         <Link href="/admin/laporan/cashflow" className="text-[#1A4FA0] font-semibold hover:underline">Cashflow Bulanan</Link>{' '}
         (kategori yang ditandai &quot;Termasuk Laba Rugi&quot; juga dikelola di sana).
       </div>
