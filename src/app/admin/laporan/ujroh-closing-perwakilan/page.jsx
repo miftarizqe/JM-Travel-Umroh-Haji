@@ -60,7 +60,7 @@ export default function LaporanUjrohClosingPerwakilanPage() {
   return (
     <Layout title="💰 Closing & Forecast Ujroh — Perwakilan" backHref="/admin?tab=dashboard">
       <div className="text-xs text-gray-400 mb-4">
-        Cuma yang punya minimal 1 closing/komisi yang ditampilkan, 1 baris per orang. Tabel Pending (wajib ditransfer, dipecah Rekening Pribadi vs Tabungan BSI) dan tabel Forecast (proyeksi, belum closing) sengaja tabel terpisah — klik barisnya buat lihat rincian per program. Export Excel berisi rincian transaksi lengkap di sheet terpisah.
+        Cuma yang punya minimal 1 closing/ujroh yang ditampilkan, 1 baris per orang. Tabel Pending (wajib ditransfer, dipecah Rekening Pribadi vs Tabungan BSI) dan tabel Forecast (proyeksi, belum closing) sengaja tabel terpisah — klik barisnya buat lihat rincian per program. Export Excel berisi rincian transaksi lengkap di sheet terpisah.
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3 items-end">

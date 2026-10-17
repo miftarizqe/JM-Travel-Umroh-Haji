@@ -16,7 +16,7 @@ const KOLOM = [
   { key: 'pendapatan_bersih', label: 'Pendapatan Bersih', rp: true },
   { key: 'hpp', label: 'HPP', rp: true },
   { key: 'laba_kotor', label: 'Laba Kotor', rp: true },
-  { key: 'komisi', label: 'Komisi/Ujroh', rp: true },
+  { key: 'komisi', label: 'Ujroh', rp: true },
   { key: 'laba_bersih', label: 'Laba Bersih', rp: true, bold: true },
 ];
 
@@ -110,7 +110,7 @@ export default function LaporanKeuanganProgramPage() {
   return (
     <Layout title="📊 Laporan Keuangan Program" backHref="/admin?tab=dashboard">
       <div className="text-xs text-gray-400 mb-4">
-        Pendapatan dipecah eksplisit (harga program, opsi tambahan, diskon voucher) supaya tidak ada yang tersembunyi, ditambah HPP dan komisi/ujroh yang sudah dicairkan — dari booking yang DP-nya sudah dikonfirmasi & tidak dibatalkan. Rincian siapa yang harus ditransfer & ke rekening mana ada di Laporan Closing &amp; Forecast Ujroh.
+        Pendapatan dipecah eksplisit (harga program, opsi tambahan, diskon voucher) supaya tidak ada yang tersembunyi, ditambah HPP dan ujroh yang sudah dicairkan — dari booking yang DP-nya sudah dikonfirmasi & tidak dibatalkan. Rincian siapa yang harus ditransfer & ke rekening mana ada di Laporan Closing &amp; Forecast Ujroh.
         {basis === 'akrual' && ' Basis Akrual: "Per Bulan" di bawah ini artinya bulan KEBERANGKATAN program, bukan bulan booking dibuat.'}
       </div>
 
@@ -169,7 +169,7 @@ export default function LaporanKeuanganProgramPage() {
               {[
                 { label: 'Pendapatan Bersih', val: g.pendapatan_bersih, color: 'text-[#0E2F6E]' },
                 { label: 'HPP', val: g.hpp, color: 'text-gray-600' },
-                { label: 'Komisi/Ujroh', val: g.komisi, color: 'text-[#C9952A]' },
+                { label: 'Ujroh', val: g.komisi, color: 'text-[#C9952A]' },
                 { label: 'Laba Bersih', val: g.laba_bersih, color: 'text-green-600' },
               ].map(c => (
                 <div key={c.label} className="bg-[#E8F0FB] rounded-xl p-4">

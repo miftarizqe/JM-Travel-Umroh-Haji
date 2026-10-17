@@ -1294,7 +1294,7 @@ export default function KalkulatorTerpadu({
 
           <div>
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-              <div className="text-xs font-bold text-[#0E2F6E]">🏨 Hotel per Bintang, Margin & Komisi</div>
+              <div className="text-xs font-bold text-[#0E2F6E]">🏨 Hotel per Bintang, Margin & Ujroh</div>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setS({ hotel_mode: 'fix' })}
                   className={`text-[10px] font-bold px-3 py-1.5 rounded-lg ${!pakaiHotelMix ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500'}`}>Hotel Fix (2 slot)</button>
@@ -1372,7 +1372,7 @@ export default function KalkulatorTerpadu({
                             <input type="number" value={margin[paket]} onChange={e => setMargin(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
                           </div>
                           <div>
-                            <div className="text-[10px] text-gray-400 mb-0.5">Komisi (Rp)</div>
+                            <div className="text-[10px] text-gray-400 mb-0.5">Ujroh (Rp)</div>
                             <input type="number" value={komisi[paket]} onChange={e => setKomisi(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
                           </div>
                         </div>
@@ -1399,8 +1399,8 @@ export default function KalkulatorTerpadu({
                     gabungin ketiga bucket jadi 1 buat publik). */}
                 {showOpsiHotelAlternatif && pakaiUiPublikSederhana && (
                 <div className="mt-4 bg-white rounded-lg border border-gray-200 p-2.5">
-                  <div className="text-[10px] font-bold text-gray-500 mb-2">🏨 Opsi Hotel + 💰 Margin &amp; Komisi</div>
-                  <div className="text-[10px] text-gray-400 mb-2">Jamaah pilih Bintang Mekkah &amp; Madinah sendiri-sendiri, gak kebundling jadi 1 &quot;Paket&quot; — centang hotel yang boleh dipilih per kota. Margin &amp; Komisi berlaku flat, sama rata apapun bintang/hotel yang kepilih.</div>
+                  <div className="text-[10px] font-bold text-gray-500 mb-2">🏨 Opsi Hotel + 💰 Margin &amp; Ujroh</div>
+                  <div className="text-[10px] text-gray-400 mb-2">Jamaah pilih Bintang Mekkah &amp; Madinah sendiri-sendiri, gak kebundling jadi 1 &quot;Paket&quot; — centang hotel yang boleh dipilih per kota. Margin &amp; Ujroh berlaku flat, sama rata apapun bintang/hotel yang kepilih.</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                     {['mekkah', 'madinah'].map(kota => (
                       <div key={kota}>
@@ -1427,7 +1427,7 @@ export default function KalkulatorTerpadu({
                       <input type="number" value={shared.margin_flat ?? ''} onChange={e => setS({ margin_flat: e.target.value })} placeholder="0" className={inp} />
                     </div>
                     <div>
-                      <label className={lbl}>Komisi Flat (Rp)</label>
+                      <label className={lbl}>Ujroh Flat (Rp)</label>
                       <input type="number" value={shared.komisi_flat ?? ''} onChange={e => setS({ komisi_flat: e.target.value })} placeholder="0" className={inp} />
                     </div>
                   </div>
@@ -1437,7 +1437,7 @@ export default function KalkulatorTerpadu({
             ) : (
               <div className="space-y-3">
                 <div className="text-[10px] text-gray-400">
-                  Daftar hotel di bawah dipakai bareng buat ketiga paket (Deluxe/Eksekutif/Signature) — cuma Margin &amp; Komisi yang beda per paket, bukan hotelnya.
+                  Daftar hotel di bawah dipakai bareng buat ketiga paket (Deluxe/Eksekutif/Signature) — cuma Margin &amp; Ujroh yang beda per paket, bukan hotelnya.
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs border-collapse">
@@ -1493,7 +1493,7 @@ export default function KalkulatorTerpadu({
                 <button type="button" onClick={tambahHotelDaftar} className="text-[10px] font-bold text-[#1A4FA0] hover:underline">+ Tambah Hotel</button>
 
                 <div className="text-[10px] text-gray-400">
-                  Paket custom kayak gini biasanya 1 harga aja (bukan 9 opsi kayak Umroh Regular) — Margin &amp; Komisi di bawah otomatis kepakai ke ketiga bintang.
+                  Paket custom kayak gini biasanya 1 harga aja (bukan 9 opsi kayak Umroh Regular) — Margin &amp; Ujroh di bawah otomatis kepakai ke ketiga bintang.
                 </div>
                 <div className="grid grid-cols-2 gap-2 max-w-md">
                   <div>
@@ -1501,7 +1501,7 @@ export default function KalkulatorTerpadu({
                     <input type="number" value={margin.deluxe} onChange={e => setMargin({ deluxe: e.target.value, eksekutif: e.target.value, signature: e.target.value })} placeholder="0" className={inp} />
                   </div>
                   <div>
-                    <label className={lbl}>Komisi (Rp)</label>
+                    <label className={lbl}>Ujroh (Rp)</label>
                     <input type="number" value={komisi.deluxe} onChange={e => setKomisi({ deluxe: e.target.value, eksekutif: e.target.value, signature: e.target.value })} placeholder="0" className={inp} />
                   </div>
                 </div>
@@ -1527,7 +1527,7 @@ export default function KalkulatorTerpadu({
             <div className="bg-gray-50 rounded-xl p-3">
               <div className="text-xs font-bold text-[#0E2F6E] mb-1">🎨 Custom Hotel per Kota (opsional)</div>
               <div className="text-[10px] text-gray-400 mb-2">
-                Biar jamaah bisa mix Bintang Mekkah &amp; Madinah beda-beda di checkout (mis. Mekkah Bintang 5 + Madinah Bintang 3) — 3 paket di atas TETAP seperti biasa, ini murni tambahan. Margin &amp; Komisi kombinasi mix dihitung persen dari HPP (proporsional), bukan Rp flat.
+                Biar jamaah bisa mix Bintang Mekkah &amp; Madinah beda-beda di checkout (mis. Mekkah Bintang 5 + Madinah Bintang 3) — 3 paket di atas TETAP seperti biasa, ini murni tambahan. Margin &amp; Ujroh kombinasi mix dihitung persen dari HPP (proporsional), bukan Rp flat.
               </div>
               <div className="grid grid-cols-2 gap-3 max-w-md">
                 <div>
@@ -1547,7 +1547,7 @@ export default function KalkulatorTerpadu({
                       <input type="checkbox" checked={shared.komisi_mode === 'persen'}
                         onChange={e => setS({ komisi_mode: e.target.checked ? 'persen' : 'flat' })}
                         className="w-3.5 h-3.5 accent-[#1A4FA0]" />
-                      Komisi Persen (%)
+                      Ujroh Persen (%)
                     </label>
                     {shared.komisi_mode === 'persen' && (
                       <input type="number" value={shared.komisi_persen ?? ''} onChange={e => setS({ komisi_persen: e.target.value })} placeholder="0" className={inp} />

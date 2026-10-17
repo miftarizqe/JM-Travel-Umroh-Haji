@@ -907,7 +907,7 @@ function AdminPageInner() {
   }
 
   async function tandaiSelesai(bookingId) {
-    if (!confirm('Proses closing booking ini sekarang? Komisi akan langsung dicairkan.')) return;
+    if (!confirm('Proses closing booking ini sekarang? Ujroh akan langsung dicairkan.')) return;
     const res = await fetch('/api/admin/booking-selesai', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ booking_id: bookingId })
@@ -1817,7 +1817,7 @@ function AdminPageInner() {
             </button>
             <button onClick={() => downloadExcel('komisi')} disabled={exporting==='komisi'}
               className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-600 text-sm font-bold px-4 py-2.5 rounded-xl whitespace-nowrap">
-              {exporting==='komisi' ? 'Menyiapkan...' : '⬇️ Export Komisi'}
+              {exporting==='komisi' ? 'Menyiapkan...' : '⬇️ Export Ujroh'}
             </button>
           </div>
           {/* Verifikasi akun baru — pengganti OTP registrasi (2026-09-25).
@@ -2797,7 +2797,7 @@ function AdminPageInner() {
                       </div>
                       {detailUser.komisi.length > 0 && (
                         <div>
-                          <div className="text-xs font-semibold text-gray-500 mt-2 mb-1">Ringkasan Komisi</div>
+                          <div className="text-xs font-semibold text-gray-500 mt-2 mb-1">Ringkasan Ujroh</div>
                           <div className="space-y-1">
                             {detailUser.komisi.map(k => (
                               <div key={k.jenis} className="flex justify-between text-xs bg-gray-50 rounded px-2 py-1">

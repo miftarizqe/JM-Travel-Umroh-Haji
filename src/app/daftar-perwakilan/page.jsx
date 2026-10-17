@@ -431,7 +431,7 @@ export default function DaftarPerwakilanPage() {
                     ))}
                   </select>
                   <div className="text-[10px] text-gray-400 mt-1">
-                    Hanya perwakilan aktif yang bisa dipilih. Perekrut mendapat komisi override dari closing Anda.
+                    Hanya perwakilan aktif yang bisa dipilih. Perekrut mendapat ujroh override dari closing Anda.
                   </div>
                 </>
               )}

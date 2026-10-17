@@ -107,7 +107,7 @@ function SheetBulanan({ pl, from, to, basis }) {
           <tr><td style={tdTotal}>Total Pendapatan</td><td style={tdTotalAngka}>{rp(pl.pendapatan_total)}</td></tr>
 
           <tr><td style={{ ...tdHeader, paddingTop: 10 }}>BIAYA</td><td style={{ ...td, paddingTop: 10 }}></td></tr>
-          <tr><td style={tdLabel}>Komisi/Ujroh</td><td style={tdAngka}>{rp(pl.komisi)}</td></tr>
+          <tr><td style={tdLabel}>Ujroh</td><td style={tdAngka}>{rp(pl.komisi)}</td></tr>
           <tr><td style={tdLabel}>HPP (Hotel/Maskapai/Vendor)</td><td style={tdAngka}>{rp(pl.hpp)}</td></tr>
           {pl.pengeluaran_operasional?.map(k => (
             <tr key={k.label}><td style={tdLabel}>{k.label}</td><td style={tdAngka}>{rp(k.total)}</td></tr>
@@ -164,7 +164,7 @@ function SheetTahunan({ pl, tahun, basis }) {
           {baris('Total Pendapatan', pl.pendapatan_total, jumlahkan(pl.pendapatan_total), true)}
 
           <tr><td colSpan={pl.bulan_list.length + 2} style={{ ...tdHeader, paddingTop: 10 }}>BIAYA</td></tr>
-          {baris('Komisi/Ujroh', pl.komisi, jumlahkan(pl.komisi))}
+          {baris('Ujroh', pl.komisi, jumlahkan(pl.komisi))}
           {baris('HPP (Hotel/Maskapai/Vendor)', pl.hpp, jumlahkan(pl.hpp))}
           {pl.pengeluaran_rows.map(k => baris(k.label, k.per_bulan, k.total))}
           {pl.reimburse_rows.map(k => baris(`${k.label} (belum dibayar)`, k.per_bulan, k.total))}

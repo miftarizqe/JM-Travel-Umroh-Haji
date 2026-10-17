@@ -17,7 +17,7 @@ const STATUS_WARNA = {
   disetujui: 'bg-green-100 text-green-700', ditolak: 'bg-red-100 text-red-700',
 };
 
-// Pencairan Komisi Agen — mirror /admin/perwakilan/pencairan, dikelompokkan
+// Pencairan Ujroh Agen — mirror /admin/perwakilan/pencairan, dikelompokkan
 // PER PROGRAM, cuma bisa diajukan setelah program berangkat. Beda dari
 // Perwakilan: approve langsung final, gak ada tahap TTD/TF per-penerima
 // (dikonfirmasi user 2026-10-17 — "Gak perlu, cukup status tracker").
@@ -71,7 +71,7 @@ export default function PencairanAgenPage() {
   }
 
   return (
-    <Layout title="💸 Pencairan Komisi Agen" backHref="/admin/agen">
+    <Layout title="💸 Pencairan Ujroh Agen" backHref="/admin/agen">
       <div className="text-xs text-gray-400 mb-4">
         Ujroh agen 3,5jt/jamaah (dipotong voucher), dikelompokkan per program. Cuma bisa diajukan setelah program berangkat.
       </div>

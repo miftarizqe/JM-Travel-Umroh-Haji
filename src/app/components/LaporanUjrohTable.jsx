@@ -24,7 +24,8 @@ export const JENIS_LABEL = {
   closing_langsung_sahabat: 'Closing Langsung (Booking Program)',
   referral_closing_reguler_sahabat: 'Ujroh Referral Sahabat',
   komisi_sahabat: 'Ujroh Generasi (Rekrutan)',
-  head_of_program_registrasi: 'Komisi Registrasi HOP',
+  head_of_program_registrasi: 'Ujroh Registrasi HOP',
+  ujroh_agen: 'Ujroh Agen',
 };
 
 // Rekap 1 orang punya banyak transaksi per program+sumber jadi 1 baris —
@@ -72,7 +73,7 @@ export function DetailProgram({ grouped, adaKategori }) {
             <tr key={i} className="border-t border-gray-200">
               <td className="px-2 py-1.5 text-gray-700">{g.prog_name}</td>
               <td className="px-2 py-1.5">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${g.jenis.startsWith('closing_') || g.jenis === 'margin_pribadi' ? 'bg-[#E8F0FB] text-[#1A4FA0]' : 'bg-amber-100 text-amber-700'}`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${g.jenis.startsWith('closing_') || g.jenis === 'margin_pribadi' || g.jenis === 'ujroh_agen' ? 'bg-[#E8F0FB] text-[#1A4FA0]' : 'bg-amber-100 text-amber-700'}`}>
                   {g.sumber}
                 </span>
               </td>
@@ -89,7 +90,7 @@ export function DetailProgram({ grouped, adaKategori }) {
 }
 
 // ==================== TABEL PENDING (wajib ditransfer) ====================
-function BarisClosing({ orang, showBsi }) {
+function BarisClosing({ orang, showBsi, showRekening }) {
   const [buka, setBuka] = useState(false);
   const grouped = groupByProgram(orang.realized_detail);
   return (
@@ -98,7 +99,7 @@ function BarisClosing({ orang, showBsi }) {
         <td className="px-3 py-2.5">
           <div className="font-semibold text-gray-700">{orang.name} {orang.role === 'hop' && <span className="text-[9px] font-bold text-white bg-[#1A4FA0] px-1.5 py-0.5 rounded-full align-middle">HOP</span>}</div>
           <div className="text-[10px] text-gray-400">
-            {orang.kode_unik} {orang.bank ? `· ${orang.bank} ${orang.no_rekening || ''}` : <span className="text-red-400">· rekening belum diisi</span>}
+            {orang.kode_unik} {!showRekening ? null : orang.bank ? `· ${orang.bank} ${orang.no_rekening || ''}` : <span className="text-red-400">· rekening belum diisi</span>}
           </div>
         </td>
         {showBsi && <td className="px-3 py-2.5 text-right text-gray-600 whitespace-nowrap">{rp(orang.realized_pribadi)}</td>}
@@ -121,7 +122,7 @@ function BarisClosing({ orang, showBsi }) {
 // kekunci Tabungan BSI (lihat kategoriRekening di laporanUjroh.js), kolom
 // itu bakal selalu Rp0 kalau dipaksa tampil, jadi dibuang aja bukan
 // nampilin kolom percuma.
-export function TabelClosing({ list, showBsi = true }) {
+export function TabelClosing({ list, showBsi = true, showRekening = true }) {
   const total = list.reduce((acc, o) => ({
     realized_pribadi: acc.realized_pribadi + o.realized_pribadi,
     realized_bsi: acc.realized_bsi + o.realized_bsi,
@@ -144,7 +145,7 @@ export function TabelClosing({ list, showBsi = true }) {
           {list.length === 0 && (
             <tr><td colSpan={showBsi ? 5 : 3} className="text-center text-gray-400 py-8">Belum ada yang cair pada periode ini.</td></tr>
           )}
-          {list.map(o => <BarisClosing key={o.id} orang={o} showBsi={showBsi} />)}
+          {list.map(o => <BarisClosing key={o.id} orang={o} showBsi={showBsi} showRekening={showRekening} />)}
         </tbody>
         {list.length > 0 && (
           <tfoot>

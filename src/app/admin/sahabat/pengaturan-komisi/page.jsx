@@ -97,7 +97,7 @@ export default function PengaturanKomisiSahabatBaitullahPage() {
   const namaHop = adminList.find(a => a.id === sahabat.hopUserId)?.name || '(belum dipilih)';
 
   return (
-    <Layout title="🔒 Pengaturan Komisi Sahabat Baitullah" backHref="/admin/sahabat">
+    <Layout title="🔒 Pengaturan Ujroh Sahabat Baitullah" backHref="/admin/sahabat">
       <div className="text-xs text-gray-400 mb-4">
         Nominal &amp; persentase di halaman ini langsung memengaruhi berapa yang diterima tiap Jamaah Sahabat Baitullah &amp; Head of Program — sengaja dipindah ke halaman terpisah, super_admin only, dan wajib konfirmasi sebelum tersimpan.
       </div>

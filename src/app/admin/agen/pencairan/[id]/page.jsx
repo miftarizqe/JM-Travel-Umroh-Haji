@@ -45,7 +45,7 @@ export default function PencairanAgenDetailPage() {
 
   async function transisi(action) {
     if (action === 'tolak' && !confirm('Tolak pengajuan ini? Baris di dalamnya akan lepas & masuk pengajuan berikutnya.')) return;
-    if (action === 'setujui' && !confirm('Setujui pengajuan ini? Komisi langsung dianggap cair & tercatat di rekening — tindakan ini gak bisa dibatalkan.')) return;
+    if (action === 'setujui' && !confirm('Setujui pengajuan ini? Ujroh langsung dianggap cair & tercatat di rekening — tindakan ini gak bisa dibatalkan.')) return;
     setBusy(true);
     try {
       const res = await fetch(`/api/admin/agen/pengajuan-ujroh/${id}`, {
@@ -84,7 +84,7 @@ export default function PencairanAgenDetailPage() {
   const p = data.pengajuan;
 
   return (
-    <Layout title="💸 Pencairan Komisi Agen" backHref="/admin/agen/pencairan">
+    <Layout title="💸 Pencairan Ujroh Agen" backHref="/admin/agen/pencairan">
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
         <div className="flex items-center justify-between mb-2">
           <div>
@@ -124,7 +124,7 @@ export default function PencairanAgenDetailPage() {
         )}
         {p.status === 'disetujui' && (
           <div className="text-[10px] text-green-600 font-bold mt-2">
-            ✅ Disetujui {p.diputuskan_at ? new Date(p.diputuskan_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} — komisi tercatat cair, transfer ke leader dilakukan manual di luar sistem.
+            ✅ Disetujui {p.diputuskan_at ? new Date(p.diputuskan_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} — ujroh tercatat cair, transfer ke leader dilakukan manual di luar sistem.
           </div>
         )}
         {p.status === 'ditolak' && p.catatan_keputusan && (

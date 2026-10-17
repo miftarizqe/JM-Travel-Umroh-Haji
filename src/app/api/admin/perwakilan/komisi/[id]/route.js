@@ -28,7 +28,7 @@ export async function PATCH(request, { params }) {
       [id]
     );
     if (rows.length === 0) {
-      return Response.json({ error: 'Baris komisi tidak ditemukan' }, { status: 404 });
+      return Response.json({ error: 'Baris ujroh tidak ditemukan' }, { status: 404 });
     }
     const sudahConfirmed = !!rows[0].dikonfirmasi_at;
 

@@ -11,7 +11,7 @@ const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit',
 // 2026-10-17). Admin bikin akun langsung di sini (nama/NIK/email/WA/
 // password), kode referral & link kebuat otomatis. Riwayat closing & komisi
 // (yang sekarang beneran tercatat di komisi_ledger) pindah ke halaman
-// Riwayat Closing & Pencairan Komisi masing-masing, bukan di sini lagi.
+// Riwayat Closing & Pencairan Ujroh masing-masing, bukan di sini lagi.
 export default function AdminAgenPage() {
   const router = useRouter();
   const [user] = useCurrentUser();
@@ -80,7 +80,7 @@ export default function AdminAgenPage() {
   return (
     <Layout title="🔗 Database Account Agen" backHref="/admin?tab=dashboard">
       <div className="text-xs text-gray-400 mb-4">
-        Akun ringan khusus buat ambil link referral pribadi — gak ada funnel pendaftaran, langsung aktif. Siapa pun yang buka link-nya diarahkan ke landing page dengan tombol WA diswitch ke nomor agen, dan booking yang masuk ke-tag otomatis. Riwayat closing & komisi (Rp3,5jt/jamaah − voucher) ada di menu <b>Riwayat Closing</b> & <b>Pencairan Komisi</b>.
+        Akun ringan khusus buat ambil link referral pribadi — gak ada funnel pendaftaran, langsung aktif. Siapa pun yang buka link-nya diarahkan ke landing page dengan tombol WA diswitch ke nomor agen, dan booking yang masuk ke-tag otomatis. Riwayat closing & ujroh (Rp3,5jt/jamaah − voucher) ada di menu <b>Riwayat Closing</b> & <b>Pencairan Ujroh</b>.
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6">

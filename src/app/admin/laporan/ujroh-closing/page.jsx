@@ -68,8 +68,8 @@ export default function LaporanUjrohClosingPage() {
     <Layout title="💰 Closing & Forecast Ujroh — Sahabat Baitullah" backHref={isHop ? '/dashboard/sahabat/hop' : '/admin?tab=dashboard'}>
       <div className="text-xs text-gray-400 mb-4">
         {isHop
-          ? 'Ujroh Sahabat Baitullah dari 2 sumber: closing booking program reguler, DAN komisi generasi (Gen1-5 + registrasi HOP) dari rekrutan baru — baris Anda sendiri ditandai badge "HOP". Forecast closing dihitung dari booking yang masih aktif; forecast generasi dihitung dari pendaftaran yang masih dalam proses (belum di-ACC admin). Tabel Pending (wajib ditransfer) dan Forecast (proyeksi) terpisah — klik barisnya buat lihat rincian.'
-          : 'Cuma yang punya minimal 1 closing/komisi yang ditampilkan, 1 baris per orang. Sahabat Baitullah mencakup 2 sumber ujroh: closing booking program, dan komisi generasi (Gen1-5 + registrasi HOP) dari rekrutan baru. Tabel Pending (wajib ditransfer) dan tabel Forecast (proyeksi, belum closing/belum aktif) sengaja tabel terpisah — klik barisnya buat lihat rincian per program/rekrutan. Export Excel berisi rincian transaksi lengkap di sheet terpisah.'}
+          ? 'Ujroh Sahabat Baitullah dari 2 sumber: closing booking program reguler, DAN ujroh generasi (Gen1-5 + registrasi HOP) dari rekrutan baru — baris Anda sendiri ditandai badge "HOP". Forecast closing dihitung dari booking yang masih aktif; forecast generasi dihitung dari pendaftaran yang masih dalam proses (belum di-ACC admin). Tabel Pending (wajib ditransfer) dan Forecast (proyeksi) terpisah — klik barisnya buat lihat rincian.'
+          : 'Cuma yang punya minimal 1 closing/ujroh yang ditampilkan, 1 baris per orang. Sahabat Baitullah mencakup 2 sumber ujroh: closing booking program, dan ujroh generasi (Gen1-5 + registrasi HOP) dari rekrutan baru. Tabel Pending (wajib ditransfer) dan tabel Forecast (proyeksi, belum closing/belum aktif) sengaja tabel terpisah — klik barisnya buat lihat rincian per program/rekrutan. Export Excel berisi rincian transaksi lengkap di sheet terpisah.'}
       </div>
 
       {/* Filter periode + export */}

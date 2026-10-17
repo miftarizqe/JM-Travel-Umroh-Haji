@@ -145,8 +145,8 @@ export default function KalkulatorLeadDetailPage() {
         <tr style="font-weight:bold;background:#fff8e6"><td>Margin</td><td style="text-align:right">${rp(rc.margin)}</td></tr>
         <tr class="subtotal"><td>Biaya Tetap per Pax (sama semua tipe kamar)</td><td style="text-align:right">${rp(rc.biaya_tetap_per_pax)}</td></tr>
       </table>`;
-      const htmlHotelHpp = `<h3>Hotel + HPP + Komisi + Harga Jual per Tipe Kamar</h3><table class="tbl">
-        <tr><th>Tipe Kamar</th><th>Hotel/orang</th><th>Biaya Tetap/orang</th><th>HPP</th><th>Komisi</th><th>Harga Jual</th></tr>
+      const htmlHotelHpp = `<h3>Hotel + HPP + Ujroh + Harga Jual per Tipe Kamar</h3><table class="tbl">
+        <tr><th>Tipe Kamar</th><th>Hotel/orang</th><th>Biaya Tetap/orang</th><th>HPP</th><th>Ujroh</th><th>Harga Jual</th></tr>
         ${kamarList.map(k => {
           const hotelTotal = (rc.hotel[k] || []).reduce((s, h) => s + h.nilai, 0);
           return `<tr${k === kamarDipilih ? ' style="font-weight:bold;background:#eef4fb"' : ''}><td>${KAMAR_LABEL[k] || k}${k === kamarDipilih ? ' (dipilih)' : ''}</td><td style="text-align:right">${rp(hotelTotal)}</td><td style="text-align:right">${rp(rc.biaya_tetap_per_pax)}</td><td style="text-align:right">${rp(hpp[k])}</td><td style="text-align:right">${rp(komisiFlat)}</td><td style="text-align:right;font-weight:bold">${rp(hargaJualPerKamar[k])}</td></tr>`;
@@ -234,7 +234,7 @@ export default function KalkulatorLeadDetailPage() {
               {user.role === 'super_admin' && (
                 <div className="mb-4">
                   <button type="button" onClick={bukaTutupRincian} className="text-sm font-bold text-[#1A4FA0] hover:underline">
-                    {rincianLoading ? 'Memuat rincian...' : rincianTerbuka ? '▲ Tutup Rincian HPP/Margin/Komisi' : '📊 Lihat Rincian HPP/Margin/Komisi'}
+                    {rincianLoading ? 'Memuat rincian...' : rincianTerbuka ? '▲ Tutup Rincian HPP/Margin/Ujroh' : '📊 Lihat Rincian HPP/Margin/Ujroh'}
                   </button>
                   {rincianTerbuka && rincian && (
                     <div className="mt-2 bg-gray-50 rounded-lg p-4 text-sm">
@@ -243,14 +243,14 @@ export default function KalkulatorLeadDetailPage() {
                         if (!r) return <div className="text-gray-400">Rincian gak tersedia buat lead ini (dihitung sebelum fitur ini ada).</div>;
                         return (
                           <>
-                            <div className="text-gray-500 mb-2">Margin Flat {rp(r.margin_flat)} · Komisi Flat {rp(r.komisi_flat)}</div>
+                            <div className="text-gray-500 mb-2">Margin Flat {rp(r.margin_flat)} · Ujroh Flat {rp(r.komisi_flat)}</div>
                             {r.mode === 'kombinasi' ? r.baris.map((b, i) => (
                               <div key={i} className="mb-3 pb-3 border-b border-gray-200 last:border-0 last:mb-0 last:pb-0">
                                 <div className="font-bold text-[#0E2F6E] mb-1">Kombinasi {i + 1} — {b.jumlah}× {KAMAR_LABEL[b.kamar] || b.kamar}</div>
-                                <div className="text-gray-500">HPP/orang {rp(b.hpp[b.kamar])} + Komisi {rp(r.komisi_flat)} = Jual {rp(b.harga_per_orang)}/orang · Subtotal {rp(b.subtotal)}</div>
+                                <div className="text-gray-500">HPP/orang {rp(b.hpp[b.kamar])} + Ujroh {rp(r.komisi_flat)} = Jual {rp(b.harga_per_orang)}/orang · Subtotal {rp(b.subtotal)}</div>
                               </div>
                             )) : (
-                              <div className="text-gray-500">HPP ({KAMAR_LABEL[r.kamar] || r.kamar}) {rp(r.hpp[r.kamar])} + Komisi {rp(r.komisi_flat)} = Jual {rp(r.harga_jual[r.kamar])}</div>
+                              <div className="text-gray-500">HPP ({KAMAR_LABEL[r.kamar] || r.kamar}) {rp(r.hpp[r.kamar])} + Ujroh {rp(r.komisi_flat)} = Jual {rp(r.harga_jual[r.kamar])}</div>
                             )}
                             <div className="font-bold text-[#0E2F6E] mt-2">Total: {rp(r.total)}</div>
                             <button type="button" onClick={unduhPdfRincian} className="mt-3 text-xs font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] px-3 py-1.5 rounded-lg">📄 Download PDF Rincian</button>

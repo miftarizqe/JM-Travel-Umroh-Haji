@@ -32,7 +32,7 @@ const STATUS_WARNA = {
 };
 const KATEGORI_LABEL = {
   komisi_sahabat: 'Ujroh Rekrutan', closing_langsung_sahabat: 'Closing Jamaah',
-  tabungan_awal_sahabat: 'Saldo Awal Pendaftaran', head_of_program_registrasi: 'Komisi Head of Program',
+  tabungan_awal_sahabat: 'Saldo Awal Pendaftaran', head_of_program_registrasi: 'Ujroh Head of Program',
 };
 
 // Halaman eksekusi 1 batch pengajuan ujroh — dibangun 2026-08-30 (Fase 2)
