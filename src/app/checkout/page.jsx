@@ -304,21 +304,24 @@ function CheckoutPageInner() {
         // alamat_domisili/alamat, bukan alamat_kirim.
         alamat: d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '',
         nik: d.user?.nik || '',
-        // Alamat KTP TERSTRUKTUR (jalan/no rumah/RT-RW/dst) -- dipakai
-        // checkbox "Alamat sama dengan KTP" di kartu jamaah #1 (dikonfirmasi
-        // user 2026-10-19). Domisili TIDAK ikut (users.alamat_domisili cuma
-        // teks bebas, gak ada kolom terpisah buat diisi balik ke dropdown
-        // berjenjang AddressFields). null kalau akun lama belum punya
-        // alamat KTP berlabel -- checkbox disembunyikan di kartu.
-        ktp: d.user?.alamat_ktp_jalan ? {
-          jalan: d.user.alamat_ktp_jalan, norumah: d.user.alamat_ktp_no_rumah || '',
-          rt: d.user.alamat_ktp_rt || '', rw: d.user.alamat_ktp_rw || '',
-          kel: d.user.alamat_ktp_kelurahan || '', kec: d.user.alamat_ktp_kecamatan || '',
-          kota: d.user.alamat_ktp_kota || '', provinsi: d.user.alamat_ktp_provinsi || '',
-          kp: d.user.kode_pos || '', negara: d.user.alamat_ktp_negara || 'Indonesia',
+        // Alamat Domisili TERSTRUKTUR (jalan/no rumah/RT-RW/dst) -- dipakai
+        // checkbox "Salin dari Alamat Domisili" di kartu jamaah #1
+        // (dikonfirmasi user 2026-10-19 -- domisili dipilih, BUKAN KTP,
+        // karena domisili = tempat tinggal SEKARANG, lebih nyambung buat
+        // alamat kirim paket). Kolom terstruktur ini baru ada sejak
+        // migration 239 -- akun yang daftar SEBELUM itu & domisilinya beda
+        // dari KTP gak kebawa (gak sempat kesimpen terstruktur, cuma
+        // ke-backfill utk yang sama_ktp). null kalau belum ada -- checkbox
+        // disembunyikan di kartu.
+        domisili: d.user?.alamat_domisili_jalan ? {
+          jalan: d.user.alamat_domisili_jalan, norumah: d.user.alamat_domisili_no_rumah || '',
+          rt: d.user.alamat_domisili_rt || '', rw: d.user.alamat_domisili_rw || '',
+          kel: d.user.alamat_domisili_kelurahan || '', kec: d.user.alamat_domisili_kecamatan || '',
+          kota: d.user.alamat_domisili_kota || '', provinsi: d.user.alamat_domisili_provinsi || '',
+          kp: d.user.alamat_domisili_kode_pos || '', negara: d.user.alamat_domisili_negara || 'Indonesia',
         } : null,
       }))
-      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '', ktp: null }));
+      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '', domisili: null }));
   }, [user]);
 
   // Blokir checkbox "Ini saya sendiri" dari awal kalau NIK akun ini udah

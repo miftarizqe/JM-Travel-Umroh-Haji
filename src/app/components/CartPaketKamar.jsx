@@ -324,32 +324,37 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
 
       <div className="rounded-lg border-2 border-gray-100 bg-white/70 p-3 space-y-2.5">
         <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
-        {/* Checkbox "sama dengan KTP" CUMA buat "Ini saya sendiri" & akun
-            yang punya alamat KTP terstruktur (dikonfirmasi user 2026-10-19
-            -- sebelumnya alamat kirim WAJIB diketik manual ulang walau
-            jamaahnya diri sendiri & datanya udah ada di profil). Domisili
-            gak ikut ditawarin -- users.alamat_domisili cuma teks bebas,
-            gak bisa dipecah balik ke dropdown berjenjang Provinsi/Kota/
-            Kec/Kel. Ini SEKALI-SALIN (bukan toggle terkunci) -- abis
-            disalin field tetap bisa diedit manual, konsisten sama catatan
-            lama "alamat kirim sengaja gak dikunci".) */}
-        {fieldTerkunci && dataDiriSendiri?.ktp && (
+        {/* Checkbox "salin dari Domisili" CUMA buat "Ini saya sendiri" &
+            akun yang punya alamat domisili terstruktur (dikonfirmasi user
+            2026-10-19 -- sebelumnya alamat kirim WAJIB diketik manual
+            ulang walau jamaahnya diri sendiri & datanya udah ada di
+            profil). CUMA domisili yang ditawarin di sini (bukan KTP juga)
+            -- domisili = tempat tinggal SEKARANG, lebih nyambung buat
+            alamat kirim paket dibanding KTP yang kadang alamat lama/beda
+            kota. Butuh kolom alamat_domisili_* terstruktur (migration 239)
+            -- akun LAMA yang domisilinya beda dari KTP & gak sempat
+            ke-backfill gak dapat opsi ini (dataDiriSendiri.domisili null,
+            checkbox-nya gak dirender). Ini SEKALI-SALIN (bukan toggle
+            terkunci) -- abis disalin field tetap bisa diedit manual,
+            konsisten sama catatan lama "alamat kirim sengaja gak
+            dikunci". */}
+        {fieldTerkunci && dataDiriSendiri?.domisili && (
           <label className="flex items-center gap-2 text-[11px] text-gray-500 cursor-pointer">
             <input type="checkbox" className="w-3.5 h-3.5 accent-[#1A4FA0]" checked={false}
               onChange={e => {
                 if (!e.target.checked) return;
-                const ktp = dataDiriSendiri.ktp;
+                const a = dataDiriSendiri.domisili;
                 onPatch(j => {
                   const n = {
                     ...j,
-                    jalan_kirim: ktp.jalan, norumah_kirim: ktp.norumah, rt_kirim: ktp.rt, rw_kirim: ktp.rw,
-                    kel_kirim: ktp.kel, kec_kirim: ktp.kec, kota_kirim: ktp.kota, provinsi_kirim: ktp.provinsi,
-                    kp_kirim: ktp.kp, negara_kirim: ktp.negara,
+                    jalan_kirim: a.jalan, norumah_kirim: a.norumah, rt_kirim: a.rt, rw_kirim: a.rw,
+                    kel_kirim: a.kel, kec_kirim: a.kec, kota_kirim: a.kota, provinsi_kirim: a.provinsi,
+                    kp_kirim: a.kp, negara_kirim: a.negara,
                   };
                   return { ...n, alamat: rangkaiAlamatKirim(n) };
                 });
               }} />
-            🏠 Salin dari Alamat KTP
+            📍 Salin dari Alamat Domisili
           </label>
         )}
         {/* setF dipanggil beruntun dalam 1 event (ganti provinsi -> kosongin
