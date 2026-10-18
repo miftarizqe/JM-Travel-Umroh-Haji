@@ -2,8 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePengaturan } from '@/lib/usePengaturan';
-import UploadScanDokumen from '@/app/components/UploadScanDokumen';
-import DokumenSignatureAksi from '@/app/components/DokumenSignatureAksi';
 
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 
@@ -75,12 +73,7 @@ export default function CetakFormulirMitra() {
 
   if (!data) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Akun tidak ditemukan.</div>;
 
-  function tandaiTerunggah(path) {
-    setData(d => ({ ...d, user: { ...d.user, formulir_pendaftaran_fisik_path: path, formulir_pendaftaran_fisik_uploaded_at: new Date().toISOString() } }));
-  }
-
   const { user } = data;
-  const tglDaftar = new Date(user.created_at);
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
@@ -93,11 +86,6 @@ export default function CetakFormulirMitra() {
           {user.name} · di dialog print pilih &quot;Save as PDF&quot;
         </div>
       </div>
-
-      <DokumenSignatureAksi dokumen="formulir" refId={user.id} onCetakFisik={() => window.print()} hideCetakFisik />
-
-      <UploadScanDokumen label="Formulir fisik" uploadUrl="/api/admin/upload-formulir-fisik" userId={user.id}
-        path={user.formulir_pendaftaran_fisik_path} uploadedAt={user.formulir_pendaftaran_fisik_uploaded_at} onUploaded={tandaiTerunggah} />
 
       <div className="sheet" style={{ background: '#fff', width: 760, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
         <Kop pengaturan={pengaturan} />
@@ -129,22 +117,13 @@ export default function CetakFormulirMitra() {
         <Field label="Alamat Kantor" value="" />
 
         <p style={{ fontSize: 10.5, lineHeight: 1.5, marginTop: 14 }}>
-          Dengan ini saya menyatakan bahwa seluruh data yang saya isikan dalam formulir ini adalah benar, lengkap, dan dapat dipertanggungjawabkan. Apabila di kemudian hari terdapat ketidaksesuaian data, saya bersedia menerima konsekuensi sesuai ketentuan yang berlaku. <b>*Mohon kirimkan foto KTP ke nomor Admin 0823 1057 2050</b>
+          Ringkasan data pendaftaran Perwakilan — bukan dokumen yang perlu ditandatangani (dikonfirmasi user 2026-10-17, perjanjian kerja sama yang mengikat tetap SPKA-Ins). <b>*Mohon kirimkan foto KTP ke nomor Admin 0823 1057 2050</b>
         </p>
 
         <div style={{ marginTop: 10 }}>
           <Field label="Nama Bank" wajib value={user.bank} />
           <Field label="Nomor Rekening" wajib value={user.no_rekening} />
           <Field label="Nama Pemilik Rekening" wajib value={user.nama_pemilik_rekening} />
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 40, fontSize: 12 }}>
-          <div style={{ textAlign: 'center', width: '45%' }}>
-            <div>Jakarta, {tglIndo(tglDaftar)}</div>
-            <div style={{ height: 70 }}></div>
-            <div style={{ borderTop: '1px solid #000', paddingTop: 4 }}>({user.name})</div>
-            <div style={{ fontWeight: 700, marginTop: 2 }}>Perwakilan JM Travel</div>
-          </div>
         </div>
       </div>
 

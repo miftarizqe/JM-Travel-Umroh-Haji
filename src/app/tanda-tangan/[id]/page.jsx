@@ -6,7 +6,7 @@ import Layout from '@/app/components/Layout';
 // Label tampilan — key dokumen di database TIDAK ikut berubah (dokumen lama
 // yang sudah ditandatangani gak perlu migrasi), cuma teks yang ditampilkan.
 const DOKUMEN_LABEL = {
-  spka_ins: 'SPK-PWK — Surat Perjanjian Kerja Sama Perwakilan',
+  spka_ins: 'Surat Perjanjian Kerja Sama Perwakilan',
   jamaah: 'Surat Perjanjian Jamaah Umroh',
   formulir: 'Formulir Pendaftaran Perwakilan',
   invoice: 'Invoice/Kwitansi',

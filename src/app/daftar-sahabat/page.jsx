@@ -11,6 +11,8 @@ import { hariIniWib, keTanggal } from '@/lib/jadwalTarget';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
 import { bersihkanTempat } from '@/lib/dataJamaah';
+import { usePengaturan } from '@/lib/usePengaturan';
+import { labelPerekrut } from '@/lib/labelPerekrut';
 
 const emptyForm = () => ({
   // Tanggal Lahir & Jenis Kelamin SENGAJA kosong (dikonfirmasi user
@@ -51,17 +53,22 @@ export default function DaftarSahabatPage() {
     ...emptyForm(),
     nama: user?.name || '', nik: user?.nik || '', wa: user?.wa || '', email: user?.email || '',
   }));
-  const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target (TERAKHIR — rekening tabungan umroh BUKAN bagian wizard ini lagi, lihat komentar di lanjutKeStatus)
+  const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=perekrut+target, 4=konfirmasi (rekening tabungan umroh BUKAN bagian wizard ini lagi, lihat komentar di lanjutKeStatus)
   const [sudahKirim, setSudahKirim] = useState(false);
   const [uploadingKtp, setUploadingKtp] = useState(false);
   const [uploadingPaspor, setUploadingPaspor] = useState(false);
   const [profil, setProfil] = useState(null);
+  const [pengaturan] = usePengaturan();
   const [savingKirim, setSavingKirim] = useState(false);
+  // Checkbox eksplisit "data sudah benar" di step Konfirmasi (dikonfirmasi
+  // user 2026-10-18, mirror /daftar-perwakilan) — WAJIB dicentang sebelum
+  // tombol Kirim aktif, gak cukup cuma nge-klik submit abis liat ringkasan.
+  const [konfirmasiData, setKonfirmasiData] = useState(false);
   // Mode perbaikan (dikonfirmasi user 2026-10-11): admin "Minta Perbaikan",
   // form dibuka lagi dgn isian lama, cuma step Data Diri & Alamat (target
   // punya alur ganti-target sendiri), dikirim lewat PUT /api/daftar-sahabat.
   const [perbaikan, setPerbaikan] = useState(null);
-  const stepTerakhir = perbaikan ? 2 : 3;
+  const stepTerakhir = perbaikan ? 3 : 4;
 
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim();
   useUnsavedGuard(isDirty);
@@ -78,6 +85,11 @@ export default function DaftarSahabatPage() {
       delete rest[k];
       return rest;
     });
+    // Balik ke step sebelumnya & ubah sesuatu setelah sempat centang
+    // konfirmasi -> minta centang ulang, jangan biarin konfirmasi lama
+    // (atas data yang udah berubah) ikut kebawa (dikonfirmasi user
+    // 2026-10-18, mirror /daftar-perwakilan).
+    setKonfirmasiData(false);
   };
 
   useEffect(() => {
@@ -184,12 +196,15 @@ export default function DaftarSahabatPage() {
       for (const f of FIELD_ALAMAT) wajib(f, 'Wajib diisi');
       if (!form.sama_ktp) for (const f of FIELD_ALAMAT) wajib(`${f}_dom`, 'Wajib diisi');
     }
-    if (step === 3) {
+    if (step === 3 && !perbaikan) {
       if (!form.target_program_id) e.target_program_id = 'Target Impian (Program) wajib dipilih';
       // Program yang harga paketnya belum diisi admin bikin target Rp 0 —
       // nanti nominal blokir rekening ikut 0 & jamaah mentok di step blokir.
       else if (!(Number(form.target_estimasi_harga) > 0))
         e.target_program_id = 'Harga program ini belum tersedia. Pilih program lain atau hubungi admin JM Travel.';
+    }
+    if (step === stepTerakhir && !konfirmasiData) {
+      e.konfirmasi = 'Centang dulu konfirmasi bahwa data sudah benar.';
     }
     return e;
   }
@@ -264,7 +279,7 @@ export default function DaftarSahabatPage() {
         )}
 
         <div className="flex items-center mb-6">
-          {(perbaikan ? ['Data Diri','Alamat'] : ['Data Diri','Alamat','Target Impian']).map((l,i,arr) => (
+          {(perbaikan ? ['Data Diri','Alamat','Konfirmasi'] : ['Data Diri','Alamat','Target Impian','Konfirmasi']).map((l,i,arr) => (
             <div key={l} className="flex items-center flex-1 last:flex-none">
               <div className="flex flex-col items-center">
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
@@ -400,10 +415,13 @@ export default function DaftarSahabatPage() {
             </div>
           </>)}
 
-          {step === 3 && (<>
+          {step === 3 && !perbaikan && (<>
             {/* "Siapa yang merekrut Anda" DICABUT dari sini (dikonfirmasi
                 user 2026-10-03) — kode/nama perekrut udah dikunci sejak
-                registrasi akun, gak perlu ditampilin ulang di step ini. */}
+                registrasi akun, gak perlu ditampilin ulang di step ini.
+                TAPI tetap ditampilkan read-only di step Konfirmasi di bawah
+                (dikonfirmasi user 2026-10-18) — transparansi doang, gak
+                bisa diubah di sana juga. */}
             <div className="pt-2">
               <div className="font-bold text-[#0E2F6E]">🎯 Target Impian *</div>
               <div className="text-xs text-gray-400 -mt-1 mb-1">Bantu kami hitung progres tabungan Anda menuju keberangkatan.</div>
@@ -439,6 +457,33 @@ export default function DaftarSahabatPage() {
                 <div className="text-[10px] text-red-500 mt-1">Harga program ini belum diisi admin — pilih program lain atau hubungi admin JM Travel.</div>
               )}
             </div>
+          </>)}
+
+          {step === stepTerakhir && (<>
+            <div className="font-bold text-[#0E2F6E]">✅ Konfirmasi Data</div>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
+              {[
+                ['Nama', form.nama], ['NIK', form.nik], ['Tgl Lahir', form.tl],
+                ['WhatsApp', form.wa], ['Email', form.email], ['Kota', form.kota],
+                ...(perbaikan ? [] : [['Target Impian', form.target_minat ? `${form.target_minat} (Rp ${Number(form.target_estimasi_harga||0).toLocaleString('id-ID')})` : '-']]),
+                ['Perekrut', labelPerekrut(profil, pengaturan) || 'Tidak ada'],
+              ].map(([k,v]) => (
+                <div key={k} className="flex justify-between gap-3">
+                  <span className="text-gray-400 shrink-0">{k}</span>
+                  <span className="font-semibold text-[#0E2F6E] text-right">{v || '-'}</span>
+                </div>
+              ))}
+            </div>
+            <div className="bg-[#E8F0FB] rounded-lg p-3 text-xs text-[#1A4FA0]">
+              Setelah kirim, Anda akan diarahkan ke halaman status pendaftaran untuk unggah bukti transfer,
+              lalu membaca & menyetujui <b>Surat Perjanjian Jamaah Sahabat Baitullah</b>.
+            </div>
+            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer pt-1">
+              <input type="checkbox" checked={konfirmasiData} onChange={e => setKonfirmasiData(e.target.checked)}
+                className="mt-0.5 w-4 h-4" />
+              <span>Saya sudah memeriksa dan data di atas sudah benar.</span>
+            </label>
+            {errors.konfirmasi && <div data-err="true" className="text-[11px] text-red-600">{errors.konfirmasi}</div>}
           </>)}
 
           {jumlahError > 0 && (

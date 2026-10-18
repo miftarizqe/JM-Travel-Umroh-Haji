@@ -136,16 +136,6 @@ export async function GET(request) {
       .reduce((sum, c) => sum + c.ujroh, 0);
     const { potensi: potensiReseller, bookings: resellerBookings } = await cariPotensiResellerLangsung(pool, perwId);
 
-    // Lost: ujroh yang HILANG karena booking dibatalkan — closingList sudah
-    // nyakup semua status (gak difilter di query awal), jadi tinggal filter
-    // 'dibatalkan' dari data yang sama, gak perlu query baru. Buat margin
-    // reseller downline, pakai fungsi yang sama kayak Forecast, cuma ganti
-    // filter status (lihat komentar cariPotensiResellerLangsung).
-    const lostPribadi = closingList
-      .filter(c => c.status === 'dibatalkan')
-      .reduce((sum, c) => sum + c.ujroh, 0);
-    const { potensi: lostReseller, bookings: resellerLostBookings } = await cariPotensiResellerLangsung(pool, perwId, ['dibatalkan']);
-
     // Margin reseller yang perwakilan ini terima dari closing downline-nya
     // (skema harga berjenjang — beda dari ujroh di atas, yang itu margin dia sendiri jualan)
     // Di-JOIN ke bookings+users biar kelihatan downline mana yang closing-nya
@@ -227,11 +217,6 @@ export async function GET(request) {
         potensi_pribadi: potensiPribadi,
         potensi_override: potensiReseller,
         downline_bookings: resellerBookings,
-      },
-      lost: {
-        potensi_pribadi: lostPribadi,
-        potensi_override: lostReseller,
-        downline_bookings: resellerLostBookings,
       },
       perlu_perhatian: {
         form_belum_lengkap: formBelumLengkap,

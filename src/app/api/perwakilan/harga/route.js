@@ -33,6 +33,10 @@ export async function GET(request) {
     // publish_type='private' gak pernah tampil di sini (cuma admin yang
     // daftarin, gak lewat perwakilan). publish_type='perwakilan' cuma tampil
     // kalau perwakilan INI ada di daftar yang diotorisasi (program_perwakilan).
+    // p.active=1 WAJIB (bug ditemukan & diperbaiki 2026-10-18 — query ini
+    // sebelumnya gak pernah filter active sama sekali, beda dari
+    // /api/programs publik yang udah bener. Program nonaktif/arsip kebawa
+    // nongol ke halaman Harga Perwakilan).
     const [programs] = await pool.query(
       `SELECT id, name,
               hpp_deluxe_quad, hpp_deluxe_triple, hpp_deluxe_double,
@@ -41,10 +45,10 @@ export async function GET(request) {
               harga_deluxe_quad, harga_deluxe_triple, harga_deluxe_double,
               harga_eksekutif_quad, harga_eksekutif_triple, harga_eksekutif_double,
               harga_signature_quad, harga_signature_triple, harga_signature_double
-       FROM programs p WHERE p.publish_type = 'public'
+       FROM programs p WHERE p.active = 1 AND (p.publish_type = 'public'
           OR (p.publish_type = 'perwakilan' AND EXISTS (
             SELECT 1 FROM program_perwakilan pp WHERE pp.program_id = p.id AND pp.perw_id = ?
-          ))
+          )))
        ORDER BY created_at DESC`,
       [perwId]
     );

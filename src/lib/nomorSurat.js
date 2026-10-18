@@ -15,11 +15,13 @@
 // dokumen pertama. `tabel` default 'users' (perwakilan/sahabat, per-akun)
 // — Perjanjian Jamaah per-BOOKING (1 jamaah bisa booking berkali-kali,
 // masing-masing butuh nomor sendiri), jadi pakai tabel='bookings'.
-export async function ambilAtauBuatNomorSurat(pool, rowId, jenis, kolom = 'no_perjanjian_kerjasama', tabel = 'users') {
-  const [rows] = await pool.query(`SELECT ${kolom} AS nomor FROM ${tabel} WHERE id = ?`, [rowId]);
-  if (rows.length === 0) return null;
-  if (rows[0].nomor) return rows[0].nomor;
-
+// Inti generate 1 nomor baru buat `jenis` tertentu — dipakai bareng oleh
+// ambilAtauBuatNomorSurat (kolom di tabel users/bookings) & oleh dokumen
+// yang nomornya disimpan di tabel terpisah (mis. Perjanjian Jamaah per-
+// jamaah, lihat ambilAtauBuatNomorSuratJamaah) karena targetnya bukan 1
+// kolom di baris utama (jamaah_data cuma JSON, entry-nya gak punya kolom
+// sendiri buat ditempelin nomor).
+async function generateNomorBaru(pool, jenis) {
   const now = new Date();
   const bulanAngka = now.getMonth() + 1;
   const tahun = now.getFullYear();
@@ -32,23 +34,50 @@ export async function ambilAtauBuatNomorSurat(pool, rowId, jenis, kolom = 'no_pe
     'SELECT id, nomor FROM nomor_surat_released WHERE jenis = ? AND bulan = ? AND tahun = ? ORDER BY urutan ASC LIMIT 1',
     [jenis, bulanAngka, tahun]
   );
-  let nomor;
   if (released) {
     await pool.query('DELETE FROM nomor_surat_released WHERE id = ?', [released.id]);
-    nomor = released.nomor;
-  } else {
-    await pool.query(
-      `INSERT INTO nomor_surat_counter (jenis, urutan) VALUES (?, 1)
-       ON DUPLICATE KEY UPDATE urutan = urutan + 1`,
-      [jenis]
-    );
-    const [c] = await pool.query('SELECT urutan FROM nomor_surat_counter WHERE jenis = ?', [jenis]);
-    const urutan = c[0].urutan;
-    const bulan = String(bulanAngka).padStart(2, '0');
-    nomor = `${String(urutan).padStart(6, '0')}.${bulan}/JMT-${jenis}/${tahun}`;
+    return released.nomor;
   }
+  await pool.query(
+    `INSERT INTO nomor_surat_counter (jenis, urutan) VALUES (?, 1)
+     ON DUPLICATE KEY UPDATE urutan = urutan + 1`,
+    [jenis]
+  );
+  const [c] = await pool.query('SELECT urutan FROM nomor_surat_counter WHERE jenis = ?', [jenis]);
+  const urutan = c[0].urutan;
+  const bulan = String(bulanAngka).padStart(2, '0');
+  return `${String(urutan).padStart(6, '0')}.${bulan}/JMT-${jenis}/${tahun}`;
+}
 
+export async function ambilAtauBuatNomorSurat(pool, rowId, jenis, kolom = 'no_perjanjian_kerjasama', tabel = 'users') {
+  const [rows] = await pool.query(`SELECT ${kolom} AS nomor FROM ${tabel} WHERE id = ?`, [rowId]);
+  if (rows.length === 0) return null;
+  if (rows[0].nomor) return rows[0].nomor;
+
+  const nomor = await generateNomorBaru(pool, jenis);
   await pool.query(`UPDATE ${tabel} SET ${kolom} = ? WHERE id = ?`, [nomor, rowId]);
+  return nomor;
+}
+
+// 1 jamaah = 1 perjanjian = 1 nomor sendiri (dikonfirmasi user 2026-10-18,
+// gantiin skema lama 1 nomor dipakai bareng semua jamaah dalam 1 booking).
+// Disimpan di tabel perjanjian_jamaah_nomor (booking_id, jamaah_idx) --
+// BUKAN kolom bookings.no_perjanjian_jamaah (itu nomor lama format
+// per-booking, dibiarkan apa adanya buat booking yang udah kebeku sebelum
+// perubahan ini, gak di-backfill retroaktif). `jamaahIdx` = index entry di
+// jamaah_data (array JSON), stabil selama entry gak dihapus/di-reorder.
+export async function ambilAtauBuatNomorSuratJamaah(pool, bookingId, jamaahIdx, jenis = 'SPJ') {
+  const [[existing]] = await pool.query(
+    'SELECT nomor FROM perjanjian_jamaah_nomor WHERE booking_id = ? AND jamaah_idx = ?',
+    [bookingId, jamaahIdx]
+  );
+  if (existing) return existing.nomor;
+
+  const nomor = await generateNomorBaru(pool, jenis);
+  await pool.query(
+    'INSERT INTO perjanjian_jamaah_nomor (booking_id, jamaah_idx, nomor) VALUES (?, ?, ?)',
+    [bookingId, jamaahIdx, nomor]
+  );
   return nomor;
 }
 

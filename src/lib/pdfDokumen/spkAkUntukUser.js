@@ -7,14 +7,14 @@
 // Jalur TTD digital punya generator sendiri di /api/admin/dokumen-signature
 // tapi template-nya sama persis.
 //
-// SPK-AK (Muslim) SEKARANG punya 2 rangkap (dikonfirmasi user 2026-10-03),
-// TAPI yang digabung jadi 2 PDF cuma buat metode_ttd_sahabat='kantor' (admin
-// siapin keduanya sekaligus buat TTD langsung di tempat). Metode 'kirim'
-// (print sendiri, termasuk NULL/belum pilih) cuma dapat rangkap "jamaah" —
-// rangkap "management" dicetak & dikirim terpisah oleh kantor sendiri,
-// BUKAN lewat unduhan jamaah (lihat buatPdfSpkAkUntukUser). SPK-AK Non-Muslim
-// BELUM dapat template 2-rangkap baru, tetap 1 dokumen seperti sebelumnya.
-import { generateSpkAkPdf, generateSpkAkRangkapPdf } from './spkAkOverlay';
+// SPK-AK (Muslim) & SPK-AK Non-Muslim/AGEN SEKARANG SAMA-SAMA 2 rangkap
+// (Muslim dikonfirmasi user 2026-10-03, Non-Muslim/AGEN menyusul 2026-10-18)
+// — TAPI yang digabung jadi 2 PDF cuma buat metode_ttd_sahabat='kantor'
+// (admin siapin keduanya sekaligus buat TTD langsung di tempat). Metode
+// 'kirim' (print sendiri, termasuk NULL/belum pilih) cuma dapat rangkap
+// "jamaah" — rangkap "management" dicetak & dikirim terpisah oleh kantor
+// sendiri, BUKAN lewat unduhan jamaah (lihat buatPdfSpkAkUntukUser).
+import { generateSpkAkPdf, generateSpkAkRangkapPdf, generateSpkAkNonisRangkapPdf } from './spkAkOverlay';
 import { mergePdfBuffers } from './dokumenSahabatGabungan';
 import { ambilAtauBuatNomorSurat, ambilAtauBuatTanggalBeku } from '@/lib/nomorSurat';
 import { formatAlamatDuaBaris } from './alamatDuaBaris';
@@ -46,7 +46,7 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
 
   const dokumen = user.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
   const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
-  const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
+  const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'ASB';
   const tanggalKolom = dokumen === 'spk_ak' ? 'tgl_spk_ak' : 'tgl_spk_ak_nonis';
   const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
   // Tanggal TTD dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
@@ -61,9 +61,11 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
     tanggal: `${sekarang.getDate()} ${BULAN_ID[sekarang.getMonth()]} ${sekarang.getFullYear()}`,
   };
 
-  if (dokumen === 'spk_ak') {
-    // Target Impian (program + harga) WAJIB diisi jamaah sejak pendaftaran
-    // (lihat daftar-sahabat/page.jsx) — program_id SELALU ada di titik ini.
+  if (dokumen === 'spk_ak' || dokumen === 'spk_ak_nonis') {
+    // Target Impian (program + harga) WAJIB diisi jamaah/agen sejak
+    // pendaftaran (lihat daftar-sahabat/page.jsx) — program_id SELALU ada
+    // di titik ini, sama buat Muslim maupun Non-Muslim (AGEN juga punya
+    // target program umroh yang disepakati, Pasal 4.1 PKS Agen).
     const [[pendaftaran]] = await pool.query(
       `SELECT sp.target_estimasi_harga, p.tanggal_berangkat
        FROM sahabat_pendaftaran sp LEFT JOIN programs p ON p.id = sp.program_id
@@ -71,18 +73,11 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
       [userId]
     );
     const berangkat = pendaftaran?.tanggal_berangkat ? new Date(pendaftaran.tanggal_berangkat) : null;
-    // Template rangkap punya 2 baris alamat (dikonfirmasi user 2026-10-03,
-    // revisi dokumen Word baru) -- dipecah dari komponen alamat_ktp_* kalau
-    // ada (pendaftar baru). Pendaftar lama yang cuma punya alamat_ktp hasil
-    // join lama (komponen udah kebuang) fallback ke baris 1 = string penuh,
-    // baris 2 kosong -- gak bisa dipecah balik akurat.
-    const { alamatBaris1, alamatBaris2 } = formatAlamatDuaBaris(user);
-    const dataRangkap = {
-      ...dataUmum,
-      alamatBaris1, alamatBaris2,
+    const dataTarget = {
       targetBulanTahun: berangkat ? `${BULAN_ID[berangkat.getMonth()]} ${berangkat.getFullYear()}` : '-',
       nominalTarget: pendaftaran?.target_estimasi_harga ? Number(pendaftaran.target_estimasi_harga).toLocaleString('id-ID') : '-',
     };
+
     // 2 rangkap CUMA buat metode "datang kantor" (admin siapin 2 fisik
     // sekaligus buat TTD langsung di tempat). Metode "kirim" (print sendiri)
     // cuma rangkap "jamaah" — rangkap "management" (udah ada TTD Mei

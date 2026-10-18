@@ -101,7 +101,7 @@ function renderNomorPerjanjian(row) {
 }
 
 // Kolom paling kanan — cuma status (bisa diklik buat aktifkan/nonaktifkan).
-// ID Card & Verifikasi sekarang di dalam modal nama, bukan di sini.
+// Verifikasi ada di dalam modal nama, bukan di sini.
 function renderAksiMitra(row, { onToggleStatus }) {
   return (
     row.status === 'pending' ? (
@@ -239,7 +239,6 @@ export default function DatabasePage() {
   const [exporting, setExporting] = useState(false);
   const [historyFor, setHistoryFor] = useState(null); // baris jamaah yang riwayat programnya lagi dibuka
   const [detailFor, setDetailFor] = useState(null); // baris yang detail formulirnya lagi dibuka
-  const [downloadingId, setDownloadingId] = useState(null); // id user yang ID card-nya lagi diproses
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -307,29 +306,6 @@ export default function DatabasePage() {
     alert('Role Sahabat Baitullah berhasil ditambahkan. Orangnya bisa lanjut proses pendaftaran lewat halaman Profil.');
     setDetailFor(null);
     muatData();
-  }
-
-  async function downloadIdCard(row) {
-    setDownloadingId(row.id);
-    try {
-      const res = await fetch(`/api/admin/id-card/${row.id}`);
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        alert(d.error || 'Gagal membuat ID card');
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ID-Card-${row.kode_unik || row.name}.pdf`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert('Terjadi kesalahan saat membuat ID card');
-    } finally {
-      setDownloadingId(null);
-    }
   }
 
   // Edit data akun (perwakilan) — dari modal detail formulir. no_perjanjian_kerjasama,
@@ -465,7 +441,7 @@ export default function DatabasePage() {
                 <td className="border border-gray-200 px-3 py-2 text-gray-400">{i + 1}</td>
                 {config.columns.map(c => (
                   <td key={c.key} className={`border border-gray-200 px-3 py-2 whitespace-nowrap text-${c.align || 'left'}`}>
-                    {c.render ? c.render(r, { onShowHistory: setHistoryFor, onShowDetail: bukaDetail, onToggleStatus: toggleStatus, onDownloadIdCard: downloadIdCard, downloadingId, router, patchRow }) : c.format ? c.format(r[c.key]) : (r[c.key] ?? '-')}
+                    {c.render ? c.render(r, { onShowHistory: setHistoryFor, onShowDetail: bukaDetail, onToggleStatus: toggleStatus, router, patchRow }) : c.format ? c.format(r[c.key]) : (r[c.key] ?? '-')}
                   </td>
                 ))}
               </tr>
@@ -777,13 +753,6 @@ export default function DatabasePage() {
                   {f.jadwal_kunjungan && <Field label="Jadwal Kunjungan" value={f.jadwal_kunjungan} />}
                   {f.metode && <Field label="Metode Pendaftaran" value={f.metode === 'paket' ? 'Kirim Paket' : 'Kunjungan Kantor'} />}
                   {f.metode === 'paket' && <Field label="Alamat Pengiriman" value={f.alamat_kirim} />}
-
-                  <div className="flex flex-col gap-2 mt-5 pt-4 border-t border-gray-100">
-                    <button onClick={() => downloadIdCard(detailFor)} disabled={downloadingId === detailFor.id}
-                      className="w-full bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 text-sm font-bold py-2 rounded-full">
-                      {downloadingId === detailFor.id ? 'Memproses...' : '📇 Download ID Card'}
-                    </button>
-                  </div>
                 </div>
               );
             })()}

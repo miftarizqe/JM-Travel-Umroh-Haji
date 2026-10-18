@@ -619,7 +619,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     { icon: '⚙️', label: 'Pengaturan Sistem', children: [
       { icon: '⚙️', label: 'Pengaturan Umum', path: '/admin/pengaturan' },
       { icon: '📜', label: 'Pengaturan Dokumen', path: '/admin/pengaturan/dokumen' },
-      { icon: '📤', label: 'Import Dokumen Fisik', path: '/admin/pengaturan/dokumen-fisik' },
     ] },
     // Diurutin per tema (dikonfirmasi user 2026-10-17) — promosi/diskon
     // dulu, baru konten website. TETAP flat (gak dipecah subgrup kayak
@@ -646,8 +645,14 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     perwakilan: [
       { icon: '🏠', label: 'Beranda', path: '/dashboard/perwakilan' },
       { icon: '🕌', label: 'Program', path: '/programs' },
-      { icon: '🌳', label: 'Downline', path: '/dashboard/downline' },
+      // Booking Saya & Team (relabel dari "Downline") disamakan ke pola
+      // Sahabat Baitullah (dikonfirmasi user 2026-10-18) — /dashboard/jamaah
+      // generik (query by user_id, gak gate role), sama persis yang dipakai
+      // Sahabat buat "Booking Saya" sendiri.
+      { icon: '📦', label: 'Booking Saya', path: '/dashboard/jamaah' },
+      { icon: '🌳', label: 'Team', path: '/dashboard/downline' },
       { icon: '💰', label: 'Harga', path: '/perwakilan/harga' },
+      { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/perwakilan/riwayat-closing' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],

@@ -146,7 +146,7 @@ function PKSPageInner() {
   }
 
   const pakaiPasalLengkap = jenis === 'perwakilan' || jenis === 'sahabat_baitullah';
-  const judulLengkap = 'Surat Perjanjian Kerja Sama Perwakilan (SPK-PWK)';
+  const judulLengkap = 'Surat Perjanjian Kerja Sama Perwakilan';
   const judulSahabat = pksUser?.agama === 'non_islam'
     ? 'Surat Perjanjian Referral Non-Muslim — Program Sahabat Baitullah'
     : 'Surat Perjanjian Jamaah Umroh — Program Sahabat Baitullah';

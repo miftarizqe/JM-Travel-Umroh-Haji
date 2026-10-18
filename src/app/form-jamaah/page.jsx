@@ -14,7 +14,7 @@ const draftKey = (bookingId) => `draft_form_jamaah_${bookingId}`;
 
 const emptyJamaah = () => ({
   nama: '', nik: '', paspor: '', tl: '', ttl: '', exp_mulai: '', exp_paspor: '',
-  tkp: '', jk: 'Laki-Laki', alamat: '', alamat_kirim: '', wa: '', email: '',
+  tkp: '', jk: '', alamat: '', alamat_kirim: '', wa: '', email: '',
   pkj: '', ayah: '', ibu: '', pendidikan: '', penyakit: '', mahram: '', hub_mahram: 'Suami/Istri',
   wali_nama: '', wali_hub: '',
   kdnama: '', kdwa: '', kdhub: '',
@@ -717,6 +717,7 @@ function FormJamaahPageInner() {
             <div data-field="jk">
               <label className={lbl}>Jenis Kelamin *</label>
               <select value={j.jk} onChange={e => setField('jk', e.target.value)} className={c('jk')}>
+                <option value="">— Pilih —</option>
                 <option>Laki-Laki</option>
                 <option>Perempuan</option>
               </select>

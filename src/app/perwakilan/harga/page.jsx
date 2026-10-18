@@ -30,6 +30,17 @@ export default function AturHargaPerwakilan() {
       .catch(() => {});
   }
 
+  // Dipanggil ulang abis ajukanHarga (dikonfirmasi user 2026-10-18, barengan
+  // auto-approve) -- kalau auto-approved, harga jual di perwakilan_harga
+  // udah berubah SEKETIKA, bukan cuma status pengajuan yang berubah. Tanpa
+  // ini angka "Harga jual" di layar tetap keliatan lama sampai reload manual.
+  function loadPrograms() {
+    fetch(`/api/perwakilan/harga?perw_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => { setPrograms(d.programs || []); setUpline(d.upline || null); })
+      .catch(() => {});
+  }
+
   useEffect(() => {
     if (!user) return;
     if (user.role !== 'perwakilan') { router.push('/dashboard/jamaah'); return; }
@@ -62,11 +73,26 @@ export default function AturHargaPerwakilan() {
       alert(d.message);
       setOpenForm(null); setFormHarga(''); setFormAlasan('');
       loadRequests();
+      loadPrograms();
     } catch { alert('Terjadi kesalahan'); }
     setSubmitting(false);
   }
 
   if (!user || loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
+
+  // Akun belum aktif gak boleh ngajuin custom harga ke admin (ditemukan &
+  // digate 2026-10-18, mirror gerbang yang sama di Kalkulator Perwakilan).
+  if (user.status !== 'active') {
+    return (
+      <Layout title="💰 Harga Jual">
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center max-w-md mx-auto">
+          <div className="text-3xl mb-2">⏳</div>
+          <h4 className="font-bold text-yellow-800 mb-1">Akun Anda Belum Aktif</h4>
+          <p className="text-sm text-yellow-600">Selesaikan dulu proses pendaftaran Perwakilan sebelum bisa lihat harga & mengajukan harga custom.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   const prog = programs.find(p => p.prog_id === selected);
 

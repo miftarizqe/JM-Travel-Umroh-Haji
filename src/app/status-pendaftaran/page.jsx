@@ -127,7 +127,7 @@ export default function StatusPendaftaranPage() {
     {
       key: 'docs_sent',
       label: 'Perjanjian Dikirim ke Alamat Anda',
-      desc: `JM Travel telah mengirimkan Perjanjian Kerjasama Perwakilan (2 rangkap) + info rekening BSI + ID Card ke: ${user.alamat_kirim || '-'}.`,
+      desc: `JM Travel telah mengirimkan Perjanjian Kerjasama Perwakilan (2 rangkap) + info rekening BSI ke: ${user.alamat_kirim || '-'}.`,
       icon: '📦',
       paket: true
     },

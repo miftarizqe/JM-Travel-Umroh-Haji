@@ -1,0 +1,73 @@
+// Daftar nama bank Indonesia — dipakai buat dropdown/searchable-select
+// field "Nama Bank" (dikonfirmasi user 2026-10-18, gantiin free-text biar
+// gak ada variasi penulisan beda-beda per orang, mis. "BSI"/"Bank Syariah
+// Indonesia"/"bsi"). "Lainnya" sengaja TETAP ada di paling bawah buat bank
+// yang kelewat dari daftar ini — value-nya string kosong khusus biar field
+// berubah jadi input bebas (lihat pemakaiannya di tiap form).
+export const DAFTAR_BANK = [
+  'Bank Syariah Indonesia (BSI)',
+  'BCA', 'BCA Syariah',
+  'Bank Mandiri', 'Mandiri Syariah',
+  'BNI', 'BNI Syariah',
+  'BRI', 'BRI Syariah',
+  'CIMB Niaga', 'CIMB Niaga Syariah',
+  'Permata Bank', 'Permata Bank Syariah',
+  'Danamon', 'Danamon Syariah',
+  'BTN', 'BTN Syariah',
+  'Bank Muamalat',
+  'Bank Mega', 'Bank Mega Syariah',
+  'Maybank Indonesia',
+  'OCBC NISP',
+  'Panin Bank', 'Panin Dubai Syariah',
+  'Bank DKI', 'Bank DKI Syariah',
+  'Bank Jabar Banten (BJB)', 'BJB Syariah',
+  'Bank Jateng',
+  'Bank Jatim',
+  'Bank Sumut',
+  'Bank Nagari (Sumbar)',
+  'Bank Riau Kepri',
+  'Bank Sumsel Babel',
+  'Bank Lampung',
+  'Bank Kalbar',
+  'Bank Kalsel',
+  'Bank Kaltimtara',
+  'Bank Sulselbar',
+  'Bank Sulutgo',
+  'Bank NTB Syariah',
+  'Bank NTT',
+  'Bank Maluku Malut',
+  'Bank Papua',
+  'Bank Aceh Syariah',
+  'Bank Bengkulu',
+  'Bank Jambi',
+  'Bank Sultra',
+  'Bank DIY',
+  'Sinarmas',
+  'Bukopin', 'KB Bukopin Syariah',
+  'Bank Jago',
+  'SeaBank',
+  'Bank Neo Commerce',
+  'Allo Bank',
+  'Bank Raya',
+  'Bank Index',
+  'Bank Mayapada',
+  'Bank Sahabat Sampoerna',
+  'Bank Ina Perdana',
+  'Bank Victoria',
+  'Bank Artha Graha',
+  'Bank Woori Saudara',
+  'Bank Multiarta Sentosa',
+  'Bank Capital Indonesia',
+  'Citibank',
+  'HSBC Indonesia',
+  'Standard Chartered',
+  'UOB Indonesia',
+  'DBS Indonesia',
+];
+
+// Opsi dipakai bareng SearchableSelect — value & label sengaja sama (nama
+// bank disimpan apa adanya sebagai string, gak ada kode/ID terpisah).
+export const OPSI_DAFTAR_BANK = [
+  ...DAFTAR_BANK.map(b => ({ value: b, label: b })),
+  { value: '__lainnya__', label: 'Lainnya (ketik manual)' },
+];

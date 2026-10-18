@@ -18,15 +18,21 @@ const SIGNER_KEUANGAN_FIELDS = [
   { key: 'jabatan_penandatangan_keuangan', label: 'Jabatan Penandatangan', placeholder: 'Mis. Staff Keuangan' },
 ];
 
+// Label TANPA singkatan (SPK/SPJ/SK-CIF/S&K dicabut, dikonfirmasi user
+// 2026-10-18 — cuma scope tab admin ini, istilah end-user yang udah
+// established di tempat lain gak ikut berubah) + dikelompokkan per `grup`
+// biar gak perlu nempelin nama role ke tiap label lagi (foldernya udah
+// nunjukin itu, lihat rendering "Isi Pasal" di bawah).
 const DOKUMEN_LIST = [
-  { key: 'spka_ins', label: 'SPK-PWK (Perwakilan)' },
-  { key: 'jamaah', label: 'SPJ (Perjanjian Jamaah)' },
-  { key: 'spk_ak', label: 'Surat Perjanjian Jamaah Sahabat Baitullah' },
-  { key: 'spk_ak_nonis', label: 'Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
-  { key: 'sk_cif', label: 'SK-CIF (Sahabat Baitullah)' },
-  { key: 'surat_pemblokiran', label: 'Surat Pemblokiran Rekening (Sahabat Baitullah)' },
-  { key: 'ganti_target_sahabat', label: 'S&K Ganti Target Impian (Sahabat Baitullah)' },
+  { key: 'spka_ins', label: 'Surat Perjanjian Kerjasama', grup: 'Perwakilan' },
+  { key: 'jamaah', label: 'Surat Perjanjian Jamaah Umroh', grup: 'Jamaah' },
+  { key: 'spk_ak', label: 'Surat Perjanjian Kerjasama', grup: 'Sahabat Baitullah' },
+  { key: 'spk_ak_nonis', label: 'Surat Perjanjian Kerjasama - Non Muslim', grup: 'Sahabat Baitullah' },
+  { key: 'sk_cif', label: 'Surat Kuasa Multi CIF', grup: 'Sahabat Baitullah' },
+  { key: 'surat_pemblokiran', label: 'Surat Kuasa Pemblokiran Rekening', grup: 'Sahabat Baitullah' },
+  { key: 'ganti_target_sahabat', label: 'Surat Persetujuan Ganti Target Impian', grup: 'Sahabat Baitullah' },
 ];
+const DOKUMEN_GRUP_URUTAN = ['Perwakilan', 'Jamaah', 'Sahabat Baitullah'];
 
 // Sempat dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
 // SPK-AK/SPK-AK Non-Muslim menyusul dikonfirmasi 2026-09-29) pas wording
@@ -37,13 +43,14 @@ const DOKUMEN_LIST = [
 // template PDF resmi, gak kesentuh.
 const DOKUMEN_TERKUNCI = [];
 
-// Ke-4 dokumen ini TETAP dicetak/diunduh orang pakai template PDF resmi
-// (dikonfirmasi user 2026-10-03, bukan pasal) — jadi tombol "Lihat Preview
-// Dokumen Lengkap" buat dokumen ini HARUS nampilin PDF asli itu juga (bukan
-// PreviewDokumenLengkap yang WYSIWYG dari pasal ketikan admin), biar admin
-// gak ketuker preview-nya dengan dokumen yang beneran dicetak/ditandatangani.
-// Pasal yang diketik di tab ini TETAP cuma buat layar baca jamaah.
-const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'];
+// Ke-6 dokumen ini TETAP dicetak/diunduh orang pakai template PDF resmi
+// (dikonfirmasi user 2026-10-03, SPKA-Ins & SPJ menyusul 2026-10-18, bukan
+// pasal) — jadi tombol "Lihat Preview Dokumen Lengkap" buat dokumen ini
+// HARUS nampilin PDF asli itu juga (bukan PreviewDokumenLengkap yang
+// WYSIWYG dari pasal ketikan admin), biar admin gak ketuker preview-nya
+// dengan dokumen yang beneran dicetak/ditandatangani. Pasal yang diketik di
+// tab ini TETAP cuma buat layar baca jamaah/perwakilan.
+const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran', 'spka_ins', 'jamaah'];
 
 // Judul & nomor contoh yang ditampilkan di atas Preview Dokumen Lengkap —
 // SAMA seperti judul yang muncul di halaman cetak beneran (cetak-pks-mitra,
@@ -53,12 +60,12 @@ const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokira
 // surat_pemblokiran: "SURAT PERNYATAAN" baris 1, sisanya baris 2 — persis
 // template resmi BSI, dikonfirmasi user 2026-09-09) — dokumen lain 1 baris.
 const DOKUMEN_JUDUL = {
-  spka_ins: { judul: ['SURAT PERJANJIAN KERJA SAMA PERWAKILAN'], nomor: '09.0001/JMT.SPKA-Ins.IX/2026' },
-  jamaah: { judul: ['SURAT PERJANJIAN JAMAAH UMROH'], nomor: 'BK-CONTOH' },
-  spk_ak: { judul: ['SURAT PERJANJIAN JAMAAH UMROH', 'PROGRAM SAHABAT BAITULLAH'], nomor: '09.0001/JMT.JSB.IX/2026' },
-  spk_ak_nonis: { judul: ['SURAT PERJANJIAN REFERRAL NON-MUSLIM', 'PROGRAM SAHABAT BAITULLAH'], nomor: '09.0001/JMT.JSB-NM.IX/2026' },
-  sk_cif: { judul: ['SURAT KUASA', 'KERJASAMA MULTI CIF', 'PADA LAYANAN BSI CASH MANAGEMENT'], nomor: '09.0001/JMT.SK-CIF.IX/2026' },
-  surat_pemblokiran: { judul: ['SURAT PERNYATAAN', 'KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN'], nomor: '09.0001/JMT.SURAT-PEMBLOKIRAN.IX/2026' },
+  spka_ins: { judul: ['SURAT PERJANJIAN KERJA SAMA PERWAKILAN'], nomor: '000001.10/JMT-PWK/2026' },
+  jamaah: { judul: ['SURAT PERJANJIAN JAMAAH UMROH'], nomor: '000001.10/JMT-SPJ/2026' },
+  spk_ak: { judul: ['SURAT PERJANJIAN JAMAAH UMROH', 'PROGRAM SAHABAT BAITULLAH'], nomor: '000001.10/JMT-JSB/2026' },
+  spk_ak_nonis: { judul: ['SURAT PERJANJIAN REFERRAL NON-MUSLIM', 'PROGRAM SAHABAT BAITULLAH'], nomor: '000001.10/JMT-ASB/2026' },
+  sk_cif: { judul: ['SURAT KUASA', 'KERJASAMA MULTI CIF', 'PADA LAYANAN BSI CASH MANAGEMENT'], nomor: '000001.10/JMT-SK-CIF/2026' },
+  surat_pemblokiran: { judul: ['SURAT PERNYATAAN', 'KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN'], nomor: '000001.10/JMT-SURAT-PEMBLOKIRAN/2026' },
   ganti_target_sahabat: { judul: ['SYARAT & KETENTUAN', 'GANTI TARGET IMPIAN'], nomor: '-' },
 };
 
@@ -448,6 +455,7 @@ export default function AdminPengaturanDokumenPage() {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showPreviewDokumen, setShowPreviewDokumen] = useState(false);
+  const [showPreviewPdf, setShowPreviewPdf] = useState(false);
   const [reordering, setReordering] = useState(null); // nomor pasal yg lagi digeser
 
   function muatPasal(dok) {
@@ -682,38 +690,53 @@ export default function AdminPengaturanDokumenPage() {
         dan <code className="bg-gray-100 px-1 rounded">{'{{bank_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{rekening_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{nama_rekening_agen}}'}</code> buat rekening PENANDA TANGAN (beda tiap orang, jangan diisi manual).
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-3">
-        {DOKUMEN_LIST.map(d => (
-          <button key={d.key} onClick={() => { setEditing(null); setDokumen(d.key); setLoadingPasal(true); }}
-            className={`text-xs font-bold px-4 py-2 rounded-full whitespace-nowrap ${dokumen === d.key ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-            {d.label}
-          </button>
+      <div className="space-y-3 mb-3">
+        {DOKUMEN_GRUP_URUTAN.map(grup => (
+          <div key={grup}>
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">📁 {grup}</div>
+            <div className="flex flex-wrap gap-2">
+              {DOKUMEN_LIST.filter(d => d.grup === grup).map(d => (
+                <button key={d.key} onClick={() => { setEditing(null); setDokumen(d.key); setLoadingPasal(true); }}
+                  className={`text-xs font-bold px-4 py-2 rounded-full whitespace-nowrap ${dokumen === d.key ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
       {!loadingPasal && DOKUMEN_PDF_RESMI.includes(dokumen) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-          ℹ️ Dokumen resmi yang DICETAK/DIUNDUH orang (jamaah, admin) buat dokumen ini TETAP PDF template (dibuat developer) — pasal di bawah ini CUMA dipakai buat layar baca &amp; setuju jamaah (biar kebaca jelas di HP, termasuk Android), tidak menggantikan PDF resminya.
+          ℹ️ Pasal di bawah ini dipakai buat layar baca &amp; centang setuju (jamaah/perwakilan) — &quot;Preview Dokumen Lengkap&quot; nunjukkin itu. Dokumen yang BENERAN dicetak/ditandatangani/diunduh tetap PDF template resmi (dibuat developer), cek lewat &quot;Preview PDF Resmi (Cetak)&quot; di sebelahnya.
         </div>
       )}
 
       {!loadingPasal && !DOKUMEN_TERKUNCI.includes(dokumen) && (
-        <button onClick={() => setShowPreviewDokumen(v => !v)}
-          className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-1.5 rounded-full mb-4">
-          {showPreviewDokumen ? '▲ Sembunyikan Preview Dokumen Lengkap' : '👁️ Lihat Preview Dokumen Lengkap'}
-        </button>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button onClick={() => { setShowPreviewDokumen(v => !v); setShowPreviewPdf(false); }}
+            className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-1.5 rounded-full">
+            {showPreviewDokumen ? '▲ Sembunyikan Preview Dokumen Lengkap' : '👁️ Lihat Preview Dokumen Lengkap'}
+          </button>
+          {DOKUMEN_PDF_RESMI.includes(dokumen) && (
+            <button onClick={() => { setShowPreviewPdf(v => !v); setShowPreviewDokumen(false); }}
+              className="text-xs font-bold text-[#0E2F6E] bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-full">
+              {showPreviewPdf ? '▲ Sembunyikan Preview PDF Resmi' : '📄 Lihat Preview PDF Resmi (Cetak)'}
+            </button>
+          )}
+        </div>
       )}
 
       </div>
 
       {!loadingPasal && showPreviewDokumen && signerForm && (
-        DOKUMEN_PDF_RESMI.includes(dokumen) ? (
-          <div className="mb-6">
-            <PdfDokumenResmi key={dokumen} url={`/api/admin/pasal/contoh-pdf?dokumen=${dokumen}`} tinggi="80vh" />
-          </div>
-        ) : (
-          <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
-        )
+        <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
+      )}
+
+      {!loadingPasal && showPreviewPdf && DOKUMEN_PDF_RESMI.includes(dokumen) && (
+        <div className="mb-6">
+          <PdfDokumenResmi key={dokumen} url={`/api/admin/pasal/contoh-pdf?dokumen=${dokumen}`} tinggi="80vh" />
+        </div>
       )}
 
       <div className="no-print">

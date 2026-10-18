@@ -94,7 +94,6 @@ export default function UpgradePerwakilanPage() {
               '✅ Perwakilan bebas menentukan harga jual ke jamaah',
               '✅ Selisih harga jual dengan HPP menjadi ujroh milik Perwakilan',
               '✅ Perubahan harga di luar ketentuan wajib diajukan & disetujui manajemen',
-              '✅ Difasilitasi ID Card resmi Perwakilan JM Travel',
             ].map(t => <div key={t}>{t}</div>)}
           </div>
         </div>
@@ -117,7 +116,7 @@ export default function UpgradePerwakilanPage() {
             </div>
           </div>
           <div className="text-[10px] opacity-80 mt-3">
-            Rincian lengkap tercantum dalam Surat Perjanjian Kerja Sama Perwakilan (SPK-PWK).
+            Rincian lengkap tercantum dalam Surat Perjanjian Kerja Sama Perwakilan.
           </div>
         </div>
 

@@ -4,9 +4,9 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { CollapsibleSection } from '@/app/components/Collapsible';
 import DownlineModal from '@/app/components/DownlineModal';
+import TombolWA from '@/app/components/TombolWA';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import { pembayaranSudahDiAcc } from '@/lib/bookingStage';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const tglID = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -20,7 +20,6 @@ export default function DashboardPerwakilan() {
   const [openDownlineId, setOpenDownlineId] = useState(null);
   const [expandTerkonfirmasi, setExpandTerkonfirmasi] = useState(false);
   const [expandForecast, setExpandForecast] = useState(null); // null | 'pribadi' | 'downline'
-  const [expandLost, setExpandLost] = useState(null); // null | 'pribadi' | 'downline'
   const [statusDaftar, setStatusDaftar] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [kodeInvite, setKodeInvite] = useState(null);
@@ -56,11 +55,7 @@ export default function DashboardPerwakilan() {
   // Forecast (kartu angka, BUKAN daftar booking) = data?.forecast dari API.
   const programAktif = closings.filter(b => b.status === 'active' || b.status === 'menunggu_batal');
   const riwayatClosing = closings.filter(b => b.status === 'selesai');
-  const riwayatBatal = closings.filter(b => b.status === 'dibatalkan');
-  const historyProgram = [...riwayatClosing, ...riwayatBatal]
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   const forecastDownline = data?.forecast?.downline_bookings || [];
-  const lostDownline = data?.lost?.downline_bookings || [];
 
   // Kode/link rekrut perwakilan baru SEKARANG pakai kode_invite_perwakilan
   // (acak, TERPISAH dari kode_unik yang sekuensial/predictable) — kode_unik
@@ -73,95 +68,28 @@ export default function DashboardPerwakilan() {
     navigator.clipboard.writeText(linkReferral).then(() => { setCopiedLink(true); setTimeout(() => setCopiedLink(false), 2000); });
   }
 
-  function BookingRow(b) {
-    return (
-      <tr key={b.id} className="odd:bg-white even:bg-gray-50">
-        <td className="px-4 py-3">
-          <div className="font-semibold text-[#0E2F6E]">{b.prog_name}</div>
-          {b.jamaah?.[0]?.nama && (
-            <div className="text-xs font-semibold text-[#C9952A] mt-0.5">
-              📛 {b.jamaah[0].nama}{b.jamaah.length > 1 ? ` & ${b.jamaah.length - 1} lainnya` : ''}
-            </div>
-          )}
-          <div className="text-[10px] text-gray-400 font-mono">{b.id}</div>
-        </td>
-        <td className="px-4 py-3 text-gray-500 capitalize">{b.paket}</td>
-        <td className="px-4 py-3 text-gray-500">{b.jumlah_jamaah} org</td>
-        <td className="px-4 py-3 text-gray-500">{rp(b.hpp_per_jamaah)}</td>
-        <td className="px-4 py-3 text-gray-500">{rp(b.harga_jual_per_jamaah)}</td>
-        <td className="px-4 py-3 font-bold text-green-600">
-          {b.dp_status==='confirmed' ? rp(b.ujroh) : <span className="text-gray-300">{rp(b.ujroh)}</span>}
-        </td>
-        <td className="px-4 py-3">
-          <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-            b.status==='selesai' ? 'bg-green-100 text-green-700' :
-            b.status==='dibatalkan' ? 'bg-gray-200 text-gray-600' :
-            b.status==='menunggu_batal' ? 'bg-yellow-100 text-yellow-700' :
-            b.dp_status==='confirmed' ? 'bg-green-100 text-green-700' :
-            b.dp_status==='rejected' ? 'bg-red-100 text-red-600' :
-            'bg-yellow-100 text-yellow-700'
-          }`}>
-            {b.status==='selesai' ? '✅ Selesai' :
-             b.status==='dibatalkan' ? '❌ Dibatalkan' :
-             b.status==='menunggu_batal' ? '⏳ Proses Batal' :
-             b.dp_status==='confirmed'?'✅ Confirmed':b.dp_status==='rejected'?'❌ Rejected':'⏳ Pending'}
-          </span>
-        </td>
-        <td className="px-4 py-3">
-          {b.status !== 'active' ? (
-            <span className="text-xs text-gray-300">-</span>
-          ) : b.form_lengkap ? (
-            <span className="text-xs font-bold text-green-600">✅ Lengkap</span>
-          ) : (
-            <button
-              onClick={() => router.push(`/form-jamaah?booking_id=${b.id}`)}
-              className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
-            >
-              📋 Lengkapi ({b.form_filled}/{b.form_total})
-            </button>
-          )}
-        </td>
-        <td className="px-4 py-3">
-          {b.status === 'active' && b.ordered_by === user.id && !pembayaranSudahDiAcc(b) && (
-            <button
-              onClick={() => router.push(`/batalkan-program?booking_id=${b.id}`)}
-              className="border border-red-300 text-red-500 text-xs font-bold px-3 py-1.5 rounded-full hover:bg-red-50 transition-colors whitespace-nowrap"
-            >
-              ❌ Batalkan
-            </button>
-          )}
-        </td>
-      </tr>
-    );
-  }
-
   return (
     <Layout>
-      {/* Welcome */}
-      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 mb-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold">Dashboard Perwakilan 🏢</h2>
-            <p className="text-sm opacity-85 mt-1">Selamat datang, {user.name.split(' ')[0]}!</p>
-            {wilayah !== '-' && <p className="text-xs opacity-75 mt-0.5">📍 {wilayah}</p>}
-          </div>
-          {user.kode_unik && (
-            <span className="bg-white/15 border border-white/30 rounded-full px-3 py-1 text-xs font-bold">
-              🔑 {user.kode_unik}
-            </span>
-          )}
-        </div>
+      {/* Welcome Banner — disamakan ke gaya Sahabat Baitullah (dikonfirmasi
+          user 2026-10-18): sapaan + subjudul, bukan lagi kartu statis
+          "Dashboard Perwakilan 🏢". */}
+      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white rounded-2xl p-6 mb-4">
+        <h2 className="text-xl md:text-2xl font-bold">Assalamualaikum, {user.name.split(' ')[0]} 👋</h2>
+        <p className="text-sm opacity-85 mt-1">Selamat datang di Dashboard Perwakilan</p>
+        {wilayah !== '-' && <p className="text-xs opacity-75 mt-0.5">📍 {wilayah}</p>}
       </div>
 
       {/* Aksi Cepat — pintasan sama gaya kayak dashboard jamaah/sahabat,
           disesuaikan sidebar Perwakilan sendiri (dikonfirmasi user
-          2026-10-06). */}
-      <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6">
+          2026-10-06, diperbarui 2026-10-18 nambahin Booking Saya & rename
+          Downline -> Team biar sejajar sidebar Sahabat). */}
+      <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">
         <div className="font-bold text-[#0E2F6E] text-sm mb-2">⚡ Aksi Cepat</div>
         <div className="flex flex-wrap gap-2">
           {[
             { icon: '🕌', label: 'Lihat Program', action: () => router.push('/programs') },
-            { icon: '🌳', label: 'Downline', action: () => router.push('/dashboard/downline') },
+            { icon: '📦', label: 'Booking Saya', action: () => router.push('/dashboard/jamaah') },
+            { icon: '🌳', label: 'Team', action: () => router.push('/dashboard/downline') },
             { icon: '💰', label: 'Harga', action: () => router.push('/perwakilan/harga') },
             { icon: '🎟️', label: 'Voucher', action: () => router.push('/voucher') },
             { icon: '📞', label: 'Hubungi Kami', action: () => window.open(waLink(pengaturan.wa_kantor) || '#', '_blank') },
@@ -171,6 +99,33 @@ export default function DashboardPerwakilan() {
               {item.icon} {item.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      {/* Nama + kode akun — strip gradient kecil, posisi & gaya sama persis
+          dashboard Sahabat Baitullah (dikonfirmasi user 2026-10-18). */}
+      <div className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] rounded-xl p-3 text-white flex items-center justify-between gap-2 mb-4">
+        <div className="text-sm opacity-90">{user.name} · {user.kode_unik || '-'}</div>
+      </div>
+
+      {/* 3 kartu ringkas (Team / Total Jamaah / Ujroh Pending) — mirror
+          susunan kartu Sahabat Baitullah, datanya disesuaikan ke yang
+          relevan buat Perwakilan (gak ada konsep tabungan BSI, diganti
+          Total Jamaah — dikonfirmasi user 2026-10-18). Ujroh Pending SELALU
+          tampil (gak disembunyiin pas 0) — beda dari pola Sahabat yang
+          nyembunyiin pas gak ada pending, dikonfirmasi user 2026-10-18. */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <button onClick={() => router.push('/dashboard/downline')} className="bg-purple-50 rounded-xl p-3 text-left cursor-pointer">
+          <div className="text-[11px] text-gray-500">Team</div>
+          <div className="text-xl font-black text-purple-700 underline decoration-dotted">{r.jumlah_downline || 0}</div>
+        </button>
+        <div className="bg-blue-50 rounded-xl p-3 text-left">
+          <div className="text-[11px] text-gray-500">Total Jamaah</div>
+          <div className="text-xl font-black text-[#1A4FA0]">{r.total_jamaah || 0}</div>
+        </div>
+        <div className="bg-amber-50 rounded-xl p-3 text-left">
+          <div className="text-[11px] text-gray-500">Ujroh Pending</div>
+          <div className="text-lg font-black text-amber-700">{rp(r.saldo_pending)}</div>
         </div>
       </div>
 
@@ -310,53 +265,6 @@ export default function DashboardPerwakilan() {
         </div>
       )}
 
-      {/* Lost — ujroh/margin yang HILANG karena booking dibatalkan. Beda dari
-          Forecast: begitu booking batal, dia diam-diam hilang dari Forecast
-          (dikeluarkan dari daftar 'active') tanpa jejak — kartu ini nyimpen
-          jejaknya biar keliatan berapa yang hilang, bukan cuma menguap. */}
-      <div className="grid grid-cols-2 gap-4 mb-2">
-        <div onClick={() => setExpandLost(expandLost==='pribadi'?null:'pribadi')}
-          className={`bg-white rounded-xl border-2 p-4 cursor-pointer transition-all ${expandLost==='pribadi'?'border-red-400':'border-[#e0e8f0] hover:border-red-400'}`}>
-          <div className="text-xs text-gray-400 mb-1">❌ Lost — Closing Sendiri</div>
-          <div className="font-black text-red-500 text-lg">{rp(data?.lost?.potensi_pribadi || 0)}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Batal sebelum closing · {expandLost==='pribadi'?'Tutup ▲':'Lihat rincian ▼'}</div>
-        </div>
-        <div onClick={() => setExpandLost(expandLost==='downline'?null:'downline')}
-          className={`bg-white rounded-xl border-2 p-4 cursor-pointer transition-all ${expandLost==='downline'?'border-red-400':'border-[#e0e8f0] hover:border-red-400'}`}>
-          <div className="text-xs text-gray-400 mb-1">❌ Lost — Margin Downline</div>
-          <div className="font-black text-red-500 text-lg">{rp(data?.lost?.potensi_override || 0)}</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">Batal sebelum closing downline · {expandLost==='downline'?'Tutup ▲':'Lihat rincian ▼'}</div>
-        </div>
-      </div>
-
-      {expandLost && (
-        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6 space-y-2">
-          <div className="font-bold text-[#0E2F6E] text-sm mb-1">
-            📋 Riwayat Batal — {expandLost==='pribadi'?'Closing Sendiri':'Margin Downline'}
-          </div>
-          {expandLost==='pribadi' && (
-            riwayatBatal.length === 0 ? (
-              <div className="text-xs text-gray-400">Belum ada booking yang batal.</div>
-            ) : riwayatBatal.map(b => (
-              <div key={b.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2">
-                <span className="text-gray-600">{b.prog_name} · {b.paket} · {b.id}</span>
-                <span className="font-bold text-red-500">{rp(b.ujroh)}</span>
-              </div>
-            ))
-          )}
-          {expandLost==='downline' && (
-            lostDownline.length === 0 ? (
-              <div className="text-xs text-gray-400">Belum ada closing downline yang batal.</div>
-            ) : lostDownline.map(b => (
-              <div key={b.id} className="flex justify-between items-center text-xs bg-gray-50 rounded-lg px-3 py-2">
-                <span className="text-gray-600">{b.prog_name} · {b.id} · dari {b.closer_nama || '-'}</span>
-                <span className="font-bold text-red-500">{rp(b.potensi_nominal)}</span>
-              </div>
-            ))
-          )}
-        </div>
-      )}
-
       {/* Perlu Perhatian — versi perwakilan */}
       {(() => {
         const pp = data?.perlu_perhatian || {};
@@ -385,13 +293,21 @@ export default function DashboardPerwakilan() {
                     <span className="text-xs font-black px-2 py-1 rounded-full bg-red-500 text-white">{c.items.length}</span>
                   </div>
                   <div className="space-y-1">
-                    {c.items.slice(0,5).map((it,i) => (
-                      <div key={i} className="text-xs text-gray-600 bg-white/60 rounded px-2 py-1">
-                        {c.key==='downline'
-                          ? `${it.name} — ${it.email||it.wa||''}`
-                          : `${it.pemesan_nama||'Jamaah'} — ${it.prog_name} ${c.key==='form'?`(${it.form_filled}/${it.form_total} form)`:''}`}
-                      </div>
-                    ))}
+                    {c.items.slice(0,5).map((it,i) => {
+                      const wa = c.key==='downline' ? it.wa : it.pemesan_wa;
+                      return (
+                        <div key={i} className="flex items-center justify-between gap-2 text-xs text-gray-600 bg-white/60 hover:bg-white rounded px-2 py-1">
+                          <span className="truncate">
+                            {c.key==='downline'
+                              ? `${it.name} — ${it.email||it.wa||''}`
+                              : `${it.pemesan_nama||'Jamaah'} — ${it.prog_name} ${c.key==='form'?`(${it.form_filled}/${it.form_total} form)`:''}`}
+                          </span>
+                          {wa && (
+                            <TombolWA nomor={wa} label="WA" className="inline-flex items-center gap-1 bg-green-50 hover:bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap shrink-0" />
+                          )}
+                        </div>
+                      );
+                    })}
                     {c.items.length>5 && <div className="text-[10px] text-gray-400 pl-2">+{c.items.length-5} lainnya...</div>}
                   </div>
                 </div>
@@ -402,99 +318,9 @@ export default function DashboardPerwakilan() {
         );
       })()}
 
-      {/* Program Aktif — booking masih berjalan, termasuk lagi proses
-          pengajuan batal (belum ada keputusan final admin) */}
-      <div id="program-aktif-section">
-      <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">📦 Program Aktif</h3>} badge={programAktif.length + forecastDownline.length} className="mb-6">
-      {programAktif.length === 0 && forecastDownline.length === 0 ? (
-        <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
-          Belum ada order berjalan.{' '}
-          <span className="font-bold cursor-pointer underline" onClick={() => router.push('/programs')}>
-            Order jamaah →
-          </span>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {programAktif.length > 0 && (
-            <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-[#0E2F6E] text-white text-xs">
-                      <th className="px-4 py-3 text-left">Program</th>
-                      <th className="px-4 py-3 text-left">Paket</th>
-                      <th className="px-4 py-3 text-left">Jamaah</th>
-                      <th className="px-4 py-3 text-left">HPP/org</th>
-                      <th className="px-4 py-3 text-left">Jual/org</th>
-                      <th className="px-4 py-3 text-left">Ujroh</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Formulir</th>
-                      <th className="px-4 py-3 text-left">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody>{programAktif.map(BookingRow)}</tbody>
-                </table>
-              </div>
-            </div>
-          )}
-          {forecastDownline.map(b => (
-            <div key={`ov-${b.id}`} className="bg-white rounded-xl border border-dashed border-[#C9952A] p-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <div className="font-bold text-[#0E2F6E] text-sm">{b.prog_name}</div>
-                  <div className="text-xs text-gray-400 mt-0.5 capitalize">
-                    {b.id} · {b.paket} · {b.jumlah_jamaah} jamaah
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    🔗 Dari downline: {b.closer_nama || '-'} (margin reseller)
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700">
-                    {b.status === 'menunggu_batal' ? '⏳ Proses Batal' : '⏳ Berjalan'}
-                  </span>
-                  <div className="text-[10px] text-[#C9952A] font-bold mt-1">{rp(b.potensi_nominal)}</div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      </CollapsibleSection>
-      </div>
-
-      {/* History Program — SUDAH final: selesai berjalan ATAU pembatalannya
-          sudah di-ACC admin (bukan lagi "menunggu_batal", itu di Program Aktif) */}
-      <div id="history-section">
-      <CollapsibleSection title={<h3 className="font-bold text-[#0E2F6E]">📜 History Program</h3>} badge={historyProgram.length} className="mb-6">
-      {historyProgram.length === 0 ? (
-        <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
-          Belum ada program yang selesai atau dibatalkan.
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-[#0E2F6E] text-white text-xs">
-                  <th className="px-4 py-3 text-left">Program</th>
-                  <th className="px-4 py-3 text-left">Paket</th>
-                  <th className="px-4 py-3 text-left">Jamaah</th>
-                  <th className="px-4 py-3 text-left">HPP/org</th>
-                  <th className="px-4 py-3 text-left">Jual/org</th>
-                  <th className="px-4 py-3 text-left">Ujroh</th>
-                  <th className="px-4 py-3 text-left">Status</th>
-                  <th className="px-4 py-3 text-left">Formulir</th>
-                  <th className="px-4 py-3 text-left">Aksi</th>
-                </tr>
-              </thead>
-              <tbody>{historyProgram.map(BookingRow)}</tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      </CollapsibleSection>
-      </div>
+      {/* Program Aktif & History Program DIPINDAH ke halaman "Riwayat
+          Closing" tersendiri (dikonfirmasi user 2026-10-18, mirror Sahabat
+          Baitullah yang detail bookingnya juga gak numpuk di Beranda). */}
 
       {/* Margin Reseller — dari closing perwakilan yang direkrut akun ini */}
       {riwayatReseller.length > 0 && (

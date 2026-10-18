@@ -30,8 +30,16 @@
 // Koordinat Pihak Kedua (identitas, nama TTD) SAMA PERSIS di kedua template
 // (diverifikasi via pdftotext -bbox, cuma sisi Pihak Pertama yang beda),
 // jadi 1 set KOORDINAT_RANGKAP dipakai buat keduanya, tinggal ganti
-// templatePath. SPK-AK Non-Muslim BELUM dapat template 2-rangkap baru
-// (nunggu dari user) — tetap pakai skema 1-rangkap lama di bawah.
+// templatePath.
+//
+// SPK-AK Non-Muslim ("PKS Agen Sahabat Baitullah") SEKARANG JUGA 2 rangkap
+// (dikonfirmasi user 2026-10-18, nyusul Muslim 2026-10-03) -- template &
+// pola render SAMA PERSIS (generateSpkAkNonisRangkapPdf di bawah, cuma beda
+// 2 field: dokumen ini gak punya No. Paspor di halaman 1 & Alamat cuma 1
+// baris, bukan 2). KOORDINAT_RANGKAP.spk_ak (fungsi di atas) TETAP dipakai
+// jalur produksi 1-rangkap LAMA via generateSpkAkPdf({dokumen:'spk_ak_nonis'})
+// -- JANGAN dihapus, masih dipakai dokumen-signature.js (jalur TTD digital,
+// belum sempat diikutkan rangkap, lihat catatan di sana) & sebagai fallback.
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import path from 'path';
 import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter, drawAlamatWrap } from './pdfOverlay';
@@ -40,6 +48,8 @@ const SPK_AK_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templa
 const SPK_AK_NONIS_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spk-ak-nonis-template.pdf');
 const SPK_AK_RANGKAP_JAMAAH_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spk-ak-rangkap-jamaah-template.pdf');
 const SPK_AK_RANGKAP_MANAGEMENT_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spk-ak-rangkap-management-template.pdf');
+const SPK_AK_NONIS_RANGKAP_JAMAAH_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spk-ak-nonis-rangkap-jamaah-template.pdf');
+const SPK_AK_NONIS_RANGKAP_MANAGEMENT_TEMPLATE_PATH = path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spk-ak-nonis-rangkap-management-template.pdf');
 
 const FONT_SIZE = 11;
 const FONT_SIZE_TTD = 10;
@@ -53,7 +63,11 @@ const KOORDINAT = {
     templatePath: SPK_AK_TEMPLATE_PATH,
     jumlahHalaman: 7,
     p1: {
-      nomor:     { x: 256, y: 661, maxWidth: 128 },
+      // atasExtra: placeholder template "Nomor: 0000xx.09/JMT-JSB/2026" BENERAN
+      // dicetak (bukan garis blank kosong) -- lebih tinggi dari formula
+      // standar, nongol ngintip di atas kotak penutup kalau gak ditambah
+      // (bug nyata 2026-10-18, lihat komentar drawFitKiri di pdfOverlay.js).
+      nomor:     { x: 256, y: 661, maxWidth: 128, atasExtra: 7 },
       hari:      { x: 142, y: 610, maxWidth: 58 },
       tanggal:   { x: 242, y: 610, maxWidth: 104 },
       // nama/alamat dikasih ruang lebih lega (sampai dekat margin kanan
@@ -73,7 +87,7 @@ const KOORDINAT = {
     templatePath: SPK_AK_NONIS_TEMPLATE_PATH,
     jumlahHalaman: 7,
     p1: {
-      nomor:     { x: 254, y: 668, maxWidth: 133 },
+      nomor:     { x: 254, y: 668, maxWidth: 133, atasExtra: 6 },
       hari:      { x: 140, y: 625, maxWidth: 61 },
       tanggal:   { x: 240, y: 625, maxWidth: 108 },
       nama:      { x: 151, y: 451, maxWidth: 350 },
@@ -109,7 +123,13 @@ const FONT_SIZE_RANGKAP = 12;
 const KOORDINAT_RANGKAP = {
   jumlahHalaman: 6,
   p1: {
-    nomor:     { x: 255, y: 669, maxWidth: 255 },
+    // atasExtra lebih kecil dari dokumen lain (4.5, bukan 6-7) -- template
+    // rangkap ini TITIK JUDUL baris ke-2 ("...PROGRAM SAHABAT BAITULLAH")
+    // CUMA berjarak ~0.5pt dari placeholder Nomor di bawahnya (diukur via
+    // pdftotext -bbox, beda dari dokumen lain yang jaraknya ~2-2.5pt) --
+    // atasExtra 6 kepotong nabrak judul (bug nyata screenshot user
+    // 2026-10-18), 4.5 pas di tengah window aman [682.41, 682.81] bottom-up.
+    nomor:     { x: 255, y: 669, maxWidth: 255, atasExtra: 4.5 },
     hari:      { x: 142, y: 642, maxWidth: 64 },
     tanggal:   { x: 253, y: 642, maxWidth: 88 },
     nama:      { x: 190, y: 468, maxWidth: 334 },
@@ -137,6 +157,87 @@ const SPK_AK_RANGKAP_TEMPLATE_PATH = {
   jamaah: SPK_AK_RANGKAP_JAMAAH_TEMPLATE_PATH,
   management: SPK_AK_RANGKAP_MANAGEMENT_TEMPLATE_PATH,
 };
+
+// Koordinat rangkap SPK-AK Non-Muslim ("PKS Agen Sahabat Baitullah") —
+// diukur `pdftotext -bbox` dari 2 template rangkap (2026-10-18). Bagian atas
+// halaman 1 (Nomor/hari/tanggal) PERSIS SAMA posisinya dengan
+// KOORDINAT_RANGKAP.p1 di atas (template dibuat dari boilerplate yang sama)
+// -- tapi Pihak Kedua di sini (AGEN, bukan JAMAAH) CUMA 3 field: Nama,
+// Alamat (1 baris, BUKAN 2 kayak JAMAAH), No. Telepon. Gak ada No. Paspor
+// di halaman 1 (paspor Calon Jamaah diserahkan belakangan, bukan identitas
+// AGEN -- lihat Pasal 2.D). Pasal "biaya bulan X sebesar Rp Y" ada di
+// halaman 4 (index 3), bukan 3 -- Pasal 1-2 AGEN lebih panjang (flow BSI
+// tabungan wadiah dkk) jadi geser 1 halaman dibanding punya JAMAAH.
+const KOORDINAT_RANGKAP_NONIS = {
+  jumlahHalaman: 6,
+  p1: {
+    nomor:     { x: 255, y: 669, maxWidth: 255, atasExtra: 4.5 },
+    hari:      { x: 142, y: 642, maxWidth: 64 },
+    tanggal:   { x: 253, y: 642, maxWidth: 88 },
+    nama:      { x: 190, y: 476, maxWidth: 334 },
+    alamat:    { x: 190, y: 462, maxWidth: 334 },
+    noTelepon: { x: 190, y: 435, maxWidth: 334 },
+  },
+  // Template direvisi user 2026-10-18 (perbaikan teks Pasal 4.6 yang tadinya
+  // ketimpa/numpuk) -- blank "bulan" & "Rp" geser posisi, diukur ulang pakai
+  // file baru.
+  p4: {
+    targetBulanTahun: { x: 268, y: 655, maxWidth: 125 },
+    nominalTarget:    { x: 328, y: 642, maxWidth: 190 },
+  },
+  p6: {
+    tanggalPenutup: { x: 113, y: 462, maxWidth: 300 },
+  },
+};
+const SPK_AK_NONIS_RANGKAP_TEMPLATE_PATH = {
+  jamaah: SPK_AK_NONIS_RANGKAP_JAMAAH_TEMPLATE_PATH,
+  management: SPK_AK_NONIS_RANGKAP_MANAGEMENT_TEMPLATE_PATH,
+};
+
+/**
+ * @param {'jamaah'|'management'} rangkap
+ * @param {object} data
+ * @param {string} data.nomor
+ * @param {string} data.nama
+ * @param {string} data.alamat - 1 baris (beda dari versi Muslim yang 2 baris)
+ * @param {string} data.noTelepon
+ * @param {string} data.hari
+ * @param {string} data.tanggal
+ * @param {string} data.targetBulanTahun
+ * @param {string} data.nominalTarget
+ * @returns {Promise<Buffer>}
+ */
+export async function generateSpkAkNonisRangkapPdf(rangkap, { nomor, nama, alamat, noTelepon, hari, tanggal, targetBulanTahun, nominalTarget }) {
+  const templatePath = SPK_AK_NONIS_RANGKAP_TEMPLATE_PATH[rangkap];
+  if (!templatePath) throw new Error(`Rangkap SPK-AK Non-Muslim tidak dikenal: "${rangkap}"`);
+  const k = KOORDINAT_RANGKAP_NONIS;
+
+  const outDoc = await PDFDocument.create();
+  const pageIndices = Array.from({ length: k.jumlahHalaman }, (_, i) => i);
+  const embedded = await embedTemplatePages(outDoc, templatePath, pageIndices);
+  const font = await outDoc.embedFont(StandardFonts.TimesRoman);
+
+  embedded.forEach((emb, i) => {
+    const page = tempelHalamanTemplate(outDoc, emb);
+    if (i === 0) {
+      drawFitKiri(page, font, nomor, k.p1.nomor, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, hari, k.p1.hari, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, tanggal, k.p1.tanggal, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, nama, k.p1.nama, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, alamat, k.p1.alamat, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, noTelepon, k.p1.noTelepon, FONT_SIZE_RANGKAP);
+    }
+    if (i === 3) {
+      drawFitKiri(page, font, targetBulanTahun, k.p4.targetBulanTahun, FONT_SIZE_RANGKAP);
+      drawFitKiri(page, font, nominalTarget, k.p4.nominalTarget, FONT_SIZE_RANGKAP);
+    }
+    if (i === k.jumlahHalaman - 1) {
+      drawFitKiri(page, font, tanggal, k.p6.tanggalPenutup, FONT_SIZE_RANGKAP);
+    }
+  });
+
+  return Buffer.from(await outDoc.save());
+}
 
 /**
  * @param {'jamaah'|'management'} rangkap

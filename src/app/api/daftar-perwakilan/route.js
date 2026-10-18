@@ -80,15 +80,15 @@ export async function POST(req) {
     // koreksi admin, form wizard ini cuma nampilin read-only. Sumber
     // kebenarannya SELALU dari users.
     const [[userAwal]] = await db.query(
-      'SELECT role, nik, wa, email, perekrut_id, perekrut_perwakilan_jamaah_id, terverifikasi, foto_path FROM users WHERE id = ?', [user_id]
+      'SELECT role, nik, wa, email, perekrut_id, perekrut_perwakilan_jamaah_id, terverifikasi FROM users WHERE id = ?', [user_id]
     );
     // Prasyarat dicek di server juga — gate di /daftar-perwakilan (frontend)
     // cuma tampilan, bisa dilewati dengan POST langsung ke endpoint ini.
+    // Gerbang "wajib unggah foto profil dulu" DICABUT (dikonfirmasi user
+    // 2026-10-17) — gak ada lagi kewajiban bikin ID Card, mirror Sahabat
+    // Baitullah yang dari awal emang gak punya gerbang ini sama sekali.
     if (!userAwal?.terverifikasi) {
       return NextResponse.json({ error: 'Akun Anda masih menunggu verifikasi admin.' }, { status: 403 });
-    }
-    if (!userAwal.foto_path) {
-      return NextResponse.json({ error: 'Unggah foto profil terlebih dahulu.' }, { status: 400 });
     }
     const nik = userAwal?.nik;
     const wa = userAwal?.wa;

@@ -50,7 +50,7 @@ function RegisterPageInner() {
     // akhirnya daftar Sahabat Baitullah (referral non-Muslim).
     agama:'',
     role: roleValid ? roleAwal : '',
-    perekrut_id:'', kode_undangan:'',
+    perekrut_id:'', kode_undangan:'', kode_referral_perwakilan:'',
   });
   // Kalau role udah kebawa dari popup kemitraan, step 2 gak perlu nampilin
   // kartu pilihan lagi (kesannya disuruh milih ulang) — cukup ringkasan
@@ -194,7 +194,7 @@ function RegisterPageInner() {
       .then(r => r.json())
       .then(d => {
         if (d.valid) {
-          setForm(f => ({ ...f, perekrut_id: d.id }));
+          setForm(f => ({ ...f, perekrut_id: d.id, kode_referral_perwakilan: refCode }));
           setPerekrutTerkunciPerwakilan({ id: d.id, name: d.name, kode_unik: d.kode_unik });
         } else setRefNotFound(true);
       })
@@ -254,7 +254,7 @@ function RegisterPageInner() {
       })
         .then(r => r.json())
         .then(d => {
-          if (d.valid) { setForm(f => ({ ...f, perekrut_id: d.id })); setKodeReferralInvalid(false); }
+          if (d.valid) { setForm(f => ({ ...f, perekrut_id: d.id, kode_referral_perwakilan: kode })); setKodeReferralInvalid(false); }
           else setKodeReferralInvalid(true);
         })
         .catch(() => {})

@@ -30,9 +30,21 @@ export default function DashboardDownlinePage() {
 
   if (!user || loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
+  // Akun belum aktif belum punya kode_unik sama sekali (baru dijatah pas
+  // status jadi 'active', lihat /api/status-pendaftaran) — pesan "ajak pakai
+  // kode" di bawah bakal kosong & membingungkan kalau dibiarkan. Reminder
+  // terpisah di sini (ditemukan & digate 2026-10-18, mirror Harga/Kalkulator).
+  const belumAktif = user.status !== 'active';
+
   return (
     <Layout title="🌳 Jaringan Downline" showBack>
-      {downline.length === 0 ? (
+      {belumAktif ? (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
+          <div className="text-3xl mb-2">⏳</div>
+          <h4 className="font-bold text-yellow-800 mb-1">Akun Anda Belum Aktif</h4>
+          <p className="text-sm text-yellow-600">Selesaikan dulu proses pendaftaran Perwakilan — kode rekrut Team baru aktif setelah akun Anda disetujui admin.</p>
+        </div>
+      ) : downline.length === 0 ? (
         <div className="bg-[#E8F0FB] rounded-xl p-6 text-center text-sm text-[#1A4FA0]">
           Belum ada downline. Ajak perwakilan baru pakai kode <strong>{kodeUnik}</strong> untuk mulai dapat margin reseller.
         </div>

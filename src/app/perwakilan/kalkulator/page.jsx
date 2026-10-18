@@ -22,7 +22,6 @@ export default function KalkulatorPerwakilanPage() {
   const [user] = useCurrentUser();
   const [tab, setTab] = useState('template'); // 'template' | 'quote'
   const [template, setTemplate] = useState([]);
-  const [baseline, setBaseline] = useState([]);
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,17 +29,38 @@ export default function KalkulatorPerwakilanPage() {
     if (!user) return;
     if (user.role !== 'perwakilan') { router.replace('/login'); return; }
     Promise.all([
+      // `baseline` (tipe='baseline', "Kalkulator Acuan") SENGAJA gak dipakai
+      // di sini — itu bukan template yang bisa dipilih user, murni config
+      // internal per jenis_program (lihat komentar di
+      // /api/kalkulator-publik/template). Kalau ikut dirender di grid,
+      // hasilnya card kosong (gak punya nama/gambar) — bug ditemukan &
+      // diperbaiki 2026-10-18.
       fetch('/api/kalkulator-publik/template').then(r => r.json()),
       fetch('/api/perwakilan/kalkulator').then(r => r.json()),
     ]).then(([t, q]) => {
-      setTemplate(t.template || []); setBaseline(t.baseline || []); setQuotes(q.leads || []);
+      setTemplate(t.template || []); setQuotes(q.leads || []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [user, router]);
 
   if (!user || loading) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
-  const semuaTemplate = [...template, ...baseline];
+  // Akun belum aktif (masih funnel pendaftaran) gak boleh pakai kalkulator
+  // ini — hasilnya dimaksudkan buat ditawarkan ke jamaah & diajukan ke
+  // admin, gak pantas dipakai sebelum diverifikasi sebagai perwakilan resmi
+  // (ditemukan & digate 2026-10-18, gerbang sama diterapkan server-side di
+  // POST .../simpan & PATCH .../[id]).
+  if (user.status !== 'active') {
+    return (
+      <Layout title="🧮 Kalkulator Perwakilan" showBack>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
+          <div className="text-3xl mb-2">⏳</div>
+          <h4 className="font-bold text-yellow-800 mb-1">Akun Anda Belum Aktif</h4>
+          <p className="text-sm text-yellow-600">Selesaikan dulu proses pendaftaran Perwakilan sebelum bisa mengeksplorasi harga & bikin quote.</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="🧮 Kalkulator Perwakilan" showBack>
@@ -61,11 +81,11 @@ export default function KalkulatorPerwakilanPage() {
       </div>
 
       {tab === 'template' && (
-        semuaTemplate.length === 0 ? (
+        template.length === 0 ? (
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-6 text-center text-sm text-gray-400">Belum ada template kalkulator tersedia.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {semuaTemplate.map(t => (
+            {template.map(t => (
               <button key={t.id} onClick={() => router.push(`/perwakilan/kalkulator/${t.id}`)}
                 className="text-left bg-white rounded-2xl border border-[#e0e8f0] overflow-hidden hover:shadow-lg transition-all">
                 {t.gambar ? (

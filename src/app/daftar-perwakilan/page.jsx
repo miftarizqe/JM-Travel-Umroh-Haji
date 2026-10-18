@@ -6,19 +6,21 @@ import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan } from '@/lib/usePengaturan';
-import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
+import { AddressFields } from '@/app/components/AddressFields';
 import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { labelPerekrut } from '@/lib/labelPerekrut';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
+import BankInput from '@/app/components/BankInput';
 
 const emptyForm = () => ({
-  // Default Tanggal Lahir diisi persis tgl termuda yang masih valid (17
-  // tahun dari hari ini, dikonfirmasi user 2026-10-08) — biar date picker
-  // gak nongol tahun sekarang yang jelas-jelas gak valid pas pertama
-  // dibuka, pendaftar tinggal mundur dari situ.
-  nama:'', nik:'', tempat_lahir:'', tl: maksTglLahir17Tahun(), jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
+  // Tanggal Lahir & Jenis Kelamin SENGAJA kosong (dikonfirmasi user
+  // 2026-10-18, mirror /daftar-sahabat sejak 2026-10-15) — dulu di-autofill
+  // (tgl persis 17 tahun lalu & "Laki-Laki"), gampang kelewat gak diganti
+  // jadi data salah. Batas minimal 17 tahun tetap lewat `max` date picker +
+  // validStep() + server.
+  nama:'', nik:'', tempat_lahir:'', tl: '', jk: '', ibu:'', ayah:'', foto_ktp_path:'',
   // Alamat KTP
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   // Alamat domisili — sama_ktp true berarti dianggap sama dgn alamat KTP di atas
@@ -48,6 +50,13 @@ export default function DaftarPerwakilanPage() {
     nama: user?.name || '', nik: user?.nik || '', wa: user?.wa || '', email: user?.email || '',
   }));
   const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=rekening+perekrut, 4=konfirmasi
+  // Highlight error per-field cuma di step Alamat (dikonfirmasi user
+  // 2026-10-18, mirror /daftar-sahabat 2026-10-15) — step lain tetap pakai
+  // alert() biasa di validStep(), sengaja gak diubah.
+  const [errors, setErrors] = useState({});
+  // Checkbox eksplisit "data sudah benar" di step Konfirmasi (dikonfirmasi
+  // user 2026-10-18) — WAJIB dicentang sebelum bisa Kirim Formulir.
+  const [konfirmasiData, setKonfirmasiData] = useState(false);
   const [loading, setLoading] = useState(false);
   const [cek, setCek] = useState(null); // prasyarat
   const [uploadingKtp, setUploadingKtp] = useState(false);
@@ -61,7 +70,12 @@ export default function DaftarPerwakilanPage() {
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim() || !!form.pkj.trim();
   useUnsavedGuard(isDirty);
 
-  const setF = (k,v) => setForm(p => ({...p, [k]: v}));
+  const setF = (k,v) => {
+    setForm(p => ({...p, [k]: v}));
+    // Ubah data setelah sempat centang konfirmasi -> minta centang ulang,
+    // jangan biarin konfirmasi lama (atas data yang udah berubah) kebawa.
+    setKonfirmasiData(false);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -116,7 +130,7 @@ export default function DaftarPerwakilanPage() {
         nama: kosong(prev.nama) ? (p.name || '') : prev.nama,
         nik: kosong(prev.nik) ? (p.nik || '') : prev.nik,
         tempat_lahir: kosong(prev.tempat_lahir) ? (p.tempat_lahir || '') : prev.tempat_lahir,
-        tl: prev.tl === maksTanggalLahir17Tahun && p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : prev.tl,
+        tl: !prev.tl && p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : prev.tl,
         jk: p.jenis_kelamin || prev.jk,
         ibu: kosong(prev.ibu) ? (p.nama_ibu || '') : prev.ibu,
         ayah: kosong(prev.ayah) ? (p.nama_ayah || '') : prev.ayah,
@@ -139,7 +153,6 @@ export default function DaftarPerwakilanPage() {
         provinsi: kosong(prev.provinsi) ? (p.alamat_ktp_provinsi || '') : prev.provinsi,
       }));
     }).catch(()=>{});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Perekrut dari registrasi sudah final (role sudah 'perwakilan') — dipakai
@@ -177,6 +190,7 @@ export default function DaftarPerwakilanPage() {
       if (!form.tempat_lahir.trim()) return alert('Tempat lahir wajib diisi!') || false;
       if (!form.tl) return alert('Tanggal lahir wajib diisi!') || false;
       if ((hitungUmur(form.tl) ?? 0) < 17) return alert('Pendaftar Perwakilan wajib minimal berusia 17 tahun!') || false;
+      if (!['Laki-Laki', 'Perempuan'].includes(form.jk)) return alert('Jenis kelamin wajib dipilih!') || false;
       if (!form.ibu.trim()) return alert('Nama ibu kandung wajib diisi!') || false;
       if (!form.ayah.trim()) return alert('Nama ayah kandung wajib diisi!') || false;
       if (!form.wa.trim()) return alert('No. WhatsApp wajib diisi!') || false;
@@ -184,14 +198,29 @@ export default function DaftarPerwakilanPage() {
       if (!form.foto_ktp_path) return alert('Foto KTP wajib diunggah!') || false;
     }
     if (step === 2) {
-      if (!alamatLengkap(form, ''))
-        return alert('Alamat KTP wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
-      if (!form.sama_ktp && !alamatLengkap(form, '_dom'))
-        return alert('Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
+      // Highlight per-field (mirror /daftar-sahabat 2026-10-15) — sama
+      // persis daftar field wajib alamatLengkap(), 'kp' (Kode Pos) sengaja
+      // dilewat (opsional).
+      const e = {};
+      const FIELD_ALAMAT = ['provinsi', 'kota', 'kec', 'kel', 'jalan', 'norumah', 'rt', 'rw', 'negara'];
+      for (const f of FIELD_ALAMAT) if (!String(form[f] || '').trim()) e[f] = 'Wajib diisi';
+      if (!form.sama_ktp) for (const f of FIELD_ALAMAT) if (!String(form[`${f}_dom`] || '').trim()) e[`${f}_dom`] = 'Wajib diisi';
+      setErrors(e);
+      if (Object.keys(e).length > 0) {
+        requestAnimationFrame(() => {
+          document.querySelector('[data-err="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        return false;
+      }
+    } else if (Object.keys(errors).length > 0) {
+      setErrors({});
     }
     if (step === 3) {
       if (!form.bank.trim() || !form.norek.trim() || !form.pemilik.trim())
         return alert('Data rekening wajib diisi!') || false;
+    }
+    if (step === 4) {
+      if (!konfirmasiData) return alert('Centang dulu konfirmasi bahwa data sudah benar!') || false;
     }
     return true;
   }
@@ -249,16 +278,10 @@ export default function DaftarPerwakilanPage() {
   // Admin tetap review manual di titik "Aktifkan" ujung funnel
   // (/api/status-pendaftaran), dan cekPemesanBolehOrder tetap nahan akun
   // sebelum status beneran 'active' — jadi gak ada yang kelewat.
-  if (cek && !cek.prasyarat?.foto_profil) {
-    return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
-        <div className="text-3xl mb-2">📷</div>
-        <h4 className="font-bold text-yellow-800 mb-1">Unggah Foto Profil Dulu</h4>
-        <p className="text-sm text-yellow-700 mb-3">Foto wajib untuk ID Card perwakilan.</p>
-        <button onClick={() => router.push('/upload-foto')}
-          className="bg-[#1A4FA0] text-white text-sm font-bold px-5 py-2 rounded-full">Unggah Foto →</button>
-      </div></div></Layout>;
-  }
+  //
+  // Gerbang "wajib unggah foto profil dulu" DICABUT (dikonfirmasi user
+  // 2026-10-17) — gak ada lagi kewajiban bikin ID Card, mirror Sahabat
+  // Baitullah yang dari awal emang gak punya gerbang ini sama sekali.
   // Admin minta perbaikan data -> JANGAN dialihkan ke kartu "Sudah
   // Mendaftar" di bawah (itu bakal nunjuk balik ke halaman ini sendiri,
   // bikin loop) — tampilkan formulir asli, prefilled dari isian terakhir
@@ -332,6 +355,7 @@ export default function DaftarPerwakilanPage() {
                 <InputTanggal max={maksTanggalLahir17Tahun} value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
               <div><label className={lbl}>Jenis Kelamin *</label>
                 <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={inp}>
+                  <option value="">— Pilih —</option>
                   <option>Laki-Laki</option><option>Perempuan</option></select></div>
             </div>
             <div><label className={lbl}>Nama Ibu Kandung *</label>
@@ -376,7 +400,7 @@ export default function DaftarPerwakilanPage() {
 
           {step === 2 && (<>
             <div className="font-bold text-[#0E2F6E]">🏠 Alamat KTP</div>
-            <AddressFields form={form} setF={setF} suffix="" inp={inp} lbl={lbl}/>
+            <AddressFields form={form} setF={setF} suffix="" inp={inp} lbl={lbl} errors={errors}/>
 
             <div className="pt-3 border-t border-gray-100">
               <label className="flex items-center gap-2 cursor-pointer mb-2">
@@ -386,7 +410,7 @@ export default function DaftarPerwakilanPage() {
               </label>
               {!form.sama_ktp && (<>
                 <div className="font-bold text-[#0E2F6E] mt-2">🏠 Alamat Domisili</div>
-                <AddressFields form={form} setF={setF} suffix="_dom" inp={inp} lbl={lbl}/>
+                <AddressFields form={form} setF={setF} suffix="_dom" inp={inp} lbl={lbl} errors={errors}/>
               </>)}
             </div>
           </>)}
@@ -394,7 +418,7 @@ export default function DaftarPerwakilanPage() {
           {step === 3 && (<>
             <div className="font-bold text-[#0E2F6E]">🏦 Rekening & Perekrut</div>
             <div><label className={lbl}>Nama Bank *</label>
-              <input value={form.bank} onChange={e=>setF('bank',e.target.value)} placeholder="Contoh: BSI" className={inp}/></div>
+              <BankInput value={form.bank} onChange={v=>setF('bank',v)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. Rekening *</label>
                 <input value={form.norek} onChange={e=>setF('norek',e.target.value.replace(/\D/g,''))} inputMode="numeric" className={inp}/></div>
@@ -460,14 +484,19 @@ export default function DaftarPerwakilanPage() {
             <div className="bg-[#E8F0FB] rounded-lg p-3 text-xs text-[#1A4FA0]">
               Setelah kirim, Anda akan diminta membaca & menyetujui <b>Perjanjian Kerjasama Perwakilan</b>,
               lalu memilih metode pendaftaran (datang ke kantor / kirim paket). Perjanjian Kerjasama
-              Perwakilan (SPKA-Ins) ditandatangani secara fisik, bukan TTD digital.
+              Perwakilan ditandatangani secara fisik, bukan TTD digital.
             </div>
+            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer pt-1">
+              <input type="checkbox" checked={konfirmasiData} onChange={e => setKonfirmasiData(e.target.checked)}
+                className="mt-0.5 w-4 h-4" />
+              <span>Saya sudah memeriksa dan data di atas sudah benar.</span>
+            </label>
           </>)}
 
           {/* Navigasi */}
           <div className="flex gap-2 pt-2">
             {step > 1 && (
-              <button onClick={()=>setStep(step-1)}
+              <button onClick={()=>{ setErrors({}); setStep(step-1); }}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">
                 ← Kembali
               </button>
