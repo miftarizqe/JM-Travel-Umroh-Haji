@@ -78,6 +78,28 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
       nominalTarget: pendaftaran?.target_estimasi_harga ? Number(pendaftaran.target_estimasi_harga).toLocaleString('id-ID') : '-',
     };
 
+    // generateSpkAkRangkapPdf (Muslim, alamat 2 baris) vs
+    // generateSpkAkNonisRangkapPdf (Agen, alamat 1 baris) -- beda fungsi &
+    // beda bentuk data, tapi API pemanggilnya (opts.rangkap, metode kantor/
+    // kirim) sama persis buat dua-duanya, jadi dipilih sekali di sini lewat
+    // variabel generator & dataRangkap, bukan diduplikasi 2x di bawah.
+    let generator, dataRangkap;
+    if (dokumen === 'spk_ak') {
+      // Template rangkap punya 2 baris alamat (dikonfirmasi user 2026-10-03,
+      // revisi dokumen Word baru) -- dipecah dari komponen alamat_ktp_* kalau
+      // ada (pendaftar baru). Pendaftar lama yang cuma punya alamat_ktp hasil
+      // join lama (komponen udah kebuang) fallback ke baris 1 = string penuh,
+      // baris 2 kosong -- gak bisa dipecah balik akurat.
+      const { alamatBaris1, alamatBaris2 } = formatAlamatDuaBaris(user);
+      generator = generateSpkAkRangkapPdf;
+      dataRangkap = { ...dataUmum, alamatBaris1, alamatBaris2, ...dataTarget };
+    } else {
+      // spk_ak_nonis (AGEN) -- alamat CUMA 1 baris di template ini (beda dari
+      // versi Muslim), udah ada di dataUmum.alamat, gak perlu formatAlamatDuaBaris.
+      generator = generateSpkAkNonisRangkapPdf;
+      dataRangkap = { ...dataUmum, ...dataTarget };
+    }
+
     // 2 rangkap CUMA buat metode "datang kantor" (admin siapin 2 fisik
     // sekaligus buat TTD langsung di tempat). Metode "kirim" (print sendiri)
     // cuma rangkap "jamaah" — rangkap "management" (udah ada TTD Mei
@@ -89,18 +111,18 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
     // ATAU kantor) biar admin tetap bisa ambil rangkap jamaah terpisah juga
     // kalau jamaahnya minta diprintin ulang.
     if (opts.rangkap === 'jamaah' || opts.rangkap === 'management') {
-      const pdfBuffer = await generateSpkAkRangkapPdf(opts.rangkap, dataRangkap);
+      const pdfBuffer = await generator(opts.rangkap, dataRangkap);
       return { pdfBuffer, nomor, dokumen };
     }
     if (user.metode_ttd_sahabat === 'kantor') {
       const [rangkapJamaah, rangkapManagement] = await Promise.all([
-        generateSpkAkRangkapPdf('jamaah', dataRangkap),
-        generateSpkAkRangkapPdf('management', dataRangkap),
+        generator('jamaah', dataRangkap),
+        generator('management', dataRangkap),
       ]);
       const pdfBuffer = await mergePdfBuffers([rangkapJamaah, rangkapManagement]);
       return { pdfBuffer, nomor, dokumen };
     }
-    const pdfBuffer = await generateSpkAkRangkapPdf('jamaah', dataRangkap);
+    const pdfBuffer = await generator('jamaah', dataRangkap);
     return { pdfBuffer, nomor, dokumen };
   }
 
