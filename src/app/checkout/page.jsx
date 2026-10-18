@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
 import CartPaketKamar, { jamaahKosong, kamarKeyOf } from '@/app/components/CartPaketKamar';
 import SearchableSelect from '@/app/components/SearchableSelect';
+import { alamatLengkap } from '@/app/components/AddressFields';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -64,7 +65,7 @@ function CheckoutPageInner() {
       }
       if (!c.nama.trim()) { alert('Isi nama lengkap semua jamaah dulu!'); return; }
       if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') { alert('Pilih jenis kelamin semua jamaah dulu!'); return; }
-      if (!c.alamat.trim()) { alert('Isi alamat kirim perlengkapan semua jamaah dulu!'); return; }
+      if (!alamatLengkap(c, '_kirim')) { alert(`Lengkapi alamat kirim perlengkapan${c.nama ? ` "${c.nama}"` : ''} dulu (Provinsi s/d RT/RW, Kode Pos opsional)!`); return; }
       if (!c.tanpaNik && !/^\d{16}$/.test(c.nik.trim())) {
         alert(`NIK "${c.nama}" wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).`);
         return;

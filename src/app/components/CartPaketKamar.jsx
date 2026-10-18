@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { useOpsiTambahan } from '@/lib/useOpsiTambahan';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
+import { AddressFields } from '@/app/components/AddressFields';
+import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 export const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
 
@@ -105,8 +107,29 @@ export function jamaahKosong(prog) {
   return {
     paket, kamar, hargaCustom: '', customHotel: null,
     nama: '', jk: '', nik: '', tanpaNik: false, wa: '', alamat: '',
+    ...ALAMAT_KIRIM_KOSONG,
     opsiTambahan: [], diriSendiri: false,
+    // Key React stabil per kartu -- AddressFields nyimpen id wilayah yang
+    // dipilih di state lokal, kalau di-key pakai index, hapus kartu #1 bikin
+    // kartu #2 kebagian dropdown kartu #1.
+    uid: Math.random().toString(36).slice(2),
   };
+}
+
+// Alamat kirim per jamaah sekarang terstruktur (dropdown wilayah berjenjang,
+// sama kayak AddressFields di pendaftaran), bukan 1 input bebas lagi.
+// `alamat` 1 baris TETAP diisi (dirangkai formatAlamatSatuBaris) biar
+// payload submit & kolom alamat_kirim di DB gak berubah.
+const ALAMAT_KIRIM_KOSONG = {
+  jalan_kirim: '', norumah_kirim: '', rt_kirim: '', rw_kirim: '', kp_kirim: '',
+  kel_kirim: '', kec_kirim: '', kota_kirim: '', provinsi_kirim: '', negara_kirim: 'Indonesia',
+};
+function rangkaiAlamatKirim(j) {
+  return formatAlamatSatuBaris({
+    jalan: j.jalan_kirim, norumah: j.norumah_kirim, rt: j.rt_kirim, rw: j.rw_kirim,
+    kel: j.kel_kirim, kec: j.kec_kirim, kota: j.kota_kirim, provinsi: j.provinsi_kirim,
+    kp: j.kp_kirim, negara: j.negara_kirim,
+  });
 }
 
 // 1 kartu = 1 jamaah, MANDIRI total (paket/kamar sendiri, data sendiri) --
@@ -118,7 +141,19 @@ export function jamaahKosong(prog) {
 // tambahan + harga admin per kartu). `useCustomHotelHarga` WAJIB di
 // komponen terpisah (bukan di-inline di loop parent) -- aturan Hooks React,
 // tiap kartu butuh hitungan harga custom hotel-nya sendiri-sendiri.
-function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
+// Warna per kartu jamaah (gilir berdasarkan urutan) biar kartu Jamaah 1, 2,
+// 3, dst gak ketuker pas ngisi banyak orang sekaligus. Class ditulis utuh
+// (bukan dirangkai) biar gak ke-purge Tailwind.
+const WARNA_KARTU = [
+  { kartu: 'border-[#1A4FA0] bg-blue-50/40', badge: 'bg-[#1A4FA0] text-white', judul: 'text-[#0E2F6E]' },
+  { kartu: 'border-emerald-500 bg-emerald-50/50', badge: 'bg-emerald-600 text-white', judul: 'text-emerald-800' },
+  { kartu: 'border-amber-500 bg-amber-50/50', badge: 'bg-amber-500 text-white', judul: 'text-amber-800' },
+  { kartu: 'border-purple-500 bg-purple-50/50', badge: 'bg-purple-600 text-white', judul: 'text-purple-800' },
+  { kartu: 'border-rose-500 bg-rose-50/50', badge: 'bg-rose-600 text-white', judul: 'text-rose-800' },
+  { kartu: 'border-teal-500 bg-teal-50/50', badge: 'bg-teal-600 text-white', judul: 'text-teal-800' },
+];
+
+function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
   const kamarKey = kamarKeyOf(item.kamar);
   const hargaNormal = prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 
@@ -169,13 +204,18 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHarga
   }
 
   const inp = 'w-full px-3.5 py-2.5 rounded-lg border-2 text-sm focus:outline-none';
-  const inpNormal = `${inp} border-gray-200 focus:border-[#1A4FA0]`;
+  const inpNormal = `${inp} bg-white border-gray-200 focus:border-[#1A4FA0]`;
   const inpTerkunci = `${inp} border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed`;
 
+  const warna = WARNA_KARTU[idx % WARNA_KARTU.length];
+
   return (
-    <div className="bg-white rounded-xl border-2 border-gray-200 p-4 space-y-2.5">
+    <div className={`rounded-xl border-2 p-4 space-y-2.5 ${warna.kartu}`}>
       <div className="flex items-center justify-between">
-        <div className="font-bold text-[#0E2F6E] text-sm">Jamaah {idx + 1}</div>
+        <div className={`flex items-center gap-2 font-bold text-sm ${warna.judul}`}>
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${warna.badge}`}>{idx + 1}</span>
+          Jamaah {idx + 1}
+        </div>
         {canRemove && <button onClick={onRemove} className="text-xs text-red-500 font-bold">✕ Hapus</button>}
       </div>
 
@@ -282,8 +322,15 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, prog, semuaHarga
         placeholder="No. Telepon / WhatsApp (opsional)" inputMode="numeric" maxLength={13}
         className={fieldTerkunci ? inpTerkunci : inpNormal} />
 
-      <input value={item.alamat} onChange={e => onChange({ ...item, alamat: e.target.value })}
-        placeholder="📦 Alamat kirim perlengkapan (koper, ihrom/mukena, dll)" className={inpNormal} />
+      <div className="rounded-lg border-2 border-gray-100 bg-white/70 p-3 space-y-2.5">
+        <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
+        {/* setF dipanggil beruntun dalam 1 event (ganti provinsi -> kosongin
+            kota/kec/kel), jadi WAJIB functional update (onPatch), bukan
+            onChange({...item}) yang bakal saling timpa pakai `item` basi. */}
+        <AddressFields form={item} suffix="_kirim"
+          setF={(key, val) => onPatch(j => { const n = { ...j, [key]: val }; return { ...n, alamat: rangkaiAlamatKirim(n) }; })}
+          inp={inpNormal} lbl="block text-[11px] font-semibold text-gray-500 mb-1" />
+      </div>
 
       {allowHargaCustom && item.paket !== 'custom' && (
         <div className="bg-gray-900 rounded-xl p-3 space-y-1.5">
@@ -421,6 +468,9 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
   function tambahJamaah() {
     onChangeList([...list, jamaahKosong(prog)]);
   }
+  function patchJamaah(idx, fn) {
+    onChangeList(prev => prev.map((j, i) => i === idx ? fn(j) : j));
+  }
   function hapusJamaah(idx) {
     onChangeList(list.filter((_, i) => i !== idx));
   }
@@ -431,7 +481,8 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
       <>
       <div className="space-y-3">
         {list.map((item, idx) => (
-          <JamaahCard key={idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
+          <JamaahCard key={item.uid || idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
+            onPatch={fn => patchJamaah(idx, fn)}
             onRemove={() => hapusJamaah(idx)} canRemove={list.length > 1}
             prog={prog} semuaHargaSama={semuaHargaSama} opsiTambahanList={opsiTambahanList}
             dataDiriSendiri={dataDiriSendiri} allowHargaCustom={allowHargaCustom} diriSendiriBookingId={diriSendiriBookingId} />
