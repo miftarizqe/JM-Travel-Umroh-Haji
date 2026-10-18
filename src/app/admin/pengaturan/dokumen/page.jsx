@@ -714,12 +714,12 @@ export default function AdminPengaturanDokumenPage() {
 
       {!loadingPasal && !DOKUMEN_TERKUNCI.includes(dokumen) && (
         <div className="flex flex-wrap gap-2 mb-4">
-          <button onClick={() => setShowPreviewDokumen(v => !v)}
+          <button onClick={() => { setShowPreviewDokumen(v => !v); setShowPreviewPdf(false); }}
             className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-1.5 rounded-full">
             {showPreviewDokumen ? '▲ Sembunyikan Preview Dokumen Lengkap' : '👁️ Lihat Preview Dokumen Lengkap'}
           </button>
           {DOKUMEN_PDF_RESMI.includes(dokumen) && (
-            <button onClick={() => setShowPreviewPdf(v => !v)}
+            <button onClick={() => { setShowPreviewPdf(v => !v); setShowPreviewDokumen(false); }}
               className="text-xs font-bold text-[#0E2F6E] bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-full">
               {showPreviewPdf ? '▲ Sembunyikan Preview PDF Resmi' : '📄 Lihat Preview PDF Resmi (Cetak)'}
             </button>
