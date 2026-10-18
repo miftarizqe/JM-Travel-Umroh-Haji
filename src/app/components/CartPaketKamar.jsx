@@ -483,7 +483,7 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
         {list.map((item, idx) => (
           <JamaahCard key={item.uid || idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
             onPatch={fn => patchJamaah(idx, fn)}
-            onRemove={() => hapusJamaah(idx)} canRemove={list.length > 1}
+            onRemove={() => hapusJamaah(idx)} canRemove={idx > 0}
             prog={prog} semuaHargaSama={semuaHargaSama} opsiTambahanList={opsiTambahanList}
             dataDiriSendiri={dataDiriSendiri} allowHargaCustom={allowHargaCustom} diriSendiriBookingId={diriSendiriBookingId} />
         ))}
