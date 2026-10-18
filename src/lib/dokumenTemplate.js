@@ -3,5 +3,5 @@
 // tabel dokumen_pasal TIDAK dipakai lagi untuk dokumen ini di role mana pun
 // (baca & setuju, cetak, snapshot, /api/pasal, Pengaturan Dokumen admin).
 // Ganti teks = ganti file template + deploy.
-export const DOKUMEN_TEMPLATE = ['sk_cif', 'surat_pemblokiran', 'spk_ak', 'spk_ak_nonis', 'spka_ins'];
+export const DOKUMEN_TEMPLATE = ['sk_cif', 'surat_pemblokiran', 'spk_ak', 'spk_ak_nonis', 'spka_ins', 'jamaah'];
 export const pakaiTemplate = (dokumen) => DOKUMEN_TEMPLATE.includes(dokumen);

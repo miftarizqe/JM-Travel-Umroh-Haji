@@ -43,14 +43,14 @@ const DOKUMEN_GRUP_URUTAN = ['Perwakilan', 'Jamaah', 'Sahabat Baitullah'];
 // template PDF resmi, gak kesentuh.
 const DOKUMEN_TERKUNCI = [];
 
-// Ke-5 dokumen ini TETAP dicetak/diunduh orang pakai template PDF resmi
-// (dikonfirmasi user 2026-10-03, SPKA-Ins menyusul 2026-10-18, bukan pasal)
-// — jadi tombol "Lihat Preview Dokumen Lengkap" buat dokumen ini HARUS
-// nampilin PDF asli itu juga (bukan PreviewDokumenLengkap yang WYSIWYG dari
-// pasal ketikan admin), biar admin gak ketuker preview-nya dengan dokumen
-// yang beneran dicetak/ditandatangani. Pasal yang diketik di tab ini TETAP
-// cuma buat layar baca jamaah/perwakilan.
-const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran', 'spka_ins'];
+// Ke-6 dokumen ini TETAP dicetak/diunduh orang pakai template PDF resmi
+// (dikonfirmasi user 2026-10-03, SPKA-Ins & SPJ menyusul 2026-10-18, bukan
+// pasal) — jadi tombol "Lihat Preview Dokumen Lengkap" buat dokumen ini
+// HARUS nampilin PDF asli itu juga (bukan PreviewDokumenLengkap yang
+// WYSIWYG dari pasal ketikan admin), biar admin gak ketuker preview-nya
+// dengan dokumen yang beneran dicetak/ditandatangani. Pasal yang diketik di
+// tab ini TETAP cuma buat layar baca jamaah/perwakilan.
+const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran', 'spka_ins', 'jamaah'];
 
 // Judul & nomor contoh yang ditampilkan di atas Preview Dokumen Lengkap —
 // SAMA seperti judul yang muncul di halaman cetak beneran (cetak-pks-mitra,
@@ -61,7 +61,7 @@ const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokira
 // template resmi BSI, dikonfirmasi user 2026-09-09) — dokumen lain 1 baris.
 const DOKUMEN_JUDUL = {
   spka_ins: { judul: ['SURAT PERJANJIAN KERJA SAMA PERWAKILAN'], nomor: '000001.10/JMT-PWK/2026' },
-  jamaah: { judul: ['SURAT PERJANJIAN JAMAAH UMROH'], nomor: 'BK-CONTOH' },
+  jamaah: { judul: ['SURAT PERJANJIAN JAMAAH UMROH'], nomor: '000001.10/JMT-SPJ/2026' },
   spk_ak: { judul: ['SURAT PERJANJIAN JAMAAH UMROH', 'PROGRAM SAHABAT BAITULLAH'], nomor: '000001.10/JMT-JSB/2026' },
   spk_ak_nonis: { judul: ['SURAT PERJANJIAN REFERRAL NON-MUSLIM', 'PROGRAM SAHABAT BAITULLAH'], nomor: '000001.10/JMT-ASB/2026' },
   sk_cif: { judul: ['SURAT KUASA', 'KERJASAMA MULTI CIF', 'PADA LAYANAN BSI CASH MANAGEMENT'], nomor: '000001.10/JMT-SK-CIF/2026' },
