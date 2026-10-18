@@ -408,40 +408,40 @@ export default function AdminPerwakilanPage() {
               </div>
             </div>
 
-            <div className="flex gap-2 pt-4 flex-wrap">
+            <div className="pt-4 space-y-2">
               {!detail.pendaftaran_id && (
-                <>
+                <div className="flex items-center gap-1.5">
                   <button disabled={busy} onClick={() => aksiUser(detail.user_id, 'approve')}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
+                    className="flex-1 whitespace-nowrap bg-green-600 hover:bg-green-700 text-white font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
                     ✅ ACC
                   </button>
                   <button disabled={busy} onClick={() => aksiUser(detail.user_id, 'reject')}
-                    className="bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    ❌ Tolak
+                    className="flex-1 whitespace-nowrap bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                    ✖ Tolak
                   </button>
-                </>
+                </div>
               )}
               {detail.pendaftaran_id && stepSelanjutnya && (
                 <button disabled={busy} onClick={() => aksiPendaftaran(detail.pendaftaran_id, stepSelanjutnya.key)}
-                  className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
-                  Lanjut ke {stepSelanjutnya.label} →
+                  className="w-full whitespace-nowrap bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                  ✅ Lanjut ke Tahap Berikutnya →
                 </button>
               )}
               {detail.pendaftaran_id && detail.status !== 'active' && detail.status !== 'ditolak' && (
-                <>
+                <div className="flex items-center gap-1.5">
                   <button disabled={busy} onClick={() => mintaPerbaikan(detail.user_id)}
-                    className="bg-yellow-100 text-yellow-700 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    ✏️ Minta Perbaikan
+                    className="flex-1 whitespace-nowrap bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                    ↺ Minta Perbaiki
                   </button>
                   <button disabled={busy} onClick={() => { if (confirm('Tolak PERMANEN pendaftaran ini? Login calon perwakilan akan ikut terkunci.')) aksiPendaftaran(detail.pendaftaran_id, 'ditolak'); }}
-                    className="bg-gray-100 text-gray-500 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    Tolak Permanen
+                    className="flex-1 whitespace-nowrap bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                    ⛔ Tolak Permanen
                   </button>
-                </>
+                </div>
               )}
               {detail.status === 'ditolak' && (
                 <button disabled={busy} onClick={() => izinkanDaftarUlang(detail.user_id)}
-                  className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
+                  className="w-full whitespace-nowrap bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
                   🔓 Izinkan Daftar Ulang
                 </button>
               )}
@@ -452,7 +452,7 @@ export default function AdminPerwakilanPage() {
                 </div>
               )}
               <button onClick={() => window.open(`/admin/cetak-pks-mitra/${detail.user_id}`, '_blank')}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-full text-sm">
+                className="w-full whitespace-nowrap bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1.5 rounded-full text-[11px] transition-colors">
                 📜 Cetak Perjanjian Kerjasama
               </button>
             </div>
