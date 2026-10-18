@@ -23,7 +23,7 @@ import { renderJamaahPdf } from '@/lib/pdfDokumen/renderJamaah';
 // yang beneran dicetak/ditandatangani jamaah/perwakilan).
 import { generateSkCifPdf } from '@/lib/pdfDokumen/skCifOverlay';
 import { generateSuratPemblokiranPdf } from '@/lib/pdfDokumen/suratPemblokiranOverlay';
-import { generateSpkAkPdf, generateSpkAkRangkapPdf } from '@/lib/pdfDokumen/spkAkOverlay';
+import { generateSpkAkRangkapPdf, generateSpkAkNonisRangkapPdf } from '@/lib/pdfDokumen/spkAkOverlay';
 import { generateSpkaInsRangkapPdf } from '@/lib/pdfDokumen/spkaInsOverlay';
 
 const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'];
@@ -91,13 +91,13 @@ export async function GET(request) {
         targetBulanTahun: 'Januari 2027', nominalTarget: '39.500.000',
       });
     } else if (dokumen === 'spk_ak_nonis') {
-      // Belum dapat template 2-rangkap baru (dikonfirmasi user 2026-10-03) --
-      // tetap 1 dokumen, SAMA PERSIS fungsi yang dipakai dokumen aslinya
-      // (lihat spkAkUntukUser.js).
-      buffer = await generateSpkAkPdf({
-        dokumen, nomor: '000001.10/JMT-ASB/2026 (contoh)',
-        nama: CONTOH_USER.name, alamat: CONTOH_USER.alamat, noTelepon: '08xxxxxxxxxx', noPaspor: 'C1234567',
-        namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
+      // Dokumen asli SEKARANG JUGA 2 rangkap ("PKS Agen Sahabat Baitullah",
+      // dikonfirmasi user 2026-10-18, nyusul spk_ak) -- preview pakai rangkap
+      // "jamaah" sama kayak spk_ak.
+      buffer = await generateSpkAkNonisRangkapPdf('jamaah', {
+        nomor: '000001.10/JMT-ASB/2026 (contoh)', nama: CONTOH_USER.name, alamat: CONTOH_USER.alamat,
+        noTelepon: '08xxxxxxxxxx', hari: 'Senin', tanggal: '1 Oktober 2026',
+        targetBulanTahun: 'Januari 2027', nominalTarget: '39.500.000',
       });
     } else if (dokumen === 'spka_ins') {
       buffer = await generateSpkaInsRangkapPdf('perwakilan', {
