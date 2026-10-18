@@ -5,6 +5,11 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
+// Format tampilan input harga pakai titik ribuan (dikonfirmasi user
+// 2026-10-19, input polos susah kebaca "40000000" vs "40.000.000") --
+// value state TETAP angka mentah tanpa titik (dipakai langsung ke
+// Number(formHarga) pas submit), cuma TAMPILANNYA yang diformat.
+const formatRibuan = (v) => v ? Number(v).toLocaleString('id-ID') : '';
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KAMAR = ['quad', 'triple', 'double'];
 const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
@@ -202,7 +207,8 @@ export default function AturHargaPerwakilan() {
                             </span>
                           ) : openForm === formKey ? (
                             <div className="w-full bg-gray-50 rounded-lg p-3 mt-1 space-y-2">
-                              <input type="number" value={formHarga} onChange={e => setFormHarga(e.target.value)}
+                              <input type="text" inputMode="numeric" value={formatRibuan(formHarga)}
+                                onChange={e => setFormHarga(e.target.value.replace(/\D/g, ''))}
                                 placeholder="Harga jual yang diajukan"
                                 className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
                               <input value={formAlasan} onChange={e => setFormAlasan(e.target.value)}

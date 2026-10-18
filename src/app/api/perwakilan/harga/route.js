@@ -73,7 +73,16 @@ export async function GET(request) {
           const hargaDariUpline = uplineHarga ? Number(uplineHarga[`jual_${key}`] || 0) : 0;
           hpp[key] = hargaDariUpline > 0 ? hargaDariUpline : hppKantor;
           hppSource[key] = hargaDariUpline > 0 ? 'upline' : 'kantor';
-          jual[key] = custom ? Number(custom[`jual_${key}`] || 0) : Number(p[`harga_${key}`] || 0);
+          // Fallback PER KOLOM, bukan per-row (bug nyata 2026-10-19,
+          // screenshot user: set 1 kombo custom -> 8 kombo lain keliatan
+          // Rp 0) -- `custom` row cuma punya kolom jual_<key> keisi buat
+          // kombo yang PERNAH di-custom (lihat terapkanHargaPerwakilan di
+          // custom-harga/route.js, INSERT cuma nyentuh 1 kolom), kolom
+          // lainnya tetap NULL. Checkout (kombinasiHargaTersedia &
+          // booking.js) udah bener dari awal, fallback per-kolom juga --
+          // ini murni bug tampilan di halaman Harga Perwakilan.
+          const jualCustom = custom ? Number(custom[`jual_${key}`] || 0) : 0;
+          jual[key] = jualCustom > 0 ? jualCustom : Number(p[`harga_${key}`] || 0);
         }
       }
       return {
