@@ -46,6 +46,7 @@ export async function GET(request) {
               metode_ttd_sahabat, rencana_kunjungan_kantor_at, dokumen_spk_ak_dikirim_balik_at,
               dokumen_cif_fisik_diterima_at, dokumen_pemblokiran_fisik_diterima_at, dokumen_spk_ak_fisik_diterima_at,
               dokumen_formulir_bsi_fisik_diterima_at, dokumen_fisik_dikirim_at, dokumen_fisik_resi, dokumen_fisik_resi_foto_path,
+              alamat_domisili, alamat_kirim,
               DATE_FORMAT(rencana_kunjungan_kantor_at, '%Y-%m-%d') AS tanggal_kunjungan
        FROM users WHERE id = ?`, [auth.user.id]
     );
@@ -136,6 +137,7 @@ export async function GET(request) {
         dokumen_spk_ak_dikirim_balik_at: u.dokumen_spk_ak_dikirim_balik_at,
         dokumen_fisik_dikirim_at: u.dokumen_fisik_dikirim_at, dokumen_fisik_resi: u.dokumen_fisik_resi,
         dokumen_fisik_resi_foto_path: u.dokumen_fisik_resi_foto_path,
+        alamat_domisili: u.alamat_domisili, alamat_kirim: u.alamat_kirim,
         // Alasan tombol "Ganti Metode TTD" disembunyikan (null = boleh ganti).
         kunci_ganti_metode_ttd: alasanKunciMetodeTtd(u),
       },

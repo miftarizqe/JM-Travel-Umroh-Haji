@@ -7,6 +7,7 @@ import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
+import { usePengaturan } from '@/lib/usePengaturan';
 
 const emptyForm = () => ({
   metode: 'kantor', jadwal: '',
@@ -16,12 +17,20 @@ const emptyForm = () => ({
 
 // Langkah TERAKHIR pendaftaran kemitraan — baru bisa diakses SETELAH
 // persetujuan PKS selesai (dipindah ke sini dari step 3 formulir lama,
-// dikonfirmasi user 2026-08-19). Alamat pengiriman cuma
-// relevan buat metode 'paket' — JM Travel ngirim Perjanjian Kerjasama fisik
-// ke alamat ini, lalu nunggu 1 rangkap dikirim balik (lihat /status-pendaftaran).
+// dikonfirmasi user 2026-08-19).
+//
+// Metode 'paket' = CETAK & KIRIM SENDIRI (dikonfirmasi user 2026-10-18,
+// gantiin skema lama "admin kirim dokumen kosong ke perwakilan duluan" --
+// sekarang mirror Sahabat Baitullah: perwakilan download+print SENDIRI
+// Perjanjian Kerjasama (2 rangkap) dari /status-pendaftaran, TTD di atas
+// materai Rp10.000 asli, kirim 1 rangkap (Rangkap Perwakilan) ke kantor.
+// Alamat pengiriman di sini BUKAN lagi "kirim dokumen kosong ke sini" --
+// sekarang artinya "SETELAH kantor terima & TTD baliknya, Rangkap
+// Management dikirim balik ke alamat ini" (lihat /status-pendaftaran).
 export default function DaftarPerwakilanMetodePage() {
   const router = useRouter();
   const [user] = useCurrentUser();
+  const [pengaturan] = usePengaturan();
   const [form, setForm] = useState(emptyForm());
   const [cek, setCek] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -89,7 +98,7 @@ export default function DaftarPerwakilanMetodePage() {
             <div className="grid grid-cols-2 gap-2">
               {[
                 { v: 'kantor', l: 'Datang ke Kantor', d: 'Jakarta & sekitarnya' },
-                { v: 'paket', l: 'Kirim Paket', d: 'Luar Jakarta' },
+                { v: 'paket', l: 'Cetak & Kirim Sendiri', d: 'Luar Jakarta' },
               ].map(m => (
                 <div key={m.v} onClick={() => setF('metode', m.v)}
                   className={`border-2 rounded-lg p-3 cursor-pointer text-center transition-all ${
@@ -108,9 +117,15 @@ export default function DaftarPerwakilanMetodePage() {
 
           {form.metode === 'paket' && (
             <div className="pt-1 border-t border-gray-100 space-y-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 space-y-1.5">
+                <div>📝 Langkah selanjutnya: Anda download &amp; print sendiri Perjanjian Kerjasama Perwakilan (2 rangkap) dari halaman Status Pendaftaran, lalu TTD di atas <b>materai Rp10.000 asli</b> (siapkan sendiri) dan kirim 1 rangkap ke kantor JM Travel:</div>
+                {pengaturan?.alamat_kantor && (
+                  <div className="font-semibold">📍 PT. Alkhalid Jaya Megah Tours & Travel — {pengaturan.alamat_kantor}</div>
+                )}
+              </div>
               <div className="font-bold text-[#0E2F6E] text-sm pt-2">📦 Alamat Pengiriman</div>
               <p className="text-xs text-gray-400 -mt-2">
-                Perjanjian Kerjasama Perwakilan (2 rangkap) akan dikirim ke alamat ini.
+                Setelah kantor menerima &amp; menandatangani balik, 1 rangkap (Rangkap Management) akan dikirim ke alamat ini.
               </p>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.sama_domisili_kirim}

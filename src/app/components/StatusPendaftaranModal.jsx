@@ -12,8 +12,8 @@ function tgl(t) {
 // sengaja duplikat kecil ini, bukan import lintas route.js.
 const LABEL = {
   perwakilan: {
-    pending: 'Verifikasi Data oleh Admin', docs_sent: 'Perjanjian Dikirim ke Alamat Anda',
-    waiting_docs_return: 'Menunggu Rangkapan Dikirim Kembali', waiting_visit: 'Menunggu Kunjungan Kantor',
+    pending: 'Verifikasi Data oleh Admin', docs_sent: 'Perjanjian Dikirim ke Alamat Anda', // legacy
+    waiting_docs_return: 'Cetak, TTD & Kirim Sendiri', waiting_visit: 'Menunggu Kunjungan Kantor',
     active: 'Perwakilan Aktif', ditolak: 'Pendaftaran Ditolak',
   },
   sahabat: {
