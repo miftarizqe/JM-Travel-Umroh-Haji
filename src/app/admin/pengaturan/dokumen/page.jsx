@@ -18,15 +18,21 @@ const SIGNER_KEUANGAN_FIELDS = [
   { key: 'jabatan_penandatangan_keuangan', label: 'Jabatan Penandatangan', placeholder: 'Mis. Staff Keuangan' },
 ];
 
+// Label TANPA singkatan (SPK/SPJ/SK-CIF/S&K dicabut, dikonfirmasi user
+// 2026-10-18 — cuma scope tab admin ini, istilah end-user yang udah
+// established di tempat lain gak ikut berubah) + dikelompokkan per `grup`
+// biar gak perlu nempelin nama role ke tiap label lagi (foldernya udah
+// nunjukin itu, lihat rendering "Isi Pasal" di bawah).
 const DOKUMEN_LIST = [
-  { key: 'spka_ins', label: 'SPK-PWK (Perwakilan)' },
-  { key: 'jamaah', label: 'SPJ (Perjanjian Jamaah)' },
-  { key: 'spk_ak', label: 'Surat Perjanjian Jamaah Sahabat Baitullah' },
-  { key: 'spk_ak_nonis', label: 'Surat Perjanjian Referral Non-Muslim (Sahabat Baitullah)' },
-  { key: 'sk_cif', label: 'SK-CIF (Sahabat Baitullah)' },
-  { key: 'surat_pemblokiran', label: 'Surat Pemblokiran Rekening (Sahabat Baitullah)' },
-  { key: 'ganti_target_sahabat', label: 'S&K Ganti Target Impian (Sahabat Baitullah)' },
+  { key: 'spka_ins', label: 'Surat Perjanjian Kerjasama', grup: 'Perwakilan' },
+  { key: 'jamaah', label: 'Surat Perjanjian Jamaah Umroh', grup: 'Jamaah' },
+  { key: 'spk_ak', label: 'Surat Perjanjian Kerjasama', grup: 'Sahabat Baitullah' },
+  { key: 'spk_ak_nonis', label: 'Surat Perjanjian Kerjasama - Non Muslim', grup: 'Sahabat Baitullah' },
+  { key: 'sk_cif', label: 'Surat Kuasa Multi CIF', grup: 'Sahabat Baitullah' },
+  { key: 'surat_pemblokiran', label: 'Surat Kuasa Pemblokiran Rekening', grup: 'Sahabat Baitullah' },
+  { key: 'ganti_target_sahabat', label: 'Surat Persetujuan Ganti Target Impian', grup: 'Sahabat Baitullah' },
 ];
+const DOKUMEN_GRUP_URUTAN = ['Perwakilan', 'Jamaah', 'Sahabat Baitullah'];
 
 // Sempat dikunci dari edit teks (SK-CIF/Pemblokiran dikonfirmasi 2026-09-28,
 // SPK-AK/SPK-AK Non-Muslim menyusul dikonfirmasi 2026-09-29) pas wording
@@ -682,12 +688,19 @@ export default function AdminPengaturanDokumenPage() {
         dan <code className="bg-gray-100 px-1 rounded">{'{{bank_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{rekening_agen}}'}</code> / <code className="bg-gray-100 px-1 rounded">{'{{nama_rekening_agen}}'}</code> buat rekening PENANDA TANGAN (beda tiap orang, jangan diisi manual).
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-3">
-        {DOKUMEN_LIST.map(d => (
-          <button key={d.key} onClick={() => { setEditing(null); setDokumen(d.key); setLoadingPasal(true); }}
-            className={`text-xs font-bold px-4 py-2 rounded-full whitespace-nowrap ${dokumen === d.key ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-            {d.label}
-          </button>
+      <div className="space-y-3 mb-3">
+        {DOKUMEN_GRUP_URUTAN.map(grup => (
+          <div key={grup}>
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">📁 {grup}</div>
+            <div className="flex flex-wrap gap-2">
+              {DOKUMEN_LIST.filter(d => d.grup === grup).map(d => (
+                <button key={d.key} onClick={() => { setEditing(null); setDokumen(d.key); setLoadingPasal(true); }}
+                  className={`text-xs font-bold px-4 py-2 rounded-full whitespace-nowrap ${dokumen === d.key ? 'bg-[#1A4FA0] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
