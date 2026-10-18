@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
 import StatusPendaftaranModal from '@/app/components/StatusPendaftaranModal';
+import BankInput from '@/app/components/BankInput';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -499,7 +500,7 @@ export default function ProfilPage() {
                     <>
                       <div>
                         <label className={lbl}>Bank</label>
-                        <input value={formRekening.bank} onChange={e => setFormRekening({...formRekening, bank: e.target.value})} className={inp}/>
+                        <BankInput value={formRekening.bank} onChange={v => setFormRekening({...formRekening, bank: v})} className={inp}/>
                       </div>
                       <div>
                         <label className={lbl}>No. Rekening</label>

@@ -12,6 +12,7 @@ import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fitu
 import { labelPerekrut } from '@/lib/labelPerekrut';
 import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
+import BankInput from '@/app/components/BankInput';
 
 const emptyForm = () => ({
   // Tanggal Lahir & Jenis Kelamin SENGAJA kosong (dikonfirmasi user
@@ -417,7 +418,7 @@ export default function DaftarPerwakilanPage() {
           {step === 3 && (<>
             <div className="font-bold text-[#0E2F6E]">🏦 Rekening & Perekrut</div>
             <div><label className={lbl}>Nama Bank *</label>
-              <input value={form.bank} onChange={e=>setF('bank',e.target.value)} placeholder="Contoh: BSI" className={inp}/></div>
+              <BankInput value={form.bank} onChange={v=>setF('bank',v)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. Rekening *</label>
                 <input value={form.norek} onChange={e=>setF('norek',e.target.value.replace(/\D/g,''))} inputMode="numeric" className={inp}/></div>
