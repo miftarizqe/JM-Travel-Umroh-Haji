@@ -111,8 +111,10 @@ export default function DashboardPerwakilan() {
       {/* 3 kartu ringkas (Team / Total Jamaah / Ujroh Pending) — mirror
           susunan kartu Sahabat Baitullah, datanya disesuaikan ke yang
           relevan buat Perwakilan (gak ada konsep tabungan BSI, diganti
-          Total Jamaah — dikonfirmasi user 2026-10-18). */}
-      <div className={`grid gap-3 mb-4 ${r.saldo_pending > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          Total Jamaah — dikonfirmasi user 2026-10-18). Ujroh Pending SELALU
+          tampil (gak disembunyiin pas 0) — beda dari pola Sahabat yang
+          nyembunyiin pas gak ada pending, dikonfirmasi user 2026-10-18. */}
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <button onClick={() => router.push('/dashboard/downline')} className="bg-purple-50 rounded-xl p-3 text-left cursor-pointer">
           <div className="text-[11px] text-gray-500">Team</div>
           <div className="text-xl font-black text-purple-700 underline decoration-dotted">{r.jumlah_downline || 0}</div>
@@ -121,12 +123,10 @@ export default function DashboardPerwakilan() {
           <div className="text-[11px] text-gray-500">Total Jamaah</div>
           <div className="text-xl font-black text-[#1A4FA0]">{r.total_jamaah || 0}</div>
         </div>
-        {r.saldo_pending > 0 && (
-          <div className="bg-amber-50 rounded-xl p-3 text-left">
-            <div className="text-[11px] text-gray-500">Ujroh Pending</div>
-            <div className="text-lg font-black text-amber-700">{rp(r.saldo_pending)}</div>
-          </div>
-        )}
+        <div className="bg-amber-50 rounded-xl p-3 text-left">
+          <div className="text-[11px] text-gray-500">Ujroh Pending</div>
+          <div className="text-lg font-black text-amber-700">{rp(r.saldo_pending)}</div>
+        </div>
       </div>
 
       {/* Link Referral — perekrut perwakilan baru (mirror pola sahabat di
