@@ -97,14 +97,13 @@ export default function DaftarPerwakilanMetodePage() {
             <label className={lbl}>Metode Pendaftaran *</label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { v: 'kantor', l: 'Datang ke Kantor', d: 'Jakarta & sekitarnya' },
-                { v: 'paket', l: 'Cetak & Kirim Sendiri', d: 'Luar Jakarta' },
+                { v: 'kantor', l: 'Datang ke Kantor' },
+                { v: 'paket', l: 'Cetak & Kirim Sendiri' },
               ].map(m => (
                 <div key={m.v} onClick={() => setF('metode', m.v)}
                   className={`border-2 rounded-lg p-3 cursor-pointer text-center transition-all ${
                     form.metode === m.v ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200'}`}>
                   <div className="text-sm font-bold text-[#0E2F6E]">{m.l}</div>
-                  <div className="text-[10px] text-gray-400">{m.d}</div>
                 </div>
               ))}
             </div>

@@ -208,20 +208,6 @@ export default function StatusPendaftaranPage() {
                     </div>
 
                     {/* Action khusus per step */}
-                    {isCurrent && s.key === 'waiting_docs_return' && (
-                      <div className="mt-2 space-y-2">
-                        <a href="/api/perwakilan/unduh-pks" target="_blank" rel="noopener noreferrer"
-                          className="inline-block bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-4 py-2 rounded-full">
-                          📄 Download Perjanjian Kerjasama (PDF)
-                        </a>
-                        <div className="bg-[#FEF3DC] border border-yellow-300 rounded-lg p-3 text-xs text-[#7a5500]">
-                          <div className="font-bold mb-1">📮 TTD di atas materai Rp10.000 asli, lalu kirim ke:</div>
-                          <div>PT. Alkhalid Jaya Megah Tours & Travel</div>
-                          <div>{pengaturan.alamat_kantor}</div>
-                          <div className="mt-1">📞 Konfirmasi: {waDisplay(pengaturan.wa_kantor)}</div>
-                        </div>
-                      </div>
-                    )}
                     {isCurrent && s.key === 'waiting_visit' && (
                       <div className="mt-2 bg-purple-50 border border-purple-200 rounded-lg p-3 text-xs text-purple-700">
                         <div className="font-bold mb-1">📍 Lokasi Kantor:</div>
@@ -242,6 +228,28 @@ export default function StatusPendaftaranPage() {
             })}
           </div>
         </div>
+
+        {/* Download & kirim sendiri — PERSISTEN selama metode paket & belum
+            aktif (dikonfirmasi user 2026-10-18), BUKAN nunggu admin majuin
+            step ke waiting_docs_return dulu (itu gerbang verifikasi data,
+            gak ada hubungannya sama kesiapan dokumen buat di-download —
+            mirror Sahabat Baitullah yang juga langsung nampilin tombol
+            unduh begitu metode 'kirim' dipilih, gak nunggu apa pun). */}
+        {isViaPacket && currentStatus !== 'active' && (
+          <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-2">
+            <div className="font-bold text-[#0E2F6E]">📄 Cetak & Kirim Sendiri</div>
+            <a href="/api/perwakilan/unduh-pks" target="_blank" rel="noopener noreferrer"
+              className="inline-block bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-4 py-2 rounded-full">
+              📄 Download Perjanjian Kerjasama (PDF)
+            </a>
+            <div className="bg-[#FEF3DC] border border-yellow-300 rounded-lg p-3 text-xs text-[#7a5500]">
+              <div className="font-bold mb-1">📮 TTD di atas materai Rp10.000 asli, lalu kirim ke:</div>
+              <div>PT. Alkhalid Jaya Megah Tours & Travel</div>
+              <div>{pengaturan.alamat_kantor}</div>
+              <div className="mt-1">📞 Konfirmasi: {waDisplay(pengaturan.wa_kantor)}</div>
+            </div>
+          </div>
+        )}
 
         {/* Info Kontak */}
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-5">
