@@ -14,11 +14,12 @@ import { PENDIDIKAN_LIST } from '@/lib/pendidikan';
 import { hitungUmur } from '@/lib/umur';
 
 const emptyForm = () => ({
-  // Default Tanggal Lahir diisi persis tgl termuda yang masih valid (17
-  // tahun dari hari ini, dikonfirmasi user 2026-10-08) — biar date picker
-  // gak nongol tahun sekarang yang jelas-jelas gak valid pas pertama
-  // dibuka, pendaftar tinggal mundur dari situ.
-  nama:'', nik:'', tempat_lahir:'', tl: maksTglLahir17Tahun(), jk:'Laki-Laki', ibu:'', ayah:'', foto_ktp_path:'',
+  // Tanggal Lahir & Jenis Kelamin SENGAJA kosong (dikonfirmasi user
+  // 2026-10-18, mirror /daftar-sahabat sejak 2026-10-15) — dulu di-autofill
+  // (tgl persis 17 tahun lalu & "Laki-Laki"), gampang kelewat gak diganti
+  // jadi data salah. Batas minimal 17 tahun tetap lewat `max` date picker +
+  // validStep() + server.
+  nama:'', nik:'', tempat_lahir:'', tl: '', jk: '', ibu:'', ayah:'', foto_ktp_path:'',
   // Alamat KTP
   jalan:'', norumah:'', rt:'', rw:'', kp:'', kel:'', kec:'', kota:'', provinsi:'', negara:'Indonesia',
   // Alamat domisili — sama_ktp true berarti dianggap sama dgn alamat KTP di atas
@@ -116,7 +117,7 @@ export default function DaftarPerwakilanPage() {
         nama: kosong(prev.nama) ? (p.name || '') : prev.nama,
         nik: kosong(prev.nik) ? (p.nik || '') : prev.nik,
         tempat_lahir: kosong(prev.tempat_lahir) ? (p.tempat_lahir || '') : prev.tempat_lahir,
-        tl: prev.tl === maksTanggalLahir17Tahun && p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : prev.tl,
+        tl: !prev.tl && p.tanggal_lahir ? String(p.tanggal_lahir).slice(0, 10) : prev.tl,
         jk: p.jenis_kelamin || prev.jk,
         ibu: kosong(prev.ibu) ? (p.nama_ibu || '') : prev.ibu,
         ayah: kosong(prev.ayah) ? (p.nama_ayah || '') : prev.ayah,
@@ -139,7 +140,6 @@ export default function DaftarPerwakilanPage() {
         provinsi: kosong(prev.provinsi) ? (p.alamat_ktp_provinsi || '') : prev.provinsi,
       }));
     }).catch(()=>{});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   // Perekrut dari registrasi sudah final (role sudah 'perwakilan') — dipakai
@@ -177,6 +177,7 @@ export default function DaftarPerwakilanPage() {
       if (!form.tempat_lahir.trim()) return alert('Tempat lahir wajib diisi!') || false;
       if (!form.tl) return alert('Tanggal lahir wajib diisi!') || false;
       if ((hitungUmur(form.tl) ?? 0) < 17) return alert('Pendaftar Perwakilan wajib minimal berusia 17 tahun!') || false;
+      if (!['Laki-Laki', 'Perempuan'].includes(form.jk)) return alert('Jenis kelamin wajib dipilih!') || false;
       if (!form.ibu.trim()) return alert('Nama ibu kandung wajib diisi!') || false;
       if (!form.ayah.trim()) return alert('Nama ayah kandung wajib diisi!') || false;
       if (!form.wa.trim()) return alert('No. WhatsApp wajib diisi!') || false;
@@ -326,6 +327,7 @@ export default function DaftarPerwakilanPage() {
                 <InputTanggal max={maksTanggalLahir17Tahun} value={form.tl} onChange={e=>{ if (e.target.value) setF('tl',e.target.value); }} className={inp}/></div>
               <div><label className={lbl}>Jenis Kelamin *</label>
                 <select value={form.jk} onChange={e=>setF('jk',e.target.value)} className={inp}>
+                  <option value="">— Pilih —</option>
                   <option>Laki-Laki</option><option>Perempuan</option></select></div>
             </div>
             <div><label className={lbl}>Nama Ibu Kandung *</label>
