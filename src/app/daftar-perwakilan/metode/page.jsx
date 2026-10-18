@@ -7,6 +7,7 @@ import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
+import { usePengaturan } from '@/lib/usePengaturan';
 
 const emptyForm = () => ({
   metode: 'kantor', jadwal: '',
@@ -29,6 +30,7 @@ const emptyForm = () => ({
 export default function DaftarPerwakilanMetodePage() {
   const router = useRouter();
   const [user] = useCurrentUser();
+  const [pengaturan] = usePengaturan();
   const [form, setForm] = useState(emptyForm());
   const [cek, setCek] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -115,8 +117,11 @@ export default function DaftarPerwakilanMetodePage() {
 
           {form.metode === 'paket' && (
             <div className="pt-1 border-t border-gray-100 space-y-3">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-                📝 Langkah selanjutnya: Anda download &amp; print sendiri Perjanjian Kerjasama Perwakilan (2 rangkap) dari halaman Status Pendaftaran, lalu TTD di atas <b>materai Rp10.000 asli</b> (siapkan sendiri) dan kirim 1 rangkap ke kantor JM Travel.
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 space-y-1.5">
+                <div>📝 Langkah selanjutnya: Anda download &amp; print sendiri Perjanjian Kerjasama Perwakilan (2 rangkap) dari halaman Status Pendaftaran, lalu TTD di atas <b>materai Rp10.000 asli</b> (siapkan sendiri) dan kirim 1 rangkap ke kantor JM Travel:</div>
+                {pengaturan?.alamat_kantor && (
+                  <div className="font-semibold">📍 PT. Alkhalid Jaya Megah Tours & Travel — {pengaturan.alamat_kantor}</div>
+                )}
               </div>
               <div className="font-bold text-[#0E2F6E] text-sm pt-2">📦 Alamat Pengiriman</div>
               <p className="text-xs text-gray-400 -mt-2">

@@ -261,9 +261,15 @@ export default function DaftarPerwakilanPage() {
     setLoading(false);
   }
 
-  if (!user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
+  if (!user || !cek) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
-  if (PERWAKILAN_COMING_SOON) {
+  // Coming-soon pause (dikonfirmasi user 2026-10-18) KHUSUS nutup
+  // pendaftaran BARU -- yang udah terlanjur mulai (punya baris
+  // agen_pendaftaran, status belum final) TETAP boleh lanjut/revisi,
+  // supaya gak nyangkut gara-gara di-pause di tengah jalan (bug nyata,
+  // ditemukan dari akun yang diminta admin revisi tapi gak bisa buka
+  // formulirnya lagi).
+  if (PERWAKILAN_COMING_SOON && !cek.pendaftaran) {
     return <Layout title="📝 Formulir Kemitraan Perwakilan" showBack><div className="max-w-md mx-auto">
       <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 text-center">
         <div className="text-3xl mb-2">🚧</div>
