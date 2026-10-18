@@ -9,6 +9,7 @@ import { generateFormulirBsiPdf } from './formulirBsiOverlay';
 import { pastikanSnapshot } from '@/lib/pasalSnapshot';
 import { ambilPasalUntukCetak } from '@/lib/pasalUntukCetak';
 import { formatAlamatDuaBaris } from './alamatDuaBaris';
+import { ambilAtauBuatTanggalBeku } from '@/lib/nomorSurat';
 
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 function tglIndo(d) {
@@ -63,9 +64,18 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
   // rekening hasil bantuan BSI manual) -- fallback ke nama jamaah kalau
   // belum diisi admin (dikonfirmasi user 2026-10-03).
   const namaRekening = user.nama_pemilik_rekening_umroh || user.name;
-  // Baris "_______,________________" di atas TTD -- sebelumnya selalu kosong
-  // (dikonfirmasi user 2026-10-03, sekarang diisi tanggal cetak).
-  const tanggalTtd = `Jakarta, ${tglIndo(new Date())}`;
+  // Baris "_______,________________" di atas TTD -- dibekukan PERMANEN dari
+  // users.setuju_pks_at (dikonfirmasi user 2026-10-18), sama pola SPK-AK/
+  // SPKA-Ins (lihat ambilAtauBuatTanggalBeku di nomorSurat.js) -- sebelumnya
+  // dihitung `new Date()` setiap PDF digenerate ulang, beda dari dokumen
+  // lain yang udah dibekukan. Kolom terpisah per dokumen (tgl_sk_cif/
+  // tgl_surat_pemblokiran, mirror no_sk_cif/no_surat_pemblokiran) walau
+  // nilainya bakal sama persis (dibekukan bareng pertama kali dokumen
+  // gabungan ini digenerate).
+  const [tanggalSkCif, tanggalPemblokiran] = await Promise.all([
+    ambilAtauBuatTanggalBeku(pool, user.id, 'tgl_sk_cif'),
+    ambilAtauBuatTanggalBeku(pool, user.id, 'tgl_surat_pemblokiran'),
+  ]);
 
   // Freeze pasal/signer (idempotent) tetap dijalankan biar konsisten sama
   // GET /api/sahabat/sk-cif — nama Penerima Kuasa yang dicetak di sini
@@ -81,7 +91,7 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
       noRekening: user.no_rekening_tabungan_umroh || '-',
       namaRekening,
       namaWakil: signer?.nama || '-',
-      tanggalTtd,
+      tanggalTtd: `Jakarta, ${tglIndo(tanggalSkCif)}`,
     },
     pemblokiran: {
       nama: user.name,
@@ -92,7 +102,7 @@ export async function buatPdfSkCifPemblokiranUntukUser(pool, userId) {
       nominalBlokir: Number(user.nominal_blokir_tabungan).toLocaleString('id-ID'),
       jangkaWaktuHari: String(user.jangka_waktu_blokir_hari),
       tanggalMulai: tglIndo(new Date(user.tanggal_mulai_blokir)),
-      tanggalTtd,
+      tanggalTtd: `Jakarta, ${tglIndo(tanggalPemblokiran)}`,
     },
   });
 }
