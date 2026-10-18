@@ -32,17 +32,22 @@ const FONT_SIZE = 11;
 const KOORDINAT = {
   jumlahHalaman: 7,
   p1: {
-    // atasExtra: placeholder template "Nomor: 0000xx.09/JMT-JSB/2026" BENERAN
-    // dicetak (bukan garis blank kosong) -- lebih tinggi dari formula
-    // standar, nongol ngintip di atas kotak penutup kalau gak ditambah
-    // (bug nyata 2026-10-18, lihat komentar drawFitKiri di pdfOverlay.js).
-    nomor:      { x: 255, y: 683, maxWidth: 250, atasExtra: 6 },
-    // y digeser +3 dari baseline label statis di sekitarnya -- font overlay
-    // (Times-Roman standar pdf-lib) ascender-nya lebih pendek dari font
-    // template, jadi kalau y PERSIS sama malah keliatan "ngambang di bawah"
-    // dibanding teks statis semulai "Pada hari ini," (bug nyata 2026-10-18).
-    hari:       { x: 140, y: 658, maxWidth: 65 },
-    tanggal:    { x: 253, y: 658, maxWidth: 90 },
+    // atasExtra 5.2 (bukan 6) -- judul "...PERWAKILAN" cuma berjarak ~0.4pt
+    // dari placeholder Nomor di bawahnya (diukur pdftotext -bbox), atasExtra
+    // 6 kepotong nabrak judul (ketemu pas benerin bug sama di spk_ak rangkap,
+    // 2026-10-18). 5.2 pas di tengah window aman [696.33, 696.73] bottom-up.
+    nomor:      { x: 255, y: 683, maxWidth: 250, atasExtra: 5.2 },
+    // y=655 (BUKAN digeser) -- sempat dicoba +3 (2026-10-18) based on dugaan
+    // baseline meleset, TERNYATA diukur ulang baseline-nya udah pas (~0.8pt
+    // doang bedanya dari teks statis) -- kesan "ngambang"-nya dari MISMATCH
+    // FONT (template pakai TrueType Times New Roman asli, overlay pakai
+    // StandardFonts.TimesRoman pdf-lib yang beda metric/x-height), bukan soal
+    // posisi y. Geser y JUSTRU bikin baseline meleset ke arah SEBALIKNYA
+    // (ketahuan dari pdftotext -bbox). Fix bener butuh embed font yang sama
+    // persis (lihat follow-up soal font-embedding) -- revert ke posisi semula
+    // dulu sambil nunggu itu.
+    hari:       { x: 140, y: 655, maxWidth: 65 },
+    tanggal:    { x: 253, y: 655, maxWidth: 90 },
     nama:       { x: 190, y: 476, maxWidth: 330 },
     nik:        { x: 190, y: 462, maxWidth: 330 },
     alamatBaris1: { x: 190, y: 448, maxWidth: 330 },

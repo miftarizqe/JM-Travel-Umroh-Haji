@@ -95,7 +95,7 @@ export async function GET(request) {
       // tetap 1 dokumen, SAMA PERSIS fungsi yang dipakai dokumen aslinya
       // (lihat spkAkUntukUser.js).
       buffer = await generateSpkAkPdf({
-        dokumen, nomor: '000001.10/JMT-JSB-NM/2026 (contoh)',
+        dokumen, nomor: '000001.10/JMT-ASB/2026 (contoh)',
         nama: CONTOH_USER.name, alamat: CONTOH_USER.alamat, noTelepon: '08xxxxxxxxxx', noPaspor: 'C1234567',
         namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
       });

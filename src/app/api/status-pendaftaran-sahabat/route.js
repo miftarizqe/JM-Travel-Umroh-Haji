@@ -211,7 +211,7 @@ export async function PATCH(request) {
       // biar bisa dipakai ulang jamaah lain bulan ini (dikonfirmasi user
       // 2026-10-03) — no-op kalau kolomnya kosong atau beda bulan.
       await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_spk_ak', 'JSB');
-      await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_spk_ak_nonis', 'JSB-NM');
+      await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_spk_ak_nonis', 'ASB');
       await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_sk_cif', 'SK-CIF');
       await releaseNomorSuratJikaBulanSama(pool, user_id, 'no_surat_pemblokiran', 'SURAT-PEMBLOKIRAN');
       // Sebelumnya gak ada notifikasi sama sekali (2026-10-11). Login-nya

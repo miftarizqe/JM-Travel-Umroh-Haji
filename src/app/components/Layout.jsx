@@ -619,7 +619,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     { icon: '⚙️', label: 'Pengaturan Sistem', children: [
       { icon: '⚙️', label: 'Pengaturan Umum', path: '/admin/pengaturan' },
       { icon: '📜', label: 'Pengaturan Dokumen', path: '/admin/pengaturan/dokumen' },
-      { icon: '📤', label: 'Import Dokumen Fisik', path: '/admin/pengaturan/dokumen-fisik' },
     ] },
     // Diurutin per tema (dikonfirmasi user 2026-10-17) — promosi/diskon
     // dulu, baru konten website. TETAP flat (gak dipecah subgrup kayak

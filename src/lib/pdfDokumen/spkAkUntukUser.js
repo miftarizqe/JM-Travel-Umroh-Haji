@@ -46,7 +46,7 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
 
   const dokumen = user.agama === 'non_islam' ? 'spk_ak_nonis' : 'spk_ak';
   const nomorKolom = dokumen === 'spk_ak' ? 'no_spk_ak' : 'no_spk_ak_nonis';
-  const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'JSB-NM';
+  const nomorJenis = dokumen === 'spk_ak' ? 'JSB' : 'ASB';
   const tanggalKolom = dokumen === 'spk_ak' ? 'tgl_spk_ak' : 'tgl_spk_ak_nonis';
   const nomor = await ambilAtauBuatNomorSurat(pool, user.id, nomorJenis, nomorKolom);
   // Tanggal TTD dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --

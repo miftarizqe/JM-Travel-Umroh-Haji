@@ -57,7 +57,7 @@ const KOORDINAT = {
       // dicetak (bukan garis blank kosong) -- lebih tinggi dari formula
       // standar, nongol ngintip di atas kotak penutup kalau gak ditambah
       // (bug nyata 2026-10-18, lihat komentar drawFitKiri di pdfOverlay.js).
-      nomor:     { x: 256, y: 661, maxWidth: 128, atasExtra: 6 },
+      nomor:     { x: 256, y: 661, maxWidth: 128, atasExtra: 7 },
       hari:      { x: 142, y: 610, maxWidth: 58 },
       tanggal:   { x: 242, y: 610, maxWidth: 104 },
       // nama/alamat dikasih ruang lebih lega (sampai dekat margin kanan
@@ -113,7 +113,13 @@ const FONT_SIZE_RANGKAP = 12;
 const KOORDINAT_RANGKAP = {
   jumlahHalaman: 6,
   p1: {
-    nomor:     { x: 255, y: 669, maxWidth: 255, atasExtra: 6 },
+    // atasExtra lebih kecil dari dokumen lain (4.5, bukan 6-7) -- template
+    // rangkap ini TITIK JUDUL baris ke-2 ("...PROGRAM SAHABAT BAITULLAH")
+    // CUMA berjarak ~0.5pt dari placeholder Nomor di bawahnya (diukur via
+    // pdftotext -bbox, beda dari dokumen lain yang jaraknya ~2-2.5pt) --
+    // atasExtra 6 kepotong nabrak judul (bug nyata screenshot user
+    // 2026-10-18), 4.5 pas di tengah window aman [682.41, 682.81] bottom-up.
+    nomor:     { x: 255, y: 669, maxWidth: 255, atasExtra: 4.5 },
     hari:      { x: 142, y: 642, maxWidth: 64 },
     tanggal:   { x: 253, y: 642, maxWidth: 88 },
     nama:      { x: 190, y: 468, maxWidth: 334 },
