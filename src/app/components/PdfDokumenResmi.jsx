@@ -47,7 +47,7 @@ export default function PdfDokumenResmi({ url, method = 'GET', tinggi = '70vh', 
 
   return (
     <div className="space-y-1.5">
-      <iframe src={objUrl} title="Dokumen resmi" className="w-full border border-gray-200 rounded-lg bg-gray-50"
+      <iframe src={objUrl} className="w-full border border-gray-200 rounded-lg bg-gray-50"
         style={{ height: tinggi }} onLoad={() => onSiapRef.current?.()} />
       <div className="text-right">
         <a href={objUrl} target="_blank" rel="noopener noreferrer" className="text-[11px] font-bold text-[#1A4FA0] hover:underline">
