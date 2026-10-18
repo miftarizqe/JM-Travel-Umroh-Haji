@@ -119,7 +119,7 @@ export default function DaftarPerwakilanMetodePage() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 space-y-1.5">
                 <div>📝 Langkah selanjutnya: Anda download &amp; print sendiri Perjanjian Kerjasama Perwakilan (2 rangkap) dari halaman Status Pendaftaran, lalu TTD di atas <b>materai Rp10.000 asli</b> (siapkan sendiri) dan kirim 1 rangkap ke kantor JM Travel:</div>
                 {pengaturan?.alamat_kantor && (
-                  <div className="font-semibold">📍 PT. Alkhalid Jaya Megah Tours & Travel — {pengaturan.alamat_kantor}</div>
+                  <div className="font-semibold">📍 JM Travel Umroh & Haji (PT. Alkhalid Jaya Megah) — {pengaturan.alamat_kantor}</div>
                 )}
               </div>
               <div className="font-bold text-[#0E2F6E] text-sm pt-2">📦 Alamat Pengiriman</div>

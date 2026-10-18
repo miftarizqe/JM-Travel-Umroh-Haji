@@ -244,7 +244,7 @@ export default function StatusPendaftaranPage() {
             </a>
             <div className="bg-[#FEF3DC] border border-yellow-300 rounded-lg p-3 text-xs text-[#7a5500]">
               <div className="font-bold mb-1">📮 TTD di atas materai Rp10.000 asli, lalu kirim ke:</div>
-              <div>PT. Alkhalid Jaya Megah Tours & Travel</div>
+              <div>JM Travel Umroh & Haji (PT. Alkhalid Jaya Megah)</div>
               <div>{pengaturan.alamat_kantor}</div>
               <div className="mt-1">📞 Konfirmasi: {waDisplay(pengaturan.wa_kantor)}</div>
             </div>
