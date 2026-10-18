@@ -51,9 +51,11 @@ export async function GET(request, { params }) {
       if (perekrut) perekrut.alamat = perekrut.alamat_ktp || perekrut.alamat;
     }
 
-    // Kode surat perwakilan sesuai draft resmi: "SPKA-Ins" (Ins = Institusi),
-    // BUKAN "SPKP" — beda dari dugaan awal sebelum draftnya dikasih.
-    const jenis = 'SPKA-Ins';
+    // Jenis nomor "PWK" (sementara, dikonfirmasi user 2026-10-18) — format
+    // XXXXXX.NN/JMT-PWK/YYYY, mirror JSB Sahabat Baitullah. Dulu jenis =
+    // "SPKA-Ins" (nama dokumen, bukan kode nomor) — diubah pas PDF template
+    // resmi (spkaInsUntukUser.js) dipasang, biar konsisten 1 jenis counter.
+    const jenis = 'PWK';
     const nomor = await ambilAtauBuatNomorSurat(pool, u.id, jenis);
     // Tanggal dibekukan BARENG nomor (dikonfirmasi user 2026-10-12) --
     // dulu "Pada hari X, tanggal Y" di surat ambil users.created_at (tanggal
