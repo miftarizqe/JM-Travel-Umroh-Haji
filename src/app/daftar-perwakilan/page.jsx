@@ -6,7 +6,7 @@ import Layout from '@/app/components/Layout';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan } from '@/lib/usePengaturan';
-import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
+import { AddressFields } from '@/app/components/AddressFields';
 import { langkahBerikutnyaPerwakilan } from '@/lib/perwakilanFlow';
 import { PERWAKILAN_COMING_SOON, PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { labelPerekrut } from '@/lib/labelPerekrut';
@@ -49,6 +49,10 @@ export default function DaftarPerwakilanPage() {
     nama: user?.name || '', nik: user?.nik || '', wa: user?.wa || '', email: user?.email || '',
   }));
   const [step, setStep] = useState(1); // 1=data diri, 2=alamat, 3=rekening+perekrut, 4=konfirmasi
+  // Highlight error per-field cuma di step Alamat (dikonfirmasi user
+  // 2026-10-18, mirror /daftar-sahabat 2026-10-15) — step lain tetap pakai
+  // alert() biasa di validStep(), sengaja gak diubah.
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [cek, setCek] = useState(null); // prasyarat
   const [uploadingKtp, setUploadingKtp] = useState(false);
@@ -185,10 +189,22 @@ export default function DaftarPerwakilanPage() {
       if (!form.foto_ktp_path) return alert('Foto KTP wajib diunggah!') || false;
     }
     if (step === 2) {
-      if (!alamatLengkap(form, ''))
-        return alert('Alamat KTP wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
-      if (!form.sama_ktp && !alamatLengkap(form, '_dom'))
-        return alert('Alamat domisili wajib diisi lengkap (nama jalan, no. rumah, RT, RW, kelurahan, kecamatan, kota/kabupaten, provinsi, negara)!') || false;
+      // Highlight per-field (mirror /daftar-sahabat 2026-10-15) — sama
+      // persis daftar field wajib alamatLengkap(), 'kp' (Kode Pos) sengaja
+      // dilewat (opsional).
+      const e = {};
+      const FIELD_ALAMAT = ['provinsi', 'kota', 'kec', 'kel', 'jalan', 'norumah', 'rt', 'rw', 'negara'];
+      for (const f of FIELD_ALAMAT) if (!String(form[f] || '').trim()) e[f] = 'Wajib diisi';
+      if (!form.sama_ktp) for (const f of FIELD_ALAMAT) if (!String(form[`${f}_dom`] || '').trim()) e[`${f}_dom`] = 'Wajib diisi';
+      setErrors(e);
+      if (Object.keys(e).length > 0) {
+        requestAnimationFrame(() => {
+          document.querySelector('[data-err="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        return false;
+      }
+    } else if (Object.keys(errors).length > 0) {
+      setErrors({});
     }
     if (step === 3) {
       if (!form.bank.trim() || !form.norek.trim() || !form.pemilik.trim())
@@ -372,7 +388,7 @@ export default function DaftarPerwakilanPage() {
 
           {step === 2 && (<>
             <div className="font-bold text-[#0E2F6E]">🏠 Alamat KTP</div>
-            <AddressFields form={form} setF={setF} suffix="" inp={inp} lbl={lbl}/>
+            <AddressFields form={form} setF={setF} suffix="" inp={inp} lbl={lbl} errors={errors}/>
 
             <div className="pt-3 border-t border-gray-100">
               <label className="flex items-center gap-2 cursor-pointer mb-2">
@@ -382,7 +398,7 @@ export default function DaftarPerwakilanPage() {
               </label>
               {!form.sama_ktp && (<>
                 <div className="font-bold text-[#0E2F6E] mt-2">🏠 Alamat Domisili</div>
-                <AddressFields form={form} setF={setF} suffix="_dom" inp={inp} lbl={lbl}/>
+                <AddressFields form={form} setF={setF} suffix="_dom" inp={inp} lbl={lbl} errors={errors}/>
               </>)}
             </div>
           </>)}
@@ -463,7 +479,7 @@ export default function DaftarPerwakilanPage() {
           {/* Navigasi */}
           <div className="flex gap-2 pt-2">
             {step > 1 && (
-              <button onClick={()=>setStep(step-1)}
+              <button onClick={()=>{ setErrors({}); setStep(step-1); }}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-2.5 rounded-full text-sm">
                 ← Kembali
               </button>
