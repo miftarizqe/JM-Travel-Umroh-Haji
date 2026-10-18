@@ -178,9 +178,12 @@ const KOORDINAT_RANGKAP_NONIS = {
     alamat:    { x: 190, y: 462, maxWidth: 334 },
     noTelepon: { x: 190, y: 435, maxWidth: 334 },
   },
+  // Template direvisi user 2026-10-18 (perbaikan teks Pasal 4.6 yang tadinya
+  // ketimpa/numpuk) -- blank "bulan" & "Rp" geser posisi, diukur ulang pakai
+  // file baru.
   p4: {
-    targetBulanTahun: { x: 268, y: 655, maxWidth: 115 },
-    nominalTarget:    { x: 288, y: 642, maxWidth: 235 },
+    targetBulanTahun: { x: 268, y: 655, maxWidth: 125 },
+    nominalTarget:    { x: 328, y: 642, maxWidth: 190 },
   },
   p6: {
     tanggalPenutup: { x: 113, y: 462, maxWidth: 300 },

@@ -485,10 +485,19 @@ export default function StatusPendaftaranSahabatPage() {
   // halaman ini masih draft. Sinkron sama /api/sahabat/kirim-pendaftaran.
   const sudahDiajukan = !!pendaftaran.diajukan_at;
   const statusAkhir = pendaftaran.status === 'active' || pendaftaran.status === 'ditolak';
+
+  // Non-Muslim = AGEN (gak berangkat umroh sendiri, lihat PKS Agen Sahabat
+  // Baitullah Pasal 2.C) -- rekening yang dibuka BUKAN "Tabungan Haji" tapi
+  // "Tabungan Wadiah" biasa (dikonfirmasi user 2026-10-18, beda nama produk
+  // BSI, sebelumnya kolom ini nyebut "Tabungan Umroh" generik ke semua role
+  // padahal gak sesuai isi PKS buat akun non-Muslim).
+  const isAgen = u.agama === 'non_islam';
+  const labelTabungan = isAgen ? 'Tabungan Wadiah' : 'Tabungan Haji';
+
   const syaratKirimKurang = [
     !prasyarat.spk_ak_disetujui && 'Surat Perjanjian Jamaah Sahabat Baitullah',
     !prasyarat.bukti_tf_verified && 'Bukti transfer',
-    !prasyarat.rekening_umroh_terisi && 'Rekening Tabungan Umroh',
+    !prasyarat.rekening_umroh_terisi && `Rekening ${labelTabungan}`,
     !prasyarat.setuju_sk_cif_pemblokiran && 'Baca & Setuju SK-CIF & Surat Kuasa Blokir Rekening',
     !u.metode_ttd_sahabat && 'Metode TTD',
     pendaftaran.perbaikan_diminta_at && 'Perbaikan data diri sesuai catatan admin',
@@ -703,14 +712,14 @@ export default function StatusPendaftaranSahabatPage() {
           )}
         </Item>
 
-        <Item done={prasyarat.rekening_umroh_terisi} label="Rekening Tabungan Umroh">
+        <Item done={prasyarat.rekening_umroh_terisi} label={`Rekening ${labelTabungan}`}>
           {!prasyarat.bukti_tf_verified && <div className="text-xs text-gray-400">Bayar pendaftaran (bukti transfer) dulu di atas.</div>}
           {prasyarat.bukti_tf_verified && (
             prasyarat.rekening_umroh_terisi && editRekUmroh && bisaUbahRekening ? (
               <div className="space-y-2">
                 <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
                   onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Nomor rekening tabungan umroh"
+                  placeholder={`Nomor rekening ${labelTabungan.toLowerCase()}`}
                   className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
                 <input value={namaPemilikUmrohInput} maxLength={255}
                   onChange={e => setNamaPemilikUmrohInput(e.target.value)}
@@ -741,7 +750,7 @@ export default function StatusPendaftaranSahabatPage() {
                       className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">✏️ Ubah Nomor/Nama Rekening</button>
                   ) : (
                     <div className="text-[10px] text-gray-400">
-                      Salah nomor/nama? <a href={linkHubungiAdmin('Assalamu\'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening Tabungan Umroh saya.')}
+                      Salah nomor/nama? <a href={linkHubungiAdmin(`Assalamu'alaikum JM Travel, saya ingin mengoreksi nomor/nama Rekening ${labelTabungan} saya.`)}
                         target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 transition-colors">Hubungi admin</a> untuk mengoreksi.
                     </div>
                   )}
@@ -757,7 +766,7 @@ export default function StatusPendaftaranSahabatPage() {
               )
             ) : sudahPunyaRekeningBsi === null ? (
               <div className="space-y-2">
-                <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening Tabungan Umroh BSI?</div>
+                <div className="text-xs text-gray-500">Apakah Anda sudah punya rekening {labelTabungan} BSI?</div>
                 <div className="flex gap-2">
                   <button onClick={() => setSudahPunyaRekeningBsi(true)}
                     className="flex-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-2 rounded-lg hover:bg-[#D3E2F7] transition-colors cursor-pointer">
@@ -783,11 +792,19 @@ export default function StatusPendaftaranSahabatPage() {
                   <div className="space-y-1">
                     {pengaturan?.panduan_buka_rekening_bsi_path && (
                       <a href={pengaturan.panduan_buka_rekening_bsi_path} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Belum punya rekening BSI sama sekali? Panduan Buka Rekening BSI (sudah termasuk Tabungan Umroh)</a>
+                        className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Belum punya rekening BSI sama sekali? Panduan Buka Rekening BSI (sudah termasuk {labelTabungan})</a>
                     )}
                     {pengaturan?.panduan_buka_tabungan_umroh_path && (
                       <a href={pengaturan.panduan_buka_tabungan_umroh_path} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Sudah punya rekening BSI biasa? Panduan Buka Tabungan Umroh (BSI Byond)</a>
+                        className="text-xs font-bold text-[#1A4FA0] underline block hover:text-[#0E2F6E] transition-colors">📘 Sudah punya rekening BSI biasa? Panduan Buka {labelTabungan} (BSI Byond)</a>
+                    )}
+                    {/* Panduan yang diupload admin sejauh ini isinya langkah
+                        buka Tabungan Haji (dikonfirmasi user 2026-10-18) --
+                        buat Agen, langkahnya mirip tapi di layar pilihan
+                        produk BYOND pilih "Tabungan Wadiah", BUKAN "Tabungan
+                        Haji". Belum ada panduan terpisah khusus Wadiah. */}
+                    {isAgen && (
+                      <div className="text-[10px] text-amber-600">⚠️ Panduan di atas masih langkah buka Tabungan Haji — ikuti sampai layar pilihan produk, lalu pilih <b>Tabungan Wadiah</b> (bukan Tabungan Haji).</div>
                     )}
                   </div>
                 )}
@@ -798,7 +815,7 @@ export default function StatusPendaftaranSahabatPage() {
                     <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
                       <input type="checkbox" checked={setujuBantuanBsi} onChange={e => setSetujuBantuanBsi(e.target.checked)}
                         className="mt-0.5 w-4 h-4 accent-[#1A4FA0]" />
-                      Saya setuju identitas saya diserahkan ke pihak Bank BSI untuk dibukakan rekening Tabungan Umroh.
+                      Saya setuju identitas saya diserahkan ke pihak Bank BSI untuk dibukakan rekening {labelTabungan}.
                     </label>
                     <div className="flex gap-2">
                       <button onClick={() => { setBantuanBsiManualView(false); setSetujuBantuanBsi(false); }}
@@ -820,11 +837,11 @@ export default function StatusPendaftaranSahabatPage() {
                         "Belum", dikasih keterangan biar gak dikira wajib
                         diisi sekarang (dikonfirmasi user 2026-10-11). */}
                     {!sudahPunyaRekeningBsi && (
-                      <div className="text-xs text-gray-500">Isi setelah rekening Tabungan Umroh Anda berhasil dibuka sesuai panduan di atas.</div>
+                      <div className="text-xs text-gray-500">Isi setelah rekening {labelTabungan} Anda berhasil dibuka sesuai panduan di atas.</div>
                     )}
                     <input value={rekUmrohInput} maxLength={20} inputMode="numeric"
                       onChange={e => setRekUmrohInput(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Nomor rekening tabungan umroh"
+                      placeholder={`Nomor rekening ${labelTabungan.toLowerCase()}`}
                       className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
                     <div className="flex gap-2">
                       <input value={namaPemilikUmrohInput} maxLength={255}
@@ -856,7 +873,7 @@ export default function StatusPendaftaranSahabatPage() {
         </Item>
 
         <Item done={prasyarat.setuju_sk_cif_pemblokiran} label="Baca & Setuju — Surat Kuasa CIF & Blokir Rekening">
-          {!prasyarat.rekening_umroh_terisi && <div className="text-xs text-gray-400">Isi dulu Rekening Tabungan Umroh di atas.</div>}
+          {!prasyarat.rekening_umroh_terisi && <div className="text-xs text-gray-400">Isi dulu Rekening {labelTabungan} di atas.</div>}
 
           {prasyarat.rekening_umroh_terisi && !prasyarat.setuju_sk_cif_pemblokiran && !cifDanBlokirLengkap && (
             <div className="space-y-3">
@@ -1258,7 +1275,7 @@ export default function StatusPendaftaranSahabatPage() {
                     <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="font-bold text-[#1A4FA0] underline hover:text-[#0E2F6E] transition-colors">Lihat file</a>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <span className="text-gray-400 shrink-0">Rekening Tabungan Umroh</span>
+                    <span className="text-gray-400 shrink-0">Rekening {labelTabungan}</span>
                     <span className="font-bold text-right">
                       {u.no_rekening_tabungan_umroh
                         ? <>{u.no_rekening_tabungan_umroh}{u.nama_pemilik_rekening_umroh && <span className="font-normal"> a.n. {u.nama_pemilik_rekening_umroh}</span>}</>

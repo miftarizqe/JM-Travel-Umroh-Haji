@@ -210,6 +210,10 @@ export default function ProfilPage() {
 
   const inp = "w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
   const lbl = "block text-xs font-semibold text-[#0E2F6E] mb-1.5";
+  // Non-Muslim sahabat_baitullah = AGEN, rekeningnya "Tabungan Wadiah" bukan
+  // "Tabungan Haji" (dikonfirmasi user 2026-10-18, lihat PKS Agen Sahabat
+  // Baitullah Pasal 2.C, samain pola status-pendaftaran-sahabat/page.jsx).
+  const labelTabungan = user.agama === 'non_islam' ? 'Tabungan Wadiah' : 'Tabungan Haji';
 
   const roleLabel = {
     jamaah: '🧳 Jamaah', perwakilan: '🏢 Perwakilan', sahabat_baitullah: '🤝 Sahabat Baitullah', hop: '👑 Head of Program', admin: '⚙️ Admin', super_admin: '🔒 Super Admin',
@@ -281,11 +285,11 @@ export default function ProfilPage() {
                 data rahasia bank, gak diinput siapa pun lagi). */}
             <div className="bg-gray-50 rounded-lg p-2 text-center mb-3">
               <div className="text-lg">{user.tabungan_haji_status ? '✅' : '⏳'}</div>
-              <div className="text-[10px] text-gray-500 mt-0.5">Rekening Tabungan Umroh</div>
+              <div className="text-[10px] text-gray-500 mt-0.5">Rekening {labelTabungan}</div>
               <div className="text-[10px] text-gray-400 mt-0.5">
                 {user.tabungan_haji_status
-                  ? 'Rekening BSI khusus tabungan umroh Anda sudah aktif — ujroh & setoran masuk ke sini.'
-                  : 'Belum ada rekening tabungan umroh — isi di halaman Status Pendaftaran begitu rekeningnya jadi.'}
+                  ? `Rekening BSI khusus ${labelTabungan.toLowerCase()} Anda sudah aktif — ujroh & setoran masuk ke sini.`
+                  : `Belum ada rekening ${labelTabungan.toLowerCase()} — isi di halaman Status Pendaftaran begitu rekeningnya jadi.`}
               </div>
             </div>
             {(user.dokumen?.spk_ak || user.dokumen?.sk_cif || user.dokumen?.surat_pemblokiran) && (
@@ -520,11 +524,11 @@ export default function ProfilPage() {
               {isAdminSelf && user.role === 'sahabat_baitullah' && user.no_rekening_tabungan_umroh && (
                 <>
                   <div>
-                    <label className={lbl}>No. Rekening Tabungan Umroh</label>
+                    <label className={lbl}>No. Rekening {labelTabungan}</label>
                     <input value={formRekening.no_rekening_tabungan_umroh} onChange={e => setFormRekening({...formRekening, no_rekening_tabungan_umroh: e.target.value})} className={inp}/>
                   </div>
                   <div>
-                    <label className={lbl}>Nama Pemilik Rekening (Tabungan Umroh)</label>
+                    <label className={lbl}>Nama Pemilik Rekening ({labelTabungan})</label>
                     <input value={formRekening.nama_pemilik_rekening_umroh} onChange={e => setFormRekening({...formRekening, nama_pemilik_rekening_umroh: e.target.value})} className={inp}/>
                   </div>
                 </>

@@ -122,7 +122,7 @@ export async function GET(request) {
 
     return Response.json({
       user: {
-        id: u.id, name: u.name, role: u.role, status: u.status,
+        id: u.id, name: u.name, role: u.role, status: u.status, agama: u.agama,
         terverifikasi: !!u.terverifikasi, foto_path: u.foto_path, setuju_pks: !!u.setuju_pks,
         no_rekening_tabungan_umroh: u.no_rekening_tabungan_umroh,
         nama_pemilik_rekening_umroh: u.nama_pemilik_rekening_umroh,
