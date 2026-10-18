@@ -16,6 +16,14 @@ function onlyDigits(v, max) {
   return v.replace(/\D/g, '').slice(0, max);
 }
 
+// No. Rumah boleh ada huruf/garis miring (mis. "3A", "12/3", "7B") --
+// beda dari RT/RW/Kode Pos yang murni digit (dikonfirmasi user
+// 2026-10-19, sebelumnya huruf ketolak padahal nomor rumah asli bisa
+// gitu).
+function alamatRumah(v, max) {
+  return v.replace(/[^a-zA-Z0-9/-]/g, '').slice(0, max);
+}
+
 function findIdByName(opts, name) {
   if (!name) return '';
   return opts.find(o => o.name.toLowerCase() === name.toLowerCase())?.id || '';
@@ -134,8 +142,8 @@ export function AddressFields({ form, setF, suffix, inp, lbl, errors }) {
         <input value={form[k('jalan')]} onChange={e=>setF(k('jalan'),e.target.value)} className={c('jalan')}/>{err('jalan')}</div>
       <div className="grid grid-cols-3 gap-3">
         <div><label className={lbl}>No. Rumah *</label>
-          <input value={form[k('norumah')]} onChange={e=>setF(k('norumah'),onlyDigits(e.target.value,5))}
-            inputMode="numeric" maxLength={5} className={c('norumah')}/>{err('norumah')}</div>
+          <input value={form[k('norumah')]} onChange={e=>setF(k('norumah'),alamatRumah(e.target.value,8))}
+            maxLength={8} placeholder="mis. 3A" className={c('norumah')}/>{err('norumah')}</div>
         <div><label className={lbl}>RT *</label>
           <input value={form[k('rt')]} onChange={e=>setF(k('rt'),onlyDigits(e.target.value,4))}
             inputMode="numeric" maxLength={4} className={c('rt')}/>{err('rt')}</div>

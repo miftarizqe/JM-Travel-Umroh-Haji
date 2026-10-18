@@ -324,6 +324,34 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
 
       <div className="rounded-lg border-2 border-gray-100 bg-white/70 p-3 space-y-2.5">
         <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
+        {/* Checkbox "sama dengan KTP" CUMA buat "Ini saya sendiri" & akun
+            yang punya alamat KTP terstruktur (dikonfirmasi user 2026-10-19
+            -- sebelumnya alamat kirim WAJIB diketik manual ulang walau
+            jamaahnya diri sendiri & datanya udah ada di profil). Domisili
+            gak ikut ditawarin -- users.alamat_domisili cuma teks bebas,
+            gak bisa dipecah balik ke dropdown berjenjang Provinsi/Kota/
+            Kec/Kel. Ini SEKALI-SALIN (bukan toggle terkunci) -- abis
+            disalin field tetap bisa diedit manual, konsisten sama catatan
+            lama "alamat kirim sengaja gak dikunci".) */}
+        {fieldTerkunci && dataDiriSendiri?.ktp && (
+          <label className="flex items-center gap-2 text-[11px] text-gray-500 cursor-pointer">
+            <input type="checkbox" className="w-3.5 h-3.5 accent-[#1A4FA0]" checked={false}
+              onChange={e => {
+                if (!e.target.checked) return;
+                const ktp = dataDiriSendiri.ktp;
+                onPatch(j => {
+                  const n = {
+                    ...j,
+                    jalan_kirim: ktp.jalan, norumah_kirim: ktp.norumah, rt_kirim: ktp.rt, rw_kirim: ktp.rw,
+                    kel_kirim: ktp.kel, kec_kirim: ktp.kec, kota_kirim: ktp.kota, provinsi_kirim: ktp.provinsi,
+                    kp_kirim: ktp.kp, negara_kirim: ktp.negara,
+                  };
+                  return { ...n, alamat: rangkaiAlamatKirim(n) };
+                });
+              }} />
+            🏠 Salin dari Alamat KTP
+          </label>
+        )}
         {/* setF dipanggil beruntun dalam 1 event (ganti provinsi -> kosongin
             kota/kec/kel), jadi WAJIB functional update (onPatch), bukan
             onChange({...item}) yang bakal saling timpa pakai `item` basi. */}
