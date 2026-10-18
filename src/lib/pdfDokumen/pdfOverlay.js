@@ -27,9 +27,9 @@ export function tempelHalamanTemplate(outDoc, embedded) {
 // box). Kalau box kegedean & jarak antar baris di template sempit (~14pt
 // buat font 11), box baris bawah bisa nutupin ekor descender baris DI
 // ATASnya — bug nyata dari screenshot user 2026-09-29 (huruf "p" kepotong).
-function tutupBlank(page, { left, y, width, size }) {
+function tutupBlank(page, { left, y, width, size, atasExtra = 0 }) {
   const bawah = 5;
-  const atas = size * 0.75;
+  const atas = size * 0.75 + atasExtra;
   page.drawRectangle({ x: left, y: y - bawah, width, height: atas + bawah, color: rgb(1, 1, 1) });
 }
 
@@ -40,13 +40,19 @@ function tutupBlank(page, { left, y, width, size }) {
 // "Label : ______") yang nempel langsung ke kata sebelumnya kalau teksnya
 // mulai persis di awal blank, mis. "waktu90" / "tanggal29 September 2026"
 // (bug nyata dari screenshot user 2026-09-29, keliatan gak ada spasi).
-export function drawFitKiri(page, font, text, { x, y, maxWidth, indent = 0 }, size) {
+// `atasExtra` (opsional) — nambah tinggi kotak penutup ke ATAS, buat field
+// yang placeholder templatenya BUKAN garis bawah kosong tapi teks contoh
+// beneran dicetak (mis. "Nomor: 0000xx.09/JMT-XXX/2026") -- tingginya
+// (~12-13pt) lebih tinggi dari formula size*0.75 yang dituning buat garis
+// blank biasa, jadi nongol ngintip di atas kotak kalau gak ditambah (bug
+// nyata ketemu di field nomor SPK-AK/SPK-AK Non-Muslim/SPKA-Ins 2026-10-18).
+export function drawFitKiri(page, font, text, { x, y, maxWidth, indent = 0, atasExtra = 0 }, size) {
   if (!text) return;
   let fontSize = size;
   const availableWidth = maxWidth - indent;
   const width = font.widthOfTextAtSize(text, fontSize);
   if (width > availableWidth) fontSize *= availableWidth / width;
-  tutupBlank(page, { left: x, y, width: maxWidth, size });
+  tutupBlank(page, { left: x, y, width: maxWidth, size, atasExtra });
   page.drawText(text, { x: x + indent, y, size: fontSize, font, color: rgb(0.05, 0.05, 0.05) });
 }
 

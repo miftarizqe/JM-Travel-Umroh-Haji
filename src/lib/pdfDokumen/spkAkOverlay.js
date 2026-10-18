@@ -53,7 +53,11 @@ const KOORDINAT = {
     templatePath: SPK_AK_TEMPLATE_PATH,
     jumlahHalaman: 7,
     p1: {
-      nomor:     { x: 256, y: 661, maxWidth: 128 },
+      // atasExtra: placeholder template "Nomor: 0000xx.09/JMT-JSB/2026" BENERAN
+      // dicetak (bukan garis blank kosong) -- lebih tinggi dari formula
+      // standar, nongol ngintip di atas kotak penutup kalau gak ditambah
+      // (bug nyata 2026-10-18, lihat komentar drawFitKiri di pdfOverlay.js).
+      nomor:     { x: 256, y: 661, maxWidth: 128, atasExtra: 6 },
       hari:      { x: 142, y: 610, maxWidth: 58 },
       tanggal:   { x: 242, y: 610, maxWidth: 104 },
       // nama/alamat dikasih ruang lebih lega (sampai dekat margin kanan
@@ -73,7 +77,7 @@ const KOORDINAT = {
     templatePath: SPK_AK_NONIS_TEMPLATE_PATH,
     jumlahHalaman: 7,
     p1: {
-      nomor:     { x: 254, y: 668, maxWidth: 133 },
+      nomor:     { x: 254, y: 668, maxWidth: 133, atasExtra: 6 },
       hari:      { x: 140, y: 625, maxWidth: 61 },
       tanggal:   { x: 240, y: 625, maxWidth: 108 },
       nama:      { x: 151, y: 451, maxWidth: 350 },
@@ -109,7 +113,7 @@ const FONT_SIZE_RANGKAP = 12;
 const KOORDINAT_RANGKAP = {
   jumlahHalaman: 6,
   p1: {
-    nomor:     { x: 255, y: 669, maxWidth: 255 },
+    nomor:     { x: 255, y: 669, maxWidth: 255, atasExtra: 6 },
     hari:      { x: 142, y: 642, maxWidth: 64 },
     tanggal:   { x: 253, y: 642, maxWidth: 88 },
     nama:      { x: 190, y: 468, maxWidth: 334 },

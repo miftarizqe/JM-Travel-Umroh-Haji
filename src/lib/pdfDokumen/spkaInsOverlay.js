@@ -32,7 +32,11 @@ const FONT_SIZE = 11;
 const KOORDINAT = {
   jumlahHalaman: 7,
   p1: {
-    nomor:      { x: 255, y: 683, maxWidth: 250 },
+    // atasExtra: placeholder template "Nomor: 0000xx.09/JMT-JSB/2026" BENERAN
+    // dicetak (bukan garis blank kosong) -- lebih tinggi dari formula
+    // standar, nongol ngintip di atas kotak penutup kalau gak ditambah
+    // (bug nyata 2026-10-18, lihat komentar drawFitKiri di pdfOverlay.js).
+    nomor:      { x: 255, y: 683, maxWidth: 250, atasExtra: 6 },
     hari:       { x: 140, y: 655, maxWidth: 65 },
     tanggal:    { x: 253, y: 655, maxWidth: 90 },
     nama:       { x: 190, y: 476, maxWidth: 330 },

@@ -11,14 +11,20 @@ import pool from '@/lib/db';
 import { wajibRole } from '@/lib/auth';
 import { kolomSignerUntuk, ambilSignerSkCif } from '@/lib/signerKolom';
 import { logoAbsolutePath } from '@/lib/pdfDokumen/simpanPdf';
-import { renderSpkaInsPdf } from '@/lib/pdfDokumen/renderSpkaIns';
 import { renderJamaahPdf } from '@/lib/pdfDokumen/renderJamaah';
-// SK-CIF, Surat Pemblokiran, SPK-AK & SPK-AK Non-Muslim: contoh dibuat dari
-// TEMPLATE PDF RESMI (bukan pasal DB) — sama dengan yang dibaca & ditandatangani
-// anggota (dikonfirmasi user 2026-10-01, lihat src/lib/dokumenTemplate.js).
+// SK-CIF, Surat Pemblokiran, SPK-AK, SPK-AK Non-Muslim & SPKA-Ins: contoh
+// dibuat dari TEMPLATE PDF RESMI (bukan pasal DB) — sama dengan yang dibaca
+// & ditandatangani anggota (dikonfirmasi user 2026-10-01, lihat
+// src/lib/dokumenTemplate.js). SPK-AK (Muslim) & SPKA-Ins pakai fungsi
+// RANGKAP (generateSpkAkRangkapPdf/generateSpkaInsRangkapPdf) -- itu yang
+// BENERAN dipakai buat dokumen asli sejak 2026-10-03/2026-10-18, bukan lagi
+// generateSpkAkPdf/renderSpkaInsPdf versi lama (dikonfirmasi bug nyata
+// 2026-10-18: preview di sini masih nampilin dokumen SUPERSEDED, beda dari
+// yang beneran dicetak/ditandatangani jamaah/perwakilan).
 import { generateSkCifPdf } from '@/lib/pdfDokumen/skCifOverlay';
 import { generateSuratPemblokiranPdf } from '@/lib/pdfDokumen/suratPemblokiranOverlay';
-import { generateSpkAkPdf } from '@/lib/pdfDokumen/spkAkOverlay';
+import { generateSpkAkPdf, generateSpkAkRangkapPdf } from '@/lib/pdfDokumen/spkAkOverlay';
+import { generateSpkaInsRangkapPdf } from '@/lib/pdfDokumen/spkaInsOverlay';
 
 const DOKUMEN_VALID = ['spka_ins', 'jamaah', 'spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'];
 
@@ -29,7 +35,6 @@ const CONTOH_USER = {
   name: 'Nama Contoh', nik: '3171xxxxxxxxxxxx', alamat: 'Jl. Contoh No. 1, Jakarta', wa: '-',
   created_at: new Date(), bank: 'Bank Contoh', no_rekening: '000-000-0000', nama_pemilik_rekening: 'Nama Contoh',
 };
-const CONTOH_PEREKRUT = { name: 'Nama Perekrut Contoh', nik: '3171xxxxxxxxxxxx', alamat: 'Jl. Contoh No. 1, Jakarta', wa: '-' };
 const CONTOH_MERGE_ISIAN = {
   nama: 'Nama Contoh', nik: '3171xxxxxxxxxxxx', alamat: 'Jl. Contoh No. 1, Jakarta',
   no_rekening: '7080600000', nominal_blokir: '5.000.000', jangka_waktu_hari: '90', tanggal_mulai_blokir: '10 September 2026',
@@ -76,14 +81,30 @@ export async function GET(request) {
         jangkaWaktuHari: CONTOH_MERGE_ISIAN.jangka_waktu_hari, tanggalMulai: CONTOH_MERGE_ISIAN.tanggal_mulai_blokir,
         tanggalTtd: `Jakarta, ${CONTOH_MERGE_ISIAN.tanggal_mulai_blokir}`,
       });
-    } else if (dokumen === 'spk_ak' || dokumen === 'spk_ak_nonis') {
+    } else if (dokumen === 'spk_ak') {
+      // Dokumen asli SEKARANG 2 rangkap (dikonfirmasi user 2026-10-03) --
+      // preview di sini pakai rangkap "jamaah" (yang jamaah unduh sendiri).
+      buffer = await generateSpkAkRangkapPdf('jamaah', {
+        nomor: '09.0001/JMT.JSB.IX/2026 (contoh)', nama: CONTOH_USER.name,
+        alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '', noTelepon: '08xxxxxxxxxx', noPaspor: 'C1234567',
+        namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
+        targetBulanTahun: 'Januari 2027', nominalTarget: '39.500.000',
+      });
+    } else if (dokumen === 'spk_ak_nonis') {
+      // Belum dapat template 2-rangkap baru (dikonfirmasi user 2026-10-03) --
+      // tetap 1 dokumen, SAMA PERSIS fungsi yang dipakai dokumen aslinya
+      // (lihat spkAkUntukUser.js).
       buffer = await generateSpkAkPdf({
-        dokumen, nomor: dokumen === 'spk_ak' ? '09.0001/JMT.JSB.IX/2026 (contoh)' : '09.0001/JMT.JSB-NM.IX/2026 (contoh)',
+        dokumen, nomor: '09.0001/JMT.JSB-NM.IX/2026 (contoh)',
         nama: CONTOH_USER.name, alamat: CONTOH_USER.alamat, noTelepon: '08xxxxxxxxxx', noPaspor: 'C1234567',
         namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
       });
     } else if (dokumen === 'spka_ins') {
-      buffer = await renderSpkaInsPdf({ user: CONTOH_USER, perekrut: CONTOH_PEREKRUT, nomor: '09.0001/JMT.SPKA-Ins.IX/2026 (contoh)', tanggal: CONTOH_USER.created_at, pasal, signer: signerUntuk('spka_ins'), pengaturan, logoPath });
+      buffer = await generateSpkaInsRangkapPdf('perwakilan', {
+        nomor: '09.0001/JMT.PWK.IX/2026 (contoh)', hari: 'Senin', tanggal: '1 Oktober 2026',
+        nama: CONTOH_USER.name, nik: CONTOH_USER.nik, alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '',
+        noTelepon: '08xxxxxxxxxx', namaBank: CONTOH_USER.bank, noRekening: CONTOH_USER.no_rekening, atasNama: CONTOH_USER.nama_pemilik_rekening,
+      });
     } else if (dokumen === 'jamaah') {
       const booking = {
         id: 'BK-CONTOH', prog_name: 'Program Contoh',

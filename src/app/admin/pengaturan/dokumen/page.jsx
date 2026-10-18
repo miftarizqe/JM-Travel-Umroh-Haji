@@ -43,13 +43,14 @@ const DOKUMEN_GRUP_URUTAN = ['Perwakilan', 'Jamaah', 'Sahabat Baitullah'];
 // template PDF resmi, gak kesentuh.
 const DOKUMEN_TERKUNCI = [];
 
-// Ke-4 dokumen ini TETAP dicetak/diunduh orang pakai template PDF resmi
-// (dikonfirmasi user 2026-10-03, bukan pasal) — jadi tombol "Lihat Preview
-// Dokumen Lengkap" buat dokumen ini HARUS nampilin PDF asli itu juga (bukan
-// PreviewDokumenLengkap yang WYSIWYG dari pasal ketikan admin), biar admin
-// gak ketuker preview-nya dengan dokumen yang beneran dicetak/ditandatangani.
-// Pasal yang diketik di tab ini TETAP cuma buat layar baca jamaah.
-const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran'];
+// Ke-5 dokumen ini TETAP dicetak/diunduh orang pakai template PDF resmi
+// (dikonfirmasi user 2026-10-03, SPKA-Ins menyusul 2026-10-18, bukan pasal)
+// — jadi tombol "Lihat Preview Dokumen Lengkap" buat dokumen ini HARUS
+// nampilin PDF asli itu juga (bukan PreviewDokumenLengkap yang WYSIWYG dari
+// pasal ketikan admin), biar admin gak ketuker preview-nya dengan dokumen
+// yang beneran dicetak/ditandatangani. Pasal yang diketik di tab ini TETAP
+// cuma buat layar baca jamaah/perwakilan.
+const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokiran', 'spka_ins'];
 
 // Judul & nomor contoh yang ditampilkan di atas Preview Dokumen Lengkap —
 // SAMA seperti judul yang muncul di halaman cetak beneran (cetak-pks-mitra,
