@@ -100,6 +100,7 @@ export async function GET(request) {
         nama: CONTOH_USER.name, nik: CONTOH_USER.nik, alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '',
         noPaspor: 'C1234567', noTelepon: '08xxxxxxxxxx',
         programPilihan: 'Program Contoh (Eksekutif / Quad)', totalBiaya: '39.500.000', dp: '5.000.000',
+        namaTtd: CONTOH_USER.name,
       });
     }
 
