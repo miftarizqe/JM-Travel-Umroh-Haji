@@ -247,6 +247,26 @@ export default function AdminPerwakilanPage() {
     setBusy(false);
   }
 
+  // Scan dokumen PKS fisik yang udah diterima kantor (metode 'paket' --
+  // perwakilan cetak & kirim sendiri) -- mirror unggahScan di
+  // admin/sahabat/page.jsx, tapi Perwakilan cuma punya 1 dokumen (bukan
+  // 3-4 kayak Sahabat), jadi gak butuh param `jenis` (dikonfirmasi user
+  // 2026-10-19).
+  async function unggahScanPks(userId, file) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('user_id', userId);
+      const res = await fetch('/api/admin/upload-dokumen-pks-fisik', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal mengunggah dokumen'); setBusy(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan saat mengunggah'); }
+    setBusy(false);
+  }
+
   const kelompok = useMemo(() => {
     const m = Object.fromEntries(PROSES.map(p => [p.key, []]));
     for (const p of list) { if (m[p.status]) m[p.status].push(p); }
@@ -406,6 +426,37 @@ export default function AdminPerwakilanPage() {
                   {detail.pendaftaran_metode || '⏳ Belum dipilih'}
                 </span>
               </div>
+              {/* KTP — mirror admin/sahabat/page.jsx (dikonfirmasi user
+                  2026-10-19), sebelumnya gak ada link lihat KTP sama sekali
+                  di sini padahal foto_ktp_path wajib diisi pas daftar. */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                <span>KTP</span>
+                {detail.foto_ktp_path ? (
+                  <a href={detail.foto_ktp_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
+                ) : <span className="text-red-500 font-bold">⏳ Belum diunggah</span>}
+              </div>
+              {/* Dokumen Fisik PKS diterima kantor — cuma relevan buat
+                  metode 'paket' (cetak & kirim sendiri), mirror checklist
+                  "Dokumen Fisik ... Diterima di Kantor" admin/sahabat, tapi
+                  disederhanakan: Perwakilan cuma punya 1 dokumen (bukan 3-4),
+                  jadi upload SEKALIGUS jadi penanda "diterima" (gak ada
+                  checkbox terpisah tanpa scan) -- dikonfirmasi user
+                  2026-10-19. */}
+              {detail.pendaftaran_metode === 'paket' && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                  <span>Dokumen Fisik PKS Diterima di Kantor{detail.dokumen_pks_fisik_path && (
+                    <a href={detail.dokumen_pks_fisik_path} target="_blank" rel="noopener noreferrer" className="ml-1.5 text-[#1A4FA0] underline whitespace-nowrap">(lihat scan)</a>
+                  )}
+                  <label className={`ml-1.5 text-[#C9952A] font-bold underline whitespace-nowrap ${busy ? 'opacity-50' : 'cursor-pointer'}`}>
+                    {detail.dokumen_pks_fisik_path ? '(ganti scan)' : '📎 Unggah scan'}
+                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={busy}
+                      onChange={e => { unggahScanPks(detail.user_id, e.target.files?.[0]); e.target.value = ''; }} />
+                  </label></span>
+                  {detail.dokumen_pks_fisik_path ? (
+                    <span className="text-green-600 font-bold">✅ Sudah</span>
+                  ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
+                </div>
+              )}
             </div>
 
             <div className="pt-4 space-y-2">
