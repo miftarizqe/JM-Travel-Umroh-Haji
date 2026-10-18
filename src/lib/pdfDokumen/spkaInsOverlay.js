@@ -37,8 +37,12 @@ const KOORDINAT = {
     // standar, nongol ngintip di atas kotak penutup kalau gak ditambah
     // (bug nyata 2026-10-18, lihat komentar drawFitKiri di pdfOverlay.js).
     nomor:      { x: 255, y: 683, maxWidth: 250, atasExtra: 6 },
-    hari:       { x: 140, y: 655, maxWidth: 65 },
-    tanggal:    { x: 253, y: 655, maxWidth: 90 },
+    // y digeser +3 dari baseline label statis di sekitarnya -- font overlay
+    // (Times-Roman standar pdf-lib) ascender-nya lebih pendek dari font
+    // template, jadi kalau y PERSIS sama malah keliatan "ngambang di bawah"
+    // dibanding teks statis semulai "Pada hari ini," (bug nyata 2026-10-18).
+    hari:       { x: 140, y: 658, maxWidth: 65 },
+    tanggal:    { x: 253, y: 658, maxWidth: 90 },
     nama:       { x: 190, y: 476, maxWidth: 330 },
     nik:        { x: 190, y: 462, maxWidth: 330 },
     alamatBaris1: { x: 190, y: 448, maxWidth: 330 },

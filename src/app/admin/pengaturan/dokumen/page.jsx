@@ -60,12 +60,12 @@ const DOKUMEN_PDF_RESMI = ['spk_ak', 'spk_ak_nonis', 'sk_cif', 'surat_pemblokira
 // surat_pemblokiran: "SURAT PERNYATAAN" baris 1, sisanya baris 2 — persis
 // template resmi BSI, dikonfirmasi user 2026-09-09) — dokumen lain 1 baris.
 const DOKUMEN_JUDUL = {
-  spka_ins: { judul: ['SURAT PERJANJIAN KERJA SAMA PERWAKILAN'], nomor: '09.0001/JMT.SPKA-Ins.IX/2026' },
+  spka_ins: { judul: ['SURAT PERJANJIAN KERJA SAMA PERWAKILAN'], nomor: '000001.10/JMT-PWK/2026' },
   jamaah: { judul: ['SURAT PERJANJIAN JAMAAH UMROH'], nomor: 'BK-CONTOH' },
-  spk_ak: { judul: ['SURAT PERJANJIAN JAMAAH UMROH', 'PROGRAM SAHABAT BAITULLAH'], nomor: '09.0001/JMT.JSB.IX/2026' },
-  spk_ak_nonis: { judul: ['SURAT PERJANJIAN REFERRAL NON-MUSLIM', 'PROGRAM SAHABAT BAITULLAH'], nomor: '09.0001/JMT.JSB-NM.IX/2026' },
-  sk_cif: { judul: ['SURAT KUASA', 'KERJASAMA MULTI CIF', 'PADA LAYANAN BSI CASH MANAGEMENT'], nomor: '09.0001/JMT.SK-CIF.IX/2026' },
-  surat_pemblokiran: { judul: ['SURAT PERNYATAAN', 'KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN'], nomor: '09.0001/JMT.SURAT-PEMBLOKIRAN.IX/2026' },
+  spk_ak: { judul: ['SURAT PERJANJIAN JAMAAH UMROH', 'PROGRAM SAHABAT BAITULLAH'], nomor: '000001.10/JMT-JSB/2026' },
+  spk_ak_nonis: { judul: ['SURAT PERJANJIAN REFERRAL NON-MUSLIM', 'PROGRAM SAHABAT BAITULLAH'], nomor: '000001.10/JMT-JSB-NM/2026' },
+  sk_cif: { judul: ['SURAT KUASA', 'KERJASAMA MULTI CIF', 'PADA LAYANAN BSI CASH MANAGEMENT'], nomor: '000001.10/JMT-SK-CIF/2026' },
+  surat_pemblokiran: { judul: ['SURAT PERNYATAAN', 'KUASA BLOKIR REKENING & INSTRUKSI PEMINDAHBUKUAN'], nomor: '000001.10/JMT-SURAT-PEMBLOKIRAN/2026' },
   ganti_target_sahabat: { judul: ['SYARAT & KETENTUAN', 'GANTI TARGET IMPIAN'], nomor: '-' },
 };
 

@@ -85,7 +85,7 @@ export async function GET(request) {
       // Dokumen asli SEKARANG 2 rangkap (dikonfirmasi user 2026-10-03) --
       // preview di sini pakai rangkap "jamaah" (yang jamaah unduh sendiri).
       buffer = await generateSpkAkRangkapPdf('jamaah', {
-        nomor: '09.0001/JMT.JSB.IX/2026 (contoh)', nama: CONTOH_USER.name,
+        nomor: '000001.10/JMT-JSB/2026 (contoh)', nama: CONTOH_USER.name,
         alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '', noTelepon: '08xxxxxxxxxx', noPaspor: 'C1234567',
         namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
         targetBulanTahun: 'Januari 2027', nominalTarget: '39.500.000',
@@ -95,13 +95,13 @@ export async function GET(request) {
       // tetap 1 dokumen, SAMA PERSIS fungsi yang dipakai dokumen aslinya
       // (lihat spkAkUntukUser.js).
       buffer = await generateSpkAkPdf({
-        dokumen, nomor: '09.0001/JMT.JSB-NM.IX/2026 (contoh)',
+        dokumen, nomor: '000001.10/JMT-JSB-NM/2026 (contoh)',
         nama: CONTOH_USER.name, alamat: CONTOH_USER.alamat, noTelepon: '08xxxxxxxxxx', noPaspor: 'C1234567',
         namaTtd: CONTOH_USER.name, hari: 'Senin', tanggal: '1 Oktober 2026',
       });
     } else if (dokumen === 'spka_ins') {
       buffer = await generateSpkaInsRangkapPdf('perwakilan', {
-        nomor: '09.0001/JMT.PWK.IX/2026 (contoh)', hari: 'Senin', tanggal: '1 Oktober 2026',
+        nomor: '000001.10/JMT-PWK/2026 (contoh)', hari: 'Senin', tanggal: '1 Oktober 2026',
         nama: CONTOH_USER.name, nik: CONTOH_USER.nik, alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '',
         noTelepon: '08xxxxxxxxxx', namaBank: CONTOH_USER.bank, noRekening: CONTOH_USER.no_rekening, atasNama: CONTOH_USER.nama_pemilik_rekening,
       });
