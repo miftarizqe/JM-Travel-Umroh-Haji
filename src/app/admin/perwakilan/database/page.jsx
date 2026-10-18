@@ -78,8 +78,8 @@ const STATUS_LABEL = { active: 'Aktif', pending: 'Pending', rejected: 'Ditolak',
 const PENDAFTARAN_STATUS_LABEL = {
   pending: '📝 Verifikasi Data oleh Admin',
   waiting_visit: '🏢 Menunggu Kunjungan Kantor',
-  docs_sent: '📦 Perjanjian Dikirim ke Alamat',
-  waiting_docs_return: '📮 Menunggu Rangkapan Dikirim Kembali',
+  docs_sent: '📦 Perjanjian Dikirim ke Alamat', // legacy, gak dipakai lagi (lihat PROSES di admin/perwakilan/page.jsx)
+  waiting_docs_return: '📮 Cetak, TTD & Kirim Sendiri',
   active: '✅ Aktif',
   ditolak: '⛔ Ditolak',
 };

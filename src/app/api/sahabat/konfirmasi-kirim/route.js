@@ -32,6 +32,13 @@ export async function PATCH(request) {
     const resi = String(formData.get('resi') || '').trim().toUpperCase();
     const foto = formData.get('foto');
     const adaFoto = foto && typeof foto !== 'string' && foto.size > 0;
+    // Alamat Pengiriman — dikonfirmasi user 2026-10-18, mirror perwakilan
+    // (lihat /api/daftar-perwakilan/metode). Admin kirim balik Rangkap
+    // Management SPK-AK ke alamat ini setelah rangkap jamaah diterima &
+    // ditandatangani. Opsional (gak wajib kayak resi) -- jamaah yang
+    // sudah pernah konfirmasi sebelum fitur ini ada gak dipaksa isi ulang.
+    const samaDomisiliKirim = formData.get('sama_domisili_kirim') === '1';
+    const alamatKirimManual = String(formData.get('alamat_kirim_manual') || '').trim();
 
     if (!resi) return Response.json({ error: 'Nomor resi wajib diisi' }, { status: 400 });
     if (!POLA_RESI.test(resi)) {
@@ -46,7 +53,7 @@ export async function PATCH(request) {
     const [[user]] = await pool.query(
       `SELECT name, role, metode_ttd_sahabat, dokumen_fisik_dikirim_at, dokumen_fisik_resi_foto_path,
               dokumen_spk_ak_fisik_diterima_at, dokumen_cif_fisik_diterima_at,
-              dokumen_pemblokiran_fisik_diterima_at, dokumen_formulir_bsi_fisik_diterima_at
+              dokumen_pemblokiran_fisik_diterima_at, dokumen_formulir_bsi_fisik_diterima_at, alamat_domisili
        FROM users WHERE id = ?`, [auth.user.id]
     );
     if (!user) return Response.json({ error: 'Akun tidak ditemukan' }, { status: 404 });
@@ -61,6 +68,15 @@ export async function PATCH(request) {
     if (!adaFoto && !user.dokumen_fisik_resi_foto_path) {
       return Response.json({ error: 'Foto resi wajib diunggah' }, { status: 400 });
     }
+
+    let alamatKirim;
+    if (samaDomisiliKirim) {
+      alamatKirim = user.alamat_domisili || null;
+    } else if (alamatKirimManual) {
+      alamatKirim = alamatKirimManual;
+    }
+    // Kalau field gak dikirim sama sekali (klien lama/belum update), biarin
+    // kolomnya apa adanya — jangan ditimpa NULL cuma karena gak ada input.
 
     let fotoPath = user.dokumen_fisik_resi_foto_path;
     if (adaFoto) {
@@ -78,8 +94,9 @@ export async function PATCH(request) {
     await pool.query(
       `UPDATE users SET dokumen_fisik_dikirim_at = COALESCE(dokumen_fisik_dikirim_at, NOW()),
               dokumen_fisik_resi = ?, dokumen_fisik_resi_foto_path = ?
+              ${alamatKirim !== undefined ? ', alamat_kirim = ?' : ''}
        WHERE id = ?`,
-      [resi, fotoPath, auth.user.id]
+      alamatKirim !== undefined ? [resi, fotoPath, alamatKirim, auth.user.id] : [resi, fotoPath, auth.user.id]
     );
 
     if (adaFoto && user.dokumen_fisik_resi_foto_path && user.dokumen_fisik_resi_foto_path !== fotoPath) {

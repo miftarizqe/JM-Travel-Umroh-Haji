@@ -125,16 +125,9 @@ export default function StatusPendaftaranPage() {
       kantor: true
     },
     {
-      key: 'docs_sent',
-      label: 'Perjanjian Dikirim ke Alamat Anda',
-      desc: `JM Travel telah mengirimkan Perjanjian Kerjasama Perwakilan (2 rangkap) + info rekening BSI ke: ${user.alamat_kirim || '-'}.`,
-      icon: '📦',
-      paket: true
-    },
-    {
       key: 'waiting_docs_return',
-      label: 'Menunggu Rangkapan Dikirim Kembali',
-      desc: 'Silakan TTD Perjanjian Kerjasama Perwakilan (2 rangkap) di atas materai, lalu kirim balik 1 rangkap + formulir rekening BSI ke kantor JM Travel.',
+      label: 'Cetak, TTD & Kirim Sendiri',
+      desc: `Download & print sendiri Perjanjian Kerjasama Perwakilan (2 rangkap), TTD di atas materai Rp10.000 asli (siapkan sendiri), lalu kirim 1 rangkap ke kantor JM Travel. Setelah kantor terima & TTD balik, 1 rangkap (Rangkap Management) akan dikirim ke: ${user.alamat_kirim || '-'}.`,
       icon: '📮',
       paket: true
     },
@@ -216,11 +209,17 @@ export default function StatusPendaftaranPage() {
 
                     {/* Action khusus per step */}
                     {isCurrent && s.key === 'waiting_docs_return' && (
-                      <div className="mt-2 bg-[#FEF3DC] border border-yellow-300 rounded-lg p-3 text-xs text-[#7a5500]">
-                        <div className="font-bold mb-1">📮 Kirim dokumen ke:</div>
-                        <div>PT. Alkhalid Jaya Megah Tours & Travel</div>
-                        <div>{pengaturan.alamat_kantor}</div>
-                        <div className="mt-1">📞 Konfirmasi: {waDisplay(pengaturan.wa_kantor)}</div>
+                      <div className="mt-2 space-y-2">
+                        <a href="/api/perwakilan/unduh-pks" target="_blank" rel="noopener noreferrer"
+                          className="inline-block bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-4 py-2 rounded-full">
+                          📄 Download Perjanjian Kerjasama (PDF)
+                        </a>
+                        <div className="bg-[#FEF3DC] border border-yellow-300 rounded-lg p-3 text-xs text-[#7a5500]">
+                          <div className="font-bold mb-1">📮 TTD di atas materai Rp10.000 asli, lalu kirim ke:</div>
+                          <div>PT. Alkhalid Jaya Megah Tours & Travel</div>
+                          <div>{pengaturan.alamat_kantor}</div>
+                          <div className="mt-1">📞 Konfirmasi: {waDisplay(pengaturan.wa_kantor)}</div>
+                        </div>
                       </div>
                     )}
                     {isCurrent && s.key === 'waiting_visit' && (

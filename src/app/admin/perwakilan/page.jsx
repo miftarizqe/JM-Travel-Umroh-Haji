@@ -66,11 +66,14 @@ function GrafikPertumbuhan({ data }) {
 // dari sini, gak dipindah kemanapun (beda dari Sahabat Baitullah yang punya
 // closing/saldo/voucher buat dipindah ke dashboard) — akun aktif udah keliatan
 // di Database Perwakilan, ditolak gak butuh tindak lanjut apa pun lagi.
+// 'docs_sent' DICABUT dari jalur paket (dikonfirmasi user 2026-10-18) --
+// perwakilan sekarang cetak & kirim sendiri, gak ada tahap "admin kirim
+// dokumen kosong duluan" lagi (mirror Sahabat Baitullah). Lihat catatan
+// sama di /api/status-pendaftaran/route.js.
 const PROSES = [
   { key: 'pending', icon: '📝', color: 'border-gray-200 bg-gray-50', label: 'Verifikasi Data oleh Admin' },
   { key: 'waiting_visit', icon: '🏢', color: 'border-blue-200 bg-blue-50', label: 'Menunggu Kunjungan Kantor', jalur: 'kantor' },
-  { key: 'docs_sent', icon: '📦', color: 'border-blue-200 bg-blue-50', label: 'Perjanjian Dikirim ke Alamat', jalur: 'paket' },
-  { key: 'waiting_docs_return', icon: '📮', color: 'border-purple-200 bg-purple-50', label: 'Menunggu Rangkapan Dikirim Kembali', jalur: 'paket' },
+  { key: 'waiting_docs_return', icon: '📮', color: 'border-purple-200 bg-purple-50', label: 'Cetak, TTD & Kirim Sendiri', jalur: 'paket' },
 ];
 // pathUntukMetode() butuh tau urutan LENGKAP termasuk 'active' buat nentuin
 // step selanjutnya yang valid — dipisah dari PROSES (yang cuma buat render
@@ -83,7 +86,7 @@ const SEMUA_STEP = [...PROSES, { key: 'active', label: '✅ Aktifkan' }];
 // dan `active` dipakai kedua jalur.
 function pathUntukMetode(metode) {
   const keys = metode === 'paket'
-    ? ['pending', 'docs_sent', 'waiting_docs_return', 'active']
+    ? ['pending', 'waiting_docs_return', 'active']
     : ['pending', 'waiting_visit', 'active'];
   return keys.map(k => SEMUA_STEP.find(s => s.key === k));
 }

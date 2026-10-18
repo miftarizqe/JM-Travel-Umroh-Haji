@@ -100,6 +100,11 @@ export default function StatusPendaftaranSahabatPage() {
   const [fotoResi, setFotoResi] = useState(null);
   const [savingKirimFisik, setSavingKirimFisik] = useState(false);
   const [editKirimFisik, setEditKirimFisik] = useState(false);
+  // Alamat Pengiriman (dikonfirmasi user 2026-10-18, mirror perwakilan) --
+  // admin kirim balik Rangkap Management SPK-AK ke sini setelah rangkap
+  // jamaah diterima & ditandatangani kantor.
+  const [samaDomisiliKirim, setSamaDomisiliKirim] = useState(true);
+  const [alamatKirimManual, setAlamatKirimManual] = useState('');
 
   // Sudah/belum punya rekening BSI (dikonfirmasi user 2026-09-30) — cuma
   // pilihan tampilan lokal, gak perlu disimpan ke server. Pertanyaannya
@@ -274,11 +279,14 @@ export default function StatusPendaftaranSahabatPage() {
     if (!/^[A-Za-z0-9-]{6,40}$/.test(resi)) { alert('Nomor resi wajib diisi (6-40 karakter huruf/angka)'); return; }
     if (!fotoResi && !u.dokumen_fisik_resi_foto_path) { alert('Foto resi wajib diunggah'); return; }
     if (fotoResi && pesanUkuranFile(fotoResi)) { alert(pesanUkuranFile(fotoResi)); return; }
+    if (!samaDomisiliKirim && !alamatKirimManual.trim()) { alert('Alamat pengiriman wajib diisi (atau centang "sama dengan alamat domisili")'); return; }
     setSavingKirimFisik(true);
     try {
       const fd = new FormData();
       fd.append('resi', resi);
       if (fotoResi) fd.append('foto', fotoResi);
+      fd.append('sama_domisili_kirim', samaDomisiliKirim ? '1' : '0');
+      if (!samaDomisiliKirim) fd.append('alamat_kirim_manual', alamatKirimManual.trim());
       const res = await fetch('/api/sahabat/konfirmasi-kirim', { method: 'PATCH', body: fd });
       const d = await res.json();
       if (!res.ok) { alert(d.error); setSavingKirimFisik(false); return; }
@@ -1189,17 +1197,33 @@ export default function StatusPendaftaranSahabatPage() {
                           ✅ Sudah dikirim {new Date(u.dokumen_fisik_dikirim_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
                           {u.dokumen_fisik_resi && <> · Resi: <b>{u.dokumen_fisik_resi}</b></>}
                           {u.dokumen_fisik_resi_foto_path && <> · <a href={u.dokumen_fisik_resi_foto_path} target="_blank" rel="noopener noreferrer" className="font-bold underline hover:text-green-900 transition-colors">Lihat foto resi</a></>}
+                          {u.alamat_kirim && <div className="mt-1">📦 Alamat kirim balik Rangkap Management: {u.alamat_kirim}</div>}
                         </div>
                         {/* Ubah resi/foto cuma selama kantor belum mulai
                             nerima dokumen (server juga ngecek). */}
                         {!pengirimanSudahDiterima && (
-                          <button onClick={() => { setResiInput(u.dokumen_fisik_resi || ''); setFotoResi(null); setEditKirimFisik(true); }}
+                          <button onClick={() => { setResiInput(u.dokumen_fisik_resi || ''); setFotoResi(null); setSamaDomisiliKirim(!u.alamat_kirim || u.alamat_kirim === u.alamat_domisili); setAlamatKirimManual(u.alamat_kirim || ''); setEditKirimFisik(true); }}
                             className="text-[10px] text-gray-400 underline shrink-0 hover:text-gray-600 transition-colors cursor-pointer">Ubah</button>
                         )}
                       </div>
                     ) : (
                       <div className="space-y-2">
                         <div className="text-[10px] text-gray-500">Setelah paket dikirim, isi nomor resi & unggah foto resi pengirimannya. <b>Setelah dikonfirmasi, metode TTD tidak bisa diganti lagi.</b></div>
+                        <div className="bg-white border border-gray-200 rounded-lg p-2 space-y-1.5">
+                          <div className="text-[10px] font-bold text-gray-600">📦 Alamat Pengiriman</div>
+                          <div className="text-[10px] text-gray-400">Rangkap Management akan dikirim balik ke sini setelah kantor menerima & menandatangani rangkap Anda.</div>
+                          <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input type="checkbox" checked={samaDomisiliKirim}
+                              onChange={e => setSamaDomisiliKirim(e.target.checked)}
+                              className="w-3.5 h-3.5 accent-[#1A4FA0]" />
+                            <span className="text-[10px] font-semibold text-gray-600">Sama dengan alamat domisili</span>
+                          </label>
+                          {!samaDomisiliKirim && (
+                            <textarea value={alamatKirimManual} onChange={e => setAlamatKirimManual(e.target.value)}
+                              rows={2} placeholder="Alamat lengkap tujuan pengiriman"
+                              className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
+                          )}
+                        </div>
                         <div>
                           <label className="block text-[10px] font-bold text-gray-600 mb-1">Nomor Resi *</label>
                           <input value={resiInput} maxLength={40} required

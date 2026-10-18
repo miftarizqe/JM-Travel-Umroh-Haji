@@ -12,23 +12,31 @@ import { releaseNomorSuratJikaBulanSama } from '@/lib/nomorSurat';
 // metode (lihat prasyarat formulir_terkirim/pks_disetujui/metode_dipilih di
 // GET di bawah). TTD digital formulir DICABUT (dikonfirmasi user 2026-10-12)
 // — proses sekarang semuanya fisik, bukan esign.
+// 'docs_sent' DICABUT dari jalur paket (dikonfirmasi user 2026-10-18) --
+// dulu alurnya admin print+kirim dokumen KOSONG ke perwakilan duluan,
+// sekarang perwakilan CETAK & KIRIM SENDIRI (mirror Sahabat Baitullah),
+// gak ada tahap "admin kirim duluan" lagi. Key-nya TETAP didefinisikan di
+// bawah (bukan dihapus total) buat kompatibilitas tampilan riwayat lama
+// (pendaftaran_status_log) kalau ada baris 'docs_sent' dari SEBELUM
+// perubahan ini -- cuma gak dipakai lagi di pathUntukMetode().
 export const STEP_PENDAFTARAN = [
   { key: 'pending', label: 'Verifikasi Data oleh Admin', urut: 1 },
   { key: 'docs_sent', label: 'Perjanjian Dikirim ke Alamat Anda', urut: 2 },
-  { key: 'waiting_docs_return', label: 'Menunggu Rangkapan Dikirim Kembali', urut: 3 },
+  { key: 'waiting_docs_return', label: 'Cetak, TTD & Kirim Sendiri', urut: 2 },
   { key: 'waiting_visit', label: 'Menunggu Kunjungan Kantor', urut: 2 },
-  { key: 'active', label: 'Perwakilan Aktif', urut: 4 },
+  { key: 'active', label: 'Perwakilan Aktif', urut: 3 },
 ];
 
-// 'docs_sent'/'waiting_docs_return' (jalur paket) dan 'waiting_visit' (jalur
-// kantor) sengaja berbagi urut yang sama karena keduanya OPSIONAL & saling
+// 'waiting_docs_return' (jalur paket) dan 'waiting_visit' (jalur kantor)
+// sengaja berbagi urut yang sama karena keduanya OPSIONAL & saling
 // eksklusif tergantung metode pendaftaran — bukan langkah berurutan tunggal.
 // Makanya validasi "tidak boleh loncat" TIDAK BOLEH pakai STEP_PENDAFTARAN
-// mentah (docs_sent akan keanggap wajib dilalui walau applicant pilih jalur
-// kantor) — harus difilter ke jalur applicant dulu lewat fungsi ini.
+// mentah (waiting_docs_return akan keanggap wajib dilalui walau applicant
+// pilih jalur kantor) — harus difilter ke jalur applicant dulu lewat
+// fungsi ini.
 export function pathUntukMetode(metode) {
   const keys = metode === 'paket'
-    ? ['pending', 'docs_sent', 'waiting_docs_return', 'active']
+    ? ['pending', 'waiting_docs_return', 'active']
     : ['pending', 'waiting_visit', 'active'];
   return keys.map(k => STEP_PENDAFTARAN.find(s => s.key === k));
 }
