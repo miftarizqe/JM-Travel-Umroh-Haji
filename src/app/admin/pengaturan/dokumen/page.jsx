@@ -455,6 +455,7 @@ export default function AdminPengaturanDokumenPage() {
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [showPreviewDokumen, setShowPreviewDokumen] = useState(false);
+  const [showPreviewPdf, setShowPreviewPdf] = useState(false);
   const [reordering, setReordering] = useState(null); // nomor pasal yg lagi digeser
 
   function muatPasal(dok) {
@@ -707,27 +708,35 @@ export default function AdminPengaturanDokumenPage() {
 
       {!loadingPasal && DOKUMEN_PDF_RESMI.includes(dokumen) && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 mb-4">
-          ℹ️ Dokumen resmi yang DICETAK/DIUNDUH orang (jamaah, admin) buat dokumen ini TETAP PDF template (dibuat developer) — pasal di bawah ini CUMA dipakai buat layar baca &amp; setuju jamaah (biar kebaca jelas di HP, termasuk Android), tidak menggantikan PDF resminya.
+          ℹ️ Pasal di bawah ini dipakai buat layar baca &amp; centang setuju (jamaah/perwakilan) — &quot;Preview Dokumen Lengkap&quot; nunjukkin itu. Dokumen yang BENERAN dicetak/ditandatangani/diunduh tetap PDF template resmi (dibuat developer), cek lewat &quot;Preview PDF Resmi (Cetak)&quot; di sebelahnya.
         </div>
       )}
 
       {!loadingPasal && !DOKUMEN_TERKUNCI.includes(dokumen) && (
-        <button onClick={() => setShowPreviewDokumen(v => !v)}
-          className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-1.5 rounded-full mb-4">
-          {showPreviewDokumen ? '▲ Sembunyikan Preview Dokumen Lengkap' : '👁️ Lihat Preview Dokumen Lengkap'}
-        </button>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button onClick={() => setShowPreviewDokumen(v => !v)}
+            className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-1.5 rounded-full">
+            {showPreviewDokumen ? '▲ Sembunyikan Preview Dokumen Lengkap' : '👁️ Lihat Preview Dokumen Lengkap'}
+          </button>
+          {DOKUMEN_PDF_RESMI.includes(dokumen) && (
+            <button onClick={() => setShowPreviewPdf(v => !v)}
+              className="text-xs font-bold text-[#0E2F6E] bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-full">
+              {showPreviewPdf ? '▲ Sembunyikan Preview PDF Resmi' : '📄 Lihat Preview PDF Resmi (Cetak)'}
+            </button>
+          )}
+        </div>
       )}
 
       </div>
 
       {!loadingPasal && showPreviewDokumen && signerForm && (
-        DOKUMEN_PDF_RESMI.includes(dokumen) ? (
-          <div className="mb-6">
-            <PdfDokumenResmi key={dokumen} url={`/api/admin/pasal/contoh-pdf?dokumen=${dokumen}`} tinggi="80vh" />
-          </div>
-        ) : (
-          <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
-        )
+        <PreviewDokumenLengkap dokumen={dokumen} pasal={pasal} pengaturan={signerForm} />
+      )}
+
+      {!loadingPasal && showPreviewPdf && DOKUMEN_PDF_RESMI.includes(dokumen) && (
+        <div className="mb-6">
+          <PdfDokumenResmi key={dokumen} url={`/api/admin/pasal/contoh-pdf?dokumen=${dokumen}`} tinggi="80vh" />
+        </div>
       )}
 
       <div className="no-print">
