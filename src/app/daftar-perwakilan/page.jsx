@@ -53,6 +53,9 @@ export default function DaftarPerwakilanPage() {
   // 2026-10-18, mirror /daftar-sahabat 2026-10-15) — step lain tetap pakai
   // alert() biasa di validStep(), sengaja gak diubah.
   const [errors, setErrors] = useState({});
+  // Checkbox eksplisit "data sudah benar" di step Konfirmasi (dikonfirmasi
+  // user 2026-10-18) — WAJIB dicentang sebelum bisa Kirim Formulir.
+  const [konfirmasiData, setKonfirmasiData] = useState(false);
   const [loading, setLoading] = useState(false);
   const [cek, setCek] = useState(null); // prasyarat
   const [uploadingKtp, setUploadingKtp] = useState(false);
@@ -66,7 +69,12 @@ export default function DaftarPerwakilanPage() {
   const isDirty = step > 1 || !!form.tl || !!form.ibu.trim() || !!form.pkj.trim();
   useUnsavedGuard(isDirty);
 
-  const setF = (k,v) => setForm(p => ({...p, [k]: v}));
+  const setF = (k,v) => {
+    setForm(p => ({...p, [k]: v}));
+    // Ubah data setelah sempat centang konfirmasi -> minta centang ulang,
+    // jangan biarin konfirmasi lama (atas data yang udah berubah) kebawa.
+    setKonfirmasiData(false);
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -209,6 +217,9 @@ export default function DaftarPerwakilanPage() {
     if (step === 3) {
       if (!form.bank.trim() || !form.norek.trim() || !form.pemilik.trim())
         return alert('Data rekening wajib diisi!') || false;
+    }
+    if (step === 4) {
+      if (!konfirmasiData) return alert('Centang dulu konfirmasi bahwa data sudah benar!') || false;
     }
     return true;
   }
@@ -472,8 +483,13 @@ export default function DaftarPerwakilanPage() {
             <div className="bg-[#E8F0FB] rounded-lg p-3 text-xs text-[#1A4FA0]">
               Setelah kirim, Anda akan diminta membaca & menyetujui <b>Perjanjian Kerjasama Perwakilan</b>,
               lalu memilih metode pendaftaran (datang ke kantor / kirim paket). Perjanjian Kerjasama
-              Perwakilan (SPKA-Ins) ditandatangani secara fisik, bukan TTD digital.
+              Perwakilan ditandatangani secara fisik, bukan TTD digital.
             </div>
+            <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer pt-1">
+              <input type="checkbox" checked={konfirmasiData} onChange={e => setKonfirmasiData(e.target.checked)}
+                className="mt-0.5 w-4 h-4" />
+              <span>Saya sudah memeriksa dan data di atas sudah benar.</span>
+            </label>
           </>)}
 
           {/* Navigasi */}
