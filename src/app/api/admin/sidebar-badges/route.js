@@ -106,16 +106,21 @@ export async function GET(request) {
          AND u.setuju_sk_cif_pemblokiran_at IS NOT NULL`)),
 
     // Perwakilan 'Verifikasi Data oleh Admin' yang syaratnya udah lengkap
-    // (formulir TTD + PKS + metode) — lihat syaratBelum di /admin/perwakilan.
+    // (PKS + metode) — lihat syaratBelum di /admin/perwakilan, PERSIS 2
+    // syarat itu doang (pks_disetujui = setuju_pks, pendaftaran_metode =
+    // ap.metode). Dulu ada syarat ke-3 "formulir TTD digital fase=selesai"
+    // yang bikin badge ini GAK PERNAH NYALA (dikonfirmasi bug nyata
+    // 2026-10-18) — praktik sekarang 100% TTD fisik (lihat catatan "jangan
+    // framing TTD digital wajib" 2026-10-12), dokumen_signature.formulir
+    // gak pernah keisi 'selesai' lagi, jadi syarat itu gak sinkron sama
+    // syaratBelum() yang beneran dipakai halamannya. Dicabut biar sinkron.
     hitung('/admin/perwakilan', () => count(
       `SELECT COUNT(*) AS n FROM users u
        JOIN agen_pendaftaran ap ON ap.id = (
          SELECT id FROM agen_pendaftaran WHERE user_id = u.id AND role_diajukan = 'perwakilan'
          ORDER BY id DESC LIMIT 1)
        WHERE (u.role = 'perwakilan' OR u.role_kedua = 'perwakilan')
-         AND ap.status = 'pending' AND ap.metode IS NOT NULL AND u.setuju_pks
-         AND (SELECT fase FROM dokumen_signature WHERE dokumen = 'formulir' AND ref_id = u.id
-              ORDER BY id DESC LIMIT 1) = 'selesai'`)),
+         AND ap.status = 'pending' AND ap.metode IS NOT NULL AND u.setuju_pks`)),
 
     hitung('/admin/sahabat/setoran-mandiri-pengajuan', () => count(
       "SELECT COUNT(*) AS n FROM sahabat_setoran_mandiri_pengajuan WHERE status = 'diajukan'")),
