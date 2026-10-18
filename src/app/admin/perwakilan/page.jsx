@@ -401,7 +401,7 @@ export default function AdminPerwakilanPage() {
                 {detail.pks_disetujui ? <span className="text-green-600 font-bold">✅ Ya</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Metode Pendaftaran</span>
+                <span>Metode TTD & Kirim Dokumen</span>
                 <span className={detail.pendaftaran_metode ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
                   {detail.pendaftaran_metode || '⏳ Belum dipilih'}
                 </span>

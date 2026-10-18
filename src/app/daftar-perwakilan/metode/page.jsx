@@ -84,17 +84,17 @@ export default function DaftarPerwakilanMetodePage() {
   }
 
   return (
-    <Layout title="📮 Metode Pendaftaran" showBack confirmLeave={isDirty}
+    <Layout title="📮 Metode TTD & Kirim Dokumen" showBack confirmLeave={isDirty}
       confirmMessage="Yakin ingin keluar? Pilihan yang sudah diisi belum disimpan.">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
-          <div className="font-bold text-[#0E2F6E]">📮 Metode Pendaftaran</div>
+          <div className="font-bold text-[#0E2F6E]">📮 Metode TTD & Kirim Dokumen</div>
           <p className="text-xs text-gray-400 -mt-2">
             Langkah terakhir — pilih bagaimana Perjanjian Kerjasama Perwakilan diselesaikan.
           </p>
 
           <div>
-            <label className={lbl}>Metode Pendaftaran *</label>
+            <label className={lbl}>Metode TTD & Kirim Dokumen *</label>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { v: 'kantor', l: 'Datang ke Kantor' },
