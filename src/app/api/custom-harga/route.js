@@ -3,6 +3,22 @@ import { wajibRole, wajibLogin } from '@/lib/auth';
 import { kirimNotifikasi, kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { catatAudit } from '@/lib/audit';
 
+const KOLOM_VALID = ['deluxe_quad','deluxe_triple','deluxe_double',
+  'eksekutif_quad','eksekutif_triple','eksekutif_double',
+  'signature_quad','signature_triple','signature_double'];
+
+// Terapkan harga jual perwakilan ke tabel perwakilan_harga — dipakai
+// jalur auto-approve (POST, harga >= HPP) maupun approve manual admin
+// (PATCH). `paket`/`kamar` HARUS salah satu KOLOM_VALID (lowercase).
+async function terapkanHargaPerwakilan(pengajuId, progId, paketKamarKey, harga) {
+  await pool.query(
+    `INSERT INTO perwakilan_harga (perw_id, prog_id, jual_${paketKamarKey})
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE jual_${paketKamarKey} = VALUES(jual_${paketKamarKey})`,
+    [pengajuId, progId, Number(harga)]
+  );
+}
+
 // GET /api/custom-harga            -> semua (untuk admin)
 // GET /api/custom-harga?pengaju_id=xxx -> milik satu pengaju
 // GET /api/custom-harga?status=pending
@@ -30,6 +46,15 @@ export async function GET(request) {
 
 // POST /api/custom-harga  — perwakilan mengajukan harga custom
 // body: { pengaju_id, prog_id, paket, kamar, harga_diajukan, alasan }
+//
+// AUTO-APPROVE (dikonfirmasi user 2026-10-18): ini CUMA ubah harga JUAL
+// dari program yang udah dibuat admin (paket/kamar/HPP-nya udah fix) --
+// kalau harga_diajukan >= HPP kombo itu, langsung diterapkan ke
+// perwakilan_harga TANPA nunggu admin, admin cuma dapat notif info.
+// Di bawah HPP (atau paket/kamar gak diisi/gak valid) tetap masuk antrian
+// manual seperti biasa. BEDA dari Kalkulator Perwakilan (ajuan itung-itungan
+// program BARU dari nol, kalkulator_perwakilan_lead) -- itu TETAP wajib
+// dikaji admin, gak disentuh perubahan ini.
 export async function POST(request) {
   const auth = wajibRole(request, ['perwakilan']);
   if (auth.error) return auth.error;
@@ -39,9 +64,9 @@ export async function POST(request) {
       return Response.json({ error: 'pengaju_id, prog_id, dan harga_diajukan wajib diisi' }, { status: 400 });
     }
 
-    // Ambil nama & role pengaju + nama program
+    // Ambil nama & role pengaju + data program (buat cek HPP)
     const [u] = await pool.query('SELECT name, role, status FROM users WHERE id = ?', [pengaju_id]);
-    const [p] = await pool.query('SELECT name FROM programs WHERE id = ?', [prog_id]);
+    const [p] = await pool.query('SELECT * FROM programs WHERE id = ?', [prog_id]);
     if (u.length === 0) return Response.json({ error: 'Pengaju tidak ditemukan' }, { status: 404 });
     if (p.length === 0) return Response.json({ error: 'Program tidak ditemukan' }, { status: 404 });
     // Akun belum aktif gak boleh ngajuin custom harga (ditemukan & digate
@@ -50,12 +75,29 @@ export async function POST(request) {
       return Response.json({ error: 'Akun Anda belum aktif. Selesaikan dulu proses pendaftaran sebelum bisa mengajukan harga custom.' }, { status: 403 });
     }
 
+    const paketKamarKey = paket && kamar ? `${String(paket).toLowerCase()}_${String(kamar).toLowerCase()}` : null;
+    const hpp = paketKamarKey && KOLOM_VALID.includes(paketKamarKey) ? Number(p[0][`hpp_${paketKamarKey}`] || 0) : null;
+    const bisaAutoApprove = u[0].role === 'perwakilan' && hpp !== null && hpp > 0 && Number(harga_diajukan) >= hpp;
+    const status = bisaAutoApprove ? 'approved' : 'pending';
+    const catatanAdmin = bisaAutoApprove ? `Auto-approve — harga jual Rp ${Number(harga_diajukan).toLocaleString('id-ID')} >= HPP Rp ${hpp.toLocaleString('id-ID')}` : null;
+
     await pool.query(
       `INSERT INTO custom_harga_request
-       (pengaju_id, pengaju_nama, pengaju_role, prog_id, prog_name, paket, kamar, harga_diajukan, alasan, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [pengaju_id, u[0].name, u[0].role, prog_id, p[0].name, paket || null, kamar || null, Number(harga_diajukan), alasan || null]
+       (pengaju_id, pengaju_nama, pengaju_role, prog_id, prog_name, paket, kamar, harga_diajukan, alasan, status, catatan_admin)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [pengaju_id, u[0].name, u[0].role, prog_id, p[0].name, paket || null, kamar || null, Number(harga_diajukan), alasan || null, status, catatanAdmin]
     );
+
+    if (bisaAutoApprove) {
+      await terapkanHargaPerwakilan(pengaju_id, prog_id, paketKamarKey, harga_diajukan);
+      await kirimNotifikasiAdmin(pool, {
+        tipe: 'custom_harga_auto_approve',
+        judul: 'Harga Jual Perwakilan Auto-Approve',
+        pesan: `${u[0].name} ubah harga jual ${p[0].name} (${paket} ${kamar}) jadi Rp ${Number(harga_diajukan).toLocaleString('id-ID')} — otomatis disetujui (≥ HPP).`,
+        link: '/admin?tab=customharga',
+      });
+      return Response.json({ message: 'Harga baru langsung aktif! (otomatis disetujui, sudah memenuhi HPP)' }, { status: 201 });
+    }
 
     await kirimNotifikasiAdmin(pool, {
       tipe: 'custom_harga_baru',
@@ -97,18 +139,9 @@ export async function PATCH(request) {
 
     // Kalau di-approve & pengaju perwakilan & ada paket+kamar -> terapkan ke perwakilan_harga
     if (action === 'approve' && req.pengaju_role === 'perwakilan' && req.paket && req.kamar) {
-      const key = `jual_${String(req.paket).toLowerCase()}_${String(req.kamar).toLowerCase()}`;
-      // Kolom valid saja
-      const valid = ['jual_deluxe_quad','jual_deluxe_triple','jual_deluxe_double',
-        'jual_eksekutif_quad','jual_eksekutif_triple','jual_eksekutif_double',
-        'jual_signature_quad','jual_signature_triple','jual_signature_double'];
-      if (valid.includes(key)) {
-        await pool.query(
-          `INSERT INTO perwakilan_harga (perw_id, prog_id, ${key})
-           VALUES (?, ?, ?)
-           ON DUPLICATE KEY UPDATE ${key} = VALUES(${key})`,
-          [req.pengaju_id, req.prog_id, Number(req.harga_diajukan)]
-        );
+      const paketKamarKey = `${String(req.paket).toLowerCase()}_${String(req.kamar).toLowerCase()}`;
+      if (KOLOM_VALID.includes(paketKamarKey)) {
+        await terapkanHargaPerwakilan(req.pengaju_id, req.prog_id, paketKamarKey, req.harga_diajukan);
       }
     }
 

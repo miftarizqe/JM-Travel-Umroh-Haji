@@ -30,6 +30,17 @@ export default function AturHargaPerwakilan() {
       .catch(() => {});
   }
 
+  // Dipanggil ulang abis ajukanHarga (dikonfirmasi user 2026-10-18, barengan
+  // auto-approve) -- kalau auto-approved, harga jual di perwakilan_harga
+  // udah berubah SEKETIKA, bukan cuma status pengajuan yang berubah. Tanpa
+  // ini angka "Harga jual" di layar tetap keliatan lama sampai reload manual.
+  function loadPrograms() {
+    fetch(`/api/perwakilan/harga?perw_id=${user.id}`)
+      .then(r => r.json())
+      .then(d => { setPrograms(d.programs || []); setUpline(d.upline || null); })
+      .catch(() => {});
+  }
+
   useEffect(() => {
     if (!user) return;
     if (user.role !== 'perwakilan') { router.push('/dashboard/jamaah'); return; }
@@ -62,6 +73,7 @@ export default function AturHargaPerwakilan() {
       alert(d.message);
       setOpenForm(null); setFormHarga(''); setFormAlasan('');
       loadRequests();
+      loadPrograms();
     } catch { alert('Terjadi kesalahan'); }
     setSubmitting(false);
   }
