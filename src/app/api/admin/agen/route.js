@@ -190,6 +190,17 @@ export async function DELETE(request) {
       return Response.json({ error: 'Akun ini sudah punya riwayat booking/komisi, tidak bisa dihapus permanen. Nonaktifkan saja.' }, { status: 400 });
     }
 
+    // kalkulator_lead.user_id has a restrictive FK to users.id. Leads are
+    // historical follow-up records, so keep them intact and explain why the
+    // account cannot be removed instead of letting MySQL surface a 500.
+    const [[{ jumlahLead }]] = await pool.query(
+      'SELECT COUNT(*) AS jumlahLead FROM kalkulator_lead WHERE user_id = ?',
+      [id]
+    );
+    if (jumlahLead > 0) {
+      return Response.json({ error: 'Akun ini sudah punya riwayat estimasi di kalkulator, tidak bisa dihapus permanen. Nonaktifkan saja.' }, { status: 400 });
+    }
+
     await pool.query('DELETE FROM users WHERE id = ?', [id]);
     await catatAudit(pool, {
       actor: auth.user,
