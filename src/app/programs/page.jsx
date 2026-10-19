@@ -151,7 +151,7 @@ function KartuProgram({ p, user, router, varian = 'reguler', isTarget, isPending
           </div>
           <div className="text-right">
             <div className="text-xs text-gray-400">DP</div>
-            <div className="text-sm font-bold text-[#C9952A]">Rp {(p.dp/1000000).toFixed(0)} jt</div>
+            <div className="text-sm font-bold text-[#C9952A]">Rp {Number(p.dp || 0).toLocaleString('id-ID')}</div>
           </div>
         </div>
 
@@ -204,7 +204,7 @@ function KartuImpian({ p, user, router, isTarget, isPendingNewChoice, targetSusp
               </div>
               <div className="text-right">
                 <div className="text-xs text-gray-400">DP</div>
-                <div className="text-sm font-bold text-[#C9952A]">Rp {(p.dp/1000000).toFixed(0)} jt</div>
+                <div className="text-sm font-bold text-[#C9952A]">Rp {Number(p.dp || 0).toLocaleString('id-ID')}</div>
               </div>
             </div>
             <div className="text-xs text-gray-500 mb-1.5">🪑 {sisaSeat} seat tersisa</div>

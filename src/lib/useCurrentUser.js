@@ -101,10 +101,18 @@ const snapshotServer = () => undefined;
 // /status-pendaftaran-sahabat terus sampai reload (bug 2026-10-15). Makanya
 // simpan juga isi cache SAAT cek dikirim: status cuma boleh disamain kalau
 // cache-nya belum diubah siapa-siapa sesudah itu.
+// Cache berubah sesudah cek dikirim -> cek ULANG ke server (bukan pakai hasil
+// lama). Bug 2026-10-19: 2 tab beda akun (login akun B di tab lain) saling
+// nimpa cache `user` pakai hasil cek lama masing2 -> storage event bolak-
+// balik tanpa henti, NotificationBell nembak /api/notifications ribuan kali
+// (403 buat akun yang cookie-nya udah gak aktif).
+let cekSesiCacheSaatCek = null;
 function cekSesiServer() {
-  if (!cekSesiPromise) {
-    let cacheSaatCek = null;
-    try { cacheSaatCek = localStorage.getItem('user'); } catch {}
+  let sekarang = null;
+  try { sekarang = localStorage.getItem('user'); } catch {}
+  if (!cekSesiPromise || sekarang !== cekSesiCacheSaatCek) {
+    const cacheSaatCek = sekarang;
+    cekSesiCacheSaatCek = sekarang;
     cekSesiPromise = fetch('/api/auth/sesi', { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => (d ? { ...d, cacheSaatCek } : null))
@@ -141,8 +149,13 @@ export function useCurrentUser() {
         // berubah di server (mis. ditolak/di-ACC admin sesudah login).
         // Status beda tapi cache udah ditulis ulang sesudah cek dikirim ->
         // cache yang lebih baru, hasil cek ini yang basi (lihat cekSesiServer).
-        const cacheBasi = sekarang !== d.cacheSaatCek;
-        if (d.user && (cache?.id !== d.user.id || (cache?.status !== d.user.status && !cacheBasi))) {
+        // Cache udah diganti sesudah cek ini dikirim -> hasil ini basi, JANGAN
+        // dipakai nimpa (efek yang kepicu perubahan cache itu udah ngirim
+        // cek baru, lihat cekSesiServer). Termasuk beda akun -- dulu cuma
+        // status yang dijaga, akun beda tetap ditimpa & bikin ping-pong
+        // antar-tab (bug 2026-10-19).
+        if (sekarang !== d.cacheSaatCek) return;
+        if (d.user && (cache?.id !== d.user.id || cache?.status !== d.user.status)) {
           isiCacheUser(cache?.id === d.user.id ? { ...cache, ...d.user } : d.user);
         }
         setSesiTerkonfirmasi(true);

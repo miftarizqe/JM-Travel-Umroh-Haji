@@ -450,7 +450,7 @@ export default function Home() {
                     <div className="text-right">
                       <div className="text-[10px] text-gray-400">Mulai dari</div>
                       <div className="text-xl font-black text-[#0E2F6E]">Rp {(hargaTermurahProgram(p)/1000000).toFixed(0)} jt</div>
-                      <div className="text-xs text-gray-400">DP Rp {(p.dp/1000000).toFixed(0)} jt</div>
+                      <div className="text-xs text-gray-400">DP Rp {Number(p.dp || 0).toLocaleString('id-ID')}</div>
                     </div>
                   </div>
                   <div className="h-1.5 bg-[#e0e8f0] rounded-full overflow-hidden mb-4">

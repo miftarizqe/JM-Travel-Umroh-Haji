@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useOpsiTambahan } from '@/lib/useOpsiTambahan';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
-import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 export const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
@@ -28,13 +27,34 @@ export function hargaItem(prog, item) {
 // Kekurangan data 1 jamaah (null = lengkap). SATU sumber buat badge ✅/⚠️ di
 // header kartu & validasi "Lanjut ke Pembayaran" di checkout/page.jsx, biar
 // badge gak bilang lengkap padahal ditolak pas lanjut (atau sebaliknya).
-export function masalahJamaah(c) {
+// Index kartu SEBELUMNYA (di atas) yang udah pakai NIK yang sama, -1 kalau
+// gak ada. Cuma NIK lengkap 16 digit yang dicek (jangan nyala pas masih
+// ngetik). Kartu PERTAMA yang pakai NIK itu dianggap sah, kartu di bawahnya
+// yang ditandai dobel (dikonfirmasi user 2026-10-19, constraint FE aja --
+// server tetap punya cek NIK dobel sendiri pas lanjut, lihat /api/bookings/cek-nik).
+export function nikDobelDengan(list, c) {
+  const nik = c.tanpaNik ? '' : String(c.nik || '').trim();
+  if (!list || nik.length !== 16) return -1;
+  const idx = list.findIndex(x => x.uid === c.uid);
+  return list.findIndex((x, i) => i < idx && !x.tanpaNik && String(x.nik || '').trim() === nik);
+}
+
+export function masalahJamaah(c, prog, list) {
   if (!c.paket || !c.kamar) return 'Pilih paket & kamar dulu!';
   if (c.paket === 'custom' && (!c.hargaCustom || Number(c.hargaCustom) <= 0)) return 'Lengkapi pilihan Bintang Mekkah & Madinah dulu (Custom Hotel)!';
+  // Sama kayak gerbang server di buatSatuBooking (src/lib/booking.js) —
+  // harga paket per jamaah (tanpa opsi tambahan) wajib > DP biar ada sisa
+  // pelunasan. Paling sering kena harga custom admin yang kekecilan.
+  const dp = Number(prog?.dp || 0);
+  if (prog && prog.publish_type !== 'sahabat_baitullah' && !(hargaProgram(prog, c) > dp)) {
+    return `Harga paket (Rp ${hargaProgram(prog, c).toLocaleString('id-ID')}) harus lebih besar dari DP (Rp ${dp.toLocaleString('id-ID')}).`;
+  }
   if (!c.nama.trim()) return 'Isi nama lengkap dulu!';
   if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') return 'Pilih jenis kelamin dulu!';
-  if (!alamatLengkap(c, '_kirim')) return 'Lengkapi alamat kirim perlengkapan dulu (Provinsi s/d RT/RW, Kode Pos opsional)!';
+  if (!c.alamat.trim()) return 'Isi alamat kirim perlengkapan dulu!';
   if (!c.tanpaNik && !/^\d{16}$/.test(c.nik.trim())) return 'NIK wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).';
+  const dobel = nikDobelDengan(list, c);
+  if (dobel >= 0) return `NIK ini sudah dipakai Jamaah ${dobel + 1}. Satu orang cuma bisa didaftarkan sekali.`;
   return null;
 }
 
@@ -105,11 +125,19 @@ function semuaHargaSamaCek(prog) {
 // Kombo paket+kamar PERTAMA yang beneran ada harganya — dipakai default
 // jamaah baru biar gak nyangkut di pilihan "Rp 0" kalau admin belum isi
 // semua tier.
+// Kombo yang beneran bisa dijual: harganya diisi & (selain Program Eksklusif
+// Sahabat) > DP — kombo harga <= DP pasti ditolak masalahJamaah & server,
+// jadi gak ditawarin sama sekali di dropdown/default.
+function hargaLayakJual(prog, harga) {
+  if (!(harga > 0)) return false;
+  return prog?.publish_type === 'sahabat_baitullah' || harga > Number(prog?.dp || 0);
+}
+
 function komboDefault(prog) {
   for (const pk of PAKET_LIST) {
     for (const km of KAMAR_LIST) {
       const harga = prog?.[`harga_${pk.key}_${kamarKeyOf(km)}`] || prog?.[`harga_${pk.key}`] || 0;
-      if (harga > 0) return { paket: pk.key, kamar: km };
+      if (hargaLayakJual(prog, harga)) return { paket: pk.key, kamar: km };
     }
   }
   return { paket: PAKET_LIST[0].key, kamar: KAMAR_LIST[1] };
@@ -120,29 +148,11 @@ export function jamaahKosong(prog) {
   return {
     paket, kamar, hargaCustom: '', customHotel: null,
     nama: '', jk: '', nik: '', tanpaNik: false, wa: '', alamat: '',
-    ...ALAMAT_KIRIM_KOSONG,
     opsiTambahan: [], diriSendiri: false,
-    // Key React stabil per kartu -- AddressFields nyimpen id wilayah yang
-    // dipilih di state lokal, kalau di-key pakai index, hapus kartu #1 bikin
-    // kartu #2 kebagian dropdown kartu #1.
+    // Key React stabil per kartu -- dipakai juga buat id anchor scroll &
+    // penanda kartu accordion yang kebuka (index geser kalau ada yang dihapus).
     uid: Math.random().toString(36).slice(2),
   };
-}
-
-// Alamat kirim per jamaah sekarang terstruktur (dropdown wilayah berjenjang,
-// sama kayak AddressFields di pendaftaran), bukan 1 input bebas lagi.
-// `alamat` 1 baris TETAP diisi (dirangkai formatAlamatSatuBaris) biar
-// payload submit & kolom alamat_kirim di DB gak berubah.
-const ALAMAT_KIRIM_KOSONG = {
-  jalan_kirim: '', norumah_kirim: '', rt_kirim: '', rw_kirim: '', kp_kirim: '',
-  kel_kirim: '', kec_kirim: '', kota_kirim: '', provinsi_kirim: '', negara_kirim: 'Indonesia',
-};
-function rangkaiAlamatKirim(j) {
-  return formatAlamatSatuBaris({
-    jalan: j.jalan_kirim, norumah: j.norumah_kirim, rt: j.rt_kirim, rw: j.rw_kirim,
-    kel: j.kel_kirim, kec: j.kec_kirim, kota: j.kota_kirim, provinsi: j.provinsi_kirim,
-    kp: j.kp_kirim, negara: j.negara_kirim,
-  });
 }
 
 // 1 kartu = 1 jamaah, MANDIRI total (paket/kamar sendiri, data sendiri) --
@@ -166,7 +176,7 @@ const WARNA_KARTU = [
   { badge: 'bg-teal-600 text-white', judul: 'text-teal-800' },
 ];
 
-function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordion, terbuka, onToggle, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
+function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion, terbuka, onToggle, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
   const kamarKey = kamarKeyOf(item.kamar);
   const hargaNormal = prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 
@@ -221,11 +231,11 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordi
   const inpTerkunci = `${inp} border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed`;
 
   const warna = WARNA_KARTU[idx % WARNA_KARTU.length];
-  const lengkap = !masalahJamaah(item);
+  const lengkap = !masalahJamaah(item, prog, semua);
+  const nikDobel = nikDobelDengan(semua, item);
   // Mode accordion (2+ jamaah): body kartu yang ketutup CUMA di-hidden, bukan
-  // di-unmount -- AddressFields nyimpen id wilayah terpilih & useCustomHotel
-  // Harga nyimpen hasil hitung di state lokal, unmount bikin dropdown alamat
-  // reset & harga custom dihitung ulang tiap kartu dibuka.
+  // di-unmount -- useCustomHotelHarga nyimpen hasil hitung di state lokal,
+  // unmount bikin harga custom dihitung ulang (fetch lagi) tiap kartu dibuka.
   const bodyTampil = !accordion || terbuka;
 
   return (
@@ -288,7 +298,7 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordi
             className="w-full px-3.5 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm font-semibold text-[#0E2F6E]">
             {PAKET_LIST.flatMap(pk => KAMAR_LIST.map(km => {
               const harga = prog?.[`harga_${pk.key}_${kamarKeyOf(km)}`] || prog?.[`harga_${pk.key}`] || 0;
-              if (harga <= 0) return null;
+              if (!hargaLayakJual(prog, harga)) return null;
               return <option key={`${pk.key}|${km}`} value={`${pk.key}|${km}`}>{pk.label} · {km} — Rp {harga.toLocaleString('id-ID')}</option>;
             }))}
             {prog?.custom_hotel_tersedia && <option value="custom">🎨 Custom Hotel — pilih bintang Mekkah/Madinah sendiri</option>}
@@ -347,7 +357,10 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordi
           onChange={e => onChange({ ...item, nik: e.target.value.replace(/\D/g, '').slice(0, 16) })}
           inputMode="numeric" maxLength={16}
           placeholder={item.tanpaNik ? 'Belum punya KTP' : 'NIK (No. KTP) — 16 digit'}
-          className={(nikTerkunci || item.tanpaNik) ? inpTerkunci : inpNormal} />
+          className={(nikTerkunci || item.tanpaNik) ? inpTerkunci : nikDobel >= 0 ? `${inp} bg-white border-red-400 focus:border-red-500` : inpNormal} />
+        {nikDobel >= 0 && (
+          <div className="text-[11px] font-semibold text-red-600">⚠️ NIK ini sudah dipakai Jamaah {nikDobel + 1}. Satu orang cuma bisa didaftarkan sekali.</div>
+        )}
         {!fieldTerkunci && (
           <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
             <input type="checkbox" checked={!!item.tanpaNik} className="w-3.5 h-3.5 accent-[#1A4FA0]"
@@ -363,45 +376,34 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordi
 
       <div className="border-t border-gray-100 pt-3 space-y-2.5">
         <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
-        {/* Checkbox "salin dari Domisili" CUMA buat "Ini saya sendiri" &
-            akun yang punya alamat domisili terstruktur (dikonfirmasi user
-            2026-10-19 -- sebelumnya alamat kirim WAJIB diketik manual
-            ulang walau jamaahnya diri sendiri & datanya udah ada di
-            profil). CUMA domisili yang ditawarin di sini (bukan KTP juga)
-            -- domisili = tempat tinggal SEKARANG, lebih nyambung buat
-            alamat kirim paket dibanding KTP yang kadang alamat lama/beda
-            kota. Butuh kolom alamat_domisili_* terstruktur (migration 239)
-            -- akun LAMA yang domisilinya beda dari KTP & gak sempat
-            ke-backfill gak dapat opsi ini (dataDiriSendiri.domisili null,
-            checkbox-nya gak dirender). Ini SEKALI-SALIN (bukan toggle
-            terkunci) -- abis disalin field tetap bisa diedit manual,
-            konsisten sama catatan lama "alamat kirim sengaja gak
-            dikunci". */}
-        {fieldTerkunci && dataDiriSendiri?.domisili && (
+        {/* "Salin dari Alamat Domisili" CUMA buat "Ini saya sendiri" & akun
+            yang punya alamat domisili terstruktur (migration 239,
+            dataDiriSendiri.domisili dari checkout/page.jsx; null -> gak
+            dirender). Domisili, bukan KTP -- tempat tinggal SEKARANG, lebih
+            nyambung buat kirim paket. SEKALI-SALIN ke textarea (dirangkai
+            formatAlamatSatuBaris), abis itu tetap bisa diedit manual.
+            Diporting dari versi dropdown berjenjang ke textarea pas merge
+            2026-10-19. Status centang DITURUNKAN dari isi textarea (sama
+            persis alamat domisili = kecentang) -- dulu checked={false}
+            permanen, ngisi tapi gak pernah kecentang (dikonfirmasi user
+            2026-10-19). Diedit manual -> otomatis lepas; uncentang ->
+            textarea dikosongin. */}
+        {fieldTerkunci && dataDiriSendiri?.domisili && (() => {
+          const alamatDomisili = formatAlamatSatuBaris(dataDiriSendiri.domisili);
+          return (
           <label className="flex items-center gap-2 text-[11px] text-gray-500 cursor-pointer">
-            <input type="checkbox" className="w-3.5 h-3.5 accent-[#1A4FA0]" checked={false}
-              onChange={e => {
-                if (!e.target.checked) return;
-                const a = dataDiriSendiri.domisili;
-                onPatch(j => {
-                  const n = {
-                    ...j,
-                    jalan_kirim: a.jalan, norumah_kirim: a.norumah, rt_kirim: a.rt, rw_kirim: a.rw,
-                    kel_kirim: a.kel, kec_kirim: a.kec, kota_kirim: a.kota, provinsi_kirim: a.provinsi,
-                    kp_kirim: a.kp, negara_kirim: a.negara,
-                  };
-                  return { ...n, alamat: rangkaiAlamatKirim(n) };
-                });
-              }} />
+            <input type="checkbox" className="w-3.5 h-3.5 accent-[#1A4FA0]" checked={item.alamat === alamatDomisili}
+              onChange={e => onChange({ ...item, alamat: e.target.checked ? alamatDomisili : '' })} />
             📍 Salin dari Alamat Domisili
           </label>
-        )}
-        {/* setF dipanggil beruntun dalam 1 event (ganti provinsi -> kosongin
-            kota/kec/kel), jadi WAJIB functional update (onPatch), bukan
-            onChange({...item}) yang bakal saling timpa pakai `item` basi. */}
-        <AddressFields form={item} suffix="_kirim"
-          setF={(key, val) => onPatch(j => { const n = { ...j, [key]: val }; return { ...n, alamat: rangkaiAlamatKirim(n) }; })}
-          inp={inpNormal} lbl="block text-[11px] font-semibold text-gray-500 mb-1" />
+          );
+        })()}
+        {/* Textarea bebas (bukan dropdown wilayah berjenjang lagi,
+            dikonfirmasi user 2026-10-19) -- langsung masuk `alamat`, payload
+            submit & kolom alamat_kirim di DB gak berubah. */}
+        <textarea value={item.alamat} onChange={e => onChange({ ...item, alamat: e.target.value })} rows={3}
+          placeholder="Alamat lengkap: jalan, no. rumah, RT/RW, kelurahan, kecamatan, kota, kode pos"
+          className={`${inpNormal} resize-y`} />
       </div>
 
       {allowHargaCustom && item.paket !== 'custom' && (
@@ -549,9 +551,6 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
     // Kartu lama ketutup -> layout nyusut, kartu baru bisa lompat keluar layar.
     setTimeout(() => document.getElementById(`jamaah-${baru.uid}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
-  function patchJamaah(idx, fn) {
-    onChangeList(prev => prev.map((j, i) => i === idx ? fn(j) : j));
-  }
   function hapusJamaah(idx) {
     // Kartu yang dihapus pasti yang lagi kebuka (tombol Hapus cuma muncul di
     // kartu kebuka) -> pindah buka kartu sebelumnya, jangan ketutup semua.
@@ -571,8 +570,7 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
         </div>
 
         {list.map((item, idx) => (
-          <JamaahCard key={item.uid || idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
-            onPatch={fn => patchJamaah(idx, fn)}
+          <JamaahCard key={item.uid || idx} idx={idx} item={item} semua={list} onChange={next => ubahJamaah(idx, next)}
             onRemove={() => hapusJamaah(idx)} canRemove={idx > 0}
             accordion={accordion} terbuka={item.uid === jamaahTerbuka}
             onToggle={() => onJamaahTerbuka?.(item.uid === jamaahTerbuka ? null : item.uid)}
