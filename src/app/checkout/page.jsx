@@ -70,7 +70,7 @@ function CheckoutPageInner() {
   async function lanjutKePembayaran() {
     if (cart.length === 0) return;
     for (let i = 0; i < cart.length; i++) {
-      const masalah = masalahJamaah(cart[i], prog);
+      const masalah = masalahJamaah(cart[i], prog, cart);
       if (masalah) { tunjukkanJamaah(i, masalah); return; }
     }
     const niks = cart.filter(c => !c.tanpaNik).map(c => c.nik.trim());

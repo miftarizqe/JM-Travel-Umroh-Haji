@@ -26,7 +26,19 @@ export function hargaItem(prog, item) {
 // Kekurangan data 1 jamaah (null = lengkap). SATU sumber buat badge ✅/⚠️ di
 // header kartu & validasi "Lanjut ke Pembayaran" di checkout/page.jsx, biar
 // badge gak bilang lengkap padahal ditolak pas lanjut (atau sebaliknya).
-export function masalahJamaah(c, prog) {
+// Index kartu SEBELUMNYA (di atas) yang udah pakai NIK yang sama, -1 kalau
+// gak ada. Cuma NIK lengkap 16 digit yang dicek (jangan nyala pas masih
+// ngetik). Kartu PERTAMA yang pakai NIK itu dianggap sah, kartu di bawahnya
+// yang ditandai dobel (dikonfirmasi user 2026-10-19, constraint FE aja --
+// server tetap punya cek NIK dobel sendiri pas lanjut, lihat /api/bookings/cek-nik).
+export function nikDobelDengan(list, c) {
+  const nik = c.tanpaNik ? '' : String(c.nik || '').trim();
+  if (!list || nik.length !== 16) return -1;
+  const idx = list.findIndex(x => x.uid === c.uid);
+  return list.findIndex((x, i) => i < idx && !x.tanpaNik && String(x.nik || '').trim() === nik);
+}
+
+export function masalahJamaah(c, prog, list) {
   if (!c.paket || !c.kamar) return 'Pilih paket & kamar dulu!';
   if (c.paket === 'custom' && (!c.hargaCustom || Number(c.hargaCustom) <= 0)) return 'Lengkapi pilihan Bintang Mekkah & Madinah dulu (Custom Hotel)!';
   // Sama kayak gerbang server di buatSatuBooking (src/lib/booking.js) —
@@ -40,6 +52,8 @@ export function masalahJamaah(c, prog) {
   if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') return 'Pilih jenis kelamin dulu!';
   if (!c.alamat.trim()) return 'Isi alamat kirim perlengkapan dulu!';
   if (!c.tanpaNik && !/^\d{16}$/.test(c.nik.trim())) return 'NIK wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).';
+  const dobel = nikDobelDengan(list, c);
+  if (dobel >= 0) return `NIK ini sudah dipakai Jamaah ${dobel + 1}. Satu orang cuma bisa didaftarkan sekali.`;
   return null;
 }
 
@@ -161,7 +175,7 @@ const WARNA_KARTU = [
   { badge: 'bg-teal-600 text-white', judul: 'text-teal-800' },
 ];
 
-function JamaahCard({ idx, item, onChange, onRemove, canRemove, accordion, terbuka, onToggle, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
+function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion, terbuka, onToggle, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
   const kamarKey = kamarKeyOf(item.kamar);
   const hargaNormal = prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 
@@ -216,7 +230,8 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, accordion, terbu
   const inpTerkunci = `${inp} border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed`;
 
   const warna = WARNA_KARTU[idx % WARNA_KARTU.length];
-  const lengkap = !masalahJamaah(item, prog);
+  const lengkap = !masalahJamaah(item, prog, semua);
+  const nikDobel = nikDobelDengan(semua, item);
   // Mode accordion (2+ jamaah): body kartu yang ketutup CUMA di-hidden, bukan
   // di-unmount -- useCustomHotelHarga nyimpen hasil hitung di state lokal,
   // unmount bikin harga custom dihitung ulang (fetch lagi) tiap kartu dibuka.
@@ -341,7 +356,10 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, accordion, terbu
           onChange={e => onChange({ ...item, nik: e.target.value.replace(/\D/g, '').slice(0, 16) })}
           inputMode="numeric" maxLength={16}
           placeholder={item.tanpaNik ? 'Belum punya KTP' : 'NIK (No. KTP) — 16 digit'}
-          className={(nikTerkunci || item.tanpaNik) ? inpTerkunci : inpNormal} />
+          className={(nikTerkunci || item.tanpaNik) ? inpTerkunci : nikDobel >= 0 ? `${inp} bg-white border-red-400 focus:border-red-500` : inpNormal} />
+        {nikDobel >= 0 && (
+          <div className="text-[11px] font-semibold text-red-600">⚠️ NIK ini sudah dipakai Jamaah {nikDobel + 1}. Satu orang cuma bisa didaftarkan sekali.</div>
+        )}
         {!fieldTerkunci && (
           <label className="flex items-center gap-1.5 text-[11px] text-gray-500 cursor-pointer">
             <input type="checkbox" checked={!!item.tanpaNik} className="w-3.5 h-3.5 accent-[#1A4FA0]"
@@ -529,7 +547,7 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
         </div>
 
         {list.map((item, idx) => (
-          <JamaahCard key={item.uid || idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
+          <JamaahCard key={item.uid || idx} idx={idx} item={item} semua={list} onChange={next => ubahJamaah(idx, next)}
             onRemove={() => hapusJamaah(idx)} canRemove={idx > 0}
             accordion={accordion} terbuka={item.uid === jamaahTerbuka}
             onToggle={() => onJamaahTerbuka?.(item.uid === jamaahTerbuka ? null : item.uid)}
