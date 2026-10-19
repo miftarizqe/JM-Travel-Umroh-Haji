@@ -270,31 +270,6 @@ export default function DatabasePerwakilanPage() {
     setBusy(false);
   }
 
-  // Dual-role: tambah role Sahabat Baitullah ke akun perwakilan yang sudah
-  // aktif — KHUSUS direkrut langsung manajemen. Arah sebaliknya (Sahabat ->
-  // Perwakilan) DIPINDAH ke /admin/perwakilan (dikonfirmasi user
-  // 2026-10-12, lihat rekrutJadiPerwakilan() di sana) -- bukan lagi mirror
-  // 1-ke-1 kayak sebelumnya.
-  // BUG (ditemukan & diperbaiki 2026-10-12): endpoint tambah_role_kedua di
-  // server sempat salah map pasangan role (key 'sahabat' bukan
-  // 'sahabat_baitullah') jadi tombol ini SELALU gagal -- fix-nya di
-  // /api/admin/users/route.js, bukan di sini.
-  async function tambahRoleSahabat(row) {
-    if (!confirm(`Tambahkan role Sahabat Baitullah ke akun ${row.nama}? Orang ini tetap wajib lewat proses lengkap (setoran, BSI, SK-CIF) — cuma jalur masuknya via admin, bukan link referral.`)) return;
-    setBusy(true);
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: row.user_id, action: 'tambah_role_kedua', role_kedua: 'sahabat_baitullah' }),
-      });
-      const d = await res.json();
-      if (!res.ok) { alert(d.error || 'Gagal menambahkan role kedua'); setBusy(false); return; }
-      alert('Role Sahabat Baitullah berhasil ditambahkan.');
-      muat();
-    } catch { alert('Terjadi kesalahan'); }
-    setBusy(false);
-  }
-
   function toggleNode(id, isExpanded) {
     setExpandedNodes(prev => ({ ...prev, [id]: !isExpanded }));
   }
@@ -462,12 +437,6 @@ export default function DatabasePerwakilanPage() {
                       <button onClick={() => bukaRekap(row)} className="w-full text-[#1A4FA0] font-bold hover:underline text-center">
                         📊 Lihat Rekap &amp; Download →
                       </button>
-
-                      {row.status === 'active' && !row.role_kedua && (
-                        <button onClick={() => tambahRoleSahabat(row)} disabled={busy} className="w-full bg-[#0E2F6E] hover:bg-[#1A4FA0] text-white text-xs font-bold px-3 py-2 rounded-full disabled:opacity-50">
-                          🤝 Tambahkan Role Sahabat Baitullah (direkrut manajemen)
-                        </button>
-                      )}
 
                       {editingData === row.user_id ? (
                         <div className="bg-white rounded-lg p-3 border border-gray-100 space-y-2">

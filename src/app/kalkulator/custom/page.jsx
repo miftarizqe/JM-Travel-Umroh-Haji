@@ -4,6 +4,7 @@ import InputTanggal from '@/app/components/InputTanggal';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
+import { ambilRefAgenWa, salamAgen } from '@/lib/referralCapture';
 
 function fmtTgl(t) {
   if (!t) return null;
@@ -13,7 +14,9 @@ function fmtTgl(t) {
 }
 
 function pesanWa({ catatan, tanggal, jumlahPax }) {
-  let pesan = `Assalamu'alaikum JM Travel, saya mau ajukan permintaan custom Umroh Private:\n\n${catatan}`;
+  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" (dikonfirmasi
+  // user 2026-10-19), gantiin "Assalamu'alaikum JM Travel" generik.
+  let pesan = `${salamAgen()}, saya mau ajukan permintaan custom Umroh Private:\n\n${catatan}`;
   if (tanggal) pesan += `\n\nTanggal keberangkatan: ${fmtTgl(tanggal)}`;
   if (jumlahPax) pesan += `\nJumlah pax: ${jumlahPax}`;
   return pesan;
@@ -42,7 +45,10 @@ export default function KalkulatorCustomPage() {
     setError('');
     if (!catatan.trim()) { setError('Ceritain dulu paket seperti apa yang kamu mau.'); return; }
 
-    const link = waLink(pengaturan.wa_kantor, pesanWa({ catatan: catatan.trim(), tanggal, jumlahPax }));
+    // WA agen (link /a/[kode]) MENANG dari WA kantor (dikonfirmasi user
+    // 2026-10-19, mirror waTarget di page.tsx) -- bug nyata: halaman ini
+    // sebelumnya selalu pakai wa_kantor, gak ngecek referral agen sama sekali.
+    const link = waLink(ambilRefAgenWa() || pengaturan.wa_kantor, pesanWa({ catatan: catatan.trim(), tanggal, jumlahPax }));
     if (!link) { setError('Nomor WhatsApp JM Travel belum diatur, coba lagi nanti.'); return; }
     window.open(link, '_blank');
     setTerkirim(true);

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
@@ -9,11 +9,33 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 export default function DashboardAgenPage() {
   const [user] = useCurrentUser();
   const [disalin, setDisalin] = useState(false);
+  // Fallback self-heal -- bug nyata 2026-10-19: akun yang kode_unik-nya
+  // NULL (mis. dibuat lewat jalur lain selain POST /api/admin/agen, satu-
+  // satunya tempat pastikanKodeUnik('agen') sebelumnya dipanggil) nyangkut
+  // selamanya di "Memuat..." krn link gak pernah ke-generate. Sekali load,
+  // kalau user ada tapi kode_unik kosong, minta server bekukan kodenya
+  // sendiri (idempotent, aman dipanggil berkali-kali).
+  const [kodeFallback, setKodeFallback] = useState(null);
+  useEffect(() => {
+    if (!user || user.kode_unik || kodeFallback) return;
+    fetch('/api/agen/kode-unik', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.kode_unik) return;
+        setKodeFallback(d.kode_unik);
+        try {
+          const cached = JSON.parse(localStorage.getItem('user') || '{}');
+          localStorage.setItem('user', JSON.stringify({ ...cached, kode_unik: d.kode_unik }));
+        } catch {}
+      })
+      .catch(() => {});
+  }, [user, kodeFallback]);
 
   if (!user) return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
 
-  const link = typeof window !== 'undefined' && user.kode_unik
-    ? `${window.location.origin}/a/${user.kode_unik}` : '';
+  const kodeUnik = user.kode_unik || kodeFallback;
+  const link = typeof window !== 'undefined' && kodeUnik
+    ? `${window.location.origin}/a/${kodeUnik}` : '';
 
   function salin() {
     navigator.clipboard.writeText(link).then(() => { setDisalin(true); setTimeout(() => setDisalin(false), 2000); });
@@ -35,7 +57,7 @@ export default function DashboardAgenPage() {
             className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full disabled:opacity-50">
             {disalin ? '✅ Tersalin!' : '📋 Salin Link'}
           </button>
-          <div className="text-[10px] text-gray-400">Kode kamu: {user.kode_unik || '-'}</div>
+          <div className="text-[10px] text-gray-400">Kode kamu: {kodeUnik || '-'}</div>
         </div>
       </div>
     </Layout>

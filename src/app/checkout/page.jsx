@@ -131,6 +131,14 @@ function CheckoutPageInner() {
   // pakai nilai ini apapun yang dikirim client.
   const [permanentReferrer, setPermanentReferrer] = useState(null);
   const [perwList, setPerwList] = useState([]);
+  // Daftar akun agen AKTIF — fallback MANUAL "Sumber Informasi: Agen"
+  // (dikonfirmasi user 2026-10-19, mirror dropdown Perwakilan di atas).
+  // referral_agen_id biasanya tag invisible dari localStorage (klik link
+  // /a/[kode]) — tapi itu ilang kalau beda device/browser/cache kehapus.
+  // Pilihan manual ini JAGA-JAGA biar jamaah tetap bisa ngasih kredit ke
+  // agen yang ngajak walau tag-nya udah gak ada, TANPA perlu ngunci
+  // permanen ke akun (dikonfirmasi user, beda dari referral perwakilan).
+  const [agenList, setAgenList] = useState([]);
   // "Closing langsung" sahabat — jamaah booking langsung (bukan nabung),
   // atribusi ke anggota sahabat yang bantu, pola identik sumber='perwakilan'
   // di atas. MURNI tag (referral_sahabat_id) buat admin proses split
@@ -263,6 +271,10 @@ function CheckoutPageInner() {
           if (match) { setSumber('perwakilan'); setReferralKode(match.kode_unik); }
         }
       })
+      .catch(() => {});
+    fetch('/api/referral-list?role=agen')
+      .then(r => r.json())
+      .then(d => setAgenList(d.perwakilan || []))
       .catch(() => {});
     if (progId) {
       fetch('/api/programs')
@@ -552,10 +564,16 @@ function CheckoutPageInner() {
             : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
             : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
-          // Link referral agen (dikonfirmasi user 2026-10-17) — murni tag
-          // invisible dari localStorage (/a/[kode]), gak ada UI/pilihan
-          // manual sama sekali, gak terkait sumber_info/referral_kode di atas.
-          referral_agen_id: ambilRefAgenId() || undefined,
+          // Link referral agen (dikonfirmasi user 2026-10-17) — awalnya
+          // murni tag invisible dari localStorage (/a/[kode]). Sekarang
+          // ADA fallback manual juga (dikonfirmasi user 2026-10-19, lihat
+          // dropdown "Sumber Informasi: Agen" di atas) — buat jamaah yang
+          // checkout ULANG tanpa lewat link lagi (tag localStorage ilang,
+          // beda device/browser, dst), pilihan manual MENANG dari tag
+          // localStorage kalau dua-duanya ada.
+          referral_agen_id: sumber === 'agen' && referralKode
+            ? (agenList.find(a => a.kode_unik === referralKode)?.id || null)
+            : (ambilRefAgenId() || undefined),
           // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
           // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
           // diorderkan perwakilan/sahabat/admin lewat checkout salah
@@ -1107,6 +1125,7 @@ function CheckoutPageInner() {
                 <option value="">-- Pilih --</option>
                 <option value="perwakilan">Perwakilan JM Travel</option>
                 <option value="sahabat_baitullah">Jamaah Sahabat Baitullah</option>
+                <option value="agen">Agen JM Travel</option>
                 <option value="instagram">Instagram</option>
                 <option value="tiktok">TikTok</option>
                 <option value="teman">Rekomendasi Teman / Keluarga</option>
@@ -1127,6 +1146,23 @@ function CheckoutPageInner() {
                   {perwList.length === 0 && (
                     <div className="text-[10px] text-red-500 mt-1">
                       Belum ada perwakilan aktif. Hubungi admin JM Travel.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {sumber === 'agen' && (
+                <div>
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Pilih Nama Agen *</label>
+                  <SearchableSelect
+                    value={referralKode}
+                    onChange={setReferralKode}
+                    placeholder="Ketik buat cari nama agen..."
+                    options={agenList.map(a => ({ value: a.kode_unik, label: `${a.name} (${a.kode_unik})` }))}
+                  />
+                  {agenList.length === 0 && (
+                    <div className="text-[10px] text-red-500 mt-1">
+                      Belum ada agen aktif. Hubungi admin JM Travel.
                     </div>
                   )}
                 </div>
@@ -1158,7 +1194,7 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {((sumber === 'perwakilan' && referralKode) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
+              {((sumber === 'perwakilan' && referralKode) || (sumber === 'agen' && referralKode) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">
                   ✅ Pendaftaran akan tercatat atas nama {sumber} yang dipilih.
                 </div>
@@ -1172,6 +1208,9 @@ function CheckoutPageInner() {
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
                 if (sumber === 'perwakilan' && !referralKode) {
                   alert('Pilih nama perwakilan terlebih dahulu!'); return;
+                }
+                if (sumber === 'agen' && !referralKode) {
+                  alert('Pilih nama agen terlebih dahulu!'); return;
                 }
                 if (sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && !sahabatTerverifikasi) {
                   alert('Masukkan kode referral Sahabat Baitullah yang valid!'); return;

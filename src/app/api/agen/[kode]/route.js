@@ -8,11 +8,11 @@ export async function GET(request, { params }) {
   try {
     const { kode } = await params;
     const [[agen]] = await pool.query(
-      "SELECT id, name, wa FROM users WHERE kode_unik = ? AND role = 'agen' AND status = 'active'",
+      "SELECT id, name, wa, jenis_kelamin FROM users WHERE kode_unik = ? AND role = 'agen' AND status = 'active'",
       [String(kode || '').trim().toUpperCase()]
     );
     if (!agen) return Response.json({ error: 'Link tidak ditemukan' }, { status: 404 });
-    return Response.json({ id: agen.id, nama: agen.name, wa: agen.wa });
+    return Response.json({ id: agen.id, nama: agen.name, wa: agen.wa, jenis_kelamin: agen.jenis_kelamin });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
