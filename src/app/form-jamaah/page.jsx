@@ -87,9 +87,28 @@ function isiDariProfil(j, p) {
     exp_paspor: isi(j.exp_paspor, keTanggalInput(p.masa_berlaku_paspor_sampai)),
     alamat: isi(j.alamat, alamatProfil),
     alamat_kirim: isi(j.alamat_kirim, alamatProfil),
+    // Scan KTP yang diunggah pas /daftar-sahabat (users.foto_ktp_path,
+    // /api/dokumen/ktp/...) dipakai ulang buat dokumen KTP jamaah diri
+    // sendiri (dikonfirmasi user 2026-10-19). Aman ditautkan: DELETE
+    // /api/upload-dokumen-jamaah cuma mau hapus file di dokumen-jamaah/,
+    // jadi Hapus/Ganti di formulir gak pernah ngehapus file pendaftaran.
+    doc_ktp: isi(j.doc_ktp, p.foto_ktp_path),
   };
 }
 
+// Jamaah #1 yang dicentang "Ini saya sendiri" pas checkout -> field yang
+// ASALNYA dari profil akun dikunci di formulir (dikonfirmasi user
+// 2026-10-19) -- datanya punya akun, koreksinya lewat Profil, bukan diketik
+// ulang beda di tiap booking. Cuma field yang di profilnya BENERAN keisi
+// yang dikunci; yang kosong tetap bisa diisi manual di sini.
+function nilaiKunciProfil(p) {
+  const semua = {
+    nama: p.name, nik: p.nik, jk: p.jenis_kelamin,
+    tl: p.tempat_lahir, ttl: keTanggalInput(p.tanggal_lahir),
+    wa: p.wa, email: p.email, alamat: p.alamat_domisili,
+  };
+  return Object.fromEntries(Object.entries(semua).filter(([, v]) => v && String(v).trim()));
+}
 
 export default function FormJamaahPage() {
   return (
@@ -112,6 +131,9 @@ function FormJamaahPageInner() {
   const [user] = useCurrentUser();
   const [pengaturan] = usePengaturan();
   const [booking, setBooking] = useState(null);
+  // { field: true } -- field jamaah #1 yang dikunci krn asalnya dari profil
+  // (lihat nilaiKunciProfil).
+  const [kunciProfil, setKunciProfil] = useState({});
   const [jamaahList, setJamaahList] = useState([]);
   const [currentJ, setCurrentJ] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -177,11 +199,14 @@ function FormJamaahPageInner() {
       // orang lain. Checkout mandiri program eksklusif akun Muslim
       // tetap selalu diri sendiri.
       const dataLama = parseJamaahData(found.jamaah_data);
+      // Checkbox "Ini saya sendiri" di checkout berlaku SEMUA role
+      // (dikonfirmasi user 2026-10-16), bukan cuma Sahabat.
+      const diriSendiri = found.user_id === user.id && dataLama[0]?.untuk_diri_sendiri === true;
       const isSahabatDiriSendiri = user.role === 'sahabat_baitullah' && (
         dataLama[0]?.untuk_diri_sendiri === true
         || (found.prog_publish_type === 'sahabat_baitullah' && user.agama !== 'non_islam')
       );
-      const isPemilik = found.user_id === user.id && (user.role === 'jamaah' || isSahabatDiriSendiri);
+      const isPemilik = found.user_id === user.id && (user.role === 'jamaah' || isSahabatDiriSendiri || diriSendiri);
 
       // Prefill TAMBAHAN khusus Sahabat Baitullah diri sendiri (dikonfirmasi
       // user 2026-10-11 & 2026-10-15) — tempat/tanggal lahir, ortu,
@@ -191,7 +216,7 @@ function FormJamaahPageInner() {
       // balapan sama pembentukan list/draft di bawah — dulu bisa ketimpa
       // list kosong begitu effect ini jalan ulang.
       let profil = null;
-      if (isPemilik && user.role === 'sahabat_baitullah') {
+      if (isPemilik && (user.role === 'sahabat_baitullah' || diriSendiri)) {
         const p = await fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).catch(() => ({}));
         if (batal) return;
         profil = p.user || null;
@@ -238,6 +263,16 @@ function FormJamaahPageInner() {
       // Data pendaftaran Sahabat cuma ngisi field yang MASIH KOSONG — isian
       // lama (jamaah_data/draft) tetap menang, gak ketimpa.
       if (profil) finalList = [isiDariProfil(finalList[0], profil), ...finalList.slice(1)];
+      // Field profil yang dikunci DIPAKSA sama persis nilai profil (bukan
+      // cuma ngisi yang kosong) -- draft/jamaah_data lama yang beda gak boleh
+      // nyangkut di field yang gak bisa diedit.
+      let kunci = {};
+      if (diriSendiri && profil) {
+        const nilai = nilaiKunciProfil(profil);
+        finalList = [{ ...finalList[0], ...nilai }, ...finalList.slice(1)];
+        kunci = Object.fromEntries(Object.keys(nilai).map(k => [k, true]));
+      }
+      setKunciProfil(kunci);
 
       setBooking(found);
       setJamaahList(finalList);
@@ -291,7 +326,9 @@ function FormJamaahPageInner() {
     if (!riwayat) return;
     setJamaahList(prev => {
       const next = [...prev];
-      next[currentJ] = { ...next[currentJ], ...riwayat.data };
+      const data = { ...riwayat.data };
+      if (currentJ === 0) for (const k of Object.keys(kunciProfil)) delete data[k];
+      next[currentJ] = { ...next[currentJ], ...data };
       return next;
     });
     // Ganti jadi pengingat yang tetap nempel (bukan langsung ilang) — biar
@@ -529,6 +566,9 @@ function FormJamaahPageInner() {
   const lbl = "block text-sm font-semibold text-[#0E2F6E] mb-1.5";
   const inpErr = "w-full px-4 py-3 rounded-xl border-2 border-red-400 bg-red-50 focus:border-red-500 focus:outline-none text-sm";
   const c = (key) => (errors[key] ? inpErr : inp);
+  const inpKunci = "w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed focus:outline-none text-sm";
+  const dikunci = (key) => currentJ === 0 && !!kunciProfil[key];
+  const ck = (key) => (dikunci(key) ? inpKunci : c(key));
   const err = (key) => errors[key] && <div className="text-xs text-red-500 mt-1">⚠ {errors[key]}</div>;
   const jumlahError = Object.keys(errors).length;
 
@@ -614,10 +654,15 @@ function FormJamaahPageInner() {
 
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
             <div className="font-bold text-[#0E2F6E]">👤 Data Pribadi — Jamaah {currentJ + 1}</div>
+            {currentJ === 0 && Object.keys(kunciProfil).length > 0 && (
+              <div className="bg-[#FEF3DC] rounded-lg px-3 py-2 text-xs text-[#8a6516]">
+                🔒 Jamaah ini Anda sendiri — data yang diambil dari profil akun (abu-abu) tidak bisa diubah di sini. Kalau ada yang salah, perbarui lewat menu <b>Profil</b>.
+              </div>
+            )}
 
             <div data-field="nama">
               <label className={lbl}>Nama Sesuai Paspor *</label>
-              <input value={j.nama} onChange={e => setField('nama', e.target.value)} className={c('nama')}/>
+              <input value={j.nama} readOnly={dikunci('nama')} onChange={e => setField('nama', e.target.value)} className={ck('nama')}/>
               {err('nama')}
             </div>
 
@@ -666,12 +711,12 @@ function FormJamaahPageInner() {
             <div className="grid grid-cols-2 gap-3">
               <div data-field="tl">
                 <label className={lbl}>Tempat Lahir *</label>
-                <input value={j.tl} onChange={e => setField('tl', e.target.value)} className={c('tl')}/>
+                <input value={j.tl} readOnly={dikunci('tl')} onChange={e => setField('tl', e.target.value)} className={ck('tl')}/>
                 {err('tl')}
               </div>
               <div data-field="ttl">
                 <label className={lbl}>Tanggal Lahir *{wajib17Tahun && <span className="text-gray-400 font-normal"> (minimal 17 tahun)</span>}</label>
-                <InputTanggal max={maksTglLahir} value={j.ttl} onChange={e => {
+                <InputTanggal max={maksTglLahir} value={j.ttl} disabled={dikunci('ttl')} onChange={e => {
                   const v = e.target.value;
                   if (!v) return; // input tanggal browser bisa sempat kirim event kosong pas segmen lagi diketik — jangan sampai numpuk hapus NIK/ttl yang sudah keisi (lihat setField di atas)
                   setField('ttl', v);
@@ -682,7 +727,7 @@ function FormJamaahPageInner() {
                   if (umr !== null && umr <= 17 && j.paspor && j.paspor.trim().length >= 6) {
                     cariRiwayat('paspor', j.paspor.trim());
                   }
-                }} className={c('ttl')}/>
+                }} className={ck('ttl')}/>
                 {err('ttl')}
               </div>
             </div>
@@ -696,12 +741,12 @@ function FormJamaahPageInner() {
                   setField('nik', v);
                   if (v.length === 16) cariRiwayat('nik', v);
                 }}
-                disabled={!nikAktif}
+                disabled={!nikAktif || dikunci('nik')}
                 maxLength={16}
                 inputMode="numeric"
                 placeholder={nikAktif ? '16 digit sesuai KTP' : 'Isi tanggal lahir dulu (aktif jika usia > 17 th)'}
                 className={`w-full px-4 py-3 rounded-xl border-2 text-sm focus:outline-none transition-colors ${
-                  !nikAktif ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                  (!nikAktif || dikunci('nik')) ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
                     : errors.nik ? 'border-red-400 bg-red-50 focus:border-red-500' : 'border-gray-200 focus:border-[#1A4FA0]'
                 }`}/>
               {err('nik')}
@@ -716,7 +761,7 @@ function FormJamaahPageInner() {
 
             <div data-field="jk">
               <label className={lbl}>Jenis Kelamin *</label>
-              <select value={j.jk} onChange={e => setField('jk', e.target.value)} className={c('jk')}>
+              <select value={j.jk} disabled={dikunci('jk')} onChange={e => setField('jk', e.target.value)} className={ck('jk')}>
                 <option value="">— Pilih —</option>
                 <option>Laki-Laki</option>
                 <option>Perempuan</option>
@@ -735,10 +780,10 @@ function FormJamaahPageInner() {
                 <>
                   <div data-field="alamat">
                     <label className={lbl}>Alamat Domisili *</label>
-                    <input value={j.alamat} onChange={e => {
+                    <input value={j.alamat} readOnly={dikunci('alamat')} onChange={e => {
                       setField('alamat', e.target.value);
                       if (!kirimBeda) setField('alamat_kirim', e.target.value);
-                    }} className={c('alamat')}/>
+                    }} className={ck('alamat')}/>
                     {err('alamat')}
                   </div>
 
@@ -775,13 +820,13 @@ function FormJamaahPageInner() {
             <div className="grid grid-cols-2 gap-3">
               <div data-field="wa">
                 <label className={lbl}>No. WhatsApp *</label>
-                <input value={j.wa} onChange={e => setField('wa', hanyaAngka(e.target.value))}
-                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={c('wa')}/>
+                <input value={j.wa} readOnly={dikunci('wa')} onChange={e => setField('wa', hanyaAngka(e.target.value))}
+                  inputMode="numeric" maxLength={WA_MAKS} placeholder="08xxxxxxxxxx" className={ck('wa')}/>
                 {err('wa')}
               </div>
               <div>
                 <label className={lbl}>Email (opsional)</label>
-                <input value={j.email} onChange={e => setField('email', e.target.value)} className={inp}/>
+                <input value={j.email} readOnly={dikunci('email')} onChange={e => setField('email', e.target.value)} className={dikunci('email') ? inpKunci : inp}/>
               </div>
             </div>
 
@@ -925,7 +970,9 @@ function FormJamaahPageInner() {
                       const info = st && STATUS_DOKUMEN[st.status];
                       return (
                         <div className="space-y-0.5">
-                          <a href={j[doc.key]} target="_blank" rel="noopener noreferrer" className="text-xs text-[#1A4FA0] font-semibold hover:underline">Lihat file</a>
+                          {doc.key === 'doc_ktp' && String(j.doc_ktp).startsWith('/api/dokumen/ktp/') && (
+                            <div className="text-[10px] text-gray-500">Diambil dari KTP pendaftaran akun Anda</div>
+                          )}
                           {belumDikirim ? (
                             <div className="text-[10px] text-gray-500">📤 Baru — terkirim saat klik Kirim Formulir</div>
                           ) : info && (
@@ -941,6 +988,14 @@ function FormJamaahPageInner() {
                     )}
                   </div>
                   <div className="shrink-0 flex items-center gap-1.5">
+                    {/* Lihat File sebaris sama Ganti/Hapus (dikonfirmasi user
+                        2026-10-19), dulu link teks di bawah nama dokumen. */}
+                    {j[doc.key] && (
+                      <a href={j[doc.key]} target="_blank" rel="noopener noreferrer"
+                        className="text-xs font-bold text-[#1A4FA0] bg-white border border-[#1A4FA0] hover:bg-[#E8F0FB] px-3 py-1.5 rounded-full whitespace-nowrap">
+                        Lihat File
+                      </a>
+                    )}
                     <label className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-2 rounded-full cursor-pointer whitespace-nowrap">
                       {uploadingDoc === doc.key ? 'Mengunggah...' : j[doc.key] ? 'Ganti' : 'Unggah'}
                       {/* value dikosongkan tiap klik biar file yang sama bisa dipilih lagi setelah dihapus */}
