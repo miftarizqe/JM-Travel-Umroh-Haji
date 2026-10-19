@@ -21,6 +21,7 @@ export default function AdminAgenPage() {
   const [nik, setNik] = useState('');
   const [email, setEmail] = useState('');
   const [wa, setWa] = useState('');
+  const [jk, setJk] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
@@ -43,19 +44,19 @@ export default function AdminAgenPage() {
   }
 
   async function buatAkun() {
-    if (!nama.trim() || !nik.trim() || !email.trim() || !wa.trim() || !password.trim()) {
+    if (!nama.trim() || !nik.trim() || !email.trim() || !wa.trim() || !jk || !password.trim()) {
       alert('Semua field wajib diisi!'); return;
     }
     setSaving(true);
     try {
       const res = await fetch('/api/admin/agen', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nama: nama.trim(), nik: nik.trim(), email: email.trim(), wa: wa.trim(), password: password.trim() }),
+        body: JSON.stringify({ nama: nama.trim(), nik: nik.trim(), email: email.trim(), wa: wa.trim(), jenis_kelamin: jk, password: password.trim() }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal membuat akun'); return; }
       alert(`Akun agen "${nama}" dibuat. Kode: ${d.kode_unik}. Sampaikan email+password ini ke yang bersangkutan buat login.`);
-      setNama(''); setNik(''); setEmail(''); setWa(''); setPassword('');
+      setNama(''); setNik(''); setEmail(''); setWa(''); setJk(''); setPassword('');
       muatData();
     } catch { alert('Terjadi kesalahan'); }
     setSaving(false);
@@ -101,6 +102,17 @@ export default function AdminAgenPage() {
           <div>
             <label className={lbl}>No. WhatsApp *</label>
             <input value={wa} onChange={e => setWa(e.target.value.replace(/\D/g, ''))} placeholder="08xxxxxxxxxx" inputMode="numeric" className={inp} />
+          </div>
+          <div>
+            {/* Dipakai nentuin sapaan "Ibu"/"Bapak" + nama di pesan WA
+                otomatis pengunjung yang datang lewat link agen ini
+                (dikonfirmasi user 2026-10-19). */}
+            <label className={lbl}>Jenis Kelamin *</label>
+            <select value={jk} onChange={e => setJk(e.target.value)} className={inp}>
+              <option value="">— Pilih —</option>
+              <option value="Laki-Laki">Laki-Laki</option>
+              <option value="Perempuan">Perempuan</option>
+            </select>
           </div>
           <div className="sm:col-span-2">
             <label className={lbl}>Password Awal (min. 8 karakter) *</label>

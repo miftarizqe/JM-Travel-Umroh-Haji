@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { useCurrentUser } from '@/lib/useCurrentUser';
-import { ambilRefAgenWa } from '@/lib/referralCapture';
+import { ambilRefAgenWa, salamAgen } from '@/lib/referralCapture';
 
 // Tombol WhatsApp melayang pojok kanan bawah — quick action chat ke kantor
 // (dikonfirmasi user 2026-09-28). Nomor ikut Pengaturan Umum (wa_kantor),
@@ -27,7 +27,10 @@ export default function WhatsAppFloating() {
   if (pathname.startsWith('/admin')) return null;
   if (user && ['admin', 'super_admin'].includes(user.role)) return null;
 
-  const link = waLink(waAgen || pengaturan.wa_kantor, 'Halo JM Travel, saya ingin bertanya.');
+  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" (dikonfirmasi
+  // user 2026-10-19), gantiin "Halo JM Travel" generik yang kesannya nyapa
+  // perusahaan bukan orang.
+  const link = waLink(waAgen || pengaturan.wa_kantor, `${salamAgen()}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`);
   if (!link) return null;
 
   // Bottom navbar mobile (Layout.jsx) cuma tampil kalau login — naikkan

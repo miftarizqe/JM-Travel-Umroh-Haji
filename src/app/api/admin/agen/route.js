@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { wajibRole } from '@/lib/auth';
@@ -15,7 +16,7 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   try {
     const [rows] = await pool.query(
-      `SELECT id, name, nik, email, wa, kode_unik, status, created_at
+      `SELECT id, name, nik, email, wa, jenis_kelamin, kode_unik, status, created_at
        FROM users WHERE role = 'agen' ORDER BY created_at DESC`
     );
     return Response.json({ agen: rows });
@@ -38,10 +39,14 @@ export async function POST(request) {
     const email = String(body.email || '').trim().toLowerCase();
     const nik = String(body.nik || '').trim();
     const waInput = String(body.wa || '').trim();
+    const jenisKelamin = String(body.jenis_kelamin || '').trim();
     const password = String(body.password || '').trim();
 
-    if (!name || !email || !nik || !waInput || !password) {
+    if (!name || !email || !nik || !waInput || !jenisKelamin || !password) {
       return Response.json({ error: 'Semua field wajib diisi' }, { status: 400 });
+    }
+    if (!['Laki-Laki', 'Perempuan'].includes(jenisKelamin)) {
+      return Response.json({ error: 'Jenis kelamin tidak valid' }, { status: 400 });
     }
     if (!nikValid(nik)) {
       return Response.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
@@ -66,12 +71,20 @@ export async function POST(request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.query(
-      `INSERT INTO users (name, email, wa, nik, password, role, status, terverifikasi, created_at)
-       VALUES (?, ?, ?, ?, ?, 'agen', 'active', 1, NOW())`,
-      [name, email, wa, nik, hashedPassword]
+    // id digenerate EKSPLISIT sebelum INSERT (bukan andalin result.insertId)
+    // -- bug nyata ditemukan 2026-10-19: users.id itu varchar(36) DEFAULT
+    // (uuid()), BUKAN auto-increment, jadi result.insertId SELALU balik 0.
+    // pastikanKodeUnik(pool, 0, 'agen') nembak baris id=0 yang gak ada,
+    // UPDATE-nya diam-diam gak ngenain siapa-siapa -- akun agen yang
+    // dibuat lewat form ini SELALU kode_unik-nya NULL selamanya (ketemu
+    // dari akun demo yang nyangkut di "Memuat..." terus, lihat
+    // /api/agen/kode-unik self-heal endpoint yang nambal gejalanya duluan).
+    const userId = randomUUID();
+    await pool.query(
+      `INSERT INTO users (id, name, email, wa, nik, jenis_kelamin, password, role, status, terverifikasi, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'agen', 'active', 1, NOW())`,
+      [userId, name, email, wa, nik, jenisKelamin, hashedPassword]
     );
-    const userId = result.insertId;
     const kodeUnik = await pastikanKodeUnik(pool, userId, 'agen');
 
     await catatAudit(pool, {
