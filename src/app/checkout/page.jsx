@@ -1035,7 +1035,9 @@ function CheckoutPageInner() {
                 { label: 'Keberangkatan', val: prog.tanggal },
                 { label: 'Durasi', val: prog.durasi + ' Hari' },
                 { label: 'Seat Tersisa', val: (prog.total_seat - prog.used_seat) + ' seat' },
-                { label: 'DP/Jamaah', val: 'Rp ' + (prog.dp / 1000000).toFixed(0) + ' jt' },
+                // Rupiah penuh, bukan "X jt" dibuletin -- DP di bawah 500rb
+                // dulu kebaca "Rp 0 jt", 2,5jt jadi "Rp 3 jt".
+                { label: 'DP/Jamaah', val: 'Rp ' + Number(prog.dp || 0).toLocaleString('id-ID') },
               ].map(item => (
                 <div key={item.label} className="bg-[#E8F0FB] rounded-xl p-3">
                   <div className="text-xs text-gray-400">{item.label}</div>

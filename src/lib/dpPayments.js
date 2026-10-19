@@ -10,7 +10,7 @@
 /** Ambil semua payment type tertentu buat 1 booking, urut created_at ASC, + nomor urut. */
 async function ambilPaymentsByJenis(pool, bookingId, jenis) {
   const [rows] = await pool.query(
-    `SELECT id, amount, status, reject_reason, created_at FROM payments
+    `SELECT id, batch_id, amount, status, reject_reason, created_at FROM payments
      WHERE booking_id = ? AND type = ? ORDER BY created_at ASC`,
     [bookingId, jenis]
   );
@@ -21,7 +21,7 @@ async function ambilPaymentsByJenis(pool, bookingId, jenis) {
 async function ambilPaymentsByJenisBatch(pool, bookingIds, jenis) {
   if (!bookingIds.length) return new Map();
   const [rows] = await pool.query(
-    `SELECT id, booking_id, amount, status, reject_reason, created_at FROM payments
+    `SELECT id, booking_id, batch_id, amount, status, reject_reason, created_at FROM payments
      WHERE booking_id IN (${bookingIds.map(() => '?').join(',')}) AND type = ?
      ORDER BY created_at ASC`,
     [...bookingIds, jenis]
