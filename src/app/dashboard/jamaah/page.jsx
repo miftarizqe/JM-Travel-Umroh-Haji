@@ -191,36 +191,77 @@ export default function DashboardJamaah() {
                 1 gelombang — dikonfirmasi user 2026-10-14, lihat
                 src/lib/dpPayments.js; booking.dp_status cuma 1 nilai buat DP
                 AWAL doang). Dirapihin jadi 1 kotak: label · nominal · badge
-                status sejajar, Total Harga di bawah garis (dikonfirmasi user
-                2026-10-19, sebelumnya baris lepas-lepas gak sejajar). */}
+                status sejajar (dikonfirmasi user 2026-10-19, sebelumnya baris
+                lepas-lepas gak sejajar).
+                Urutan: Total Harga (sudah termasuk opsi tambahan) -> tiap
+                pembayaran -> Sisa Pelunasan (b.sisa_bayar dari GET
+                /api/bookings, formula sama kayak hitungSisaBayar). Sisa
+                ditampilin eksplisit biar Total Harga gak kebaca "cuma DP"
+                kalau harga paketnya kebetulan = DP (dikonfirmasi user
+                2026-10-19). */}
             <div className="bg-gray-50 rounded-xl p-3 mb-3 text-sm space-y-1.5">
+              {/* Badge status lunas di Total Harga (dikonfirmasi user
+                  2026-10-19) — BUKAN tanda konfirmasi (Total Harga itu
+                  tagihan, bukan pembayaran). Lunas = pelunasan_status 'paid'
+                  ATAU sisa 0 & semua DP udah confirmed; sisa_bayar dihitung
+                  dari dp_amount (bukan DP yang confirmed), jadi sisa 0 doang
+                  belum cukup -- harga = DP tapi DP masih pending = belum lunas. */}
+              {(() => {
+                const dps = b.dp_payments || [];
+                const lunas = b.pelunasan_status === 'paid'
+                  || (Number(b.sisa_bayar || 0) <= 0 && dps.length > 0 && dps.every(p => p.status === 'confirmed'));
+                return (
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-gray-500">Total Harga <span className="text-[11px]">({b.paket} · {b.kamar})</span></div>
+                      <div className={`text-[10px] font-semibold ${lunas ? 'text-green-700' : 'text-yellow-700'}`}>{lunas ? 'Lunas' : 'Belum lunas'}</div>
+                    </div>
+                    <span className={`font-bold text-xs px-2.5 py-0.5 rounded-full whitespace-nowrap ${lunas ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                      {lunas ? '✅' : '⏳'} Rp {Number(b.total_harga || 0).toLocaleString('id-ID')}
+                    </span>
+                  </div>
+                );
+              })()}
+              {Array.isArray(b.opsi_tambahan_data) && b.opsi_tambahan_data.length > 0 && (
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-gray-400 min-w-0 truncate">termasuk 🧳 {b.opsi_tambahan_data.map(o => o.nama).join(', ')}</span>
+                  <span className="text-gray-500 whitespace-nowrap">+Rp {Number(b.opsi_tambahan_total || 0).toLocaleString('id-ID')}</span>
+                </div>
+              )}
               {[
                 ...(b.dp_payments || []).map(p => ({ ...p, label: b.dp_payments.length > 1 ? `DP ${p.urutan}` : 'DP' })),
                 ...(b.lunas_payments || []).map(p => ({ ...p, label: b.lunas_payments.length > 1 ? `Pelunasan ${p.urutan}` : 'Pelunasan' })),
               ].map(p => (
+                // Nominalnya sendiri yang jadi badge status (warna + ikon),
+                // pola sama kayak Total Harga & Sisa Pelunasan -- angka tetap
+                // sekolom di kanan (dikonfirmasi user 2026-10-19). Teks status
+                // pindah ke label kecil di bawah nama baris.
                 <div key={p.id} className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500">{p.label}</span>
-                  <div className="flex items-center gap-2">
-                    {/* Checkout mandiri Sahabat Baitullah nyimpen DP Rp 0
-                        (langsung lunas dari saldo) — nominal 0 gak ditampilin. */}
-                    {Number(p.amount) > 0 && <span className="font-semibold text-[#0E2F6E]">Rp {Number(p.amount).toLocaleString('id-ID')}</span>}
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${
-                      p.status === 'confirmed' ? 'bg-green-100 text-green-700' : p.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {p.status === 'confirmed' ? '✅ Dikonfirmasi' : p.status === 'rejected' ? '❌ Ditolak' : '⏳ Menunggu konfirmasi'}
-                    </span>
+                  <div className="min-w-0">
+                    <div className="text-gray-500">{p.label}</div>
+                    <div className={`text-[10px] font-semibold ${p.status === 'confirmed' ? 'text-green-700' : p.status === 'rejected' ? 'text-red-600' : 'text-yellow-700'}`}>
+                      {p.status === 'confirmed' ? 'Dikonfirmasi' : p.status === 'rejected' ? 'Ditolak' : 'Menunggu konfirmasi'}
+                    </div>
                   </div>
+                  {/* Checkout mandiri Sahabat Baitullah nyimpen DP Rp 0
+                      (langsung lunas dari saldo) — badge cuma ikon, tanpa "Rp 0". */}
+                  <span className={`font-bold text-xs px-2.5 py-0.5 rounded-full whitespace-nowrap ${
+                    p.status === 'confirmed' ? 'bg-green-100 text-green-700' : p.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {p.status === 'confirmed' ? '✅' : p.status === 'rejected' ? '❌' : '⏳'}{Number(p.amount) > 0 ? ` Rp ${Number(p.amount).toLocaleString('id-ID')}` : ''}
+                  </span>
                 </div>
               ))}
-              {Array.isArray(b.opsi_tambahan_data) && b.opsi_tambahan_data.length > 0 && (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-gray-500 min-w-0 truncate">🧳 {b.opsi_tambahan_data.map(o => o.nama).join(', ')}</span>
-                  <span className="font-semibold text-[#0E2F6E] whitespace-nowrap">+Rp {Number(b.opsi_tambahan_total || 0).toLocaleString('id-ID')}</span>
-                </div>
-              )}
-              <div className={`flex items-center justify-between gap-2 ${(b.dp_payments?.length || b.lunas_payments?.length || b.opsi_tambahan_data?.length) ? 'border-t border-gray-200 pt-1.5' : ''}`}>
-                <span className="text-gray-500">Total Harga</span>
-                <span className="font-bold text-[#0E2F6E]">Rp {Number(b.total_harga || 0).toLocaleString('id-ID')}</span>
+              <div className="flex items-center justify-between gap-2 border-t border-gray-200 pt-1.5">
+                <span className="text-gray-500 font-semibold">Sisa Pelunasan</span>
+                {/* Sisa 0 -> angkanya sendiri yang jadi badge ijo (dikonfirmasi
+                    user 2026-10-19), tanpa teks tambahan; masih ada sisa ->
+                    nominal merah polos. */}
+                {Number(b.sisa_bayar || 0) > 0 ? (
+                  <span className="font-bold text-[#dc2626] whitespace-nowrap">Rp {Number(b.sisa_bayar).toLocaleString('id-ID')}</span>
+                ) : (
+                  <span className="font-bold text-xs px-2.5 py-0.5 rounded-full whitespace-nowrap bg-green-100 text-green-700">✅ Rp 0</span>
+                )}
               </div>
             </div>
 

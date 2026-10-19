@@ -26,9 +26,16 @@ export function hargaItem(prog, item) {
 // Kekurangan data 1 jamaah (null = lengkap). SATU sumber buat badge ✅/⚠️ di
 // header kartu & validasi "Lanjut ke Pembayaran" di checkout/page.jsx, biar
 // badge gak bilang lengkap padahal ditolak pas lanjut (atau sebaliknya).
-export function masalahJamaah(c) {
+export function masalahJamaah(c, prog) {
   if (!c.paket || !c.kamar) return 'Pilih paket & kamar dulu!';
   if (c.paket === 'custom' && (!c.hargaCustom || Number(c.hargaCustom) <= 0)) return 'Lengkapi pilihan Bintang Mekkah & Madinah dulu (Custom Hotel)!';
+  // Sama kayak gerbang server di buatSatuBooking (src/lib/booking.js) —
+  // harga paket per jamaah (tanpa opsi tambahan) wajib > DP biar ada sisa
+  // pelunasan. Paling sering kena harga custom admin yang kekecilan.
+  const dp = Number(prog?.dp || 0);
+  if (prog && prog.publish_type !== 'sahabat_baitullah' && !(hargaProgram(prog, c) > dp)) {
+    return `Harga paket (Rp ${hargaProgram(prog, c).toLocaleString('id-ID')}) harus lebih besar dari DP (Rp ${dp.toLocaleString('id-ID')}).`;
+  }
   if (!c.nama.trim()) return 'Isi nama lengkap dulu!';
   if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') return 'Pilih jenis kelamin dulu!';
   if (!c.alamat.trim()) return 'Isi alamat kirim perlengkapan dulu!';
@@ -103,11 +110,19 @@ function semuaHargaSamaCek(prog) {
 // Kombo paket+kamar PERTAMA yang beneran ada harganya — dipakai default
 // jamaah baru biar gak nyangkut di pilihan "Rp 0" kalau admin belum isi
 // semua tier.
+// Kombo yang beneran bisa dijual: harganya diisi & (selain Program Eksklusif
+// Sahabat) > DP — kombo harga <= DP pasti ditolak masalahJamaah & server,
+// jadi gak ditawarin sama sekali di dropdown/default.
+function hargaLayakJual(prog, harga) {
+  if (!(harga > 0)) return false;
+  return prog?.publish_type === 'sahabat_baitullah' || harga > Number(prog?.dp || 0);
+}
+
 function komboDefault(prog) {
   for (const pk of PAKET_LIST) {
     for (const km of KAMAR_LIST) {
       const harga = prog?.[`harga_${pk.key}_${kamarKeyOf(km)}`] || prog?.[`harga_${pk.key}`] || 0;
-      if (harga > 0) return { paket: pk.key, kamar: km };
+      if (hargaLayakJual(prog, harga)) return { paket: pk.key, kamar: km };
     }
   }
   return { paket: PAKET_LIST[0].key, kamar: KAMAR_LIST[1] };
@@ -201,7 +216,7 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, accordion, terbu
   const inpTerkunci = `${inp} border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed`;
 
   const warna = WARNA_KARTU[idx % WARNA_KARTU.length];
-  const lengkap = !masalahJamaah(item);
+  const lengkap = !masalahJamaah(item, prog);
   // Mode accordion (2+ jamaah): body kartu yang ketutup CUMA di-hidden, bukan
   // di-unmount -- useCustomHotelHarga nyimpen hasil hitung di state lokal,
   // unmount bikin harga custom dihitung ulang (fetch lagi) tiap kartu dibuka.
@@ -267,7 +282,7 @@ function JamaahCard({ idx, item, onChange, onRemove, canRemove, accordion, terbu
             className="w-full px-3.5 py-2.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm font-semibold text-[#0E2F6E]">
             {PAKET_LIST.flatMap(pk => KAMAR_LIST.map(km => {
               const harga = prog?.[`harga_${pk.key}_${kamarKeyOf(km)}`] || prog?.[`harga_${pk.key}`] || 0;
-              if (harga <= 0) return null;
+              if (!hargaLayakJual(prog, harga)) return null;
               return <option key={`${pk.key}|${km}`} value={`${pk.key}|${km}`}>{pk.label} · {km} — Rp {harga.toLocaleString('id-ID')}</option>;
             }))}
             {prog?.custom_hotel_tersedia && <option value="custom">🎨 Custom Hotel — pilih bintang Mekkah/Madinah sendiri</option>}
