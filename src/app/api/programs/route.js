@@ -35,6 +35,36 @@ function stripProgramsUntukPublik(programs) {
   });
 }
 
+const PAKET_KEY = ['deluxe', 'eksekutif', 'signature'];
+const KAMAR_KEY = ['quad', 'triple', 'double'];
+
+// Timpa harga_<paket>_<kamar> program dengan harga jual CUSTOM milik
+// perwakilan ini (perwakilan_harga.jual_*), kalau ada & > 0 -- PER KOLOM,
+// bukan per-row (mirror fix /api/perwakilan/harga 2026-10-19). Dipakai pas
+// perwakilan checkout DIRI SENDIRI (bug nyata: dropdown "Pilih Paket" di
+// checkout nampilin harga dasar program, bukan harga custom yang udah dia
+// atur sendiri di /perwakilan/harga, padahal harga yang BENERAN ditagih
+// saat booking sudah pakai custom itu -- lihat kombinasiHargaTersedia di
+// src/lib/booking.js, logic SAMA PERSIS direplikasi di sini).
+async function terapkanHargaCustomPerwakilan(programs, perwId) {
+  if (programs.length === 0) return programs;
+  const [hargaRows] = await pool.query('SELECT * FROM perwakilan_harga WHERE perw_id = ?', [perwId]);
+  const hargaMap = Object.fromEntries(hargaRows.map(h => [h.prog_id, h]));
+  return programs.map(p => {
+    const custom = hargaMap[p.id];
+    if (!custom) return p;
+    const hasil = { ...p };
+    for (const paket of PAKET_KEY) {
+      for (const kamar of KAMAR_KEY) {
+        const key = `${paket}_${kamar}`;
+        const jual = Number(custom[`jual_${key}`] || 0);
+        if (jual > 0) hasil[`harga_${key}`] = jual;
+      }
+    }
+    return hasil;
+  });
+}
+
 // Listing publik — dipanggil tanpa login (pengunjung) maupun oleh
 // jamaah/perwakilan yang login. Identitas pemanggil diambil dari token
 // SENDIRI (bukan query params dari client — params role/perw_id lama gak
@@ -59,7 +89,8 @@ export async function GET(request) {
          ) ORDER BY p.created_at DESC`,
         [hariIniWib(), user.id]
       );
-      return Response.json({ programs: stripProgramsUntukPublik(programs) });
+      const programsHargaCustom = await terapkanHargaCustomPerwakilan(programs, user.id);
+      return Response.json({ programs: stripProgramsUntukPublik(programsHargaCustom) });
     }
 
     // Jamaah Sahabat Baitullah (role=sahabat) — liat program publik biasa

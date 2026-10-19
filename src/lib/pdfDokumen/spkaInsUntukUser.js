@@ -48,6 +48,7 @@ export async function buatPdfSpkaInsUntukUser(userId, rangkap = 'perwakilan') {
     namaBank: user.bank || '-',
     noRekening: user.no_rekening || '-',
     atasNama: user.nama_pemilik_rekening || '-',
+    namaTtd: user.name,
   });
 
   return { pdfBuffer, nomor };

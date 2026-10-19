@@ -786,7 +786,7 @@ export default function Home() {
 
       {/* FOOTER */}
       <footer className="bg-[#0E2F6E] text-white/60 text-center py-5 text-xs">
-        {teks.footer_copyright || 'JM Travel Umroh & Haji — © 2025 PT. Alkhalid Jaya Megah Tours & Travel'}
+        {teks.footer_copyright || 'JM Travel Umroh & Haji (PT. Alkhalid Jaya Megah) — © 2025'}
       </footer>
 
       {/* MODAL KEMITRAAN */}

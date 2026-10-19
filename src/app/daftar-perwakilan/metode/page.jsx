@@ -84,27 +84,26 @@ export default function DaftarPerwakilanMetodePage() {
   }
 
   return (
-    <Layout title="📮 Metode Pendaftaran" showBack confirmLeave={isDirty}
+    <Layout title="📮 Metode TTD & Kirim Dokumen" showBack confirmLeave={isDirty}
       confirmMessage="Yakin ingin keluar? Pilihan yang sudah diisi belum disimpan.">
       <div className="max-w-2xl mx-auto">
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
-          <div className="font-bold text-[#0E2F6E]">📮 Metode Pendaftaran</div>
+          <div className="font-bold text-[#0E2F6E]">📮 Metode TTD & Kirim Dokumen</div>
           <p className="text-xs text-gray-400 -mt-2">
             Langkah terakhir — pilih bagaimana Perjanjian Kerjasama Perwakilan diselesaikan.
           </p>
 
           <div>
-            <label className={lbl}>Metode Pendaftaran *</label>
+            <label className={lbl}>Metode TTD & Kirim Dokumen *</label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { v: 'kantor', l: 'Datang ke Kantor', d: 'Jakarta & sekitarnya' },
-                { v: 'paket', l: 'Cetak & Kirim Sendiri', d: 'Luar Jakarta' },
+                { v: 'kantor', l: 'Datang ke Kantor' },
+                { v: 'paket', l: 'Cetak & Kirim Sendiri' },
               ].map(m => (
                 <div key={m.v} onClick={() => setF('metode', m.v)}
                   className={`border-2 rounded-lg p-3 cursor-pointer text-center transition-all ${
                     form.metode === m.v ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200'}`}>
                   <div className="text-sm font-bold text-[#0E2F6E]">{m.l}</div>
-                  <div className="text-[10px] text-gray-400">{m.d}</div>
                 </div>
               ))}
             </div>
@@ -120,7 +119,7 @@ export default function DaftarPerwakilanMetodePage() {
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700 space-y-1.5">
                 <div>📝 Langkah selanjutnya: Anda download &amp; print sendiri Perjanjian Kerjasama Perwakilan (2 rangkap) dari halaman Status Pendaftaran, lalu TTD di atas <b>materai Rp10.000 asli</b> (siapkan sendiri) dan kirim 1 rangkap ke kantor JM Travel:</div>
                 {pengaturan?.alamat_kantor && (
-                  <div className="font-semibold">📍 PT. Alkhalid Jaya Megah Tours & Travel — {pengaturan.alamat_kantor}</div>
+                  <div className="font-semibold">📍 JM Travel Umroh & Haji (PT. Alkhalid Jaya Megah) — {pengaturan.alamat_kantor}</div>
                 )}
               </div>
               <div className="font-bold text-[#0E2F6E] text-sm pt-2">📦 Alamat Pengiriman</div>

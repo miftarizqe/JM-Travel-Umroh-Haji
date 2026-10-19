@@ -311,8 +311,24 @@ function CheckoutPageInner() {
         // alamat_domisili/alamat, bukan alamat_kirim.
         alamat: d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '',
         nik: d.user?.nik || '',
+        // Alamat Domisili TERSTRUKTUR (jalan/no rumah/RT-RW/dst) -- dipakai
+        // checkbox "Salin dari Alamat Domisili" di kartu jamaah #1
+        // (dikonfirmasi user 2026-10-19 -- domisili dipilih, BUKAN KTP,
+        // karena domisili = tempat tinggal SEKARANG, lebih nyambung buat
+        // alamat kirim paket). Kolom terstruktur ini baru ada sejak
+        // migration 239 -- akun yang daftar SEBELUM itu & domisilinya beda
+        // dari KTP gak kebawa (gak sempat kesimpen terstruktur, cuma
+        // ke-backfill utk yang sama_ktp). null kalau belum ada -- checkbox
+        // disembunyikan di kartu.
+        domisili: d.user?.alamat_domisili_jalan ? {
+          jalan: d.user.alamat_domisili_jalan, norumah: d.user.alamat_domisili_no_rumah || '',
+          rt: d.user.alamat_domisili_rt || '', rw: d.user.alamat_domisili_rw || '',
+          kel: d.user.alamat_domisili_kelurahan || '', kec: d.user.alamat_domisili_kecamatan || '',
+          kota: d.user.alamat_domisili_kota || '', provinsi: d.user.alamat_domisili_provinsi || '',
+          kp: d.user.alamat_domisili_kode_pos || '', negara: d.user.alamat_domisili_negara || 'Indonesia',
+        } : null,
       }))
-      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '' }));
+      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '', domisili: null }));
   }, [user]);
 
   // Blokir checkbox "Ini saya sendiri" dari awal kalau NIK akun ini udah

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useOpsiTambahan } from '@/lib/useOpsiTambahan';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
+import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 export const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
 
@@ -375,6 +376,28 @@ function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion
 
       <div className="border-t border-gray-100 pt-3 space-y-2.5">
         <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
+        {/* "Salin dari Alamat Domisili" CUMA buat "Ini saya sendiri" & akun
+            yang punya alamat domisili terstruktur (migration 239,
+            dataDiriSendiri.domisili dari checkout/page.jsx; null -> gak
+            dirender). Domisili, bukan KTP -- tempat tinggal SEKARANG, lebih
+            nyambung buat kirim paket. SEKALI-SALIN ke textarea (dirangkai
+            formatAlamatSatuBaris), abis itu tetap bisa diedit manual.
+            Diporting dari versi dropdown berjenjang ke textarea pas merge
+            2026-10-19. Status centang DITURUNKAN dari isi textarea (sama
+            persis alamat domisili = kecentang) -- dulu checked={false}
+            permanen, ngisi tapi gak pernah kecentang (dikonfirmasi user
+            2026-10-19). Diedit manual -> otomatis lepas; uncentang ->
+            textarea dikosongin. */}
+        {fieldTerkunci && dataDiriSendiri?.domisili && (() => {
+          const alamatDomisili = formatAlamatSatuBaris(dataDiriSendiri.domisili);
+          return (
+          <label className="flex items-center gap-2 text-[11px] text-gray-500 cursor-pointer">
+            <input type="checkbox" className="w-3.5 h-3.5 accent-[#1A4FA0]" checked={item.alamat === alamatDomisili}
+              onChange={e => onChange({ ...item, alamat: e.target.checked ? alamatDomisili : '' })} />
+            📍 Salin dari Alamat Domisili
+          </label>
+          );
+        })()}
         {/* Textarea bebas (bukan dropdown wilayah berjenjang lagi,
             dikonfirmasi user 2026-10-19) -- langsung masuk `alamat`, payload
             submit & kolom alamat_kirim di DB gak berubah. */}
