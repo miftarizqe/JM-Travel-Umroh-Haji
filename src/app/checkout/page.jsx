@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
-import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar } from '@/app/components/CartPaketKamar';
+import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar, hargaItem } from '@/app/components/CartPaketKamar';
 import SearchableSelect from '@/app/components/SearchableSelect';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
@@ -70,7 +70,7 @@ function CheckoutPageInner() {
   async function lanjutKePembayaran() {
     if (cart.length === 0) return;
     for (let i = 0; i < cart.length; i++) {
-      const masalah = masalahJamaah(cart[i]);
+      const masalah = masalahJamaah(cart[i], prog, cart);
       if (masalah) { tunjukkanJamaah(i, masalah); return; }
     }
     const niks = cart.filter(c => !c.tanpaNik).map(c => c.nik.trim());
@@ -131,6 +131,14 @@ function CheckoutPageInner() {
   // pakai nilai ini apapun yang dikirim client.
   const [permanentReferrer, setPermanentReferrer] = useState(null);
   const [perwList, setPerwList] = useState([]);
+  // Daftar akun agen AKTIF — fallback MANUAL "Sumber Informasi: Agen"
+  // (dikonfirmasi user 2026-10-19, mirror dropdown Perwakilan di atas).
+  // referral_agen_id biasanya tag invisible dari localStorage (klik link
+  // /a/[kode]) — tapi itu ilang kalau beda device/browser/cache kehapus.
+  // Pilihan manual ini JAGA-JAGA biar jamaah tetap bisa ngasih kredit ke
+  // agen yang ngajak walau tag-nya udah gak ada, TANPA perlu ngunci
+  // permanen ke akun (dikonfirmasi user, beda dari referral perwakilan).
+  const [agenList, setAgenList] = useState([]);
   // "Closing langsung" sahabat — jamaah booking langsung (bukan nabung),
   // atribusi ke anggota sahabat yang bantu, pola identik sumber='perwakilan'
   // di atas. MURNI tag (referral_sahabat_id) buat admin proses split
@@ -263,6 +271,10 @@ function CheckoutPageInner() {
           if (match) { setSumber('perwakilan'); setReferralKode(match.kode_unik); }
         }
       })
+      .catch(() => {});
+    fetch('/api/referral-list?role=agen')
+      .then(r => r.json())
+      .then(d => setAgenList(d.perwakilan || []))
       .catch(() => {});
     if (progId) {
       fetch('/api/programs')
@@ -552,10 +564,16 @@ function CheckoutPageInner() {
             : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
             : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
-          // Link referral agen (dikonfirmasi user 2026-10-17) — murni tag
-          // invisible dari localStorage (/a/[kode]), gak ada UI/pilihan
-          // manual sama sekali, gak terkait sumber_info/referral_kode di atas.
-          referral_agen_id: ambilRefAgenId() || undefined,
+          // Link referral agen (dikonfirmasi user 2026-10-17) — awalnya
+          // murni tag invisible dari localStorage (/a/[kode]). Sekarang
+          // ADA fallback manual juga (dikonfirmasi user 2026-10-19, lihat
+          // dropdown "Sumber Informasi: Agen" di atas) — buat jamaah yang
+          // checkout ULANG tanpa lewat link lagi (tag localStorage ilang,
+          // beda device/browser, dst), pilihan manual MENANG dari tag
+          // localStorage kalau dua-duanya ada.
+          referral_agen_id: sumber === 'agen' && referralKode
+            ? (agenList.find(a => a.kode_unik === referralKode)?.id || null)
+            : (ambilRefAgenId() || undefined),
           // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
           // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
           // diorderkan perwakilan/sahabat/admin lewat checkout salah
@@ -1051,7 +1069,9 @@ function CheckoutPageInner() {
                 { label: 'Keberangkatan', val: prog.tanggal },
                 { label: 'Durasi', val: prog.durasi + ' Hari' },
                 { label: 'Seat Tersisa', val: (prog.total_seat - prog.used_seat) + ' seat' },
-                { label: 'DP/Jamaah', val: 'Rp ' + (prog.dp / 1000000).toFixed(0) + ' jt' },
+                // Rupiah penuh, bukan "X jt" dibuletin -- DP di bawah 500rb
+                // dulu kebaca "Rp 0 jt", 2,5jt jadi "Rp 3 jt".
+                { label: 'DP/Jamaah', val: 'Rp ' + Number(prog.dp || 0).toLocaleString('id-ID') },
               ].map(item => (
                 <div key={item.label} className="bg-[#E8F0FB] rounded-xl p-3">
                   <div className="text-xs text-gray-400">{item.label}</div>
@@ -1105,6 +1125,7 @@ function CheckoutPageInner() {
                 <option value="">-- Pilih --</option>
                 <option value="perwakilan">Perwakilan JM Travel</option>
                 <option value="sahabat_baitullah">Jamaah Sahabat Baitullah</option>
+                <option value="agen">Agen JM Travel</option>
                 <option value="instagram">Instagram</option>
                 <option value="tiktok">TikTok</option>
                 <option value="teman">Rekomendasi Teman / Keluarga</option>
@@ -1125,6 +1146,23 @@ function CheckoutPageInner() {
                   {perwList.length === 0 && (
                     <div className="text-[10px] text-red-500 mt-1">
                       Belum ada perwakilan aktif. Hubungi admin JM Travel.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {sumber === 'agen' && (
+                <div>
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Pilih Nama Agen *</label>
+                  <SearchableSelect
+                    value={referralKode}
+                    onChange={setReferralKode}
+                    placeholder="Ketik buat cari nama agen..."
+                    options={agenList.map(a => ({ value: a.kode_unik, label: `${a.name} (${a.kode_unik})` }))}
+                  />
+                  {agenList.length === 0 && (
+                    <div className="text-[10px] text-red-500 mt-1">
+                      Belum ada agen aktif. Hubungi admin JM Travel.
                     </div>
                   )}
                 </div>
@@ -1156,7 +1194,7 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {((sumber === 'perwakilan' && referralKode) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
+              {((sumber === 'perwakilan' && referralKode) || (sumber === 'agen' && referralKode) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">
                   ✅ Pendaftaran akan tercatat atas nama {sumber} yang dipilih.
                 </div>
@@ -1170,6 +1208,9 @@ function CheckoutPageInner() {
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
                 if (sumber === 'perwakilan' && !referralKode) {
                   alert('Pilih nama perwakilan terlebih dahulu!'); return;
+                }
+                if (sumber === 'agen' && !referralKode) {
+                  alert('Pilih nama agen terlebih dahulu!'); return;
                 }
                 if (sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && !sahabatTerverifikasi) {
                   alert('Masukkan kode referral Sahabat Baitullah yang valid!'); return;
@@ -1248,31 +1289,64 @@ function CheckoutPageInner() {
               <div className="text-xs text-red-500 mb-1">⏰ Batas Waktu Pembayaran DP</div>
               <div className="text-4xl font-black text-red-600 font-mono tracking-widest">{timerFmt}</div>
             </div>
-            <div className="bg-[#E8F0FB] rounded-xl p-4 space-y-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0] mb-3">📋 Invoice DP</div>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Program</span><span className="font-semibold text-[#0E2F6E]">{prog.name}</span>
+            {/* Invoice DP — 3 konsep dilabelin eksplisit di TIAP baris:
+                Harga program (total yang harus dibayar) / DP (dibayar
+                SEKARANG) / Sisa pelunasan (dibayar NANTI). Dulu cuma
+                "Nama — Paket ... Rp 5jt" + "Total DP" + "Transfer Tepat" +
+                kotak sisa terpisah, user gak bisa bedain mana harga
+                program, mana DP, mana yang dibayar (dikonfirmasi user
+                2026-10-19). Angka total diambil dari `summary`
+                (CartPaketKamar, sudah termasuk voucher). */}
+            <div className="bg-white border-2 border-[#E8F0FB] rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">📋 Invoice DP</div>
+                <div className="text-xs text-gray-500">{prog.name}</div>
               </div>
-              {cart.map((c, i) => (
-                <div key={i} className="flex justify-between text-sm text-gray-500">
-                  <span className="capitalize">{c.nama || `Jamaah ${i + 1}`} — {labelPaketKamar(c)}</span>
-                  <span className="font-semibold text-[#0E2F6E]">Rp {(prog?.dp || 0).toLocaleString('id-ID')}</span>
-                </div>
-              ))}
-              <div className="flex justify-between text-sm text-gray-500 pt-1 border-t border-blue-200">
-                <span>Total DP</span><span className="font-semibold text-[#0E2F6E]">Rp {totalDP.toLocaleString('id-ID')}</span>
-              </div>
-              <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
-                <span className="text-sm">Transfer Tepat</span>
-                <span className="text-red-600">Rp {totalDP.toLocaleString('id-ID')}</span>
-              </div>
-            </div>
 
-            <div className="bg-[#FEF3DC] border border-[#C9952A] rounded-xl p-4 text-sm text-[#8a6516]">
-              ℹ️ Sisa pelunasan setelah DP ini dikonfirmasi: <strong>Rp {summary.sisaPelunasan.toLocaleString('id-ID')}</strong>
-              {summary.voucherKode && (
-                <div className="text-xs mt-1">(sudah termasuk diskon voucher {summary.voucherKode} −Rp {summary.voucherDiskon.toLocaleString('id-ID')})</div>
-              )}
+              {cart.map((c, i) => {
+                const harga = hargaItem(prog, c);
+                const dp = Number(prog?.dp || 0);
+                return (
+                  <div key={i} className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                    <div className="font-semibold text-[#0E2F6E] capitalize">{c.nama || `Jamaah ${i + 1}`}</div>
+                    <div className="text-[11px] text-gray-400 -mt-0.5 mb-1">{labelPaketKamar(c)}</div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>Harga program</span><span className="text-[#0E2F6E]">Rp {harga.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>DP <span className="text-[11px]">(dibayar sekarang)</span></span><span className="font-semibold text-[#0E2F6E]">Rp {dp.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-400 text-xs">
+                      <span>Sisa pelunasan <span className="text-[11px]">(dibayar nanti)</span></span><span>Rp {Math.max(0, harga - dp).toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="border-t border-gray-200 pt-3 space-y-1.5 text-sm">
+                <div className="flex justify-between text-gray-500">
+                  <span>Total harga program{cart.length > 1 ? ` (${cart.length} jamaah)` : ''}</span>
+                  <span className="text-[#0E2F6E]">Rp {Number(summary.totalHarga || 0).toLocaleString('id-ID')}</span>
+                </div>
+                {summary.voucherKode && summary.voucherDiskon > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Diskon voucher ({summary.voucherKode})</span>
+                    <span>−Rp {Number(summary.voucherDiskon).toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-gray-500">
+                  <span>Sisa pelunasan <span className="text-[11px]">(dibayar nanti, setelah DP dikonfirmasi)</span></span>
+                  <span className="text-[#0E2F6E] whitespace-nowrap">Rp {Number(summary.sisaPelunasan || 0).toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex justify-between items-center">
+                <div>
+                  <div className="text-sm font-bold text-red-700">Yang ditransfer SEKARANG</div>
+                  <div className="text-[11px] text-red-500">Total DP{cart.length > 1 ? ` ${cart.length} jamaah` : ''} — transfer tepat sesuai nominal ini</div>
+                </div>
+                <div className="text-lg font-black text-red-600 whitespace-nowrap">Rp {totalDP.toLocaleString('id-ID')}</div>
+              </div>
             </div>
 
             {/* Bayar DP dari saldo tabungan umroh buat program reguler

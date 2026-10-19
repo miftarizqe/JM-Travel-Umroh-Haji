@@ -289,25 +289,6 @@ export default function DatabasePage() {
     muatData();
   }
 
-  // Dual-role: tambah role Sahabat Baitullah ke akun perwakilan yang sudah
-  // aktif — KHUSUS direkrut langsung manajemen (bukan via link referral),
-  // dikonfirmasi user 2026-09-06. Bikin baris sahabat_pendaftaran baru
-  // (data disalin dari akun ini, gak perlu isi ulang KTP) lalu orangnya
-  // lanjut proses lengkap (BSI/SK-CIF/dst) lewat halaman Profil seperti
-  // pendaftar biasa.
-  async function tambahRoleKedua(row) {
-    if (!confirm(`Tambahkan role Sahabat Baitullah ke akun ${row.name}? Orang ini akan tetap wajib lewat proses lengkap (setoran, BSI, SK-CIF) — cuma jalur masuknya via admin, bukan link referral.`)) return;
-    const res = await fetch('/api/admin/users', {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: row.id, action: 'tambah_role_kedua', role_kedua: 'sahabat_baitullah' }),
-    });
-    const d = await res.json();
-    if (!res.ok) { alert(d.error || 'Gagal menambahkan role kedua'); return; }
-    alert('Role Sahabat Baitullah berhasil ditambahkan. Orangnya bisa lanjut proses pendaftaran lewat halaman Profil.');
-    setDetailFor(null);
-    muatData();
-  }
-
   // Edit data akun (perwakilan) — dari modal detail formulir. no_perjanjian_kerjasama,
   // kode_unik, status TIDAK ikut diedit di sini (lihat whitelist di API).
   function mulaiEdit() {
@@ -526,11 +507,6 @@ export default function DatabasePage() {
               </div>
             </div>
 
-            {tipe === 'perwakilan' && detailFor.status === 'active' && !detailFor.role_kedua && (
-              <button onClick={() => tambahRoleKedua(detailFor)} className="w-full mb-3 bg-[#0E2F6E] hover:bg-[#1A4FA0] text-white text-xs font-bold px-3 py-2 rounded-full">
-                🤝 Tambahkan Role Sahabat Baitullah (direkrut manajemen)
-              </button>
-            )}
             {tipe === 'perwakilan' && detailFor.role_kedua && (
               <div className="w-full mb-3 bg-[#E8F0FB] text-[#0E2F6E] text-xs font-semibold px-3 py-2 rounded-full text-center">
                 ✓ Akun ini juga terdaftar sebagai {detailFor.role_kedua === 'sahabat_baitullah' ? 'Sahabat Baitullah' : 'Perwakilan'}

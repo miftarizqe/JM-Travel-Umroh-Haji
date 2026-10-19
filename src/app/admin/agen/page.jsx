@@ -21,9 +21,19 @@ export default function AdminAgenPage() {
   const [nik, setNik] = useState('');
   const [email, setEmail] = useState('');
   const [wa, setWa] = useState('');
+  const [jk, setJk] = useState('');
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  // Edit inline per baris (dikonfirmasi user 2026-10-19) -- cuma nama/WA/
+  // jenis kelamin yang boleh diubah di sini (NIK/email data identitas,
+  // dibiarkan gak bisa diubah lewat panel ini, konsisten sama field lain
+  // yang "dikunci" di seluruh app).
+  const [editingId, setEditingId] = useState(null);
+  const [editNama, setEditNama] = useState('');
+  const [editWa, setEditWa] = useState('');
+  const [editJk, setEditJk] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   function muatData() {
     fetch('/api/admin/agen')
@@ -43,19 +53,19 @@ export default function AdminAgenPage() {
   }
 
   async function buatAkun() {
-    if (!nama.trim() || !nik.trim() || !email.trim() || !wa.trim() || !password.trim()) {
+    if (!nama.trim() || !nik.trim() || !email.trim() || !wa.trim() || !jk || !password.trim()) {
       alert('Semua field wajib diisi!'); return;
     }
     setSaving(true);
     try {
       const res = await fetch('/api/admin/agen', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nama: nama.trim(), nik: nik.trim(), email: email.trim(), wa: wa.trim(), password: password.trim() }),
+        body: JSON.stringify({ nama: nama.trim(), nik: nik.trim(), email: email.trim(), wa: wa.trim(), jenis_kelamin: jk, password: password.trim() }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal membuat akun'); return; }
       alert(`Akun agen "${nama}" dibuat. Kode: ${d.kode_unik}. Sampaikan email+password ini ke yang bersangkutan buat login.`);
-      setNama(''); setNik(''); setEmail(''); setWa(''); setPassword('');
+      setNama(''); setNik(''); setEmail(''); setWa(''); setJk(''); setPassword('');
       muatData();
     } catch { alert('Terjadi kesalahan'); }
     setSaving(false);
@@ -67,6 +77,39 @@ export default function AdminAgenPage() {
       body: JSON.stringify({ id: row.id, aktif: row.status !== 'active' }),
     });
     muatData();
+  }
+
+  function mulaiEdit(row) {
+    setEditingId(row.id);
+    setEditNama(row.name); setEditWa(row.wa); setEditJk(row.jenis_kelamin || '');
+  }
+
+  async function simpanEdit(id) {
+    if (!editNama.trim() || !editWa.trim() || !editJk) { alert('Nama, WA, dan jenis kelamin wajib diisi!'); return; }
+    setSavingEdit(true);
+    try {
+      const res = await fetch('/api/admin/agen', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, edit: { nama: editNama.trim(), wa: editWa.trim(), jenis_kelamin: editJk } }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal menyimpan'); setSavingEdit(false); return; }
+      setEditingId(null);
+      muatData();
+    } catch { alert('Terjadi kesalahan'); }
+    setSavingEdit(false);
+  }
+
+  async function hapusAkun(row) {
+    if (!confirm(`Hapus PERMANEN akun agen "${row.name}"? Tindakan ini tidak bisa dibatalkan.`)) return;
+    try {
+      const res = await fetch(`/api/admin/agen?id=${encodeURIComponent(row.id)}`, {
+        method: 'DELETE',
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal menghapus'); return; }
+      muatData();
+    } catch { alert('Terjadi kesalahan'); }
   }
 
   function salinLink(row) {
@@ -102,6 +145,17 @@ export default function AdminAgenPage() {
             <label className={lbl}>No. WhatsApp *</label>
             <input value={wa} onChange={e => setWa(e.target.value.replace(/\D/g, ''))} placeholder="08xxxxxxxxxx" inputMode="numeric" className={inp} />
           </div>
+          <div>
+            {/* Dipakai nentuin sapaan "Ibu"/"Bapak" + nama di pesan WA
+                otomatis pengunjung yang datang lewat link agen ini
+                (dikonfirmasi user 2026-10-19). */}
+            <label className={lbl}>Jenis Kelamin *</label>
+            <select value={jk} onChange={e => setJk(e.target.value)} className={inp}>
+              <option value="">— Pilih —</option>
+              <option value="Laki-Laki">Laki-Laki</option>
+              <option value="Perempuan">Perempuan</option>
+            </select>
+          </div>
           <div className="sm:col-span-2">
             <label className={lbl}>Password Awal (min. 8 karakter) *</label>
             <input value={password} onChange={e => setPassword(e.target.value)} type="text" className={inp} />
@@ -120,22 +174,54 @@ export default function AdminAgenPage() {
         <div className="space-y-2">
           {rows.map(r => (
             <div key={r.id} className={`rounded-xl p-3 border ${r.status === 'active' ? 'bg-white border-gray-200' : 'bg-gray-50 border-gray-200 opacity-60'}`}>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-gray-700">{r.name} <span className="text-gray-400 font-normal">· {r.kode_unik}</span></div>
-                  <div className="text-xs text-gray-400">{r.wa} · Bergabung {tgl(r.created_at)}</div>
+              {editingId === r.id ? (
+                <div className="space-y-2">
+                  <div className="grid sm:grid-cols-3 gap-2">
+                    <input value={editNama} onChange={e => setEditNama(e.target.value)} placeholder="Nama" className={inp} />
+                    <input value={editWa} onChange={e => setEditWa(e.target.value.replace(/\D/g, ''))} placeholder="No. WhatsApp" inputMode="numeric" className={inp} />
+                    <select value={editJk} onChange={e => setEditJk(e.target.value)} className={inp}>
+                      <option value="">— Jenis Kelamin —</option>
+                      <option value="Laki-Laki">Laki-Laki</option>
+                      <option value="Perempuan">Perempuan</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => simpanEdit(r.id)} disabled={savingEdit}
+                      className="text-xs font-bold text-white bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 px-3 py-1.5 rounded-full">
+                      {savingEdit ? 'Menyimpan...' : 'Simpan'}
+                    </button>
+                    <button onClick={() => setEditingId(null)} disabled={savingEdit}
+                      className="text-xs font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full">
+                      Batal
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button onClick={() => salinLink(r)}
-                    className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-blue-100 px-3 py-1.5 rounded-full">
-                    {copiedId === r.id ? '✅ Tersalin' : '📋 Salin Link'}
-                  </button>
-                  <button onClick={() => toggleAktif(r)}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-full ${r.status === 'active' ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
-                    {r.status === 'active' ? 'Nonaktifkan' : 'Aktifkan'}
-                  </button>
+              ) : (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-gray-700">{r.name} <span className="text-gray-400 font-normal">· {r.kode_unik}</span></div>
+                    <div className="text-xs text-gray-400">{r.wa}{r.jenis_kelamin ? ` · ${r.jenis_kelamin}` : ''} · Bergabung {tgl(r.created_at)}</div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                    <button onClick={() => salinLink(r)}
+                      className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-blue-100 px-3 py-1.5 rounded-full">
+                      {copiedId === r.id ? '✅ Tersalin' : '📋 Salin Link'}
+                    </button>
+                    <button onClick={() => mulaiEdit(r)}
+                      className="text-xs font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full">
+                      Edit
+                    </button>
+                    <button onClick={() => toggleAktif(r)}
+                      className={`text-xs font-bold px-3 py-1.5 rounded-full ${r.status === 'active' ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}>
+                      {r.status === 'active' ? 'Nonaktifkan' : 'Aktifkan'}
+                    </button>
+                    <button onClick={() => hapusAkun(r)}
+                      className="text-xs font-bold text-red-500 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-full">
+                      Hapus
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           ))}
         </div>

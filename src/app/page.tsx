@@ -9,7 +9,7 @@ import { useLandingTeks } from '@/lib/useLandingTeks';
 import Slideshow from '@/app/components/Slideshow';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
-import { ambilRefAgenWa } from '@/lib/referralCapture';
+import { ambilRefAgenWa, salamAgen } from '@/lib/referralCapture';
 
 interface Program {
   id: string;
@@ -157,6 +157,11 @@ export default function Home() {
   // lewat link pribadi agen langsung ngobrol sama agennya, bukan ke kantor.
   const [waAgen] = useState<string | null>(() => ambilRefAgenWa());
   const waTarget = waAgen || pengaturan.wa_kantor;
+  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" kalau datang
+  // lewat link referral agen, fallback "Assalamualaikum" polos kalau
+  // enggak (dikonfirmasi user 2026-10-19, gantiin sapaan generik "JM
+  // Travel" yang kesannya nyapa perusahaan bukan orang).
+  const [salam] = useState<string>(() => salamAgen());
   const [metodePembayaran] = useMetodePembayaran() as [MetodePembayaran[], boolean];
   const [alurPendaftaran, setAlurPendaftaran] = useState<AlurLangkah[]>([]);
   const [skemaPembayaran, setSkemaPembayaran] = useState<SkemaPembayaran[]>([]);
@@ -318,7 +323,7 @@ export default function Home() {
               className="bg-[#C9952A] text-white font-bold px-6 py-3 rounded-full hover:bg-yellow-600 transition-colors">
               🕌 Lihat Program Umroh
             </button>
-            <button onClick={() => window.open(waLink(waTarget, 'Assalamu\'alaikum JM Travel, saya ingin konsultasi program umroh/haji.') || '#', '_blank')}
+            <button onClick={() => window.open(waLink(waTarget, `${salam}, saya ingin konsultasi program umroh/haji.`) || '#', '_blank')}
               className="bg-white/15 border border-white/40 text-white font-semibold px-6 py-3 rounded-full hover:bg-white/25 transition-colors">
               💬 Konsultasi Gratis
             </button>
@@ -424,7 +429,7 @@ export default function Home() {
                     className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-2.5 px-6 rounded-full transition-colors">
                     Masuk untuk Lihat Penawaran Khusus →
                   </button>
-                  <a href={waLink(waTarget, 'Assalamu\'alaikum, saya mau tanya jadwal program umroh terbaru.') || '#'}
+                  <a href={waLink(waTarget, `${salam}, saya mau tanya jadwal program umroh terbaru.`) || '#'}
                     target="_blank" rel="noopener noreferrer"
                     className="text-sm font-bold text-[#1A4FA0] hover:underline">
                     atau tanya jadwal via WhatsApp →
@@ -450,7 +455,7 @@ export default function Home() {
                     <div className="text-right">
                       <div className="text-[10px] text-gray-400">Mulai dari</div>
                       <div className="text-xl font-black text-[#0E2F6E]">Rp {(hargaTermurahProgram(p)/1000000).toFixed(0)} jt</div>
-                      <div className="text-xs text-gray-400">DP Rp {(p.dp/1000000).toFixed(0)} jt</div>
+                      <div className="text-xs text-gray-400">DP Rp {Number(p.dp || 0).toLocaleString('id-ID')}</div>
                     </div>
                   </div>
                   <div className="h-1.5 bg-[#e0e8f0] rounded-full overflow-hidden mb-4">
@@ -745,7 +750,7 @@ export default function Home() {
           <img src="/logo/jm-travel-icon.png" alt="JM Travel" className="w-14 h-14 object-contain mx-auto mb-4" />
           <h2 className="text-2xl md:text-3xl font-bold mb-3">{teks.kontak_headline || 'Siap Menjawab Panggilan-Nya?'}</h2>
           <p className="opacity-85 mb-6 text-sm">{teks.kontak_subtext || 'Tim kami siap bantu dari konsultasi program sampai keberangkatan — tanpa basa-basi.'}</p>
-          <button onClick={() => window.open(waLink(waTarget, 'Assalamu\'alaikum JM Travel, saya ingin bertanya.') || '#', '_blank')}
+          <button onClick={() => window.open(waLink(waTarget, `${salam}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`) || '#', '_blank')}
             className="bg-[#25D366] text-white font-bold px-8 py-3 rounded-full hover:bg-green-600 transition-colors mb-4">
             📲 WhatsApp: {waDisplay(waTarget)}
           </button>
@@ -922,7 +927,7 @@ export default function Home() {
                 <div key={s.id} className="bg-[#F8F9FD] rounded-2xl p-4">
                   <h4 className="font-bold text-[#0E2F6E] text-sm mb-1.5">{s.judul}</h4>
                   <p className="text-xs text-gray-600 leading-relaxed mb-2 whitespace-pre-line">{s.deskripsi}</p>
-                  <button onClick={() => window.open(waLink(waTarget, s.pesan_wa || `Assalamu'alaikum JM Travel, saya ingin tanya soal ${s.judul}.`) || '#', '_blank')}
+                  <button onClick={() => window.open(waLink(waTarget, s.pesan_wa || `${salam}, saya ingin tanya soal ${s.judul}.`) || '#', '_blank')}
                     className="text-xs font-bold text-[#1A4FA0] hover:underline">
                     💬 Tanya via WhatsApp →
                   </button>
@@ -968,7 +973,7 @@ export default function Home() {
             )}
 
             <div className="p-5 pt-0">
-              <button onClick={() => window.open(waLink(waTarget, 'Assalamu\'alaikum JM Travel, saya ingin tanya soal perlengkapan jamaah.') || '#', '_blank')}
+              <button onClick={() => window.open(waLink(waTarget, `${salam}, saya ingin tanya soal perlengkapan jamaah.`) || '#', '_blank')}
                 className="w-full bg-[#25D366] text-white font-bold py-2.5 rounded-full text-sm hover:bg-green-600 transition-colors">
                 💬 Tanya via WhatsApp
               </button>

@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import pool from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { wajibRole } from '@/lib/auth';
@@ -15,7 +16,7 @@ export async function GET(request) {
   if (auth.error) return auth.error;
   try {
     const [rows] = await pool.query(
-      `SELECT id, name, nik, email, wa, kode_unik, status, created_at
+      `SELECT id, name, nik, email, wa, jenis_kelamin, kode_unik, status, created_at
        FROM users WHERE role = 'agen' ORDER BY created_at DESC`
     );
     return Response.json({ agen: rows });
@@ -38,10 +39,14 @@ export async function POST(request) {
     const email = String(body.email || '').trim().toLowerCase();
     const nik = String(body.nik || '').trim();
     const waInput = String(body.wa || '').trim();
+    const jenisKelamin = String(body.jenis_kelamin || '').trim();
     const password = String(body.password || '').trim();
 
-    if (!name || !email || !nik || !waInput || !password) {
+    if (!name || !email || !nik || !waInput || !jenisKelamin || !password) {
       return Response.json({ error: 'Semua field wajib diisi' }, { status: 400 });
+    }
+    if (!['Laki-Laki', 'Perempuan'].includes(jenisKelamin)) {
+      return Response.json({ error: 'Jenis kelamin tidak valid' }, { status: 400 });
     }
     if (!nikValid(nik)) {
       return Response.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
@@ -66,12 +71,20 @@ export async function POST(request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const [result] = await pool.query(
-      `INSERT INTO users (name, email, wa, nik, password, role, status, terverifikasi, created_at)
-       VALUES (?, ?, ?, ?, ?, 'agen', 'active', 1, NOW())`,
-      [name, email, wa, nik, hashedPassword]
+    // id digenerate EKSPLISIT sebelum INSERT (bukan andalin result.insertId)
+    // -- bug nyata ditemukan 2026-10-19: users.id itu varchar(36) DEFAULT
+    // (uuid()), BUKAN auto-increment, jadi result.insertId SELALU balik 0.
+    // pastikanKodeUnik(pool, 0, 'agen') nembak baris id=0 yang gak ada,
+    // UPDATE-nya diam-diam gak ngenain siapa-siapa -- akun agen yang
+    // dibuat lewat form ini SELALU kode_unik-nya NULL selamanya (ketemu
+    // dari akun demo yang nyangkut di "Memuat..." terus, lihat
+    // /api/agen/kode-unik self-heal endpoint yang nambal gejalanya duluan).
+    const userId = randomUUID();
+    await pool.query(
+      `INSERT INTO users (id, name, email, wa, nik, jenis_kelamin, password, role, status, terverifikasi, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'agen', 'active', 1, NOW())`,
+      [userId, name, email, wa, nik, jenisKelamin, hashedPassword]
     );
-    const userId = result.insertId;
     const kodeUnik = await pastikanKodeUnik(pool, userId, 'agen');
 
     await catatAudit(pool, {
@@ -89,15 +102,49 @@ export async function POST(request) {
   }
 }
 
-// PATCH /api/admin/agen  body: { id, aktif }
+// PATCH /api/admin/agen  body: { id, aktif? } ATAU { id, edit: { nama, wa, jenis_kelamin } }
+// `aktif` (toggle status, perilaku lama) dan `edit` (ubah data, dikonfirmasi
+// user 2026-10-19) sengaja dipisah field biar gak ketuker jadi 1 request
+// yang niatnya beda — toggle aktif gak perlu validasi WA/jenis kelamin,
+// edit gak perlu tau status aktif.
 export async function PATCH(request) {
   const auth = wajibRole(request, ['admin', 'super_admin']);
   if (auth.error) return auth.error;
   try {
-    const { id, aktif } = await request.json();
+    const { id, aktif, edit } = await request.json();
     if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
     const [[target]] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'agen'", [id]);
     if (!target) return Response.json({ error: 'Akun agen tidak ditemukan' }, { status: 404 });
+
+    if (edit) {
+      const nama = String(edit.nama || '').trim();
+      const waInput = String(edit.wa || '').trim();
+      const jenisKelamin = String(edit.jenis_kelamin || '').trim();
+      if (!nama || !waInput || !jenisKelamin) {
+        return Response.json({ error: 'Nama, WA, dan jenis kelamin wajib diisi' }, { status: 400 });
+      }
+      if (!['Laki-Laki', 'Perempuan'].includes(jenisKelamin)) {
+        return Response.json({ error: 'Jenis kelamin tidak valid' }, { status: 400 });
+      }
+      const wa = normalisasiWA(waInput);
+      if (!wa) {
+        return Response.json({ error: 'Nomor WhatsApp tidak valid (contoh: 081234567890)' }, { status: 400 });
+      }
+      const [dup] = await pool.query('SELECT id FROM users WHERE wa IN (?) AND id != ?', [varianWA(wa), id]);
+      if (dup.length > 0) {
+        return Response.json({ error: 'Nomor WhatsApp sudah dipakai akun lain' }, { status: 400 });
+      }
+
+      await pool.query('UPDATE users SET name = ?, wa = ?, jenis_kelamin = ? WHERE id = ?', [nama, wa, jenisKelamin, id]);
+      await catatAudit(pool, {
+        actor: auth.user,
+        aksi: 'edit_akun_agen',
+        target_type: 'user',
+        target_id: id,
+        keterangan: `Akun agen ${target.name} diubah jadi: ${nama}, ${wa}, ${jenisKelamin}`,
+      });
+      return Response.json({ message: 'Data akun diperbarui.' });
+    }
 
     await pool.query("UPDATE users SET status = ? WHERE id = ?", [aktif ? 'active' : 'nonaktif', id]);
     await catatAudit(pool, {
@@ -111,5 +158,114 @@ export async function PATCH(request) {
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
+}
+
+// DELETE /api/admin/agen?id=xxx — hapus PERMANEN, cuma kalau akun ini BELUM
+// pernah punya riwayat booking/komisi (dikonfirmasi user 2026-10-19).
+// Alasan: referral_agen_id di bookings & komisi_ledger gak punya FK
+// constraint (lihat migration 235/236) — kalau akun dihapus padahal udah
+// ada histori, baris lama jadi nunjuk ke user_id yatim, atribusi "siapa
+// yang closing-in" di closing.js/Riwayat Closing bakal gagal resolve nama
+// (getUser balik null). Akun yang UDAH punya histori cuma boleh
+// dinonaktifkan (tombol existing), bukan dihapus.
+export async function DELETE(request) {
+  const auth = wajibRole(request, ['admin', 'super_admin']);
+  if (auth.error) return auth.error;
+  let conn;
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return Response.json({ error: 'Format id agen tidak valid' }, { status: 400 });
+    }
+
+    conn = await pool.getConnection();
+    const [[target]] = await conn.query("SELECT name FROM users WHERE id = ? AND role = 'agen'", [id]);
+    if (!target) return Response.json({ error: 'Akun agen tidak ditemukan' }, { status: 404 });
+
+    const [[{ jumlahBooking }]] = await conn.query(
+      'SELECT COUNT(*) AS jumlahBooking FROM bookings WHERE referral_agen_id = ?',
+      [id]
+    );
+    // Semua baris ledger menjadi riwayat komisi/pencairan. Pengajuan ujroh
+    // agen menautkan pencairannya ke baris ledger lewat
+    // komisi_ledger.pengajuan_ujroh_agen_id (migration 236), bukan langsung
+    // ke user, jadi memeriksa seluruh ledger penerima_id juga melindungi
+    // relasi pencairannya.
+    const [[{ jumlahKomisi }]] = await conn.query(
+      'SELECT COUNT(*) AS jumlahKomisi FROM komisi_ledger WHERE penerima_id = ?',
+      [id]
+    );
+    // users.perekrut_id menyimpan rantai perekrutan (migration 010). Jangan
+    // putuskan rantai tersebut dengan menghapus akun perekrut.
+    const [[{ jumlahDownline }]] = await conn.query(
+      'SELECT COUNT(*) AS jumlahDownline FROM users WHERE perekrut_id = ?',
+      [id]
+    );
+    if (jumlahBooking > 0 || jumlahKomisi > 0 || jumlahDownline > 0) {
+      return Response.json({ error: 'Akun ini masih memiliki data booking, komisi, pencairan, atau downline terkait sehingga tidak bisa dihapus. Nonaktifkan saja.' }, { status: 409 });
+    }
+
+    // Jangan biarkan foreign key lain menghasilkan 500 saat menghapus user.
+    // Catatan dari dev DB: invoice_kwitansi.dibuat_oleh,
+    // booking_penyesuaian_harga.diajukan_oleh, program_waitlist.user_id,
+    // kalkulator_lead.user_id, kalkulator_perwakilan_lead.perwakilan_id,
+    // materi_sahabat.diupload_oleh semuanya mereferensikan users.id.
+    const [[riwayat]] = await conn.query(
+      `SELECT
+         (SELECT COUNT(*) FROM invoice_kwitansi WHERE dibuat_oleh = ?) AS invoice,
+         (SELECT COUNT(*) FROM booking_penyesuaian_harga WHERE diajukan_oleh = ?) AS penyesuaianBooking,
+         (SELECT COUNT(*) FROM program_waitlist WHERE user_id = ?) AS waitlist,
+         (SELECT COUNT(*) FROM kalkulator_lead WHERE user_id = ?) AS leadKalkulator,
+         (SELECT COUNT(*) FROM kalkulator_perwakilan_lead WHERE perwakilan_id = ?) AS leadPerwakilan,
+         (SELECT COUNT(*) FROM materi_sahabat WHERE diupload_oleh = ?) AS materiSahabat`,
+      [id, id, id, id, id, id]
+    );
+    const relasiTersimpan = [
+      ['invoice', 'invoice'],
+      ['penyesuaianBooking', 'penyesuaian booking'],
+      ['waitlist', 'waitlist program'],
+      ['leadKalkulator', 'lead kalkulator'],
+      ['leadPerwakilan', 'lead perwakilan'],
+      ['materiSahabat', 'materi Sahabat'],
+    ].filter(([kolom]) => Number(riwayat[kolom]) > 0).map(([, label]) => label);
+    if (relasiTersimpan.length > 0) {
+      return Response.json({ error: `Akun ini masih memiliki data terkait (${relasiTersimpan.join(', ')}), jadi tidak bisa dihapus. Nonaktifkan saja.` }, { status: 409 });
+    }
+
+    // Trigger users_cegah_hapus_langsung hanya mengizinkan penghapusan
+    // melalui jalur aplikasi yang memasang flag pada koneksi MySQL yang sama.
+    // Sesi khusus diperlukan: pool.query terpisah bisa memilih koneksi lain.
+    await conn.beginTransaction();
+    await conn.query('SET @izin_hapus_users = 1');
+    await conn.query('DELETE FROM users WHERE id = ?', [id]);
+    await catatAudit(conn, {
+      actor: auth.user,
+      aksi: 'hapus_akun_agen',
+      target_type: 'user',
+      target_id: id,
+      keterangan: `Akun agen ${target.name} dihapus permanen (belum ada riwayat booking/komisi)`,
+    });
+    await conn.commit();
+    return Response.json({ message: 'Akun agen dihapus.' });
+  } catch (error) {
+    if (conn) {
+      try { await conn.rollback(); } catch {}
+    }
+    console.error(error);
+    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  } finally {
+    if (conn) {
+      // Jangan kembalikan koneksi ke pool dengan izin penghapusan tertinggal.
+      try {
+        await conn.query('SET @izin_hapus_users = 0');
+        conn.release();
+      } catch (error) {
+        console.error('Gagal mereset izin hapus users; koneksi dibuang dari pool.', error);
+        conn.destroy();
+      }
+    }
   }
 }

@@ -155,6 +155,16 @@ export default function AdminSahabatPage() {
   // aktif (dikonfirmasi user 2026-09-19, mirror punya perwakilan/anggota).
   const [kodeInvite, setKodeInvite] = useState('');
   const [copiedInvite, setCopiedInvite] = useState(false);
+  // Rekrut dari akun existing (Perwakilan) -- dikonfirmasi user 2026-10-19,
+  // mirror persis "Rekrut dari Akun Existing (Jamaah/Sahabat Baitullah)" di
+  // admin/perwakilan/page.jsx (arah sebaliknya). GANTIIN tombol inline
+  // "Tambahkan Role Sahabat Baitullah (direkrut manajemen)" yang sebelumnya
+  // numpang di kartu Perwakilan (Database Perwakilan & admin/database/
+  // [tipe]) -- biar fitur "rekrut ke role X" konsisten selalu "rumah"-nya
+  // di halaman admin role X, bukan nyebar di halaman role sumbernya.
+  const [cariQ, setCariQ] = useState('');
+  const [cariHasil, setCariHasil] = useState(null);
+  const [cariLoading, setCariLoading] = useState(false);
 
   function muat() {
     refreshSidebarBadges();
@@ -179,6 +189,38 @@ export default function AdminSahabatPage() {
     ? `${window.location.origin}/register?role=sahabat_baitullah&ref=${kodeInvite}` : '';
   function salinLinkInvite() {
     navigator.clipboard.writeText(linkInvite).then(() => { setCopiedInvite(true); setTimeout(() => setCopiedInvite(false), 2000); });
+  }
+
+  // Cari akun Perwakilan buat direkrut jadi Sahabat Baitullah (role kedua).
+  // Exact-ish via LIKE nama/NIK/WA/kode unik, dibatasi 20 hasil server-side
+  // (sama endpoint & pola persis cariAkun di admin/perwakilan/page.jsx).
+  async function cariAkun() {
+    const q = cariQ.trim();
+    if (!q) { setCariHasil(null); return; }
+    setCariLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users?roles=perwakilan&q=${encodeURIComponent(q)}`);
+      const d = await res.json();
+      setCariHasil(d.users || []);
+    } catch { setCariHasil([]); }
+    setCariLoading(false);
+  }
+
+  async function rekrutJadiSahabat(u) {
+    if (!confirm(`Tambahkan role Sahabat Baitullah ke akun ${u.name}? Tetap wajib lewat proses pendaftaran lengkap (setoran, BSI, SK-CIF, dst) — cuma jalur masuknya langsung dari admin, bukan link referral.`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch('/api/admin/users', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: u.id, action: 'tambah_role_kedua', role_kedua: 'sahabat_baitullah' }),
+      });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusy(false); return; }
+      alert(d.message);
+      setCariQ(''); setCariHasil(null);
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusy(false);
   }
 
   async function aksi(body) {
@@ -304,6 +346,42 @@ export default function AdminSahabatPage() {
               {copiedInvite ? '✓' : 'Salin'}
             </button>
           </div>
+        </div>
+      )}
+
+      {(user.role === 'admin' || user.role === 'super_admin') && (
+        <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-4">
+          <div className="font-bold text-[#0E2F6E] mb-1 text-sm">🔍 Rekrut dari Akun Existing (Perwakilan)</div>
+          <div className="text-xs text-gray-400 mb-2">Cari akun Perwakilan yang mau direkrut langsung jadi Sahabat Baitullah (role kedua) oleh manajemen — gak perlu daftar ulang dari nol, data yang udah ada dipakai lagi. Tetap wajib lewat proses pendaftaran lengkap (setoran, BSI, SK-CIF, dst — sama seperti pendaftar baru).</div>
+          <div className="flex gap-2 mb-2">
+            <input value={cariQ} onChange={e => setCariQ(e.target.value)} onKeyDown={e => e.key === 'Enter' && cariAkun()}
+              placeholder="Cari nama / NIK / WA / kode unik..."
+              className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 text-sm focus:border-[#1A4FA0] focus:outline-none" />
+            <button onClick={cariAkun} disabled={cariLoading || !cariQ.trim()}
+              className="bg-[#1A4FA0] text-white text-xs font-bold px-4 rounded-lg disabled:opacity-50">
+              {cariLoading ? '...' : 'Cari'}
+            </button>
+          </div>
+          {cariHasil != null && (
+            cariHasil.length === 0 ? (
+              <div className="text-xs text-gray-400 py-2">Gak ketemu akun Perwakilan yang cocok.</div>
+            ) : (
+              <div className="space-y-1.5">
+                {cariHasil.map(u => (
+                  <div key={u.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                    <div className="text-xs">
+                      <span className="font-semibold text-gray-700">{u.name}</span>
+                      <span className="text-gray-400"> · Perwakilan · {u.kode_unik || '-'} · {u.wa}</span>
+                    </div>
+                    <button onClick={() => rekrutJadiSahabat(u)} disabled={busy}
+                      className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                      🤝 Rekrut Jadi Sahabat Baitullah
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
         </div>
       )}
 

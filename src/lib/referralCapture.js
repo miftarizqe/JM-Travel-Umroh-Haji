@@ -27,11 +27,13 @@ const KEY_AGEN = 'ref_agen';
 // /a/[kode] setelah fetch identitas agen-nya ke server (BUKAN baca ?ref=
 // langsung kayak perwakilan, karena perlu nomor WA-nya juga buat nge-swap
 // tombol WA di landing page, bukan cuma kode). Disimpan 1 objek JSON biar
-// id+wa kebawa bareng sampai checkout tanpa fetch ulang.
-export function tangkapRefAgen({ id, wa }) {
+// id+wa+nama+jenis_kelamin kebawa bareng sampai checkout tanpa fetch ulang.
+// nama+jenis_kelamin ditambah 2026-10-19 — dipakai nyusun sapaan personal
+// "Assalamualaikum Ibu/Bapak <nama>" di pesan WA (lihat salamAgen di bawah).
+export function tangkapRefAgen({ id, wa, nama, jenis_kelamin }) {
   if (typeof window === 'undefined') return;
   if (!id) return;
-  localStorage.setItem(KEY_AGEN, JSON.stringify({ id, wa: wa || null }));
+  localStorage.setItem(KEY_AGEN, JSON.stringify({ id, wa: wa || null, nama: nama || null, jenis_kelamin: jenis_kelamin || null }));
 }
 
 function ambilRefAgen() {
@@ -49,4 +51,15 @@ export function ambilRefAgenId() {
 
 export function ambilRefAgenWa() {
   return ambilRefAgen()?.wa || null;
+}
+
+// Sapaan pembuka pesan WA (dikonfirmasi user 2026-10-19) — "Assalamualaikum
+// Ibu/Bapak <nama>" kalau datang lewat link agen (Perempuan->Ibu, selain
+// itu->Bapak), fallback "Assalamualaikum" polos kalau gak ada agen
+// ter-capture (default ke nomor kantor, gak ada orang spesifik buat disapa).
+export function salamAgen() {
+  const ref = ambilRefAgen();
+  if (!ref?.nama) return 'Assalamualaikum';
+  const sapaan = ref.jenis_kelamin === 'Perempuan' ? 'Ibu' : 'Bapak';
+  return `Assalamualaikum ${sapaan} ${ref.nama}`;
 }

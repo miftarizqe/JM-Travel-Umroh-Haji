@@ -1,12 +1,20 @@
 'use client';
+import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { ambilRefAgenWa, salamAgen } from '@/lib/referralCapture';
 
 // Tombol WhatsApp melayang pojok kanan bawah — quick action chat ke kantor
 // (dikonfirmasi user 2026-09-28). Nomor ikut Pengaturan Umum (wa_kantor),
 // jadi admin bisa ganti tanpa deploy. Dipasang sekali di root layout biar
 // muncul juga di landing page (page.tsx gak pakai Layout.jsx).
+//
+// WA agen (link /a/[kode]) MENANG dari WA kantor (dikonfirmasi user
+// 2026-10-19, mirror waTarget di page.tsx) -- pengunjung yang datang lewat
+// link referral agen ngobrol langsung sama agennya, bukan ke kantor. Bug
+// nyata: tombol ini sebelumnya SELALU pakai wa_kantor, gak ngecek
+// localStorage ref_agen sama sekali (beda dari page.tsx yang udah bener).
 //
 // Disembunyikan di panel admin (/admin/*, termasuk halaman cetak) & buat
 // akun staff — mereka gak perlu chat ke nomor kantornya sendiri.
@@ -14,11 +22,15 @@ export default function WhatsAppFloating() {
   const pathname = usePathname() || '';
   const [pengaturan] = usePengaturan();
   const [user] = useCurrentUser();
+  const [waAgen] = useState(() => ambilRefAgenWa());
 
   if (pathname.startsWith('/admin')) return null;
   if (user && ['admin', 'super_admin'].includes(user.role)) return null;
 
-  const link = waLink(pengaturan.wa_kantor, 'Halo JM Travel, saya ingin bertanya.');
+  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" (dikonfirmasi
+  // user 2026-10-19), gantiin "Halo JM Travel" generik yang kesannya nyapa
+  // perusahaan bukan orang.
+  const link = waLink(waAgen || pengaturan.wa_kantor, `${salamAgen()}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`);
   if (!link) return null;
 
   // Bottom navbar mobile (Layout.jsx) cuma tampil kalau login — naikkan

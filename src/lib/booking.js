@@ -346,6 +346,15 @@ export async function buatSatuBooking(conn, params) {
     opsiTambahanTotal = opsiRows.reduce((s, o) => s + Number(o.harga), 0) * jamaahCount;
   }
 
+  // Harga paket per jamaah WAJIB > DP per jamaah — kalau sama/lebih kecil,
+  // booking lahir tanpa sisa pelunasan (atau total < DP, mis. tier harga Rp 0
+  // / harga custom admin kekecilan), ditemukan user 2026-10-19. Program
+  // Eksklusif Sahabat Baitullah dikecualikan: checkout mandiri langsung
+  // lunas dari saldo, gak ada tahap DP -> pelunasan.
+  if (prog.publish_type !== 'sahabat_baitullah' && !(Number(hargaPerJamaah) > Number(prog.dp || 0))) {
+    throw errStatus(`Harga paket per jamaah (Rp ${Number(hargaPerJamaah || 0).toLocaleString('id-ID')}) harus lebih besar dari DP (Rp ${Number(prog.dp || 0).toLocaleString('id-ID')}).`, 400);
+  }
+
   const totalHarga = hargaPerJamaah * (jumlah_jamaah || 1) + opsiTambahanTotal;
   const dpAmount = prog.dp * (jumlah_jamaah || 1);
   const totalSetelahVoucher = Math.max(0, totalHarga - (voucher_nominal || 0));
@@ -526,6 +535,10 @@ export async function tambahJamaahKeBooking(conn, { bookingId, userId, isAdmin, 
   const komboList = paketList.map((pk, i) => opsiKombo.find(o => o.paket === pk && o.kamar === kamarList[i]));
   if (komboList.some(k => !k)) {
     throw errStatus('Ada kombo paket/kamar yang dipilih tidak tersedia untuk program ini.', 400);
+  }
+  // Sama kayak buatSatuBooking — harga per pax tambahan wajib > DP per pax.
+  if (komboList.some(k => !(Number(k.harga) > Number(prog.dp || 0)))) {
+    throw errStatus(`Harga paket per jamaah harus lebih besar dari DP (Rp ${Number(prog.dp || 0).toLocaleString('id-ID')}).`, 400);
   }
 
   let jd = booking.jamaah_data;

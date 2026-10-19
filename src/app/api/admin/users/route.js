@@ -54,14 +54,16 @@ export async function GET(req) {
       if (rolesArr.length > 0) {
         query += ` AND u.role IN (${rolesArr.map(() => '?').join(',')})`;
         params.push(...rolesArr);
-        // Yang udah punya role_kedua='perwakilan' gak perlu nongol lagi di
-        // picker (bukan validasi final -- endpoint rekrut_jadi_perwakilan
-        // tetap nolak eksplisit kalau somehow kepilih, ini cuma nyaring
-        // hasil pencarian biar gak keliatan "bisa direkrut" padahal udah).
-        // IS NULL wajib disertain -- `!=` doang bakal ikut mbuang baris yang
-        // role_kedua-nya NULL (mayoritas user), bukan cuma yang literal
-        // 'perwakilan' (bug klasik NULL comparison di SQL).
-        query += " AND (u.role_kedua IS NULL OR u.role_kedua != 'perwakilan')";
+        // Yang udah punya role_kedua APAPUN gak perlu nongol lagi di picker
+        // (bukan validasi final -- endpoint rekrut_jadi_perwakilan/
+        // tambah_role_kedua tetap nolak eksplisit kalau somehow kepilih,
+        // ini cuma nyaring hasil pencarian biar gak keliatan "bisa
+        // direkrut" padahal udah). Generik (bukan literal != 'perwakilan')
+        // dikonfirmasi user 2026-10-19 -- picker ini sekarang dipakai 2 arah
+        // (jamaah/sahabat->perwakilan DAN perwakilan->sahabat, lihat
+        // admin/sahabat/page.jsx), cuma ada 1 slot role_kedua jadi "udah
+        // punya salah satu" = gak eligible buat arah manapun.
+        query += ' AND u.role_kedua IS NULL';
       }
     }
     if (status) { query += ' AND u.status = ?'; params.push(status); }
