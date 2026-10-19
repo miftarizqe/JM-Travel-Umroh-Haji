@@ -66,6 +66,10 @@ export async function GET(request) {
     const dpPaymentsMap = await ambilDpPaymentsBatch(pool, bookings.map(b => b.id));
     for (const b of bookings) {
       b.dp_payments = dpPaymentsMap.get(b.id) || [];
+      // batch_id DP AWAL = penanda booking2 yang lahir dari 1x submit
+      // keranjang (1 booking per jamaah) -- dipakai "Booking Saya" buat
+      // ngelompokin kartunya di 1 card parent.
+      b.checkout_batch_id = b.dp_payments[0]?.batch_id || null;
     }
 
     // Riwayat SEMUA payment type='lunas' per booking (cicilan pelunasan,

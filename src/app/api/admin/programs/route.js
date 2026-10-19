@@ -86,6 +86,22 @@ function cekNominal(body) {
   return null;
 }
 
+// Tiap harga paket yang DIISI (> 0, tier kosong = gak dijual) wajib > DP —
+// harga = DP bikin booking gak punya sisa pelunasan sama sekali (ditemukan
+// user 2026-10-19). Program Eksklusif Sahabat Baitullah dikecualikan
+// (checkout mandiri langsung lunas, gak ada tahap DP).
+function cekHargaVsDp(body) {
+  if (body.publish_type === 'sahabat_baitullah') return null;
+  const dp = Number(body.dp || 0);
+  for (const c of HARGA_COLS) {
+    const h = Number(body[c] || 0);
+    if (h > 0 && h <= dp) {
+      return `${labelKolom(c)} (Rp ${h.toLocaleString('id-ID')}) harus lebih besar dari DP (Rp ${dp.toLocaleString('id-ID')}) — kalau sama, jamaah gak punya sisa pelunasan.`;
+    }
+  }
+  return null;
+}
+
 // Nilai kolom untuk INSERT/UPDATE (dipakai POST & PUT biar konsisten)
 function mapVals(cols, body) {
   return cols.map(c => {
@@ -214,6 +230,8 @@ export async function POST(request) {
 
     const salahNominal = cekNominal(body);
     if (salahNominal) return Response.json({ error: salahNominal }, { status: 400 });
+    const salahHarga = cekHargaVsDp(body);
+    if (salahHarga) return Response.json({ error: salahHarga }, { status: 400 });
 
     // programs.id adalah UUID (DEFAULT uuid()), bukan auto_increment — generate
     // eksplisit di sini biar bisa langsung dikembalikan ke frontend
@@ -269,6 +287,8 @@ export async function PUT(request) {
 
     const salahNominal = cekNominal(body);
     if (salahNominal) return Response.json({ error: salahNominal }, { status: 400 });
+    const salahHarga = cekHargaVsDp(body);
+    if (salahHarga) return Response.json({ error: salahHarga }, { status: 400 });
 
     const cols = [...BASE, ...DETAIL, ...SNAPSHOT, ...ALL_KOMBO, ...HOTEL, ...CUSTOM_HOTEL, ...MANASIK, ...SAHABAT_CLOSING];
     const setClause = cols.map(c => `${c} = ?`).join(', ');

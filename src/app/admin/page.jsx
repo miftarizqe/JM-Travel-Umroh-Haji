@@ -1500,8 +1500,12 @@ function AdminPageInner() {
                       // Pemilik akun = kontak UTAMA (dikonfirmasi user 2026-10-14,
                       // sama alasan kayak reminder pelunasan) — WA-nya udah pasti
                       // ada, beda sama WA jamaah yang sering belum keisi. Per-jamaah
-                      // cuma opsi tambahan kalau kebetulan ada.
-                      const jamaahList = parseJamaahData(p.jamaah_data).filter(j => j.wa);
+                      // cuma opsi tambahan kalau kebetulan ada. Jamaah yang nomornya
+                      // SAMA dengan pemilik akun (checkout "Ini saya sendiri") di-skip
+                      // -- 2 tombol ke orang yang sama (dikonfirmasi user 2026-10-19).
+                      const normWa = (n) => String(n || '').replace(/\D/g, '').replace(/^0/, '62');
+                      const jamaahList = parseJamaahData(p.jamaah_data)
+                        .filter(j => j.wa && (!p.pemesan_wa || normWa(j.wa) !== normWa(p.pemesan_wa)));
                       const ctx = {
                         progName: p.prog_name, totalHarga: p.total_harga, dpAmount: p.dp_amount,
                         namaKantor: pengaturan.nama_perusahaan,
@@ -2275,7 +2279,11 @@ function AdminPageInner() {
                           // kebetulan ada (mis. keluarga beda nomor), bukan yang utama.
                           // Manasik tetap per-jamaah (beda konteks, dikonfirmasi user
                           // 2026-10-14) — TIDAK diubah di sini.
-                          const jamaahWa = (b.jamaah || []).filter(j => j.wa);
+                          // Skip jamaah yang nomornya sama dengan pemilik akun -- sama
+                          // kayak tombol WA di Konfirmasi Pembayaran (2026-10-19).
+                          const normWa = (n) => String(n || '').replace(/\D/g, '').replace(/^0/, '62');
+                          const jamaahWa = (b.jamaah || [])
+                            .filter(j => j.wa && (!b.pemesan_wa || normWa(j.wa) !== normWa(b.pemesan_wa)));
                           // Cicilan pelunasan (dikonfirmasi user 2026-10-14) — sisa yang
                           // ditawarkan reminder WA ini juga perlu dikurangi cicilan yang
                           // udah confirmed, bukan cuma DP, biar gak minta jamaah transfer
