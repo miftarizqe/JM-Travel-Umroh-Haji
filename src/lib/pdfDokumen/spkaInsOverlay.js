@@ -12,12 +12,11 @@
 //
 // Tanda tangan PIHAK PERTAMA (Ahmad Zaky Arief Bestary) SUDAH statis di
 // template (dicetak), TIDAK diisi dari sini. Materai + TTD PIHAK KEDUA
-// (Perwakilan) tetap fisik — gak ada nama tercetak di atas garis TTD-nya
-// (beda dari SPK-AK yang nyetak `namaTtd` di atas garisnya), karena belum
-// pernah diminta user — tinggal ditambah kalau nanti perlu.
+// (Perwakilan) tetap fisik, tapi nama perwakilan dicetak kecil di atas
+// garis TTD-nya (mirror `namaTtd` SPK-AK, dikonfirmasi user 2026-10-18).
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 import path from 'path';
-import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawAlamatWrap } from './pdfOverlay';
+import { embedTemplatePages, tempelHalamanTemplate, drawFitKiri, drawFitCenter, drawAlamatWrap } from './pdfOverlay';
 
 const TEMPLATE_PATH = {
   management: path.join(process.cwd(), 'src/lib/pdfDokumen/templates/spka-ins-rangkap-management-template.pdf'),
@@ -62,6 +61,11 @@ const KOORDINAT = {
   },
   p7: {
     tanggalPenutup: { x: 115, y: 280, maxWidth: 200 },
+    // Garis TTD Pihak Kedua: xMin 348.88-534.88, yMin 699.948 (pdftotext
+    // -bbox, sama persis di kedua template rangkap) -> bottom-up tepi atas
+    // garis = 841.8-699.948 = 141.852. y=144.5 nempel ~2.6pt di atasnya,
+    // center = titik tengah garis (348.88+534.88)/2.
+    namaTtd: { center: 441.88, y: 144.5, maxWidth: 180 },
   },
 };
 
@@ -79,10 +83,11 @@ const KOORDINAT = {
  * @param {string} data.namaBank
  * @param {string} data.noRekening
  * @param {string} data.atasNama
+ * @param {string} data.namaTtd - dicetak kecil di atas garis tanda tangan Pihak Kedua
  * @returns {Promise<Buffer>}
  */
 export async function generateSpkaInsRangkapPdf(rangkap, {
-  nomor, hari, tanggal, nama, nik, alamatBaris1, alamatBaris2, noTelepon, namaBank, noRekening, atasNama,
+  nomor, hari, tanggal, nama, nik, alamatBaris1, alamatBaris2, noTelepon, namaBank, noRekening, atasNama, namaTtd,
 }) {
   const templatePath = TEMPLATE_PATH[rangkap];
   if (!templatePath) throw new Error(`Rangkap SPKA-Ins tidak dikenal: "${rangkap}"`);
@@ -111,6 +116,7 @@ export async function generateSpkaInsRangkapPdf(rangkap, {
     }
     if (i === k.jumlahHalaman - 1) {
       drawFitKiri(page, font, tanggal, k.p7.tanggalPenutup, FONT_SIZE);
+      drawFitCenter(page, font, namaTtd, k.p7.namaTtd, FONT_SIZE);
     }
   });
 

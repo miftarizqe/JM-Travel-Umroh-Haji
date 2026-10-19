@@ -156,6 +156,11 @@ export async function POST(req) {
           jalan: jalan_dom, norumah: norumah_dom, rt: rt_dom, rw: rw_dom,
           kel: kel_dom, kec: kec_dom, kota: kota_dom, provinsi: provinsi_dom, negara: negara_dom,
         });
+    // Komponen domisili TERSTRUKTUR (dikonfirmasi user 2026-10-19, mirror
+    // alamat_ktp_*) -- mirip daftar-sahabat/route.js.
+    const domisiliTerstruktur = sama_ktp
+      ? { jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara, kp }
+      : { jalan: jalan_dom, norumah: norumah_dom, rt: rt_dom, rw: rw_dom, kel: kel_dom, kec: kec_dom, kota: kota_dom, provinsi: provinsi_dom, negara: negara_dom, kp: null };
 
     // metode/jadwal_kunjungan/alamat_kirim BELUM diisi di sini — dipindah ke
     // step /daftar-perwakilan/metode yang baru muncul SETELAH TTD digital
@@ -195,6 +200,9 @@ export async function POST(req) {
               alamat_ktp_jalan = ?, alamat_ktp_no_rumah = ?, alamat_ktp_rt = ?, alamat_ktp_rw = ?,
               alamat_ktp_kelurahan = ?, alamat_ktp_kecamatan = ?, alamat_ktp_kota = ?,
               alamat_ktp_provinsi = ?, alamat_ktp_negara = ?,
+              alamat_domisili_jalan = ?, alamat_domisili_no_rumah = ?, alamat_domisili_rt = ?, alamat_domisili_rw = ?,
+              alamat_domisili_kelurahan = ?, alamat_domisili_kecamatan = ?, alamat_domisili_kota = ?,
+              alamat_domisili_provinsi = ?, alamat_domisili_negara = ?, alamat_domisili_kode_pos = ?,
               bank = ?, no_rekening = ?, nama_pemilik_rekening = ?, foto_ktp_path = ?
        WHERE id = ?`,
       [
@@ -204,6 +212,9 @@ export async function POST(req) {
         jalan || null, norumah || null, rt || null, rw || null,
         kel || null, kec || null, kota || null,
         provinsi || null, negara || null,
+        domisiliTerstruktur.jalan || null, domisiliTerstruktur.norumah || null, domisiliTerstruktur.rt || null, domisiliTerstruktur.rw || null,
+        domisiliTerstruktur.kel || null, domisiliTerstruktur.kec || null, domisiliTerstruktur.kota || null,
+        domisiliTerstruktur.provinsi || null, domisiliTerstruktur.negara || null, domisiliTerstruktur.kp || null,
         bank, norek, pemilik, foto_ktp_path,
         user_id,
       ]
@@ -322,6 +333,9 @@ export async function PUT(req) {
           jalan: jalan_dom, norumah: norumah_dom, rt: rt_dom, rw: rw_dom,
           kel: kel_dom, kec: kec_dom, kota: kota_dom, provinsi: provinsi_dom, negara: negara_dom,
         });
+    const domisiliTerstruktur = sama_ktp
+      ? { jalan, norumah, rt, rw, kel, kec, kota, provinsi, negara, kp }
+      : { jalan: jalan_dom, norumah: norumah_dom, rt: rt_dom, rw: rw_dom, kel: kel_dom, kec: kec_dom, kota: kota_dom, provinsi: provinsi_dom, negara: negara_dom, kp: null };
 
     await db.query(
       `UPDATE agen_pendaftaran SET nama = ?, tempat_lahir = ?, tanggal_lahir = ?, jenis_kelamin = ?, nama_ibu = ?, nama_ayah = ?,
@@ -341,6 +355,9 @@ export async function PUT(req) {
               alamat_ktp_jalan = ?, alamat_ktp_no_rumah = ?, alamat_ktp_rt = ?, alamat_ktp_rw = ?,
               alamat_ktp_kelurahan = ?, alamat_ktp_kecamatan = ?, alamat_ktp_kota = ?,
               alamat_ktp_provinsi = ?, alamat_ktp_negara = ?,
+              alamat_domisili_jalan = ?, alamat_domisili_no_rumah = ?, alamat_domisili_rt = ?, alamat_domisili_rw = ?,
+              alamat_domisili_kelurahan = ?, alamat_domisili_kecamatan = ?, alamat_domisili_kota = ?,
+              alamat_domisili_provinsi = ?, alamat_domisili_negara = ?, alamat_domisili_kode_pos = ?,
               pekerjaan = ?, pendidikan_terakhir = ?, bank = ?, no_rekening = ?, nama_pemilik_rekening = ?, foto_ktp_path = ?
        WHERE id = ?`,
       [
@@ -349,6 +366,9 @@ export async function PUT(req) {
         jalan || null, norumah || null, rt || null, rw || null,
         kel || null, kec || null, kota || null,
         provinsi || null, negara || null,
+        domisiliTerstruktur.jalan || null, domisiliTerstruktur.norumah || null, domisiliTerstruktur.rt || null, domisiliTerstruktur.rw || null,
+        domisiliTerstruktur.kel || null, domisiliTerstruktur.kec || null, domisiliTerstruktur.kota || null,
+        domisiliTerstruktur.provinsi || null, domisiliTerstruktur.negara || null, domisiliTerstruktur.kp || null,
         pkj || null, pendidikan || null, bank, norek, pemilik, foto_ktp_path,
         user_id,
       ]

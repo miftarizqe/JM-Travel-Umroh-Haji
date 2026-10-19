@@ -3,9 +3,8 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
-import CartPaketKamar, { jamaahKosong, kamarKeyOf } from '@/app/components/CartPaketKamar';
+import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar } from '@/app/components/CartPaketKamar';
 import SearchableSelect from '@/app/components/SearchableSelect';
-import { alamatLengkap } from '@/app/components/AddressFields';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -55,25 +54,32 @@ function CheckoutPageInner() {
   // tombol "tambahkan" lagi (langsung nempel di keranjang), jadi dicek
   // sekali di sini pas user mau lanjut.
   const [cekNikBusy, setCekNikBusy] = useState(false);
+  // uid kartu jamaah yang kebuka (accordion CartPaketKamar, 2+ jamaah).
+  const [jamaahTerbuka, setJamaahTerbuka] = useState(null);
+  // Kartu yang datanya kurang bisa lagi ketutup (accordion) -> bukain &
+  // scroll ke kartunya dulu, baru alert, biar user tau jamaah mana yang kurang.
+  function tunjukkanJamaah(idx, pesan) {
+    const c = cart[idx];
+    if (!c) { alert(pesan); return; }
+    setJamaahTerbuka(c.uid);
+    setTimeout(() => {
+      document.getElementById(`jamaah-${c.uid}`)?.scrollIntoView({ block: 'start' });
+      alert(`Jamaah ${idx + 1}${c.nama.trim() ? ` (${c.nama.trim()})` : ''}: ${pesan}`);
+    }, 0);
+  }
   async function lanjutKePembayaran() {
     if (cart.length === 0) return;
-    for (const c of cart) {
-      if (!c.paket || !c.kamar) { alert('Pilih paket & kamar untuk semua jamaah dulu!'); return; }
-      if (c.paket === 'custom' && (!c.hargaCustom || Number(c.hargaCustom) <= 0)) {
-        alert('Lengkapi pilihan Bintang Mekkah & Madinah dulu buat jamaah yang pilih Custom Hotel!');
-        return;
-      }
-      if (!c.nama.trim()) { alert('Isi nama lengkap semua jamaah dulu!'); return; }
-      if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') { alert('Pilih jenis kelamin semua jamaah dulu!'); return; }
-      if (!alamatLengkap(c, '_kirim')) { alert(`Lengkapi alamat kirim perlengkapan${c.nama ? ` "${c.nama}"` : ''} dulu (Provinsi s/d RT/RW, Kode Pos opsional)!`); return; }
-      if (!c.tanpaNik && !/^\d{16}$/.test(c.nik.trim())) {
-        alert(`NIK "${c.nama}" wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).`);
-        return;
-      }
+    for (let i = 0; i < cart.length; i++) {
+      const masalah = masalahJamaah(cart[i]);
+      if (masalah) { tunjukkanJamaah(i, masalah); return; }
     }
     const niks = cart.filter(c => !c.tanpaNik).map(c => c.nik.trim());
     const dobelLokal = niks.find((n, i) => niks.indexOf(n) !== i);
-    if (dobelLokal) { alert(`NIK ${dobelLokal} dimasukkan lebih dari sekali. Satu orang cuma bisa didaftarkan sekali di program ini.`); return; }
+    if (dobelLokal) {
+      const idxDobel = cart.findLastIndex(c => !c.tanpaNik && c.nik.trim() === dobelLokal);
+      tunjukkanJamaah(idxDobel, `NIK ${dobelLokal} dimasukkan lebih dari sekali. Satu orang cuma bisa didaftarkan sekali di program ini.`);
+      return;
+    }
     if (niks.length > 0) {
       setCekNikBusy(true);
       try {
@@ -82,7 +88,8 @@ function CheckoutPageInner() {
           body: JSON.stringify({ prog_id: prog?.id, niks }),
         }).then(r => r.json());
         if (d.terpakai) {
-          alert(`NIK ${d.terpakai} sudah terdaftar di program ini. Satu orang tidak bisa didaftarkan dua kali di program yang sama.`);
+          tunjukkanJamaah(cart.findIndex(c => !c.tanpaNik && c.nik.trim() === d.terpakai),
+            `NIK ${d.terpakai} sudah terdaftar di program ini. Satu orang tidak bisa didaftarkan dua kali di program yang sama.`);
           return;
         }
       } catch {
@@ -304,8 +311,24 @@ function CheckoutPageInner() {
         // alamat_domisili/alamat, bukan alamat_kirim.
         alamat: d.user?.alamat_kirim || d.user?.alamat_domisili || d.user?.alamat || '',
         nik: d.user?.nik || '',
+        // Alamat Domisili TERSTRUKTUR (jalan/no rumah/RT-RW/dst) -- dipakai
+        // checkbox "Salin dari Alamat Domisili" di kartu jamaah #1
+        // (dikonfirmasi user 2026-10-19 -- domisili dipilih, BUKAN KTP,
+        // karena domisili = tempat tinggal SEKARANG, lebih nyambung buat
+        // alamat kirim paket). Kolom terstruktur ini baru ada sejak
+        // migration 239 -- akun yang daftar SEBELUM itu & domisilinya beda
+        // dari KTP gak kebawa (gak sempat kesimpen terstruktur, cuma
+        // ke-backfill utk yang sama_ktp). null kalau belum ada -- checkbox
+        // disembunyikan di kartu.
+        domisili: d.user?.alamat_domisili_jalan ? {
+          jalan: d.user.alamat_domisili_jalan, norumah: d.user.alamat_domisili_no_rumah || '',
+          rt: d.user.alamat_domisili_rt || '', rw: d.user.alamat_domisili_rw || '',
+          kel: d.user.alamat_domisili_kelurahan || '', kec: d.user.alamat_domisili_kecamatan || '',
+          kota: d.user.alamat_domisili_kota || '', provinsi: d.user.alamat_domisili_provinsi || '',
+          kp: d.user.alamat_domisili_kode_pos || '', negara: d.user.alamat_domisili_negara || 'Indonesia',
+        } : null,
       }))
-      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '' }));
+      .catch(() => setDataDiriSahabat({ nama: user.name || '', wa: '', jk: '', alamat: '', nik: '', domisili: null }));
   }, [user]);
 
   // Blokir checkbox "Ini saya sendiri" dari awal kalau NIK akun ini udah
@@ -1166,6 +1189,7 @@ function CheckoutPageInner() {
             <CartPaketKamar
               prog={prog} list={cart} onChangeList={setCart}
               onSummaryChange={setSummary}
+              jamaahTerbuka={jamaahTerbuka} onJamaahTerbuka={setJamaahTerbuka}
               dataDiriSendiri={dataDiriSahabat}
               diriSendiriBookingId={diriSendiriBookingId}
               allowHargaCustom={user.role === 'admin' || user.role === 'super_admin'}
@@ -1231,7 +1255,7 @@ function CheckoutPageInner() {
               </div>
               {cart.map((c, i) => (
                 <div key={i} className="flex justify-between text-sm text-gray-500">
-                  <span className="capitalize">{c.nama || `Jamaah ${i + 1}`} — {c.paket} · {c.kamar}</span>
+                  <span className="capitalize">{c.nama || `Jamaah ${i + 1}`} — {labelPaketKamar(c)}</span>
                   <span className="font-semibold text-[#0E2F6E]">Rp {(prog?.dp || 0).toLocaleString('id-ID')}</span>
                 </div>
               ))}

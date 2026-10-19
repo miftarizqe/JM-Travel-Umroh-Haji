@@ -80,6 +80,7 @@ export async function buatPdfJamaahUntukBooking(pool, bookingId) {
       programPilihan: `${booking.prog_name}${kombo.paket && kombo.kamar ? ` (${kombo.paket} / ${kombo.kamar})` : ''}`,
       totalBiaya: Number(kombo.hargaJual || 0).toLocaleString('id-ID'),
       dp,
+      namaTtd: nama,
     }));
   }
 

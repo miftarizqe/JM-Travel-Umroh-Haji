@@ -183,7 +183,7 @@ function PKSPageInner() {
         <div className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden mb-4">
           <div className="bg-gradient-to-r from-[#0E2F6E] to-[#2060C0] text-white p-4 text-center">
             <div className="text-lg font-bold">JM TRAVEL</div>
-            <div className="text-xs opacity-85">PT. Alkhalid Jaya Megah Tours & Travel</div>
+            <div className="text-xs opacity-85">JM Travel Umroh & Haji (PT. Alkhalid Jaya Megah)</div>
             <div className="text-sm font-bold mt-2">{judul}</div>
           </div>
 

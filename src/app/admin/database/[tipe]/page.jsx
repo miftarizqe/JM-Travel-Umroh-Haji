@@ -751,7 +751,7 @@ export default function DatabasePage() {
                   <Field label="No. Rekening" value={f.no_rekening} />
                   <Field label="Nama Pemilik Rekening" value={f.nama_pemilik_rekening} />
                   {f.jadwal_kunjungan && <Field label="Jadwal Kunjungan" value={f.jadwal_kunjungan} />}
-                  {f.metode && <Field label="Metode Pendaftaran" value={f.metode === 'paket' ? 'Kirim Paket' : 'Kunjungan Kantor'} />}
+                  {f.metode && <Field label="Metode TTD & Kirim Dokumen" value={f.metode === 'paket' ? 'Cetak & Kirim Sendiri' : 'Datang ke Kantor'} />}
                   {f.metode === 'paket' && <Field label="Alamat Pengiriman" value={f.alamat_kirim} />}
                 </div>
               );

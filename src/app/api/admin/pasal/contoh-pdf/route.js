@@ -92,6 +92,7 @@ export async function GET(request) {
         nomor: '000001.10/JMT-PWK/2026 (contoh)', hari: 'Senin', tanggal: '1 Oktober 2026',
         nama: CONTOH_USER.name, nik: CONTOH_USER.nik, alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '',
         noTelepon: '08xxxxxxxxxx', namaBank: CONTOH_USER.bank, noRekening: CONTOH_USER.no_rekening, atasNama: CONTOH_USER.nama_pemilik_rekening,
+        namaTtd: CONTOH_USER.name,
       });
     } else if (dokumen === 'jamaah') {
       buffer = await generateJamaahPdf({
@@ -99,6 +100,7 @@ export async function GET(request) {
         nama: CONTOH_USER.name, nik: CONTOH_USER.nik, alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '',
         noPaspor: 'C1234567', noTelepon: '08xxxxxxxxxx',
         programPilihan: 'Program Contoh (Eksekutif / Quad)', totalBiaya: '39.500.000', dp: '5.000.000',
+        namaTtd: CONTOH_USER.name,
       });
     }
 

@@ -247,6 +247,26 @@ export default function AdminPerwakilanPage() {
     setBusy(false);
   }
 
+  // Scan dokumen PKS fisik yang udah diterima kantor (metode 'paket' --
+  // perwakilan cetak & kirim sendiri) -- mirror unggahScan di
+  // admin/sahabat/page.jsx, tapi Perwakilan cuma punya 1 dokumen (bukan
+  // 3-4 kayak Sahabat), jadi gak butuh param `jenis` (dikonfirmasi user
+  // 2026-10-19).
+  async function unggahScanPks(userId, file) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('user_id', userId);
+      const res = await fetch('/api/admin/upload-dokumen-pks-fisik', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal mengunggah dokumen'); setBusy(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan saat mengunggah'); }
+    setBusy(false);
+  }
+
   const kelompok = useMemo(() => {
     const m = Object.fromEntries(PROSES.map(p => [p.key, []]));
     for (const p of list) { if (m[p.status]) m[p.status].push(p); }
@@ -401,47 +421,78 @@ export default function AdminPerwakilanPage() {
                 {detail.pks_disetujui ? <span className="text-green-600 font-bold">✅ Ya</span> : <span className="text-red-500 font-bold">⏳ Belum</span>}
               </div>
               <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
-                <span>Metode Pendaftaran</span>
+                <span>Metode TTD & Kirim Dokumen</span>
                 <span className={detail.pendaftaran_metode ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
                   {detail.pendaftaran_metode || '⏳ Belum dipilih'}
                 </span>
               </div>
+              {/* KTP — mirror admin/sahabat/page.jsx (dikonfirmasi user
+                  2026-10-19), sebelumnya gak ada link lihat KTP sama sekali
+                  di sini padahal foto_ktp_path wajib diisi pas daftar. */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                <span>KTP</span>
+                {detail.foto_ktp_path ? (
+                  <a href={detail.foto_ktp_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">✅ Lihat</a>
+                ) : <span className="text-red-500 font-bold">⏳ Belum diunggah</span>}
+              </div>
+              {/* Dokumen Fisik PKS diterima kantor — cuma relevan buat
+                  metode 'paket' (cetak & kirim sendiri), mirror checklist
+                  "Dokumen Fisik ... Diterima di Kantor" admin/sahabat, tapi
+                  disederhanakan: Perwakilan cuma punya 1 dokumen (bukan 3-4),
+                  jadi upload SEKALIGUS jadi penanda "diterima" (gak ada
+                  checkbox terpisah tanpa scan) -- dikonfirmasi user
+                  2026-10-19. */}
+              {detail.pendaftaran_metode === 'paket' && (
+                <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2.5">
+                  <span>Dokumen Fisik PKS Diterima di Kantor{detail.dokumen_pks_fisik_path && (
+                    <a href={detail.dokumen_pks_fisik_path} target="_blank" rel="noopener noreferrer" className="ml-1.5 text-[#1A4FA0] underline whitespace-nowrap">(lihat scan)</a>
+                  )}
+                  <label className={`ml-1.5 text-[#C9952A] font-bold underline whitespace-nowrap ${busy ? 'opacity-50' : 'cursor-pointer'}`}>
+                    {detail.dokumen_pks_fisik_path ? '(ganti scan)' : '📎 Unggah scan'}
+                    <input type="file" accept=".jpg,.jpeg,.png,.pdf" className="hidden" disabled={busy}
+                      onChange={e => { unggahScanPks(detail.user_id, e.target.files?.[0]); e.target.value = ''; }} />
+                  </label></span>
+                  {detail.dokumen_pks_fisik_path ? (
+                    <span className="text-green-600 font-bold">✅ Sudah</span>
+                  ) : <span className="text-red-500 font-bold">⏳ Belum</span>}
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2 pt-4 flex-wrap">
+            <div className="pt-4 space-y-2">
               {!detail.pendaftaran_id && (
-                <>
+                <div className="flex items-center gap-1.5">
                   <button disabled={busy} onClick={() => aksiUser(detail.user_id, 'approve')}
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
+                    className="flex-1 whitespace-nowrap bg-green-600 hover:bg-green-700 text-white font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
                     ✅ ACC
                   </button>
                   <button disabled={busy} onClick={() => aksiUser(detail.user_id, 'reject')}
-                    className="bg-red-500 hover:bg-red-600 text-white font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    ❌ Tolak
+                    className="flex-1 whitespace-nowrap bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                    ✖ Tolak
                   </button>
-                </>
+                </div>
               )}
               {detail.pendaftaran_id && stepSelanjutnya && (
                 <button disabled={busy} onClick={() => aksiPendaftaran(detail.pendaftaran_id, stepSelanjutnya.key)}
-                  className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
-                  Lanjut ke {stepSelanjutnya.label} →
+                  className="w-full whitespace-nowrap bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                  ✅ Lanjut ke Tahap Berikutnya →
                 </button>
               )}
               {detail.pendaftaran_id && detail.status !== 'active' && detail.status !== 'ditolak' && (
-                <>
+                <div className="flex items-center gap-1.5">
                   <button disabled={busy} onClick={() => mintaPerbaikan(detail.user_id)}
-                    className="bg-yellow-100 text-yellow-700 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    ✏️ Minta Perbaikan
+                    className="flex-1 whitespace-nowrap bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                    ↺ Minta Perbaiki
                   </button>
                   <button disabled={busy} onClick={() => { if (confirm('Tolak PERMANEN pendaftaran ini? Login calon perwakilan akan ikut terkunci.')) aksiPendaftaran(detail.pendaftaran_id, 'ditolak'); }}
-                    className="bg-gray-100 text-gray-500 font-bold px-4 py-2.5 rounded-full disabled:opacity-50 text-sm">
-                    Tolak Permanen
+                    className="flex-1 whitespace-nowrap bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
+                    ⛔ Tolak Permanen
                   </button>
-                </>
+                </div>
               )}
               {detail.status === 'ditolak' && (
                 <button disabled={busy} onClick={() => izinkanDaftarUlang(detail.user_id)}
-                  className="flex-1 bg-[#1A4FA0] text-white font-bold py-2.5 rounded-full disabled:opacity-50 text-sm">
+                  className="w-full whitespace-nowrap bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold px-2 py-1.5 rounded-full disabled:opacity-50 text-[11px] transition-colors">
                   🔓 Izinkan Daftar Ulang
                 </button>
               )}
@@ -452,7 +503,7 @@ export default function AdminPerwakilanPage() {
                 </div>
               )}
               <button onClick={() => window.open(`/admin/cetak-pks-mitra/${detail.user_id}`, '_blank')}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2.5 rounded-full text-sm">
+                className="w-full whitespace-nowrap bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-2 py-1.5 rounded-full text-[11px] transition-colors">
                 📜 Cetak Perjanjian Kerjasama
               </button>
             </div>
