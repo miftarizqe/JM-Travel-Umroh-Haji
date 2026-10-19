@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
-import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar } from '@/app/components/CartPaketKamar';
+import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar, hargaItem } from '@/app/components/CartPaketKamar';
 import SearchableSelect from '@/app/components/SearchableSelect';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
@@ -1255,18 +1255,26 @@ function CheckoutPageInner() {
               <div className="flex justify-between text-sm text-gray-500">
                 <span>Program</span><span className="font-semibold text-[#0E2F6E]">{prog.name}</span>
               </div>
+              {/* Per jamaah: paket + harga paket ditulis kecil sebagai
+                  keterangan, nominal di kanan EKSPLISIT dilabeli "DP" --
+                  dulu "Nama — Paket ... Rp 5jt" kebaca kayak harga paket
+                  (dikonfirmasi user 2026-10-19). "Total DP" & "Transfer
+                  Tepat" (angkanya selalu sama) digabung jadi 1 baris. */}
               {cart.map((c, i) => (
-                <div key={i} className="flex justify-between text-sm text-gray-500">
-                  <span className="capitalize">{c.nama || `Jamaah ${i + 1}`} — {labelPaketKamar(c)}</span>
-                  <span className="font-semibold text-[#0E2F6E]">Rp {(prog?.dp || 0).toLocaleString('id-ID')}</span>
+                <div key={i} className="flex justify-between items-start gap-2 text-sm text-gray-500">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[#0E2F6E] capitalize">{c.nama || `Jamaah ${i + 1}`}</div>
+                    <div className="text-[11px] text-gray-400">{labelPaketKamar(c)} · harga paket Rp {hargaItem(prog, c).toLocaleString('id-ID')}</div>
+                  </div>
+                  <div className="text-right whitespace-nowrap">
+                    <div className="text-[11px] text-gray-400">DP</div>
+                    <div className="font-semibold text-[#0E2F6E]">Rp {(prog?.dp || 0).toLocaleString('id-ID')}</div>
+                  </div>
                 </div>
               ))}
-              <div className="flex justify-between text-sm text-gray-500 pt-1 border-t border-blue-200">
-                <span>Total DP</span><span className="font-semibold text-[#0E2F6E]">Rp {totalDP.toLocaleString('id-ID')}</span>
-              </div>
-              <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
-                <span className="text-sm">Transfer Tepat</span>
-                <span className="text-red-600">Rp {totalDP.toLocaleString('id-ID')}</span>
+              <div className="border-t border-blue-200 pt-2 flex justify-between items-center font-bold">
+                <span className="text-sm">Total DP yang harus ditransfer{cart.length > 1 ? ` (${cart.length} jamaah)` : ''}</span>
+                <span className="text-red-600 whitespace-nowrap">Rp {totalDP.toLocaleString('id-ID')}</span>
               </div>
             </div>
 
