@@ -10,10 +10,15 @@ import { useEffect, useState } from 'react';
 // No. Rumah/RT/RW/Kode Pos cuma digit — disaring PAS NGETIK (bukan cuma pas
 // submit), soalnya field bebas teks sebelumnya nerima apa aja ("23fdfdfd",
 // dst, ditemukan user 2026-10-06). Batas digit ikut aturan RT/RW/kode pos
-// Indonesia (RT/RW 1-4 digit, kode pos 5-6 digit) + No. Rumah dikasih
-// kelonggaran sampai 5 digit (nomor rumah/blok yang gak sekadar 1-3 digit).
+// Indonesia (RT/RW 1-4 digit, kode pos 5-6 digit).
 function onlyDigits(v, max) {
   return v.replace(/\D/g, '').slice(0, max);
+}
+
+// No. Rumah boleh huruf + angka (12A, B-5, C/3, dikonfirmasi user
+// 2026-10-19) -- cuma buang karakter di luar huruf/angka/spasi/"/"/"-"/".".
+function noRumah(v, max) {
+  return v.replace(/[^0-9A-Za-z /.-]/g, '').toUpperCase().slice(0, max);
 }
 
 function findIdByName(opts, name) {
@@ -134,8 +139,8 @@ export function AddressFields({ form, setF, suffix, inp, lbl, errors }) {
         <input value={form[k('jalan')]} onChange={e=>setF(k('jalan'),e.target.value)} className={c('jalan')}/>{err('jalan')}</div>
       <div className="grid grid-cols-3 gap-3">
         <div><label className={lbl}>No. Rumah *</label>
-          <input value={form[k('norumah')]} onChange={e=>setF(k('norumah'),onlyDigits(e.target.value,5))}
-            inputMode="numeric" maxLength={5} className={c('norumah')}/>{err('norumah')}</div>
+          <input value={form[k('norumah')]} onChange={e=>setF(k('norumah'),noRumah(e.target.value,10))}
+            maxLength={10} placeholder="mis. 12A" className={c('norumah')}/>{err('norumah')}</div>
         <div><label className={lbl}>RT *</label>
           <input value={form[k('rt')]} onChange={e=>setF(k('rt'),onlyDigits(e.target.value,4))}
             inputMode="numeric" maxLength={4} className={c('rt')}/>{err('rt')}</div>

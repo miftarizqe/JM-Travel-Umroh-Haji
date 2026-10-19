@@ -2,8 +2,6 @@
 import { useEffect, useState } from 'react';
 import { useOpsiTambahan } from '@/lib/useOpsiTambahan';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
-import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
-import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 export const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
 
@@ -33,7 +31,7 @@ export function masalahJamaah(c) {
   if (c.paket === 'custom' && (!c.hargaCustom || Number(c.hargaCustom) <= 0)) return 'Lengkapi pilihan Bintang Mekkah & Madinah dulu (Custom Hotel)!';
   if (!c.nama.trim()) return 'Isi nama lengkap dulu!';
   if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') return 'Pilih jenis kelamin dulu!';
-  if (!alamatLengkap(c, '_kirim')) return 'Lengkapi alamat kirim perlengkapan dulu (Provinsi s/d RT/RW, Kode Pos opsional)!';
+  if (!c.alamat.trim()) return 'Isi alamat kirim perlengkapan dulu!';
   if (!c.tanpaNik && !/^\d{16}$/.test(c.nik.trim())) return 'NIK wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).';
   return null;
 }
@@ -120,29 +118,11 @@ export function jamaahKosong(prog) {
   return {
     paket, kamar, hargaCustom: '', customHotel: null,
     nama: '', jk: '', nik: '', tanpaNik: false, wa: '', alamat: '',
-    ...ALAMAT_KIRIM_KOSONG,
     opsiTambahan: [], diriSendiri: false,
-    // Key React stabil per kartu -- AddressFields nyimpen id wilayah yang
-    // dipilih di state lokal, kalau di-key pakai index, hapus kartu #1 bikin
-    // kartu #2 kebagian dropdown kartu #1.
+    // Key React stabil per kartu -- dipakai juga buat id anchor scroll &
+    // penanda kartu accordion yang kebuka (index geser kalau ada yang dihapus).
     uid: Math.random().toString(36).slice(2),
   };
-}
-
-// Alamat kirim per jamaah sekarang terstruktur (dropdown wilayah berjenjang,
-// sama kayak AddressFields di pendaftaran), bukan 1 input bebas lagi.
-// `alamat` 1 baris TETAP diisi (dirangkai formatAlamatSatuBaris) biar
-// payload submit & kolom alamat_kirim di DB gak berubah.
-const ALAMAT_KIRIM_KOSONG = {
-  jalan_kirim: '', norumah_kirim: '', rt_kirim: '', rw_kirim: '', kp_kirim: '',
-  kel_kirim: '', kec_kirim: '', kota_kirim: '', provinsi_kirim: '', negara_kirim: 'Indonesia',
-};
-function rangkaiAlamatKirim(j) {
-  return formatAlamatSatuBaris({
-    jalan: j.jalan_kirim, norumah: j.norumah_kirim, rt: j.rt_kirim, rw: j.rw_kirim,
-    kel: j.kel_kirim, kec: j.kec_kirim, kota: j.kota_kirim, provinsi: j.provinsi_kirim,
-    kp: j.kp_kirim, negara: j.negara_kirim,
-  });
 }
 
 // 1 kartu = 1 jamaah, MANDIRI total (paket/kamar sendiri, data sendiri) --
@@ -166,7 +146,7 @@ const WARNA_KARTU = [
   { badge: 'bg-teal-600 text-white', judul: 'text-teal-800' },
 ];
 
-function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordion, terbuka, onToggle, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
+function JamaahCard({ idx, item, onChange, onRemove, canRemove, accordion, terbuka, onToggle, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
   const kamarKey = kamarKeyOf(item.kamar);
   const hargaNormal = prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 
@@ -223,9 +203,8 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordi
   const warna = WARNA_KARTU[idx % WARNA_KARTU.length];
   const lengkap = !masalahJamaah(item);
   // Mode accordion (2+ jamaah): body kartu yang ketutup CUMA di-hidden, bukan
-  // di-unmount -- AddressFields nyimpen id wilayah terpilih & useCustomHotel
-  // Harga nyimpen hasil hitung di state lokal, unmount bikin dropdown alamat
-  // reset & harga custom dihitung ulang tiap kartu dibuka.
+  // di-unmount -- useCustomHotelHarga nyimpen hasil hitung di state lokal,
+  // unmount bikin harga custom dihitung ulang (fetch lagi) tiap kartu dibuka.
   const bodyTampil = !accordion || terbuka;
 
   return (
@@ -363,12 +342,12 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordi
 
       <div className="border-t border-gray-100 pt-3 space-y-2.5">
         <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
-        {/* setF dipanggil beruntun dalam 1 event (ganti provinsi -> kosongin
-            kota/kec/kel), jadi WAJIB functional update (onPatch), bukan
-            onChange({...item}) yang bakal saling timpa pakai `item` basi. */}
-        <AddressFields form={item} suffix="_kirim"
-          setF={(key, val) => onPatch(j => { const n = { ...j, [key]: val }; return { ...n, alamat: rangkaiAlamatKirim(n) }; })}
-          inp={inpNormal} lbl="block text-[11px] font-semibold text-gray-500 mb-1" />
+        {/* Textarea bebas (bukan dropdown wilayah berjenjang lagi,
+            dikonfirmasi user 2026-10-19) -- langsung masuk `alamat`, payload
+            submit & kolom alamat_kirim di DB gak berubah. */}
+        <textarea value={item.alamat} onChange={e => onChange({ ...item, alamat: e.target.value })} rows={3}
+          placeholder="Alamat lengkap: jalan, no. rumah, RT/RW, kelurahan, kecamatan, kota, kode pos"
+          className={`${inpNormal} resize-y`} />
       </div>
 
       {allowHargaCustom && item.paket !== 'custom' && (
@@ -516,9 +495,6 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
     // Kartu lama ketutup -> layout nyusut, kartu baru bisa lompat keluar layar.
     setTimeout(() => document.getElementById(`jamaah-${baru.uid}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
-  function patchJamaah(idx, fn) {
-    onChangeList(prev => prev.map((j, i) => i === idx ? fn(j) : j));
-  }
   function hapusJamaah(idx) {
     // Kartu yang dihapus pasti yang lagi kebuka (tombol Hapus cuma muncul di
     // kartu kebuka) -> pindah buka kartu sebelumnya, jangan ketutup semua.
@@ -539,7 +515,6 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
 
         {list.map((item, idx) => (
           <JamaahCard key={item.uid || idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
-            onPatch={fn => patchJamaah(idx, fn)}
             onRemove={() => hapusJamaah(idx)} canRemove={idx > 0}
             accordion={accordion} terbuka={item.uid === jamaahTerbuka}
             onToggle={() => onJamaahTerbuka?.(item.uid === jamaahTerbuka ? null : item.uid)}
