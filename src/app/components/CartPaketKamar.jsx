@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useOpsiTambahan } from '@/lib/useOpsiTambahan';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
-import { AddressFields } from '@/app/components/AddressFields';
+import { AddressFields, alamatLengkap } from '@/app/components/AddressFields';
 import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
 
 export const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
@@ -25,7 +25,20 @@ export function hargaItem(prog, item) {
   return hargaProgram(prog, item) + hargaOpsiTambahan(item);
 }
 
-function labelPaketKamar(item) {
+// Kekurangan data 1 jamaah (null = lengkap). SATU sumber buat badge ✅/⚠️ di
+// header kartu & validasi "Lanjut ke Pembayaran" di checkout/page.jsx, biar
+// badge gak bilang lengkap padahal ditolak pas lanjut (atau sebaliknya).
+export function masalahJamaah(c) {
+  if (!c.paket || !c.kamar) return 'Pilih paket & kamar dulu!';
+  if (c.paket === 'custom' && (!c.hargaCustom || Number(c.hargaCustom) <= 0)) return 'Lengkapi pilihan Bintang Mekkah & Madinah dulu (Custom Hotel)!';
+  if (!c.nama.trim()) return 'Isi nama lengkap dulu!';
+  if (c.jk !== 'Laki-Laki' && c.jk !== 'Perempuan') return 'Pilih jenis kelamin dulu!';
+  if (!alamatLengkap(c, '_kirim')) return 'Lengkapi alamat kirim perlengkapan dulu (Provinsi s/d RT/RW, Kode Pos opsional)!';
+  if (!c.tanpaNik && !/^\d{16}$/.test(c.nik.trim())) return 'NIK wajib 16 digit (atau centang "Belum punya KTP" untuk anak di bawah 17 tahun).';
+  return null;
+}
+
+export function labelPaketKamar(item) {
   if (item.paket === 'custom' && item.customHotel) {
     return `🎨 Mekkah Bintang ${BINTANG_PAKET[item.customHotel.mekkahPaket]} + Madinah Bintang ${BINTANG_PAKET[item.customHotel.madinahPaket]} · ${item.kamar}`;
   }
@@ -141,19 +154,19 @@ function rangkaiAlamatKirim(j) {
 // tambahan + harga admin per kartu). `useCustomHotelHarga` WAJIB di
 // komponen terpisah (bukan di-inline di loop parent) -- aturan Hooks React,
 // tiap kartu butuh hitungan harga custom hotel-nya sendiri-sendiri.
-// Warna per kartu jamaah (gilir berdasarkan urutan) biar kartu Jamaah 1, 2,
-// 3, dst gak ketuker pas ngisi banyak orang sekaligus. Class ditulis utuh
-// (bukan dirangkai) biar gak ke-purge Tailwind.
+// Warna gilir per jamaah CUMA di badge nomor & judul (border kartu netral) --
+// semua kartu sekarang numpuk di 1 card parent, border pelangi per kartu
+// bikin rame. Class ditulis utuh (bukan dirangkai) biar gak ke-purge Tailwind.
 const WARNA_KARTU = [
-  { kartu: 'border-[#1A4FA0] bg-blue-50/40', badge: 'bg-[#1A4FA0] text-white', judul: 'text-[#0E2F6E]' },
-  { kartu: 'border-emerald-500 bg-emerald-50/50', badge: 'bg-emerald-600 text-white', judul: 'text-emerald-800' },
-  { kartu: 'border-amber-500 bg-amber-50/50', badge: 'bg-amber-500 text-white', judul: 'text-amber-800' },
-  { kartu: 'border-purple-500 bg-purple-50/50', badge: 'bg-purple-600 text-white', judul: 'text-purple-800' },
-  { kartu: 'border-rose-500 bg-rose-50/50', badge: 'bg-rose-600 text-white', judul: 'text-rose-800' },
-  { kartu: 'border-teal-500 bg-teal-50/50', badge: 'bg-teal-600 text-white', judul: 'text-teal-800' },
+  { badge: 'bg-[#1A4FA0] text-white', judul: 'text-[#0E2F6E]' },
+  { badge: 'bg-emerald-600 text-white', judul: 'text-emerald-800' },
+  { badge: 'bg-amber-500 text-white', judul: 'text-amber-800' },
+  { badge: 'bg-purple-600 text-white', judul: 'text-purple-800' },
+  { badge: 'bg-rose-600 text-white', judul: 'text-rose-800' },
+  { badge: 'bg-teal-600 text-white', judul: 'text-teal-800' },
 ];
 
-function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
+function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, accordion, terbuka, onToggle, prog, semuaHargaSama, opsiTambahanList, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
   const kamarKey = kamarKeyOf(item.kamar);
   const hargaNormal = prog?.[`harga_${item.paket}_${kamarKey}`] || prog?.[`harga_${item.paket}`] || 0;
 
@@ -208,16 +221,42 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
   const inpTerkunci = `${inp} border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed`;
 
   const warna = WARNA_KARTU[idx % WARNA_KARTU.length];
+  const lengkap = !masalahJamaah(item);
+  // Mode accordion (2+ jamaah): body kartu yang ketutup CUMA di-hidden, bukan
+  // di-unmount -- AddressFields nyimpen id wilayah terpilih & useCustomHotel
+  // Harga nyimpen hasil hitung di state lokal, unmount bikin dropdown alamat
+  // reset & harga custom dihitung ulang tiap kartu dibuka.
+  const bodyTampil = !accordion || terbuka;
 
   return (
-    <div className={`rounded-xl border-2 p-4 space-y-2.5 ${warna.kartu}`}>
-      <div className="flex items-center justify-between">
-        <div className={`flex items-center gap-2 font-bold text-sm ${warna.judul}`}>
-          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${warna.badge}`}>{idx + 1}</span>
-          Jamaah {idx + 1}
-        </div>
-        {canRemove && <button onClick={onRemove} className="text-xs text-red-500 font-bold">✕ Hapus</button>}
+    <div id={`jamaah-${item.uid}`}
+      className={`scroll-mt-24 rounded-xl border-2 bg-white transition-colors ${accordion && terbuka ? 'border-[#1A4FA0]' : 'border-gray-200'}`}>
+      <div className="flex items-center gap-2 px-4 py-3">
+        <button type="button" onClick={accordion ? onToggle : undefined} disabled={!accordion}
+          className="flex-1 min-w-0 flex items-center gap-2 text-left disabled:cursor-default">
+          <span className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${warna.badge}`}>{idx + 1}</span>
+          <div className="min-w-0 flex-1">
+            <div className={`font-bold text-sm truncate ${warna.judul}`}>
+              {accordion && item.nama.trim() ? item.nama : `Jamaah ${idx + 1}`}
+              {item.diriSendiri && <span className="ml-1.5 text-[10px] font-semibold text-[#8a6516] bg-[#FEF3DC] rounded px-1.5 py-0.5">🙋 Saya</span>}
+            </div>
+            {accordion && (
+              <div className="text-[11px] text-gray-500 truncate">
+                {labelPaketKamar(item)} · <b className="text-[#0E2F6E]">Rp {hargaItem(prog, item).toLocaleString('id-ID')}</b>
+              </div>
+            )}
+          </div>
+          {accordion && (
+            <span className={`flex-shrink-0 text-[10px] font-bold rounded-full px-2 py-0.5 ${lengkap ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+              {lengkap ? '✅ Lengkap' : '⚠️ Belum lengkap'}
+            </span>
+          )}
+          {accordion && <span className={`flex-shrink-0 text-gray-400 text-xs transition-transform ${terbuka ? 'rotate-180' : ''}`}>▼</span>}
+        </button>
+        {canRemove && (!accordion || terbuka) && <button type="button" onClick={onRemove} className="flex-shrink-0 text-xs text-red-500 font-bold ml-1">✕ Hapus</button>}
       </div>
+
+      <div className={bodyTampil ? 'px-4 pb-4 space-y-2.5' : 'hidden'}>
 
       {diriSendiriTersedia && (
         diriSendiriDiblokir ? (
@@ -256,7 +295,7 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
           </select>
 
           {item.paket === 'custom' && (
-            <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+            <div className="border-l-2 border-gray-200 pl-3 space-y-2">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-500 mb-1">Bintang Mekkah</label>
@@ -322,7 +361,7 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
         placeholder="No. Telepon / WhatsApp (opsional)" inputMode="numeric" maxLength={13}
         className={fieldTerkunci ? inpTerkunci : inpNormal} />
 
-      <div className="rounded-lg border-2 border-gray-100 bg-white/70 p-3 space-y-2.5">
+      <div className="border-t border-gray-100 pt-3 space-y-2.5">
         <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
         {/* Checkbox "salin dari Domisili" CUMA buat "Ini saya sendiri" &
             akun yang punya alamat domisili terstruktur (dikonfirmasi user
@@ -381,7 +420,7 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
       )}
 
       {opsiTambahanList.length > 0 && (
-        <div className="space-y-1.5">
+        <div className="border-t border-gray-100 pt-3 space-y-1.5">
           <div className="text-xs font-bold text-[#0E2F6E]">Opsi Tambahan (opsional)</div>
           {opsiTambahanList.map(o => {
             const dipilih = (item.opsiTambahan || []).some(x => x.id === o.id);
@@ -401,6 +440,7 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -418,7 +458,11 @@ function JamaahCard({ idx, item, onChange, onPatch, onRemove, canRemove, prog, s
 // `allowHargaCustom` (bool) — tampilkan input "Set Harga Sendiri" per kartu
 // (admin/super_admin doang, closing Direct/Kantor sering pakai harga
 // negosiasi).
-export default function CartPaketKamar({ prog, list, onChangeList, extra, onSummaryChange, referralPerwId, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId }) {
+// `jamaahTerbuka` / `onJamaahTerbuka` — uid kartu yang lagi kebuka (2+ jamaah
+// = accordion, CUMA 1 kartu kebuka; buka kartu lain otomatis nutup yang lama,
+// dikonfirmasi user 2026-10-19). State-nya dipegang pemanggil biar validasi
+// "Lanjut ke Pembayaran" bisa langsung bukain kartu yang datanya kurang.
+export default function CartPaketKamar({ prog, list, onChangeList, extra, onSummaryChange, referralPerwId, dataDiriSendiri, allowHargaCustom, diriSendiriBookingId, jamaahTerbuka, onJamaahTerbuka }) {
   const [opsiTambahanList] = useOpsiTambahan(prog?.id);
   const semuaHargaSama = semuaHargaSamaCek(prog);
   const sisaSeat = (prog?.total_seat || 0) - (prog?.used_seat || 0) - list.length;
@@ -499,34 +543,49 @@ export default function CartPaketKamar({ prog, list, onChangeList, extra, onSumm
     onChangeList(list.map((j, i) => i === idx ? next : j));
   }
   function tambahJamaah() {
-    onChangeList([...list, jamaahKosong(prog)]);
+    const baru = jamaahKosong(prog);
+    onChangeList([...list, baru]);
+    onJamaahTerbuka?.(baru.uid);
+    // Kartu lama ketutup -> layout nyusut, kartu baru bisa lompat keluar layar.
+    setTimeout(() => document.getElementById(`jamaah-${baru.uid}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
   }
   function patchJamaah(idx, fn) {
     onChangeList(prev => prev.map((j, i) => i === idx ? fn(j) : j));
   }
   function hapusJamaah(idx) {
+    // Kartu yang dihapus pasti yang lagi kebuka (tombol Hapus cuma muncul di
+    // kartu kebuka) -> pindah buka kartu sebelumnya, jangan ketutup semua.
+    if (list[idx]?.uid === jamaahTerbuka) onJamaahTerbuka?.(list[idx - 1]?.uid ?? null);
     onChangeList(list.filter((_, i) => i !== idx));
   }
+  const accordion = list.length > 1;
 
   return (
     <div className="space-y-5">
       {sisaSeat <= 0 && list.length === 0 ? <WaitlistCTA progId={prog?.id} /> : (
       <>
-      <div className="space-y-3">
+      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 sm:p-4 space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <div className="font-bold text-[#0E2F6E]">👥 Daftar Jamaah <span className="font-normal text-gray-500">({list.length} orang)</span></div>
+          <div className="text-[11px] text-gray-500">Sisa seat: <b className="text-[#0E2F6E]">{Math.max(0, sisaSeat)}</b></div>
+        </div>
+
         {list.map((item, idx) => (
           <JamaahCard key={item.uid || idx} idx={idx} item={item} onChange={next => ubahJamaah(idx, next)}
             onPatch={fn => patchJamaah(idx, fn)}
-            onRemove={() => hapusJamaah(idx)} canRemove={list.length > 1}
+            onRemove={() => hapusJamaah(idx)} canRemove={idx > 0}
+            accordion={accordion} terbuka={item.uid === jamaahTerbuka}
+            onToggle={() => onJamaahTerbuka?.(item.uid === jamaahTerbuka ? null : item.uid)}
             prog={prog} semuaHargaSama={semuaHargaSama} opsiTambahanList={opsiTambahanList}
             dataDiriSendiri={dataDiriSendiri} allowHargaCustom={allowHargaCustom} diriSendiriBookingId={diriSendiriBookingId} />
         ))}
-      </div>
 
-      <button onClick={tambahJamaah} disabled={sisaSeat < 1}
-        className="w-full border-2 border-dashed border-[#1A4FA0] text-[#1A4FA0] font-bold py-3 rounded-full hover:bg-[#E8F0FB] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
-        + Tambah Jamaah Lain Lagi
-      </button>
-      {sisaSeat < 1 && <div className="text-center text-xs text-gray-400">Sisa seat habis — gak bisa nambah jamaah lagi.</div>}
+        <button onClick={tambahJamaah} disabled={sisaSeat < 1}
+          className="w-full border-2 border-dashed border-[#1A4FA0] text-[#1A4FA0] bg-white font-bold py-3 rounded-full hover:bg-[#E8F0FB] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+          + Tambah Jamaah Lain Lagi
+        </button>
+        {sisaSeat < 1 && <div className="text-center text-xs text-gray-400">Sisa seat habis — gak bisa nambah jamaah lagi.</div>}
+      </div>
 
       {extra}
 

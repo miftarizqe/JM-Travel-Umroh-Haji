@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
@@ -58,6 +58,7 @@ function RegisterPageInner() {
   const [tampilkanPilihan, setTampilkanPilihan] = useState(!roleValid);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const selesaiRef = useRef(false);
   const [perwList, setPerwList] = useState([]);
   const [refNotFound, setRefNotFound] = useState(false);
   // Info perekrut yang udah TERKUNCI dari link invite (kode_invite_perwakilan/
@@ -86,31 +87,37 @@ function RegisterPageInner() {
   // dropdown) sebagai bukti orangnya beneran kenal/direkomendasikan
   // perwakilan aktif — gak ada lagi jalur "daftar mandiri".
   const [kodeReferralPerwakilan, setKodeReferralPerwakilan] = useState('');
-  const [kodeReferralInvalid, setKodeReferralInvalid] = useState(false);
-  const [kodeReferralChecking, setKodeReferralChecking] = useState(false);
+  // Hasil cek terakhir disimpan BARENG kodenya ({ kode, valid }) — status
+  // invalid/checking diturunkan dari situ, bukan di-set sinkron di effect
+  // (react-hooks/set-state-in-effect). valid=null = cek gagal (network).
+  const [cekKodePerwakilan, setCekKodePerwakilan] = useState({ kode: '', valid: null });
+  const kodePerwakilanTrim = kodeReferralPerwakilan.trim();
+  const kodeReferralChecking = !!kodePerwakilanTrim && cekKodePerwakilan.kode !== kodePerwakilanTrim;
+  const kodeReferralInvalid = !!kodePerwakilanTrim && !kodeReferralChecking && cekKodePerwakilan.valid === false;
   // Eligible daftar Perwakilan TANPA kode referral kalau NIK yang diketik
   // tercatat pernah beneran berangkat umroh bersama JM Travel (dikonfirmasi
   // user 2026-09-06) — dicek publik (belum ada akun), cuma balikin boolean,
   // gak expose detail booking siapa pun.
-  const [pernahUmroh, setPernahUmroh] = useState(false);
+  // Sama kayak cekKodePerwakilan: hasil disimpan bareng NIK yang dicek.
+  const [cekRiwayat, setCekRiwayat] = useState({ nik: '', pernahUmroh: false, nama: null });
+  const nikTrim = form.nik.trim();
+  const nikLengkap = nikTrim.length === 16;
+  const pernahUmroh = nikLengkap && cekRiwayat.nik === nikTrim && cekRiwayat.pernahUmroh;
   // Nama tersamar ("A***d B******n") pas NIK ketemu riwayat umroh — buat
   // popup cek NIK self-verify (dikonfirmasi user 2026-10-17, lihat
   // samarkanNama() di src/lib/riwayatUmroh.js).
-  const [pernahUmrohNama, setPernahUmrohNama] = useState(null);
-  const [pernahUmrohChecking, setPernahUmrohChecking] = useState(false);
+  const pernahUmrohNama = pernahUmroh ? cekRiwayat.nama : null;
+  const pernahUmrohChecking = nikLengkap && cekRiwayat.nik !== nikTrim;
   useEffect(() => {
-    const nik = form.nik.trim();
-    if (nik.length !== 16) { setPernahUmroh(false); setPernahUmrohNama(null); setPernahUmrohChecking(false); return; }
-    setPernahUmrohChecking(true);
+    if (!nikLengkap) return;
     const timer = setTimeout(() => {
-      fetch(`/api/cek-riwayat-umroh?nik=${encodeURIComponent(nik)}`)
+      fetch(`/api/cek-riwayat-umroh?nik=${encodeURIComponent(nikTrim)}`)
         .then(r => r.json())
-        .then(d => { setPernahUmroh(!!d.pernahUmroh); setPernahUmrohNama(d.nama_masked || null); })
-        .catch(() => { setPernahUmroh(false); setPernahUmrohNama(null); })
-        .finally(() => setPernahUmrohChecking(false));
+        .then(d => setCekRiwayat({ nik: nikTrim, pernahUmroh: !!d.pernahUmroh, nama: d.nama_masked || null }))
+        .catch(() => setCekRiwayat({ nik: nikTrim, pernahUmroh: false, nama: null }));
     }, 400);
     return () => clearTimeout(timer);
-  }, [form.nik]);
+  }, [nikTrim, nikLengkap]);
   // Sama persis pola kode referral Perwakilan di atas, tapi buat gerbang
   // rekrut-sahabat-baru (dikonfirmasi user 2026-09-03: "gada lg bs milih
   // siapa yg rekrut" — dropdown bebas diganti kode invite acak, mirror
@@ -119,8 +126,10 @@ function RegisterPageInner() {
   // invite valid (BEDA dari refSahabatJamaahId yang match kode_unik biasa
   // buat referral JAMAAH, bukan buat jadi anggota sahabat baru).
   const [kodeReferralSahabat, setKodeReferralSahabat] = useState('');
-  const [kodeReferralSahabatInvalid, setKodeReferralSahabatInvalid] = useState(false);
-  const [kodeReferralSahabatChecking, setKodeReferralSahabatChecking] = useState(false);
+  const [cekKodeSahabat, setCekKodeSahabat] = useState({ kode: '', valid: null });
+  const kodeSahabatTrim = kodeReferralSahabat.trim();
+  const kodeReferralSahabatChecking = !!kodeSahabatTrim && cekKodeSahabat.kode !== kodeSahabatTrim;
+  const kodeReferralSahabatInvalid = !!kodeSahabatTrim && !kodeReferralSahabatChecking && cekKodeSahabat.valid === false;
   const [kodeInviteSahabatDariLink, setKodeInviteSahabatDariLink] = useState(false);
   // Token widget "Saya bukan robot" (dikonfirmasi user 2026-09-27) — kosong
   // terus kalau NEXT_PUBLIC_RECAPTCHA_SITE_KEY belum diisi (RecaptchaCheckbox
@@ -129,7 +138,7 @@ function RegisterPageInner() {
   const [captchaToken, setCaptchaToken] = useState('');
 
   const isDirty = step > 1 || !!(form.name || form.nik || form.wa || form.email || form.password);
-  useUnsavedGuard(isDirty);
+  const lepasGuard = useUnsavedGuard(isDirty);
 
   function keluar(tujuan) {
     if (isDirty && !confirm('Yakin ingin keluar? Data pendaftaran yang sudah diisi akan hilang.')) return;
@@ -154,10 +163,13 @@ function RegisterPageInner() {
         // Referral permanen jamaah — dicek TERLEPAS dari roleAwal, biar
         // tetap kepakai walau user akhirnya daftar sebagai jamaah (link
         // perwakilan dishare ke calon jamaah, bukan cuma calon perwakilan).
-        if (refCode) {
-          const matchJamaah = list.find(p => p.kode_unik === refCode);
-          if (matchJamaah) setRefPerwakilanJamaahId(matchJamaah.id);
-        }
+        // Fallback: jamaah yang landing lewat link referral perwakilan di
+        // /program/[id]?ref=... (bukan langsung ke /register?ref=...) —
+        // kodenya udah ke-capture ke localStorage (tangkapRefPerwakilan di
+        // halaman lain), dipakai kalau ?ref= di URL ini gak match.
+        const matchJamaah = (refCode && list.find(p => p.kode_unik === refCode))
+          || list.find(p => p.kode_unik === ambilRefPerwakilan());
+        if (matchJamaah) setRefPerwakilanJamaahId(matchJamaah.id);
       })
       .catch(() => {});
     // Referral permanen jamaah dari link sahabat (kode_unik) — dicek
@@ -177,7 +189,7 @@ function RegisterPageInner() {
         .then(d => { if (d.valid) { setRefSahabatJamaahId(d.id); setRefSahabatJamaahNama(d.nama); } })
         .catch(() => {});
     }
-  }, []);
+  }, [refCode]);
 
   // ?role=perwakilan&ref=<kode_invite> dari link pribadi rekrut-perwakilan —
   // BEDA sumber kode dari kode_unik (dikonfirmasi user 2026-09-03: kode_unik
@@ -244,9 +256,8 @@ function RegisterPageInner() {
   // punya kode_unik, bukan kode invite) — satu-satunya sumber kebenaran
   // adalah endpoint verify-invite.
   useEffect(() => {
-    const kode = kodeReferralPerwakilan.trim();
-    if (!kode) { setKodeReferralInvalid(false); return; }
-    setKodeReferralChecking(true);
+    const kode = kodePerwakilanTrim;
+    if (!kode) return;
     const timer = setTimeout(() => {
       fetch('/api/referral-list/verify-invite', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -254,21 +265,19 @@ function RegisterPageInner() {
       })
         .then(r => r.json())
         .then(d => {
-          if (d.valid) { setForm(f => ({ ...f, perekrut_id: d.id, kode_referral_perwakilan: kode })); setKodeReferralInvalid(false); }
-          else setKodeReferralInvalid(true);
+          if (d.valid) setForm(f => ({ ...f, perekrut_id: d.id, kode_referral_perwakilan: kode }));
+          setCekKodePerwakilan({ kode, valid: !!d.valid });
         })
-        .catch(() => {})
-        .finally(() => setKodeReferralChecking(false));
+        .catch(() => setCekKodePerwakilan({ kode, valid: null }));
     }, 400);
     return () => clearTimeout(timer);
-  }, [kodeReferralPerwakilan]);
+  }, [kodePerwakilanTrim]);
 
   // Verifikasi kode referral sahabat yang DIKETIK MANUAL — mirror persis
   // yang perwakilan di atas.
   useEffect(() => {
-    const kode = kodeReferralSahabat.trim();
-    if (!kode) { setKodeReferralSahabatInvalid(false); return; }
-    setKodeReferralSahabatChecking(true);
+    const kode = kodeSahabatTrim;
+    if (!kode) return;
     const timer = setTimeout(() => {
       fetch('/api/referral-list/verify-invite', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -279,27 +288,13 @@ function RegisterPageInner() {
           if (d.valid) {
             setForm(f => ({ ...f, perekrut_id: d.id, kode_undangan: kode }));
             setPerekrutTerkunciSahabat({ id: d.id, name: d.name, kode_unik: d.kode_unik });
-            setKodeReferralSahabatInvalid(false);
           }
-          else setKodeReferralSahabatInvalid(true);
+          setCekKodeSahabat({ kode, valid: !!d.valid });
         })
-        .catch(() => {})
-        .finally(() => setKodeReferralSahabatChecking(false));
+        .catch(() => setCekKodeSahabat({ kode, valid: null }));
     }, 400);
     return () => clearTimeout(timer);
-  }, [kodeReferralSahabat]);
-
-  // Fallback: jamaah yang landing lewat link referral perwakilan di
-  // /program/[id]?ref=... (bukan langsung ke /register?ref=...) — kodenya
-  // udah ke-capture ke localStorage (tangkapRefPerwakilan di halaman lain),
-  // dipakai di sini kalau ?ref= gak ada di URL registrasi itu sendiri.
-  useEffect(() => {
-    if (refPerwakilanJamaahId || perwList.length === 0) return;
-    const kode = ambilRefPerwakilan();
-    if (!kode) return;
-    const match = perwList.find(p => p.kode_unik === kode);
-    if (match) setRefPerwakilanJamaahId(match.id);
-  }, [perwList, refPerwakilanJamaahId]);
+  }, [kodeSahabatTrim]);
 
   // step 1 sekarang "Tipe Akun" (dibalik, dikonfirmasi user 2026-10-17) —
   // validasi role-spesifik (kode referral/eligibility) pindah ke sini,
@@ -390,11 +385,18 @@ function RegisterPageInner() {
       // berikutnya yang dulu dituju /verifikasi setelah kode benar).
       // Navigasi penuh, bukan router.push — alasan sama kayak login/page.jsx
       // (Client Cache bisa nyimpen redirect proxy lama ke /login).
+      // Akun udah kebuat — matiin guard "Leave site?" dulu. Kalau gak, user
+      // yang klik "Cancel" bakal ketahan di form & submit ulang → error
+      // "NIK/email/no. telepon sudah terdaftar" padahal akunnya baru.
+      lepasGuard();
+      selesaiRef.current = true;
       window.location.assign(redirect ? `/upload-foto?redirect=${encodeURIComponent(redirect)}` : '/upload-foto');
-    } catch (e) {
+    } catch {
       setError('Terjadi kesalahan, coba lagi.');
     } finally {
-      setLoading(false);
+      // Jangan aktifin tombol lagi kalau udah sukses & lagi pindah halaman,
+      // biar gak bisa dobel-submit.
+      if (!selesaiRef.current) setLoading(false);
     }
   }
 
