@@ -102,15 +102,49 @@ export async function POST(request) {
   }
 }
 
-// PATCH /api/admin/agen  body: { id, aktif }
+// PATCH /api/admin/agen  body: { id, aktif? } ATAU { id, edit: { nama, wa, jenis_kelamin } }
+// `aktif` (toggle status, perilaku lama) dan `edit` (ubah data, dikonfirmasi
+// user 2026-10-19) sengaja dipisah field biar gak ketuker jadi 1 request
+// yang niatnya beda — toggle aktif gak perlu validasi WA/jenis kelamin,
+// edit gak perlu tau status aktif.
 export async function PATCH(request) {
   const auth = wajibRole(request, ['admin', 'super_admin']);
   if (auth.error) return auth.error;
   try {
-    const { id, aktif } = await request.json();
+    const { id, aktif, edit } = await request.json();
     if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
     const [[target]] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'agen'", [id]);
     if (!target) return Response.json({ error: 'Akun agen tidak ditemukan' }, { status: 404 });
+
+    if (edit) {
+      const nama = String(edit.nama || '').trim();
+      const waInput = String(edit.wa || '').trim();
+      const jenisKelamin = String(edit.jenis_kelamin || '').trim();
+      if (!nama || !waInput || !jenisKelamin) {
+        return Response.json({ error: 'Nama, WA, dan jenis kelamin wajib diisi' }, { status: 400 });
+      }
+      if (!['Laki-Laki', 'Perempuan'].includes(jenisKelamin)) {
+        return Response.json({ error: 'Jenis kelamin tidak valid' }, { status: 400 });
+      }
+      const wa = normalisasiWA(waInput);
+      if (!wa) {
+        return Response.json({ error: 'Nomor WhatsApp tidak valid (contoh: 081234567890)' }, { status: 400 });
+      }
+      const [dup] = await pool.query('SELECT id FROM users WHERE wa IN (?) AND id != ?', [varianWA(wa), id]);
+      if (dup.length > 0) {
+        return Response.json({ error: 'Nomor WhatsApp sudah dipakai akun lain' }, { status: 400 });
+      }
+
+      await pool.query('UPDATE users SET name = ?, wa = ?, jenis_kelamin = ? WHERE id = ?', [nama, wa, jenisKelamin, id]);
+      await catatAudit(pool, {
+        actor: auth.user,
+        aksi: 'edit_akun_agen',
+        target_type: 'user',
+        target_id: id,
+        keterangan: `Akun agen ${target.name} diubah jadi: ${nama}, ${wa}, ${jenisKelamin}`,
+      });
+      return Response.json({ message: 'Data akun diperbarui.' });
+    }
 
     await pool.query("UPDATE users SET status = ? WHERE id = ?", [aktif ? 'active' : 'nonaktif', id]);
     await catatAudit(pool, {
@@ -121,6 +155,50 @@ export async function PATCH(request) {
       keterangan: `Akun agen ${target.name} di${aktif ? 'aktifkan' : 'nonaktifkan'}`,
     });
     return Response.json({ message: 'Status akun diperbarui.' });
+  } catch (error) {
+    console.error(error);
+    return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  }
+}
+
+// DELETE /api/admin/agen?id=xxx — hapus PERMANEN, cuma kalau akun ini BELUM
+// pernah punya riwayat booking/komisi (dikonfirmasi user 2026-10-19).
+// Alasan: referral_agen_id di bookings & komisi_ledger gak punya FK
+// constraint (lihat migration 235/236) — kalau akun dihapus padahal udah
+// ada histori, baris lama jadi nunjuk ke user_id yatim, atribusi "siapa
+// yang closing-in" di closing.js/Riwayat Closing bakal gagal resolve nama
+// (getUser balik null). Akun yang UDAH punya histori cuma boleh
+// dinonaktifkan (tombol existing), bukan dihapus.
+export async function DELETE(request) {
+  const auth = wajibRole(request, ['admin', 'super_admin']);
+  if (auth.error) return auth.error;
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
+
+    const [[target]] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'agen'", [id]);
+    if (!target) return Response.json({ error: 'Akun agen tidak ditemukan' }, { status: 404 });
+
+    const [[{ jml }]] = await pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM bookings WHERE referral_agen_id = ?) +
+         (SELECT COUNT(*) FROM komisi_ledger WHERE penerima_id = ? AND jenis = 'ujroh_agen') AS jml`,
+      [id, id]
+    );
+    if (jml > 0) {
+      return Response.json({ error: 'Akun ini sudah punya riwayat booking/komisi, tidak bisa dihapus permanen. Nonaktifkan saja.' }, { status: 400 });
+    }
+
+    await pool.query('DELETE FROM users WHERE id = ?', [id]);
+    await catatAudit(pool, {
+      actor: auth.user,
+      aksi: 'hapus_akun_agen',
+      target_type: 'user',
+      target_id: id,
+      keterangan: `Akun agen ${target.name} dihapus permanen (belum ada riwayat booking/komisi)`,
+    });
+    return Response.json({ message: 'Akun agen dihapus.' });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
