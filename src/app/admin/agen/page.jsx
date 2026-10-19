@@ -103,7 +103,9 @@ export default function AdminAgenPage() {
   async function hapusAkun(row) {
     if (!confirm(`Hapus PERMANEN akun agen "${row.name}"? Tindakan ini tidak bisa dibatalkan.`)) return;
     try {
-      const res = await fetch(`/api/admin/agen?id=${row.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/agen?id=${encodeURIComponent(row.id)}`, {
+        method: 'DELETE',
+      });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal menghapus'); return; }
       muatData();

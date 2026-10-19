@@ -176,18 +176,34 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return Response.json({ error: 'Format id agen tidak valid' }, { status: 400 });
+    }
 
     const [[target]] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'agen'", [id]);
     if (!target) return Response.json({ error: 'Akun agen tidak ditemukan' }, { status: 404 });
 
-    const [[{ jml }]] = await pool.query(
-      `SELECT
-         (SELECT COUNT(*) FROM bookings WHERE referral_agen_id = ?) +
-         (SELECT COUNT(*) FROM komisi_ledger WHERE penerima_id = ? AND jenis = 'ujroh_agen') AS jml`,
-      [id, id]
+    const [[{ jumlahBooking }]] = await pool.query(
+      'SELECT COUNT(*) AS jumlahBooking FROM bookings WHERE referral_agen_id = ?',
+      [id]
     );
-    if (jml > 0) {
-      return Response.json({ error: 'Akun ini sudah punya riwayat booking/komisi, tidak bisa dihapus permanen. Nonaktifkan saja.' }, { status: 400 });
+    // Semua baris ledger menjadi riwayat komisi/pencairan. Pengajuan ujroh
+    // agen menautkan pencairannya ke baris ledger lewat
+    // komisi_ledger.pengajuan_ujroh_agen_id (migration 236), bukan langsung
+    // ke user, jadi memeriksa seluruh ledger penerima_id juga melindungi
+    // relasi pencairannya.
+    const [[{ jumlahKomisi }]] = await pool.query(
+      'SELECT COUNT(*) AS jumlahKomisi FROM komisi_ledger WHERE penerima_id = ?',
+      [id]
+    );
+    // users.perekrut_id menyimpan rantai perekrutan (migration 010). Jangan
+    // putuskan rantai tersebut dengan menghapus akun perekrut.
+    const [[{ jumlahDownline }]] = await pool.query(
+      'SELECT COUNT(*) AS jumlahDownline FROM users WHERE perekrut_id = ?',
+      [id]
+    );
+    if (jumlahBooking > 0 || jumlahKomisi > 0 || jumlahDownline > 0) {
+      return Response.json({ error: 'Akun ini masih memiliki data booking, komisi, pencairan, atau downline terkait sehingga tidak bisa dihapus. Nonaktifkan saja.' }, { status: 409 });
     }
 
     // kalkulator_lead.user_id has a restrictive FK to users.id. Leads are
@@ -198,7 +214,7 @@ export async function DELETE(request) {
       [id]
     );
     if (jumlahLead > 0) {
-      return Response.json({ error: 'Akun ini sudah punya riwayat estimasi di kalkulator, tidak bisa dihapus permanen. Nonaktifkan saja.' }, { status: 400 });
+      return Response.json({ error: 'Akun ini masih memiliki data terkait di kalkulator sehingga tidak bisa dihapus. Nonaktifkan saja.' }, { status: 409 });
     }
 
     await pool.query('DELETE FROM users WHERE id = ?', [id]);
