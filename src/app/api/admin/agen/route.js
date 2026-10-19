@@ -206,15 +206,31 @@ export async function DELETE(request) {
       return Response.json({ error: 'Akun ini masih memiliki data booking, komisi, pencairan, atau downline terkait sehingga tidak bisa dihapus. Nonaktifkan saja.' }, { status: 409 });
     }
 
-    // kalkulator_lead.user_id has a restrictive FK to users.id. Leads are
-    // historical follow-up records, so keep them intact and explain why the
-    // account cannot be removed instead of letting MySQL surface a 500.
-    const [[{ jumlahLead }]] = await pool.query(
-      'SELECT COUNT(*) AS jumlahLead FROM kalkulator_lead WHERE user_id = ?',
-      [id]
+    // Jangan biarkan foreign key lain menghasilkan 500 saat menghapus user.
+    // Catatan dari dev DB: invoice_kwitansi.dibuat_oleh,
+    // booking_penyesuaian_harga.diajukan_oleh, program_waitlist.user_id,
+    // kalkulator_lead.user_id, kalkulator_perwakilan_lead.perwakilan_id,
+    // materi_sahabat.diupload_oleh semuanya mereferensikan users.id.
+    const [[riwayat]] = await pool.query(
+      `SELECT
+         (SELECT COUNT(*) FROM invoice_kwitansi WHERE dibuat_oleh = ?) AS invoice,
+         (SELECT COUNT(*) FROM booking_penyesuaian_harga WHERE diajukan_oleh = ?) AS penyesuaianBooking,
+         (SELECT COUNT(*) FROM program_waitlist WHERE user_id = ?) AS waitlist,
+         (SELECT COUNT(*) FROM kalkulator_lead WHERE user_id = ?) AS leadKalkulator,
+         (SELECT COUNT(*) FROM kalkulator_perwakilan_lead WHERE perwakilan_id = ?) AS leadPerwakilan,
+         (SELECT COUNT(*) FROM materi_sahabat WHERE diupload_oleh = ?) AS materiSahabat`,
+      [id, id, id, id, id, id]
     );
-    if (jumlahLead > 0) {
-      return Response.json({ error: 'Akun ini masih memiliki data terkait di kalkulator sehingga tidak bisa dihapus. Nonaktifkan saja.' }, { status: 409 });
+    const relasiTersimpan = [
+      ['invoice', 'invoice'],
+      ['penyesuaianBooking', 'penyesuaian booking'],
+      ['waitlist', 'waitlist program'],
+      ['leadKalkulator', 'lead kalkulator'],
+      ['leadPerwakilan', 'lead perwakilan'],
+      ['materiSahabat', 'materi Sahabat'],
+    ].filter(([kolom]) => Number(riwayat[kolom]) > 0).map(([, label]) => label);
+    if (relasiTersimpan.length > 0) {
+      return Response.json({ error: `Akun ini masih memiliki data terkait (${relasiTersimpan.join(', ')}), jadi tidak bisa dihapus. Nonaktifkan saja.` }, { status: 409 });
     }
 
     await pool.query('DELETE FROM users WHERE id = ?', [id]);
