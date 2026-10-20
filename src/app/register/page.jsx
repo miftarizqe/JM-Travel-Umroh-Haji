@@ -5,7 +5,7 @@ import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
 import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
 import RecaptchaCheckbox from '@/app/components/RecaptchaCheckbox';
-import { tangkapRefPerwakilan, ambilRefPerwakilan } from '@/lib/referralCapture';
+import { tangkapRefPerwakilan, ambilRefPerwakilan, ambilRefAgenId } from '@/lib/referralCapture';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 
@@ -30,7 +30,19 @@ function RegisterPageInner() {
   // Perwakilan sementara di-pause (dikonfirmasi user 2026-09-27) — link lama
   // yang bawa ?role=perwakilan gak lagi auto-lock, balik ke kartu pilihan
   // biasa (yang di situ juga udah nampilin "Segera Hadir", disabled).
-  const roleValid = (roleAwal === 'perwakilan' && !PERWAKILAN_COMING_SOON) || roleAwal === 'sahabat_baitullah';
+  const roleValidDariUrl = (roleAwal === 'perwakilan' && !PERWAKILAN_COMING_SOON) || roleAwal === 'sahabat_baitullah';
+  // Link referral agen (/a/[kode]) — jamaah yang datang lewat link ini
+  // dikunci LANGSUNG ke tipe akun Jamaah (dikonfirmasi user 2026-10-20),
+  // gak perlu lihat/pilih step "Tipe Akun" sama sekali (apalagi ketawarin
+  // kartu Perwakilan) — satu-satunya alasan mereka ke sini emang buat
+  // daftar jamaah. Dicek via localStorage (ref_agen, lihat
+  // referralCapture.js), BUKAN query URL — link agen gak bawa ?role=,
+  // cuma /a/[kode] yang nyimpen tag lalu redirect ke beranda. Kalah
+  // prioritas dari roleValidDariUrl (kasus ?role=perwakilan/sahabat lebih
+  // eksplisit/sengaja, meski kombinasinya jarang kejadian bareng).
+  const [viaAgenLink] = useState(() => !roleValidDariUrl && !!ambilRefAgenId());
+  const roleAwalEfektif = roleValidDariUrl ? roleAwal : (viaAgenLink ? 'jamaah' : roleAwal);
+  const roleValid = roleValidDariUrl || viaAgenLink;
   // Kode referral di URL (dibagikan lewat link pribadi perekrut/anggota
   // sahabat) — kalau match akun aktif, perekrut_id di-lock otomatis, gak
   // perlu pilih manual dari dropdown lagi.
@@ -49,7 +61,7 @@ function RegisterPageInner() {
     // role, dipakai buat nentuin dokumen perjanjian mana yang dipakai kalau
     // akhirnya daftar Sahabat Baitullah (referral non-Muslim).
     agama:'',
-    role: roleValid ? roleAwal : '',
+    role: roleValid ? roleAwalEfektif : '',
     perekrut_id:'', kode_undangan:'', kode_referral_perwakilan:'',
   });
   // Kalau role udah kebawa dari popup kemitraan, step 2 gak perlu nampilin
@@ -347,6 +359,12 @@ function RegisterPageInner() {
         ? { ...form, perekrut_id: undefined,
             ref_perwakilan_jamaah_id: refPerwakilanJamaahId || undefined,
             ref_sahabat_jamaah_id: refSahabatJamaahId || undefined,
+            // Agen (link /a/[kode], dikonfirmasi user 2026-10-20) — id-nya
+            // udah ada langsung di localStorage (ambilRefAgenId), gak
+            // perlu lookup/verifikasi tambahan kayak kode Perwakilan/
+            // Sahabat (itu string kode_unik yang butuh dicocokin ke akun,
+            // ini udah id akun hasil capture di /a/[kode]).
+            ref_agen_jamaah_id: ambilRefAgenId() || undefined,
             captchaToken }
         : form.role === 'sahabat_baitullah'
           // Sahabat: kirim KODE undangan saja, perekrut ditentukan server.
@@ -581,9 +599,9 @@ function RegisterPageInner() {
                 // jamaah biasa), tinggal keluar dari link ini & buka /register
                 // polos — bukan ubah-ubah pilihan di form yang sama.
                 <div className="flex items-center gap-3 bg-[#E8F0FB] border border-[#1A4FA0]/20 rounded-xl px-4 py-3">
-                  <div className="text-2xl">{form.role === 'sahabat_baitullah' ? '🤝' : '🏢'}</div>
+                  <div className="text-2xl">{form.role === 'sahabat_baitullah' ? '🤝' : form.role === 'perwakilan' ? '🏢' : '🕌'}</div>
                   <div className="font-bold text-[#0E2F6E] text-sm">
-                    {form.role === 'sahabat_baitullah' ? 'Jamaah Sahabat Baitullah' : 'Perwakilan Resmi'}
+                    {form.role === 'sahabat_baitullah' ? 'Jamaah Sahabat Baitullah' : form.role === 'perwakilan' ? 'Perwakilan Resmi' : 'Jamaah'}
                   </div>
                 </div>
               ) : (

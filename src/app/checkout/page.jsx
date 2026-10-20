@@ -129,6 +129,11 @@ function CheckoutPageInner() {
   // bawah, murni kosmetik karena server (buatSatuBooking) SUDAH memaksa
   // pakai nilai ini apapun yang dikirim client.
   const [permanentReferrer, setPermanentReferrer] = useState(null);
+  // Referral agen PERMANEN (dikunci sejak registrasi lewat link /a/[kode],
+  // migration 240, dikonfirmasi user 2026-10-20) — mirror persis
+  // permanentReferrer perwakilan di atas. Banner read-only, server
+  // (buatSatuBooking) SUDAH memaksa pakai nilai ini.
+  const [permanentAgenReferrer, setPermanentAgenReferrer] = useState(null);
   // Jamaah ketik kode_unik Perwakilan/Agen/Sahabat yang mengajak, SATU kode
   // diverifikasi ke server (POST /api/referral-list/cek-<role>, nama
   // disamarkan) — BUKAN dropdown nge-list semua nama (dikonfirmasi user
@@ -333,6 +338,13 @@ function CheckoutPageInner() {
             id: d.user.perekrut_perwakilan_jamaah_id,
             name: d.user.perekrut_perwakilan_jamaah_nama,
             kode_unik: d.user.perekrut_perwakilan_jamaah_kode,
+          });
+        }
+        if (d.user?.perekrut_agen_jamaah_id) {
+          setPermanentAgenReferrer({
+            id: d.user.perekrut_agen_jamaah_id,
+            name: d.user.perekrut_agen_jamaah_nama,
+            kode_unik: d.user.perekrut_agen_jamaah_kode,
           });
         }
       })
@@ -598,15 +610,18 @@ function CheckoutPageInner() {
             : sumber === 'perwakilan' ? (perwakilanTerverifikasi?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
             : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
-          // Link referral agen (dikonfirmasi user 2026-10-17) — awalnya
-          // murni tag invisible dari localStorage (/a/[kode]). Sekarang
-          // ADA fallback manual juga (dikonfirmasi user 2026-10-19, lihat
-          // kolom "Kode Referral Agen" di atas) — buat jamaah yang checkout
-          // ULANG tanpa lewat link lagi (tag localStorage ilang, beda
-          // device/browser, dst), pilihan manual MENANG dari tag
-          // localStorage kalau dua-duanya ada.
-          referral_agen_id: sumber === 'agen' && agenTerverifikasi
-            ? agenTerverifikasi.id
+          // Link referral agen — nilai ini murni ADVISORY buat jamaah dengan
+          // referral permanen (dikunci sejak registrasi via /a/[kode],
+          // migration 240, dikonfirmasi user 2026-10-20): server
+          // (buatSatuBooking) SELALU memaksa pakai
+          // users.perekrut_agen_jamaah_id, apapun yang dikirim di sini,
+          // sama persis pola referral_perw_id. Jamaah TANPA referral
+          // permanen (daftar duluan, baru belakangan dapat link agen) tetap
+          // kepakai: prioritas pilihan manual "Kode Referral Agen" (lihat
+          // dropdown di atas) baru fallback tag localStorage dari link
+          // /a/[kode] terakhir yang diklik.
+          referral_agen_id: permanentAgenReferrer ? permanentAgenReferrer.id
+            : sumber === 'agen' && agenTerverifikasi ? agenTerverifikasi.id
             : (ambilRefAgenId() || undefined),
           // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
           // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
@@ -1141,6 +1156,10 @@ function CheckoutPageInner() {
               <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
                 {`📌 Referral Anda terkunci ke ${permanentReferrer.name} (${permanentReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
               </div>
+            ) : permanentAgenReferrer ? (
+              <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
+                {`📌 Referral Anda terkunci ke Agen ${permanentAgenReferrer.name} (${permanentAgenReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
+              </div>
             ) : (
             <div className="bg-white border-2 border-[#C9952A] rounded-xl p-4 space-y-3">
               <div>
@@ -1174,7 +1193,7 @@ function CheckoutPageInner() {
                   <input
                     value={referralKode}
                     onChange={e => setReferralKode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: PJM0002"
+                    placeholder="Masukkan kode referral Perwakilan"
                     className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekPerwakilanStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
                   {cekPerwakilanStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
@@ -1189,7 +1208,7 @@ function CheckoutPageInner() {
                   <input
                     value={referralKode}
                     onChange={e => setReferralKode(e.target.value)}
-                    placeholder="Contoh: ida-kuraeny"
+                    placeholder="Masukkan kode referral Agen"
                     className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekAgenStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
                   {cekAgenStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
@@ -1215,7 +1234,7 @@ function CheckoutPageInner() {
                   <input
                     value={referralKode}
                     onChange={e => setReferralKode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: SBJM0002 atau 6X8AEVY"
+                    placeholder="Masukkan kode referral Sahabat Baitullah"
                     className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekSahabatStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
                   {cekSahabatStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
@@ -1234,7 +1253,7 @@ function CheckoutPageInner() {
 
             <button
               onClick={() => {
-                if (user?.role === 'perwakilan' || permanentReferrer) { setStep(2); return; }
+                if (user?.role === 'perwakilan' || permanentReferrer || permanentAgenReferrer) { setStep(2); return; }
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
                 if (sumber === 'perwakilan' && !perwakilanTerverifikasi) {
                   alert('Masukkan kode referral Perwakilan yang valid!'); return;

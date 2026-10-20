@@ -61,6 +61,7 @@ export async function GET(request) {
               u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.created_at,
               u.perekrut_perwakilan_jamaah_id, rp.name AS perekrut_perwakilan_jamaah_nama, rp.kode_unik AS perekrut_perwakilan_jamaah_kode,
               u.perekrut_sahabat_jamaah_id, rk.name AS perekrut_sahabat_jamaah_nama, rk.kode_unik AS perekrut_sahabat_jamaah_kode,
+              u.perekrut_agen_jamaah_id, ra.name AS perekrut_agen_jamaah_nama, ra.kode_unik AS perekrut_agen_jamaah_kode,
               u.kode_invite_perwakilan, u.tabungan_haji_status, u.agama,
               u.dokumen_spk_ak_fisik_path, u.dokumen_sk_cif_fisik_path, u.dokumen_surat_pemblokiran_fisik_path, u.terverifikasi,
               u.tempat_lahir, u.tanggal_lahir, u.nama_ayah, u.nama_ibu, u.foto_ktp_path, u.pekerjaan, u.pendidikan_terakhir,
@@ -69,6 +70,7 @@ export async function GET(request) {
        LEFT JOIN users p ON p.id = u.perekrut_id
        LEFT JOIN users rp ON rp.id = u.perekrut_perwakilan_jamaah_id
        LEFT JOIN users rk ON rk.id = u.perekrut_sahabat_jamaah_id
+       LEFT JOIN users ra ON ra.id = u.perekrut_agen_jamaah_id
        WHERE u.id = ?`, [userId]
     );
     if (rows.length === 0) return Response.json({ error: 'User tidak ditemukan' }, { status: 404 });
