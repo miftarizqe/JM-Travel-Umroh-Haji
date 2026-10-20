@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
-import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar } from '@/app/components/CartPaketKamar';
+import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar, hargaItem } from '@/app/components/CartPaketKamar';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -1319,31 +1319,64 @@ function CheckoutPageInner() {
               <div className="text-xs text-red-500 mb-1">⏰ Batas Waktu Pembayaran DP</div>
               <div className="text-4xl font-black text-red-600 font-mono tracking-widest">{timerFmt}</div>
             </div>
-            <div className="bg-[#E8F0FB] rounded-xl p-4 space-y-2">
-              <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0] mb-3">📋 Invoice DP</div>
-              <div className="flex justify-between text-sm text-gray-500">
-                <span>Program</span><span className="font-semibold text-[#0E2F6E]">{prog.name}</span>
+            {/* Invoice DP — 3 konsep dilabelin eksplisit di TIAP baris:
+                Harga program (total yang harus dibayar) / DP (dibayar
+                SEKARANG) / Sisa pelunasan (dibayar NANTI). Dulu cuma
+                "Nama — Paket ... Rp 5jt" + "Total DP" + "Transfer Tepat" +
+                kotak sisa terpisah, user gak bisa bedain mana harga
+                program, mana DP, mana yang dibayar (dikonfirmasi user
+                2026-10-19). Angka total diambil dari `summary`
+                (CartPaketKamar, sudah termasuk voucher). */}
+            <div className="bg-white border-2 border-[#E8F0FB] rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">📋 Invoice DP</div>
+                <div className="text-xs text-gray-500">{prog.name}</div>
               </div>
-              {cart.map((c, i) => (
-                <div key={i} className="flex justify-between text-sm text-gray-500">
-                  <span className="capitalize">{c.nama || `Jamaah ${i + 1}`} — {labelPaketKamar(c)}</span>
-                  <span className="font-semibold text-[#0E2F6E]">Rp {(prog?.dp || 0).toLocaleString('id-ID')}</span>
-                </div>
-              ))}
-              <div className="flex justify-between text-sm text-gray-500 pt-1 border-t border-blue-200">
-                <span>Total DP</span><span className="font-semibold text-[#0E2F6E]">Rp {totalDP.toLocaleString('id-ID')}</span>
-              </div>
-              <div className="border-t border-blue-200 pt-2 flex justify-between font-bold">
-                <span className="text-sm">Transfer Tepat</span>
-                <span className="text-red-600">Rp {totalDP.toLocaleString('id-ID')}</span>
-              </div>
-            </div>
 
-            <div className="bg-[#FEF3DC] border border-[#C9952A] rounded-xl p-4 text-sm text-[#8a6516]">
-              ℹ️ Sisa pelunasan setelah DP ini dikonfirmasi: <strong>Rp {summary.sisaPelunasan.toLocaleString('id-ID')}</strong>
-              {summary.voucherKode && (
-                <div className="text-xs mt-1">(sudah termasuk diskon voucher {summary.voucherKode} −Rp {summary.voucherDiskon.toLocaleString('id-ID')})</div>
-              )}
+              {cart.map((c, i) => {
+                const harga = hargaItem(prog, c);
+                const dp = Number(prog?.dp || 0);
+                return (
+                  <div key={i} className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
+                    <div className="font-semibold text-[#0E2F6E] capitalize">{c.nama || `Jamaah ${i + 1}`}</div>
+                    <div className="text-[11px] text-gray-400 -mt-0.5 mb-1">{labelPaketKamar(c)}</div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>Harga program</span><span className="text-[#0E2F6E]">Rp {harga.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-500">
+                      <span>DP <span className="text-[11px]">(dibayar sekarang)</span></span><span className="font-semibold text-[#0E2F6E]">Rp {dp.toLocaleString('id-ID')}</span>
+                    </div>
+                    <div className="flex justify-between text-gray-400 text-xs">
+                      <span>Sisa pelunasan <span className="text-[11px]">(dibayar nanti)</span></span><span>Rp {Math.max(0, harga - dp).toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                );
+              })}
+
+              <div className="border-t border-gray-200 pt-3 space-y-1.5 text-sm">
+                <div className="flex justify-between text-gray-500">
+                  <span>Total harga program{cart.length > 1 ? ` (${cart.length} jamaah)` : ''}</span>
+                  <span className="text-[#0E2F6E]">Rp {Number(summary.totalHarga || 0).toLocaleString('id-ID')}</span>
+                </div>
+                {summary.voucherKode && summary.voucherDiskon > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Diskon voucher ({summary.voucherKode})</span>
+                    <span>−Rp {Number(summary.voucherDiskon).toLocaleString('id-ID')}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-gray-500">
+                  <span>Sisa pelunasan <span className="text-[11px]">(dibayar nanti, setelah DP dikonfirmasi)</span></span>
+                  <span className="text-[#0E2F6E] whitespace-nowrap">Rp {Number(summary.sisaPelunasan || 0).toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex justify-between items-center">
+                <div>
+                  <div className="text-sm font-bold text-red-700">Yang ditransfer SEKARANG</div>
+                  <div className="text-[11px] text-red-500">Total DP{cart.length > 1 ? ` ${cart.length} jamaah` : ''} — transfer tepat sesuai nominal ini</div>
+                </div>
+                <div className="text-lg font-black text-red-600 whitespace-nowrap">Rp {totalDP.toLocaleString('id-ID')}</div>
+              </div>
             </div>
 
             {/* Bayar DP dari saldo tabungan umroh buat program reguler

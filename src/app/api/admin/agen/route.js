@@ -172,35 +172,100 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   const auth = wajibRole(request, ['admin', 'super_admin']);
   if (auth.error) return auth.error;
+  let conn;
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return Response.json({ error: 'id wajib diisi' }, { status: 400 });
-
-    const [[target]] = await pool.query("SELECT name FROM users WHERE id = ? AND role = 'agen'", [id]);
-    if (!target) return Response.json({ error: 'Akun agen tidak ditemukan' }, { status: 404 });
-
-    const [[{ jml }]] = await pool.query(
-      `SELECT
-         (SELECT COUNT(*) FROM bookings WHERE referral_agen_id = ?) +
-         (SELECT COUNT(*) FROM komisi_ledger WHERE penerima_id = ? AND jenis = 'ujroh_agen') AS jml`,
-      [id, id]
-    );
-    if (jml > 0) {
-      return Response.json({ error: 'Akun ini sudah punya riwayat booking/komisi, tidak bisa dihapus permanen. Nonaktifkan saja.' }, { status: 400 });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      return Response.json({ error: 'Format id agen tidak valid' }, { status: 400 });
     }
 
-    await pool.query('DELETE FROM users WHERE id = ?', [id]);
-    await catatAudit(pool, {
+    conn = await pool.getConnection();
+    const [[target]] = await conn.query("SELECT name FROM users WHERE id = ? AND role = 'agen'", [id]);
+    if (!target) return Response.json({ error: 'Akun agen tidak ditemukan' }, { status: 404 });
+
+    const [[{ jumlahBooking }]] = await conn.query(
+      'SELECT COUNT(*) AS jumlahBooking FROM bookings WHERE referral_agen_id = ?',
+      [id]
+    );
+    // Semua baris ledger menjadi riwayat komisi/pencairan. Pengajuan ujroh
+    // agen menautkan pencairannya ke baris ledger lewat
+    // komisi_ledger.pengajuan_ujroh_agen_id (migration 236), bukan langsung
+    // ke user, jadi memeriksa seluruh ledger penerima_id juga melindungi
+    // relasi pencairannya.
+    const [[{ jumlahKomisi }]] = await conn.query(
+      'SELECT COUNT(*) AS jumlahKomisi FROM komisi_ledger WHERE penerima_id = ?',
+      [id]
+    );
+    // users.perekrut_id menyimpan rantai perekrutan (migration 010). Jangan
+    // putuskan rantai tersebut dengan menghapus akun perekrut.
+    const [[{ jumlahDownline }]] = await conn.query(
+      'SELECT COUNT(*) AS jumlahDownline FROM users WHERE perekrut_id = ?',
+      [id]
+    );
+    if (jumlahBooking > 0 || jumlahKomisi > 0 || jumlahDownline > 0) {
+      return Response.json({ error: 'Akun ini masih memiliki data booking, komisi, pencairan, atau downline terkait sehingga tidak bisa dihapus. Nonaktifkan saja.' }, { status: 409 });
+    }
+
+    // Jangan biarkan foreign key lain menghasilkan 500 saat menghapus user.
+    // Catatan dari dev DB: invoice_kwitansi.dibuat_oleh,
+    // booking_penyesuaian_harga.diajukan_oleh, program_waitlist.user_id,
+    // kalkulator_lead.user_id, kalkulator_perwakilan_lead.perwakilan_id,
+    // materi_sahabat.diupload_oleh semuanya mereferensikan users.id.
+    const [[riwayat]] = await conn.query(
+      `SELECT
+         (SELECT COUNT(*) FROM invoice_kwitansi WHERE dibuat_oleh = ?) AS invoice,
+         (SELECT COUNT(*) FROM booking_penyesuaian_harga WHERE diajukan_oleh = ?) AS penyesuaianBooking,
+         (SELECT COUNT(*) FROM program_waitlist WHERE user_id = ?) AS waitlist,
+         (SELECT COUNT(*) FROM kalkulator_lead WHERE user_id = ?) AS leadKalkulator,
+         (SELECT COUNT(*) FROM kalkulator_perwakilan_lead WHERE perwakilan_id = ?) AS leadPerwakilan,
+         (SELECT COUNT(*) FROM materi_sahabat WHERE diupload_oleh = ?) AS materiSahabat`,
+      [id, id, id, id, id, id]
+    );
+    const relasiTersimpan = [
+      ['invoice', 'invoice'],
+      ['penyesuaianBooking', 'penyesuaian booking'],
+      ['waitlist', 'waitlist program'],
+      ['leadKalkulator', 'lead kalkulator'],
+      ['leadPerwakilan', 'lead perwakilan'],
+      ['materiSahabat', 'materi Sahabat'],
+    ].filter(([kolom]) => Number(riwayat[kolom]) > 0).map(([, label]) => label);
+    if (relasiTersimpan.length > 0) {
+      return Response.json({ error: `Akun ini masih memiliki data terkait (${relasiTersimpan.join(', ')}), jadi tidak bisa dihapus. Nonaktifkan saja.` }, { status: 409 });
+    }
+
+    // Trigger users_cegah_hapus_langsung hanya mengizinkan penghapusan
+    // melalui jalur aplikasi yang memasang flag pada koneksi MySQL yang sama.
+    // Sesi khusus diperlukan: pool.query terpisah bisa memilih koneksi lain.
+    await conn.beginTransaction();
+    await conn.query('SET @izin_hapus_users = 1');
+    await conn.query('DELETE FROM users WHERE id = ?', [id]);
+    await catatAudit(conn, {
       actor: auth.user,
       aksi: 'hapus_akun_agen',
       target_type: 'user',
       target_id: id,
       keterangan: `Akun agen ${target.name} dihapus permanen (belum ada riwayat booking/komisi)`,
     });
+    await conn.commit();
     return Response.json({ message: 'Akun agen dihapus.' });
   } catch (error) {
+    if (conn) {
+      try { await conn.rollback(); } catch {}
+    }
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
+  } finally {
+    if (conn) {
+      // Jangan kembalikan koneksi ke pool dengan izin penghapusan tertinggal.
+      try {
+        await conn.query('SET @izin_hapus_users = 0');
+        conn.release();
+      } catch (error) {
+        console.error('Gagal mereset izin hapus users; koneksi dibuang dari pool.', error);
+        conn.destroy();
+      }
+    }
   }
 }
