@@ -8,6 +8,7 @@ import { lepasHoldSaldoSahabat } from '@/lib/saldoSahabat';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { potongKuotaSeatDp } from '@/lib/booking';
 import { hitungSisaBayar } from '@/lib/pelunasan';
+import { potongSaldoDeposit, saldoDeposit } from '@/lib/depositSaldo';
 
 // GET — payments (admin/booking), termasuk bukti transfer
 export async function GET(request) {
@@ -64,13 +65,24 @@ export async function POST(request) {
   const auth = wajibLogin(request);
   if (auth.error) return auth.error;
   try {
-    const { booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, voucher_kode } = await request.json();
+    const { booking_id, user_id, type, amount, kode_unik, bukti_path, bukti_nama, voucher_kode, sumber_dana } = await request.json();
 
     if (!booking_id || !user_id || !type || !amount) {
       return Response.json({ error: 'Field wajib tidak lengkap' }, { status: 400 });
     }
-    // Bukti transfer wajib — tidak boleh submit tanpa bukti
-    if (!bukti_path) {
+    // Saldo Deposit (dikonfirmasi user 2026-10-20) — cicilan pelunasan boleh
+    // didanai Saldo Deposit sepenuhnya (1 baris payment = 1 sumber dana,
+    // gak dicampur sebagian-saldo-sebagian-transfer DALAM 1 baris yang sama;
+    // kalau saldo gak cukup nutup nominal yang diajukan, submit nominal lebih
+    // kecil dulu, sisanya cicilan berikutnya lewat transfer manual seperti
+    // biasa — mekanisme cicilan yang sudah ada). Gak ada bukti buat baris
+    // ini, jadi lewati syarat upload bukti transfer.
+    const pakaiSaldoDeposit = sumber_dana === 'saldo_deposit';
+    if (pakaiSaldoDeposit && type !== 'lunas') {
+      return Response.json({ error: 'Saldo Deposit buat DP booking baru pakai endpoint lain (bayar-dp-saldo).' }, { status: 400 });
+    }
+    // Bukti transfer wajib — tidak boleh submit tanpa bukti (kecuali didanai Saldo Deposit)
+    if (!pakaiSaldoDeposit && !bukti_path) {
       return Response.json({ error: 'Bukti transfer wajib diunggah' }, { status: 400 });
     }
 
@@ -151,18 +163,50 @@ export async function POST(request) {
       if (pendingLunas) {
         return Response.json({ error: 'Masih ada pembayaran pelunasan yang menunggu konfirmasi admin. Tunggu diproses dulu sebelum kirim lagi.' }, { status: 400 });
       }
+      if (pakaiSaldoDeposit) {
+        const saldo = await saldoDeposit(pool, user_id);
+        if (Number(amount) > saldo) {
+          return Response.json({ error: `Saldo Deposit tidak cukup (tersedia Rp${saldo.toLocaleString('id-ID')}, butuh Rp${Number(amount).toLocaleString('id-ID')}). Kirim nominal yang lebih kecil, atau pakai transfer manual.` }, { status: 400 });
+        }
+      }
     }
 
     const [users] = await pool.query('SELECT name FROM users WHERE id = ?', [user_id]);
     const nama = users.length ? users[0].name : null;
 
-    await pool.query(
-      `INSERT INTO payments
-       (booking_id, user_id, nama, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status, voucher_kode, diskon_voucher)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'pending', ?, ?)`,
-      [booking_id, user_id, nama, type, amount, kode_unik || 0, bukti_path, bukti_nama || null,
-       diskonVoucher > 0 ? voucher_kode.toUpperCase() : null, diskonVoucher > 0 ? diskonVoucher : null]
-    );
+    if (pakaiSaldoDeposit) {
+      // Debit saldo + insert payment ATOMIK — kalau salah satu gagal, dua-
+      // duanya batal (gak ada saldo kepotong tanpa payment row, atau sebaliknya).
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+        await potongSaldoDeposit(conn, {
+          userId: user_id, bookingIdPakai: booking_id, nominal: Number(amount),
+          keterangan: `Pelunasan booking ${booking_id} (${nama || '-'})`,
+        });
+        await conn.query(
+          `INSERT INTO payments
+           (booking_id, user_id, nama, type, amount, kode_unik, bukti_path, bukti_nama, status, sumber_dana, voucher_kode, diskon_voucher)
+           VALUES (?, ?, ?, ?, ?, 0, NULL, NULL, 'pending', 'saldo_deposit', ?, ?)`,
+          [booking_id, user_id, nama, type, amount,
+           diskonVoucher > 0 ? voucher_kode.toUpperCase() : null, diskonVoucher > 0 ? diskonVoucher : null]
+        );
+        await conn.commit();
+      } catch (e) {
+        await conn.rollback();
+        throw e;
+      } finally {
+        conn.release();
+      }
+    } else {
+      await pool.query(
+        `INSERT INTO payments
+         (booking_id, user_id, nama, type, amount, kode_unik, bukti_path, bukti_nama, bukti_uploaded_at, status, voucher_kode, diskon_voucher)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'pending', ?, ?)`,
+        [booking_id, user_id, nama, type, amount, kode_unik || 0, bukti_path, bukti_nama || null,
+         diskonVoucher > 0 ? voucher_kode.toUpperCase() : null, diskonVoucher > 0 ? diskonVoucher : null]
+      );
+    }
 
     if (type === 'lunas') {
       await pool.query(
@@ -173,13 +217,13 @@ export async function POST(request) {
 
     await kirimNotifikasiAdmin(pool, {
       tipe: 'pembayaran_baru',
-      judul: `Bukti ${type === 'lunas' ? 'Pelunasan' : 'DP'} Baru`,
-      pesan: `${nama || 'Jamaah'} mengirim bukti ${type === 'lunas' ? 'pelunasan' : 'DP'} untuk booking ${booking_id}.`,
+      judul: `${pakaiSaldoDeposit ? 'Pelunasan via Saldo Deposit' : `Bukti ${type === 'lunas' ? 'Pelunasan' : 'DP'} Baru`}`,
+      pesan: `${nama || 'Jamaah'} ${pakaiSaldoDeposit ? 'memotong Saldo Deposit untuk' : `mengirim bukti ${type === 'lunas' ? 'pelunasan' : 'DP'} untuk`} booking ${booking_id}.`,
       link: '/admin?tab=payments',
     });
 
     return Response.json(
-      { message: 'Bukti pembayaran berhasil dikirim! Menunggu konfirmasi admin.' },
+      { message: pakaiSaldoDeposit ? 'Saldo Deposit berhasil dipotong! Menunggu konfirmasi admin.' : 'Bukti pembayaran berhasil dikirim! Menunggu konfirmasi admin.' },
       { status: 201 }
     );
   } catch (error) {

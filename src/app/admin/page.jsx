@@ -1470,6 +1470,10 @@ function AdminPageInner() {
                           <div className="text-xs font-bold text-[#1A4FA0]">Lihat Bukti Transfer</div>
                           <div className="text-[10px] text-gray-400 mt-0.5">{first.bukti_nama || 'bukti'}</div>
                         </a>
+                      ) : first.sumber_dana === 'saldo_deposit' ? (
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 text-xs text-purple-700 text-center font-semibold">
+                          💰 Dibayar pakai Saldo Deposit — tidak ada transfer, tinggal diverifikasi.
+                        </div>
                       ) : (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 text-center">
                           ⚠️ Tidak ada bukti transfer terlampir

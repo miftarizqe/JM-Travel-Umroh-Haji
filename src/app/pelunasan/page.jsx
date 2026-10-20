@@ -33,6 +33,13 @@ function PelunasanPageInner() {
   // bayar SISA PENUH atau nominal custom (biar bisa dicicil beberapa kali).
   const [modeBayar, setModeBayar] = useState('sisa'); // 'sisa' | 'custom'
   const [nominalCustom, setNominalCustom] = useState('');
+  // Saldo Deposit (dikonfirmasi user 2026-10-20) — boleh motong SEBAGIAN
+  // cicilan pelunasan, gak harus nutup penuh. 1 submission = 1 sumber dana
+  // (saldo ATAU transfer, gak dicampur dalam 1 baris) — kalau saldo gak
+  // cukup buat nutup nominal yang mau dibayar sekarang, kirim cicilan ini
+  // pakai saldo dulu (sebesar saldo yang ada), sisanya cicilan berikutnya
+  // via transfer manual seperti biasa (mekanisme cicilan yang sudah ada).
+  const [saldoDeposit, setSaldoDeposit] = useState(0);
 
   // Udah cek voucher atau upload bukti — sayang kalau ilang
   const isDirty = !!voucher || !!buktiPath;
@@ -54,6 +61,8 @@ function PelunasanPageInner() {
   const maksBayarSekarang = Math.max(0, sisaSebenarnya - diskon);
   const sisaBayar = modeBayar === 'custom'
     ? Math.max(0, Number(nominalCustom) || 0)
+    : modeBayar === 'saldo_deposit'
+    ? Math.min(saldoDeposit, maksBayarSekarang)
     : maksBayarSekarang;
   const nominalCustomValid = modeBayar !== 'custom'
     || (Number(nominalCustom) > 0 && Number(nominalCustom) <= maksBayarSekarang);
@@ -69,6 +78,7 @@ function PelunasanPageInner() {
           if (found) setBooking(found);
         });
     }
+    fetch('/api/saldo-deposit').then(r => r.json()).then(d => setSaldoDeposit(d.saldo || 0)).catch(() => {});
   }, [user, bookingId]);
 
   async function cekVoucher() {
@@ -91,8 +101,9 @@ function PelunasanPageInner() {
           user_id: user.id,
           type: 'lunas',
           amount: sisaBayar,
-          bukti_path: buktiPath,
-          bukti_nama: buktiNama,
+          bukti_path: modeBayar === 'saldo_deposit' ? null : buktiPath,
+          bukti_nama: modeBayar === 'saldo_deposit' ? null : buktiNama,
+          sumber_dana: modeBayar === 'saldo_deposit' ? 'saldo_deposit' : undefined,
           kode_unik: 0,
           voucher_kode: voucher?.kode || undefined,
         })
@@ -109,7 +120,9 @@ function PelunasanPageInner() {
           } catch { /* abaikan, pelunasan tetap sukses */ }
         }
         alert(
-          modeBayar === 'custom' && sisaBayar < maksBayarSekarang
+          modeBayar === 'saldo_deposit'
+            ? `Rp ${sisaBayar.toLocaleString('id-ID')} dipotong dari Saldo Deposit! Menunggu konfirmasi admin.`
+            : modeBayar === 'custom' && sisaBayar < maksBayarSekarang
             ? 'Bukti cicilan pelunasan terkirim! Menunggu konfirmasi admin.'
             : 'Bukti pelunasan terkirim! Menunggu konfirmasi admin.'
         );
@@ -256,7 +269,7 @@ function PelunasanPageInner() {
         {!adaLunasPending && (
           <div className="bg-white rounded-xl border border-[#e0e8f0] p-5 space-y-3">
             <div className="font-bold text-[#0E2F6E]">💵 Jumlah yang Akan Dibayar Sekarang</div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className={`grid gap-2 ${saldoDeposit > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
               <button onClick={() => setModeBayar('sisa')}
                 className={`rounded-xl p-3 text-left border-2 transition-colors ${modeBayar === 'sisa' ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'}`}>
                 <div className="text-xs font-bold text-[#0E2F6E]">💰 Bayar Sisanya</div>
@@ -267,7 +280,22 @@ function PelunasanPageInner() {
                 <div className="text-xs font-bold text-[#0E2F6E]">🔢 Bayar Nominal Lain</div>
                 <div className="text-sm text-gray-400 mt-0.5">Cicil sebagian</div>
               </button>
+              {saldoDeposit > 0 && (
+                <button onClick={() => setModeBayar('saldo_deposit')}
+                  className={`rounded-xl p-3 text-left border-2 transition-colors ${modeBayar === 'saldo_deposit' ? 'border-[#1A4FA0] bg-[#E8F0FB]' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="text-xs font-bold text-[#0E2F6E]">💳 Saldo Deposit</div>
+                  <div className="text-sm font-bold text-[#1A4FA0] mt-0.5">Rp {Math.min(saldoDeposit, maksBayarSekarang).toLocaleString('id-ID')}</div>
+                </button>
+              )}
             </div>
+            {modeBayar === 'saldo_deposit' && (
+              <div className="text-xs text-gray-500">
+                Tersedia Rp {saldoDeposit.toLocaleString('id-ID')}.{' '}
+                {saldoDeposit < maksBayarSekarang
+                  ? `Saldo belum cukup nutup semua sisa tagihan — ini baru sebagian, sisa Rp ${(maksBayarSekarang - saldoDeposit).toLocaleString('id-ID')} dicicil lagi nanti pakai transfer manual.`
+                  : 'Langsung dipotong dari Saldo Deposit, tanpa perlu upload bukti transfer.'}
+              </div>
+            )}
             {modeBayar === 'custom' && (
               <div>
                 <input type="number" min="1" max={maksBayarSekarang}
@@ -290,29 +318,33 @@ function PelunasanPageInner() {
           </div>
         )}
 
-        {/* Rekening */}
-        <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-5 space-y-3">
-          <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan</div>
-          {metodePembayaran.map(m => (
-            <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
-              <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
-              {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
-              {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
-              {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
-            </div>
-          ))}
-        </div>
+        {/* Rekening — gak relevan kalau bayar pakai Saldo Deposit (gak ada transfer). */}
+        {modeBayar !== 'saldo_deposit' && (
+          <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-5 space-y-3">
+            <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan</div>
+            {metodePembayaran.map(m => (
+              <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
+                {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
+                {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Upload */}
-        <UploadBukti
-            onUploaded={(path, nama) => { setBuktiPath(path); setBuktiNama(nama); }}
-            label="Klik untuk upload bukti pelunasan"
-          />
+        {modeBayar !== 'saldo_deposit' && (
+          <UploadBukti
+              onUploaded={(path, nama) => { setBuktiPath(path); setBuktiNama(nama); }}
+              label="Klik untuk upload bukti pelunasan"
+            />
+        )}
 
         <button onClick={submitPelunasan}
-          disabled={!buktiPath || loading || formBelumLengkap || perjanjianBelumSelesai || adaPenyesuaianPending || adaLunasPending || !nominalCustomValid || sisaBayar <= 0}
+          disabled={(modeBayar !== 'saldo_deposit' && !buktiPath) || loading || formBelumLengkap || perjanjianBelumSelesai || adaPenyesuaianPending || adaLunasPending || !nominalCustomValid || sisaBayar <= 0}
           className="w-full bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-          {loading ? 'Memproses...' : modeBayar === 'custom' ? 'Kirim Bukti Cicilan →' : 'Kirim Bukti Pelunasan →'}
+          {loading ? 'Memproses...' : modeBayar === 'saldo_deposit' ? 'Potong Saldo Deposit →' : modeBayar === 'custom' ? 'Kirim Bukti Cicilan →' : 'Kirim Bukti Pelunasan →'}
         </button>
 
       </div>
