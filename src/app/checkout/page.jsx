@@ -176,6 +176,16 @@ function CheckoutPageInner() {
   const [buktiNama, setBuktiNama] = useState(null);
   const [loading, setLoading] = useState(false);
   const [bookingIds, setBookingIds] = useState([]);
+  // Saldo Deposit umum (dikonfirmasi user 2026-10-20) — konversi DP batal
+  // program lain, gak ada expired, bisa dipakai atas nama siapa aja. Kalau
+  // cukup buat nutup totalDP, jadi ALTERNATIF transfer manual (skip upload
+  // bukti sama sekali, DP langsung confirmed).
+  const [saldoDeposit, setSaldoDeposit] = useState(0);
+  const [metodeBayarDp, setMetodeBayarDp] = useState('transfer'); // 'transfer' | 'saldo_deposit'
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/saldo-deposit').then(r => r.json()).then(d => setSaldoDeposit(d.saldo || 0)).catch(() => {});
+  }, [user]);
   const [timer, setTimer] = useState(3599);
   // Konsen eksplisit pemotongan saldo (dikonfirmasi user 2026-10-11) —
   // checkout-mandiri motong saldo tabungan LANGSUNG begitu submit (lihat
@@ -596,8 +606,8 @@ function CheckoutPageInner() {
           // itu duit khusus target program eksklusif, bukan metode bayar
           // buat program lain). Checkout mandiri program EKSKLUSIF (beda
           // flow, submitMandiri di bawah) sama sekali gak disentuh.
-          bukti_path: buktiPath,
-          bukti_nama: buktiNama,
+          bukti_path: metodeBayarDp === 'saldo_deposit' ? null : buktiPath,
+          bukti_nama: metodeBayarDp === 'saldo_deposit' ? null : buktiNama,
           voucher_kode: summary.voucherKode,
           // Referral: menentukan siapa penerima komisi. Untuk jamaah dengan
           // referral permanen, nilai ini murni ADVISORY — server
@@ -633,7 +643,25 @@ function CheckoutPageInner() {
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error); setLoading(false); return; }
-      setBookingIds(data.bookings.map(b => b.booking_id));
+      const bookingIdsBaru = data.bookings.map(b => b.booking_id);
+
+      // Bayar DP pakai Saldo Deposit — dipanggil SESUDAH booking tercipta
+      // (bukti_path dikirim null di atas), 1 booking 1 panggilan (tiap
+      // booking punya 1 baris payment DP pending sendiri). Sekuensial, bukan
+      // Promise.all, biar kalau ada yang gagal di tengah urutan masih jelas
+      // mana yang udah/belum kepotong saldonya (gak ada race, 1 user 1 sesi).
+      if (metodeBayarDp === 'saldo_deposit') {
+        for (const bid of bookingIdsBaru) {
+          const rSaldo = await fetch(`/api/bookings/${bid}/bayar-dp-saldo`, { method: 'POST' });
+          const dSaldo = await rSaldo.json();
+          if (!rSaldo.ok) {
+            alert(`Booking ${bid} gagal dibayar pakai Saldo Deposit: ${dSaldo.error || 'Terjadi kesalahan'}. Booking lain yang sudah diproses tetap tersimpan — cek dashboard untuk lanjutkan transfer manual.`);
+            break;
+          }
+        }
+      }
+
+      setBookingIds(bookingIdsBaru);
       trackLead({ value: summary.totalDp, currency: 'IDR', sumber_info: sumber });
       setStep(4);
     } catch (e) {
@@ -1399,37 +1427,62 @@ function CheckoutPageInner() {
             </div>
 
             {/* Bayar DP dari saldo tabungan umroh buat program reguler
-                DICABUT (dikonfirmasi user 2026-10-15) — selalu transfer
-                manual sekarang, sama kayak jamaah biasa. */}
-            <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
-              <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan</div>
-              {metodePembayaran.map(m => (
-                <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
-                  <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
-                  {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
-                  {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
-                  {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
+                DICABUT (dikonfirmasi user 2026-10-15) — itu khusus BSI/
+                Sahabat Baitullah. Saldo Deposit DI SINI beda sama sekali:
+                umum, dari konversi DP batal, gak ada expired (dikonfirmasi
+                user 2026-10-20) — jadi ALTERNATIF transfer manual kalau
+                cukup buat nutup totalDP persis. */}
+            {saldoDeposit >= totalDP && totalDP > 0 && (
+              <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">💰 Saldo Deposit Anda: Rp {saldoDeposit.toLocaleString('id-ID')}</div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setMetodeBayarDp('transfer')}
+                    className={`flex-1 text-xs font-bold py-2 rounded-full border-2 transition-colors ${metodeBayarDp === 'transfer' ? 'bg-[#1A4FA0] border-[#1A4FA0] text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    Transfer Manual
+                  </button>
+                  <button type="button" onClick={() => setMetodeBayarDp('saldo_deposit')}
+                    className={`flex-1 text-xs font-bold py-2 rounded-full border-2 transition-colors ${metodeBayarDp === 'saldo_deposit' ? 'bg-[#1A4FA0] border-[#1A4FA0] text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    Pakai Saldo Deposit
+                  </button>
                 </div>
-              ))}
-            </div>
+                {metodeBayarDp === 'saldo_deposit' && (
+                  <div className="text-[11px] text-gray-400">DP langsung lunas dari Saldo Deposit, tanpa transfer & tanpa menunggu verifikasi admin.</div>
+                )}
+              </div>
+            )}
+            {metodeBayarDp !== 'saldo_deposit' && (
+              <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan</div>
+                {metodePembayaran.map(m => (
+                  <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                    <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
+                    {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
+                    {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                    {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
             {/* Notice DP non-refundable (dikonfirmasi user 2026-09-27) — cuma
                 di flow checkout normal (ada DP), BUKAN di checkout mandiri
                 Sahabat Baitullah (dibayar dari saldo tabungan, gak ada DP). */}
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600 text-center">
               ⚠️ DP tidak dapat dikembalikan, namun dapat dialihkan ke program lain.
             </div>
-            <UploadBukti
-              onUploaded={(path, nama) => { setBuktiPath(path); setBuktiNama(nama); }}
-              label="Klik untuk upload bukti transfer DP"
-            />
+            {metodeBayarDp !== 'saldo_deposit' && (
+              <UploadBukti
+                onUploaded={(path, nama) => { setBuktiPath(path); setBuktiNama(nama); }}
+                label="Klik untuk upload bukti transfer DP"
+              />
+            )}
             <div className="flex gap-3">
               <button onClick={() => setStep(2)}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                 ← Kembali
               </button>
-              <button onClick={submitBooking} disabled={!buktiPath || loading}
+              <button onClick={submitBooking} disabled={(metodeBayarDp !== 'saldo_deposit' && !buktiPath) || loading}
                 className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                {loading ? 'Memproses...' : 'Kirim Bukti Transfer'}
+                {loading ? 'Memproses...' : metodeBayarDp === 'saldo_deposit' ? 'Bayar Pakai Saldo Deposit' : 'Kirim Bukti Transfer'}
               </button>
             </div>
           </div>
