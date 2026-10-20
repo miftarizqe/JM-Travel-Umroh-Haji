@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
 import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar } from '@/app/components/CartPaketKamar';
-import SearchableSelect from '@/app/components/SearchableSelect';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -130,23 +129,26 @@ function CheckoutPageInner() {
   // bawah, murni kosmetik karena server (buatSatuBooking) SUDAH memaksa
   // pakai nilai ini apapun yang dikirim client.
   const [permanentReferrer, setPermanentReferrer] = useState(null);
-  const [perwList, setPerwList] = useState([]);
-  // Daftar akun agen AKTIF — fallback MANUAL "Sumber Informasi: Agen"
-  // (dikonfirmasi user 2026-10-19, mirror dropdown Perwakilan di atas).
+  // Jamaah ketik kode_unik Perwakilan/Agen/Sahabat yang mengajak, SATU kode
+  // diverifikasi ke server (POST /api/referral-list/cek-<role>, nama
+  // disamarkan) — BUKAN dropdown nge-list semua nama (dikonfirmasi user
+  // 2026-10-19, nyamain ke pola Sahabat Baitullah yang udah ditutup duluan
+  // 2026-09-28 — checkout sebelumnya kelewat masih expose GET
+  // /api/referral-list & ?role=agen yang balikin nama lengkap SEMUA
+  // perwakilan/agen ke siapa pun tanpa login).
+  const [perwakilanTerverifikasi, setPerwakilanTerverifikasi] = useState(null);
+  const [cekPerwakilanStatus, setCekPerwakilanStatus] = useState('');
   // referral_agen_id biasanya tag invisible dari localStorage (klik link
   // /a/[kode]) — tapi itu ilang kalau beda device/browser/cache kehapus.
-  // Pilihan manual ini JAGA-JAGA biar jamaah tetap bisa ngasih kredit ke
+  // Fallback manual ini JAGA-JAGA biar jamaah tetap bisa ngasih kredit ke
   // agen yang ngajak walau tag-nya udah gak ada, TANPA perlu ngunci
   // permanen ke akun (dikonfirmasi user, beda dari referral perwakilan).
-  const [agenList, setAgenList] = useState([]);
+  const [agenTerverifikasi, setAgenTerverifikasi] = useState(null);
+  const [cekAgenStatus, setCekAgenStatus] = useState('');
   // "Closing langsung" sahabat — jamaah booking langsung (bukan nabung),
   // atribusi ke anggota sahabat yang bantu, pola identik sumber='perwakilan'
   // di atas. MURNI tag (referral_sahabat_id) buat admin proses split
   // rekening pribadi secara manual — TIDAK ikut logic komisi/voucher apa pun.
-  // Daftar nama anggota Sahabat SENGAJA gak di-fetch lagi (ditutup
-  // 2026-09-28, dikonfirmasi user — dulu dropdown nampilin nama lengkap semua
-  // anggota). Jamaah ketik kode_unik Sahabat yang mengajak, diverifikasi
-  // server 1 kode (POST /api/referral-list/cek-sahabat, nama disamarkan).
   const [sahabatTerverifikasi, setSahabatTerverifikasi] = useState(null);
   const [cekSahabatStatus, setCekSahabatStatus] = useState('');
   const [buktiPath, setBuktiPath] = useState(null);
@@ -224,9 +226,12 @@ function CheckoutPageInner() {
   const isDirty = step > 1 && step < (isMandiriSahabat ? 3 : 4);
   useUnsavedGuard(isDirty);
 
-  // Verifikasi kode Sahabat yang diketik jamaah (didebounce 400ms). Akun
-  // Sahabat sendiri gak lewat sini — referralKode-nya kode milik sendiri &
-  // referral_sahabat_id dipaksa user.id pas submit.
+  // Verifikasi kode Sahabat/Perwakilan/Agen yang diketik jamaah (didebounce
+  // 400ms, 1 kode ke server — BUKAN cari di daftar lengkap yang di-fetch
+  // duluan, lihat catatan di atas). Akun Sahabat sendiri gak lewat sini —
+  // referralKode-nya kode milik sendiri & referral_sahabat_id dipaksa
+  // user.id pas submit. Perwakilan checkout sendiri juga gak lewat sini
+  // (ketutup banner read-only duluan, lihat render di bawah).
   useEffect(() => {
     if (user?.role === 'sahabat_baitullah' || sumber !== 'sahabat_baitullah') return;
     const kode = referralKode.trim();
@@ -249,33 +254,62 @@ function CheckoutPageInner() {
   }, [referralKode, sumber, user?.role]);
 
   useEffect(() => {
+    if (sumber !== 'perwakilan' || user?.role === 'perwakilan' || permanentReferrer) return;
+    const kode = referralKode.trim();
+    setPerwakilanTerverifikasi(null);
+    if (!kode) { setCekPerwakilanStatus(''); return; }
+    setCekPerwakilanStatus('cek');
+    const timer = setTimeout(() => {
+      fetch('/api/referral-list/cek-perwakilan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kode }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) { setPerwakilanTerverifikasi(d); setCekPerwakilanStatus(''); }
+          else setCekPerwakilanStatus('invalid');
+        })
+        .catch(() => setCekPerwakilanStatus('invalid'));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [referralKode, sumber, user?.role, permanentReferrer]);
+
+  useEffect(() => {
+    if (sumber !== 'agen') return;
+    const kode = referralKode.trim();
+    setAgenTerverifikasi(null);
+    if (!kode) { setCekAgenStatus(''); return; }
+    setCekAgenStatus('cek');
+    const timer = setTimeout(() => {
+      fetch('/api/referral-list/cek-agen', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kode }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) { setAgenTerverifikasi(d); setCekAgenStatus(''); }
+          else setCekAgenStatus('invalid');
+        })
+        .catch(() => setCekAgenStatus('invalid'));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [referralKode, sumber]);
+
+  useEffect(() => {
     if (!user) return;
 
-    // Ambil daftar perwakilan AKTIF untuk pilihan "siapa yang mengajak".
-    // Pakai /api/referral-list (boleh diakses jamaah), BUKAN /api/admin/users
-    // yang admin-only — itu penyebab dropdown kosong & referral_perw_id NULL.
-    fetch('/api/referral-list')
-      .then(r => r.json())
-      .then(d => {
-        const list = d.perwakilan || [];
-        setPerwList(list);
-        // Ref perwakilan yang ketangkep dari link publik (program/[id],
-        // programs, register) — auto-isi "Sumber Informasi" kalau jamaah
-        // belum milih apa-apa manual, biar gak perlu pilih dropdown lagi
-        // (dikonfirmasi user 2026-09-02). Perwakilan checkout sendiri
-        // (sumber sudah ke-set dari lazy initializer di atas) TIDAK
-        // ditimpa — cek `sumber` masih kosong dulu.
-        const ref = ambilRefPerwakilan();
-        if (ref && !sumber) {
-          const match = list.find(p => p.kode_unik === ref);
-          if (match) { setSumber('perwakilan'); setReferralKode(match.kode_unik); }
-        }
-      })
-      .catch(() => {});
-    fetch('/api/referral-list?role=agen')
-      .then(r => r.json())
-      .then(d => setAgenList(d.perwakilan || []))
-      .catch(() => {});
+    // Ref perwakilan yang ketangkep dari link publik (program/[id],
+    // programs, register) — auto-isi "Sumber Informasi" kalau jamaah belum
+    // milih apa-apa manual, biar gak perlu ketik ulang kodenya (dikonfirmasi
+    // user 2026-09-02). Perwakilan checkout sendiri (sumber sudah ke-set
+    // dari lazy initializer di atas) TIDAK ditimpa — cek `sumber` masih
+    // kosong dulu. Validitas kodenya diverifikasi oleh effect cek-perwakilan
+    // di atas (debounce jalan otomatis begitu referralKode ke-set) — gak
+    // perlu fetch daftar lengkap duluan buat cocokin (dikonfirmasi user
+    // 2026-10-19, itu penyebab GET /api/referral-list expose semua nama
+    // perwakilan ke publik).
+    const ref = ambilRefPerwakilan();
+    if (ref && !sumber) { setSumber('perwakilan'); setReferralKode(ref); }
     if (progId) {
       fetch('/api/programs')
         .then(r => r.json())
@@ -561,18 +595,18 @@ function CheckoutPageInner() {
           referral_kode: referralKode,
           referral_perw_id: user.role === 'perwakilan' ? user.id
             : permanentReferrer ? permanentReferrer.id
-            : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null,
+            : sumber === 'perwakilan' ? (perwakilanTerverifikasi?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
             : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
           // Link referral agen (dikonfirmasi user 2026-10-17) — awalnya
           // murni tag invisible dari localStorage (/a/[kode]). Sekarang
           // ADA fallback manual juga (dikonfirmasi user 2026-10-19, lihat
-          // dropdown "Sumber Informasi: Agen" di atas) — buat jamaah yang
-          // checkout ULANG tanpa lewat link lagi (tag localStorage ilang,
-          // beda device/browser, dst), pilihan manual MENANG dari tag
+          // kolom "Kode Referral Agen" di atas) — buat jamaah yang checkout
+          // ULANG tanpa lewat link lagi (tag localStorage ilang, beda
+          // device/browser, dst), pilihan manual MENANG dari tag
           // localStorage kalau dua-duanya ada.
-          referral_agen_id: sumber === 'agen' && referralKode
-            ? (agenList.find(a => a.kode_unik === referralKode)?.id || null)
+          referral_agen_id: sumber === 'agen' && agenTerverifikasi
+            ? agenTerverifikasi.id
             : (ambilRefAgenId() || undefined),
           // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
           // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
@@ -1136,35 +1170,31 @@ function CheckoutPageInner() {
 
               {sumber === 'perwakilan' && (
                 <div>
-                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Pilih Nama Perwakilan *</label>
-                  <SearchableSelect
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Perwakilan *</label>
+                  <input
                     value={referralKode}
-                    onChange={setReferralKode}
-                    placeholder="Ketik buat cari nama perwakilan..."
-                    options={perwList.map(p => ({ value: p.kode_unik, label: `${p.name}${p.wilayah ? ` — ${p.wilayah}` : ''} (${p.kode_unik})` }))}
+                    onChange={e => setReferralKode(e.target.value.toUpperCase())}
+                    placeholder="Contoh: PJM0002"
+                    className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekPerwakilanStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
-                  {perwList.length === 0 && (
-                    <div className="text-[10px] text-red-500 mt-1">
-                      Belum ada perwakilan aktif. Hubungi admin JM Travel.
-                    </div>
-                  )}
+                  {cekPerwakilanStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
+                  {cekPerwakilanStatus === 'invalid' && <div className="text-[10px] text-red-500 mt-1">Kode tidak ditemukan. Tanyakan kode referral ke Perwakilan yang mengajak Anda.</div>}
+                  {perwakilanTerverifikasi && <div className="text-[10px] text-green-600 mt-1">✓ {perwakilanTerverifikasi.nama} ({perwakilanTerverifikasi.kode_unik})</div>}
                 </div>
               )}
 
               {sumber === 'agen' && (
                 <div>
-                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Pilih Nama Agen *</label>
-                  <SearchableSelect
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Agen *</label>
+                  <input
                     value={referralKode}
-                    onChange={setReferralKode}
-                    placeholder="Ketik buat cari nama agen..."
-                    options={agenList.map(a => ({ value: a.kode_unik, label: `${a.name} (${a.kode_unik})` }))}
+                    onChange={e => setReferralKode(e.target.value)}
+                    placeholder="Contoh: ida-kuraeny"
+                    className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekAgenStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
-                  {agenList.length === 0 && (
-                    <div className="text-[10px] text-red-500 mt-1">
-                      Belum ada agen aktif. Hubungi admin JM Travel.
-                    </div>
-                  )}
+                  {cekAgenStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
+                  {cekAgenStatus === 'invalid' && <div className="text-[10px] text-red-500 mt-1">Kode tidak ditemukan. Tanyakan kode referral ke Agen yang mengajak Anda.</div>}
+                  {agenTerverifikasi && <div className="text-[10px] text-green-600 mt-1">✓ {agenTerverifikasi.nama} ({agenTerverifikasi.kode_unik})</div>}
                 </div>
               )}
 
@@ -1194,7 +1224,7 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {((sumber === 'perwakilan' && referralKode) || (sumber === 'agen' && referralKode) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
+              {((sumber === 'perwakilan' && perwakilanTerverifikasi) || (sumber === 'agen' && agenTerverifikasi) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">
                   ✅ Pendaftaran akan tercatat atas nama {sumber} yang dipilih.
                 </div>
@@ -1206,11 +1236,11 @@ function CheckoutPageInner() {
               onClick={() => {
                 if (user?.role === 'perwakilan' || permanentReferrer) { setStep(2); return; }
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
-                if (sumber === 'perwakilan' && !referralKode) {
-                  alert('Pilih nama perwakilan terlebih dahulu!'); return;
+                if (sumber === 'perwakilan' && !perwakilanTerverifikasi) {
+                  alert('Masukkan kode referral Perwakilan yang valid!'); return;
                 }
-                if (sumber === 'agen' && !referralKode) {
-                  alert('Pilih nama agen terlebih dahulu!'); return;
+                if (sumber === 'agen' && !agenTerverifikasi) {
+                  alert('Masukkan kode referral Agen yang valid!'); return;
                 }
                 if (sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && !sahabatTerverifikasi) {
                   alert('Masukkan kode referral Sahabat Baitullah yang valid!'); return;
@@ -1236,7 +1266,7 @@ function CheckoutPageInner() {
               allowHargaCustom={user.role === 'admin' || user.role === 'super_admin'}
               referralPerwId={user.role === 'perwakilan' ? user.id
                 : permanentReferrer ? permanentReferrer.id
-                : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null}
+                : sumber === 'perwakilan' ? (perwakilanTerverifikasi?.id || null) : null}
               // Banner "Chat Admin" TETAP tampil apapun kondisinya (dikonfirmasi
               // user 2026-08-20) — walau kartu "🎨 Custom Hotel" udah nawarin
               // pilih Bintang Mekkah/Madinah langsung in-app per kartu, masih
