@@ -162,8 +162,12 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
   // sama kayak booking penuh TAPI dibekukan begitu udah terkirim (lihat
   // migration 224 & lock-on-send di POST .../setuju). Invoice tetap pakai
   // breakdown booking LIVE, belum ikut lock (dikonfirmasi user 2026-10-14).
+  // Fallback "Atas Nama Jamaah" buat dokumen TANPA booking (mis. Kwitansi
+  // setoran pendaftaran Sahabat Baitullah) — sebelumnya kosong total kalau
+  // gak ada booking, padahal `dokumen.nama` (penerimanya) udah pasti ada
+  // (dikonfirmasi user 2026-10-21).
   const jamaahUntukPembayaran = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
-    ? (booking?.jamaah_breakdown_pembayaran || booking?.jamaah_breakdown || [])
+    ? (booking?.jamaah_breakdown_pembayaran || booking?.jamaah_breakdown || (!booking && dokumen.nama ? [{ nama: dokumen.nama }] : []))
     : (booking?.jamaah_breakdown || []);
   const qtyJamaah = jamaahUntukPembayaran.length || (booking ? Number(booking.jumlah_jamaah || 1) : 1);
   // Invoice itu TAGIHAN, bukan tanda terima (dikonfirmasi user 2026-10-14)
@@ -229,7 +233,14 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
             // sudah lunas total, jadi "total terbayar" = dokumen.nominal
             // (keseluruhan), gak perlu embel-embel tahap pembayaran.
             <>
-              <BarisItem label={LABEL_BARIS.kwitansi}
+              {/* `judul` override (dikonfirmasi user 2026-10-21) — dipakai
+                  Kwitansi setoran pendaftaran Sahabat Baitullah buat label
+                  "DP Program Umroh Exclusive ... Keberangkatan <bulan
+                  tahun>" (lihat generateKwitansiSetoranPendaftaranSahabat),
+                  bukan lagi selalu LABEL_BARIS.kwitansi generik. Kwitansi
+                  closing booking biasa gak ngisi `judul`, jadi fallback-nya
+                  TETAP sama kayak sebelumnya. */}
+              <BarisItem label={dokumen.judul || LABEL_BARIS.kwitansi}
                 sub={<KeteranganPembayaran list={jamaahUntukPembayaran} />}
                 qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
               <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
@@ -296,10 +307,15 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
         <div style={{ textAlign: 'center', fontSize: 12, position: 'relative' }}>
           {tgl(dokumen.tanggal)}
           <div style={{ height: butuhMaterai ? 110 : 70, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+            {/* Lurus (gak dirotasi lagi) tapi digeser lebih ke kanan biar
+                dikit nimpa TTD (dikonfirmasi user 2026-10-21) — sebelumnya
+                rotate(-10deg) + left:-75 bikin cap keliatan miring & kejauhan
+                dari TTD, gak ada kesan "resmi ditempel di atas tanda tangan"
+                kayak dokumen fisik beneran. */}
             {!butuhMaterai && pengaturan.cap_perusahaan_path && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={pengaturan.cap_perusahaan_path} alt="Cap Perusahaan"
-                style={{ position: 'absolute', left: -75, top: '50%', transform: 'translateY(-50%) rotate(-10deg)', width: 95, opacity: 0.85 }} />
+                style={{ position: 'absolute', left: -30, top: '50%', transform: 'translateY(-50%)', width: 95, opacity: 0.85, zIndex: 1 }} />
             )}
             {butuhMaterai && (
               <div style={{ color: '#999', fontSize: 11, textAlign: 'center', lineHeight: 1.4 }}>

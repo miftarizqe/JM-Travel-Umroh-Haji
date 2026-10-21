@@ -297,7 +297,7 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
 // (migration 246) — dipanggil ulang pas GANTI bukti TF gak bikin dobel.
 export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId, actorUserId) {
   const [[pendaftaran]] = await pool.query(
-    'SELECT kwitansi_setoran_pendaftaran_id FROM sahabat_pendaftaran WHERE user_id = ?',
+    'SELECT kwitansi_setoran_pendaftaran_id, program_id FROM sahabat_pendaftaran WHERE user_id = ?',
     [userId]
   );
   if (!pendaftaran) return null;
@@ -309,10 +309,25 @@ export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId, ac
   const [[user]] = await pool.query('SELECT name FROM users WHERE id = ?', [userId]);
   if (!user) return null;
 
+  // Label baris item (dikonfirmasi user 2026-10-21) — DP buat target
+  // keberangkatan yang dipilih pas wizard pendaftaran (bukan "Pembayaran
+  // Total Paket" generik, itu kalimat buat kwitansi closing booking beneran
+  // lunas). Reuse kolom `judul` yang sebelumnya cuma dipakai Invoice (lihat
+  // migrations/111) -- DokumenCetak fallback ke LABEL_BARIS.kwitansi kalau
+  // kolom ini NULL (mis. program_id belum keisi), jadi aman.
+  let judul = null;
+  if (pendaftaran.program_id) {
+    const [[prog]] = await pool.query('SELECT tanggal_berangkat FROM programs WHERE id = ?', [pendaftaran.program_id]);
+    if (prog?.tanggal_berangkat) {
+      const bulanTahun = new Date(prog.tanggal_berangkat).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+      judul = `DP Program Umroh Exclusive Sahabat Baitullah Keberangkatan ${bulanTahun}`;
+    }
+  }
+
   const [result] = await pool.query(
-    `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, payment_id, nama, nominal, keterangan, tanggal, is_manual, dibuat_oleh, status)
-     VALUES (NULL, 'kwitansi', NULL, NULL, ?, 1000000, ?, ?, 0, ?, 'paid')`,
-    [user.name, 'Setoran pendaftaran Sahabat Baitullah', fmtTgl(new Date()), actorUserId || userId]
+    `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, payment_id, nama, nominal, keterangan, judul, tanggal, is_manual, dibuat_oleh, status)
+     VALUES (NULL, 'kwitansi', NULL, NULL, ?, 1000000, ?, ?, ?, 0, ?, 'paid')`,
+    [user.name, 'Setoran pendaftaran Sahabat Baitullah', judul, fmtTgl(new Date()), actorUserId || userId]
   );
   await pool.query('UPDATE sahabat_pendaftaran SET kwitansi_setoran_pendaftaran_id = ? WHERE user_id = ?', [result.insertId, userId]);
   return { id: result.insertId, nomor: null, isNew: true };
