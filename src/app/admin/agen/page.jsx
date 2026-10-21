@@ -80,10 +80,10 @@ export default function AdminAgenPage() {
   }
 
   async function buatAkun() {
-    // NIK & WA OPSIONAL (dikonfirmasi user 2026-10-21) -- cuma field inti
-    // yang tetap wajib.
-    if (!nama.trim() || !email.trim() || !jk || !password.trim()) {
-      alert('Nama, email, jenis kelamin, dan password wajib diisi!'); return;
+    // NIK tetap wajib (koreksi 2026-10-21 -- yang opsional itu Foto KTP-nya,
+    // bukan NIK). WA opsional.
+    if (!nama.trim() || !nik.trim() || !email.trim() || !jk || !password.trim()) {
+      alert('Nama, NIK, email, jenis kelamin, dan password wajib diisi!'); return;
     }
     setSaving(true);
     try {
@@ -194,8 +194,8 @@ export default function AdminAgenPage() {
             <input value={password} onChange={e => setPassword(e.target.value)} type="text" className={inp} />
           </div>
           <div>
-            <label className={lbl}>NIK (16 digit)</label>
-            <input value={nik} onChange={e => setNik(e.target.value.replace(/\D/g, ''))} maxLength={16} inputMode="numeric" placeholder="Opsional" className={inp} />
+            <label className={lbl}>NIK (16 digit) *</label>
+            <input value={nik} onChange={e => setNik(e.target.value.replace(/\D/g, ''))} maxLength={16} inputMode="numeric" className={inp} />
           </div>
           <div>
             <label className={lbl}>Foto KTP</label>

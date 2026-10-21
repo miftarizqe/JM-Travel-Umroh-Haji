@@ -62,16 +62,17 @@ export async function POST(request) {
     const fotoKtpPath = String(body.foto_ktp_path || '').trim() || null;
     const perekrutId = String(body.perekrut_id || '').trim() || null;
 
-    // NIK & WA OPSIONAL buat agen (dikonfirmasi user 2026-10-21, migration
-    // 243 -- kolomnya generik dipakai semua role, jadi NOT NULL dilonggarin
-    // di level DB, TAPI validasi FORMAT + keunikan tetap jalan kalau diisi).
-    if (!name || !email || !jenisKelamin || !password) {
-      return Response.json({ error: 'Nama, email, jenis kelamin, dan password wajib diisi' }, { status: 400 });
+    // NIK tetap WAJIB (koreksi 2026-10-21 -- yang dimaksud opsional itu
+    // FOTO KTP-nya, bukan NIK). WA OPSIONAL buat agen (migration 243 --
+    // kolomnya generik dipakai semua role, jadi NOT NULL dilonggarin cuma
+    // buat wa, nik dikembalikan NOT NULL lagi lewat migration 244).
+    if (!name || !email || !nikInput || !jenisKelamin || !password) {
+      return Response.json({ error: 'Nama, email, NIK, jenis kelamin, dan password wajib diisi' }, { status: 400 });
     }
     if (!['Laki-Laki', 'Perempuan'].includes(jenisKelamin)) {
       return Response.json({ error: 'Jenis kelamin tidak valid' }, { status: 400 });
     }
-    if (nikInput && !nikValid(nikInput)) {
+    if (!nikValid(nikInput)) {
       return Response.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
     }
     if (!emailValid(email)) {
