@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import BankInput from '@/app/components/BankInput';
+import TempatLahirField from '@/app/components/TempatLahirField';
 
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
 
@@ -25,6 +27,17 @@ export default function AdminAgenPage() {
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  // Data tambahan (dikonfirmasi user 2026-10-21, "datanya sayang kalo gak
+  // dipake") -- semuanya opsional, kolom generik yang udah ada di users
+  // (dipakai perwakilan/sahabat juga).
+  const [tempatLahir, setTempatLahir] = useState('');
+  const [bank, setBank] = useState('');
+  const [noRekening, setNoRekening] = useState('');
+  const [namaPemilikRekening, setNamaPemilikRekening] = useState('');
+  const [fotoKtpPath, setFotoKtpPath] = useState('');
+  const [uploadingKtp, setUploadingKtp] = useState(false);
+  const [perekrutId, setPerekrutId] = useState('');
+  const [perekrutOptions, setPerekrutOptions] = useState([]);
   // Edit inline per baris (dikonfirmasi user 2026-10-19) -- cuma nama/WA/
   // jenis kelamin yang boleh diubah di sini (NIK/email data identitas,
   // dibiarkan gak bisa diubah lewat panel ini, konsisten sama field lain
@@ -38,8 +51,22 @@ export default function AdminAgenPage() {
   function muatData() {
     fetch('/api/admin/agen')
       .then(r => r.json())
-      .then(d => { setRows(d.agen || []); setLoading(false); })
+      .then(d => { setRows(d.agen || []); setPerekrutOptions(d.perekrut_options || []); setLoading(false); })
       .catch(() => setLoading(false));
+  }
+
+  async function pilihFotoKtp(file) {
+    if (!file) return;
+    setUploadingKtp(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch('/api/upload-ktp', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (res.ok) setFotoKtpPath(d.path);
+      else alert(d.error || 'Gagal mengunggah foto KTP');
+    } catch { alert('Terjadi kesalahan saat mengunggah foto KTP'); }
+    setUploadingKtp(false);
   }
 
   useEffect(() => {
@@ -53,19 +80,26 @@ export default function AdminAgenPage() {
   }
 
   async function buatAkun() {
-    if (!nama.trim() || !nik.trim() || !email.trim() || !wa.trim() || !jk || !password.trim()) {
-      alert('Semua field wajib diisi!'); return;
+    // NIK & WA OPSIONAL (dikonfirmasi user 2026-10-21) -- cuma field inti
+    // yang tetap wajib.
+    if (!nama.trim() || !email.trim() || !jk || !password.trim()) {
+      alert('Nama, email, jenis kelamin, dan password wajib diisi!'); return;
     }
     setSaving(true);
     try {
       const res = await fetch('/api/admin/agen', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nama: nama.trim(), nik: nik.trim(), email: email.trim(), wa: wa.trim(), jenis_kelamin: jk, password: password.trim() }),
+        body: JSON.stringify({
+          nama: nama.trim(), nik: nik.trim(), email: email.trim(), wa: wa.trim(), jenis_kelamin: jk, password: password.trim(),
+          tempat_lahir: tempatLahir.trim(), bank, no_rekening: noRekening.trim(),
+          nama_pemilik_rekening: namaPemilikRekening.trim(), foto_ktp_path: fotoKtpPath, perekrut_id: perekrutId || undefined,
+        }),
       });
       const d = await res.json();
       if (!res.ok) { alert(d.error || 'Gagal membuat akun'); return; }
       alert(`Akun agen "${nama}" dibuat. Kode: ${d.kode_unik}. Sampaikan email+password ini ke yang bersangkutan buat login.`);
       setNama(''); setNik(''); setEmail(''); setWa(''); setJk(''); setPassword('');
+      setTempatLahir(''); setBank(''); setNoRekening(''); setNamaPemilikRekening(''); setFotoKtpPath(''); setPerekrutId('');
       muatData();
     } catch { alert('Terjadi kesalahan'); }
     setSaving(false);
@@ -133,17 +167,16 @@ export default function AdminAgenPage() {
             <label className={lbl}>Nama Lengkap *</label>
             <input value={nama} onChange={e => setNama(e.target.value)} className={inp} />
           </div>
-          <div>
-            <label className={lbl}>NIK (16 digit) *</label>
-            <input value={nik} onChange={e => setNik(e.target.value.replace(/\D/g, ''))} maxLength={16} inputMode="numeric" className={inp} />
+          <div className="sm:col-span-2">
+            <TempatLahirField value={tempatLahir} onChange={setTempatLahir} inp={inp} lbl={lbl} />
           </div>
           <div>
             <label className={lbl}>Email *</label>
             <input value={email} onChange={e => setEmail(e.target.value)} type="email" className={inp} />
           </div>
           <div>
-            <label className={lbl}>No. WhatsApp *</label>
-            <input value={wa} onChange={e => setWa(e.target.value.replace(/\D/g, ''))} placeholder="08xxxxxxxxxx" inputMode="numeric" className={inp} />
+            <label className={lbl}>No. WhatsApp</label>
+            <input value={wa} onChange={e => setWa(e.target.value.replace(/\D/g, ''))} placeholder="08xxxxxxxxxx (opsional)" inputMode="numeric" className={inp} />
           </div>
           <div>
             {/* Dipakai nentuin sapaan "Ibu"/"Bapak" + nama di pesan WA
@@ -156,9 +189,49 @@ export default function AdminAgenPage() {
               <option value="Perempuan">Perempuan</option>
             </select>
           </div>
-          <div className="sm:col-span-2">
+          <div>
             <label className={lbl}>Password Awal (min. 8 karakter) *</label>
             <input value={password} onChange={e => setPassword(e.target.value)} type="text" className={inp} />
+          </div>
+          <div>
+            <label className={lbl}>NIK (16 digit)</label>
+            <input value={nik} onChange={e => setNik(e.target.value.replace(/\D/g, ''))} maxLength={16} inputMode="numeric" placeholder="Opsional" className={inp} />
+          </div>
+          <div>
+            <label className={lbl}>Foto KTP</label>
+            {fotoKtpPath ? (
+              <div className="flex items-center gap-2">
+                <a href={fotoKtpPath} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-[#1A4FA0] hover:underline">📎 Lihat foto</a>
+                <button type="button" onClick={() => setFotoKtpPath('')} className="text-xs text-red-500 hover:underline">Hapus</button>
+              </div>
+            ) : (
+              <input type="file" accept="image/jpeg,image/png,application/pdf" disabled={uploadingKtp}
+                onChange={e => pilihFotoKtp(e.target.files?.[0])} className={inp} />
+            )}
+          </div>
+          <div>
+            <label className={lbl}>Nama Bank</label>
+            <BankInput value={bank} onChange={setBank} placeholder="Opsional" className={inp} />
+          </div>
+          <div>
+            <label className={lbl}>No. Rekening Ujroh</label>
+            <input value={noRekening} onChange={e => setNoRekening(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="Opsional" className={inp} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={lbl}>Nama Pemilik Rekening</label>
+            <input value={namaPemilikRekening} onChange={e => setNamaPemilikRekening(e.target.value)} placeholder="Opsional, default sama dengan Nama Lengkap" className={inp} />
+          </div>
+          <div className="sm:col-span-2">
+            {/* Murni catatan "siapa yang bawa orang ini masuk" (dikonfirmasi
+                user 2026-10-21) -- gak ngaruh ke komisi apa pun, beda dari
+                perekrut_id perwakilan yang nentuin ujroh override. */}
+            <label className={lbl}>Perekrut</label>
+            <select value={perekrutId} onChange={e => setPerekrutId(e.target.value)} className={inp}>
+              <option value="">— Tidak ada / tidak diketahui —</option>
+              {perekrutOptions.map(o => (
+                <option key={o.id} value={o.id}>{o.name} ({o.role === 'agen' ? 'Agen' : o.role === 'super_admin' ? 'Super Admin' : 'Admin'})</option>
+              ))}
+            </select>
           </div>
         </div>
         <button onClick={buatAkun} disabled={saving}
