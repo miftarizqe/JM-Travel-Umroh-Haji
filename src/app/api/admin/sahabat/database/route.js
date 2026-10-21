@@ -25,6 +25,7 @@ function redaksiUntukHop(rows) {
     voucher_id: null, voucher_kode: null, voucher_used: null, voucher_aktif: null, voucher_disetujui_at: null,
     bukti_tf_path: null,
     no_rekening_tabungan_umroh: null, nama_pemilik_rekening_umroh: null,
+    kwitansi_setoran_pendaftaran_id: null, kwitansi_pendaftaran_terkirim: null,
   }));
 }
 
@@ -150,9 +151,11 @@ export async function GET(request) {
          SELECT id FROM vouchers WHERE for_user = kp.user_id AND akses_role = 'akun'
          ORDER BY created_at DESC LIMIT 1
        )
+       LEFT JOIN invoice_kwitansi ik ON ik.id = kp.kwitansi_setoran_pendaftaran_id
     `;
     const selectCols = `
        kp.*, u.kode_unik, u.role, u.role_kedua, u.status AS user_status, u.email AS user_email, u.wa AS user_wa,
+       ik.terkirim AS kwitansi_pendaftaran_terkirim,
        u.no_rekening_tabungan_umroh, u.nama_pemilik_rekening_umroh, u.bantuan_bsi_manual_disetujui_at,
        u.setuju_sk_cif_pemblokiran_at, u.setuju_pks,
        u.dokumen_sk_cif_fisik_path, u.dokumen_cif_fisik_diterima_at,

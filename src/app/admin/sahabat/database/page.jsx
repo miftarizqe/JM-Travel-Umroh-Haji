@@ -422,6 +422,17 @@ export default function DatabaseJamaahPage() {
     if (await aksi({ action: 'reject', user_id: tolakTarget.user_id, catatan_admin: catatan })) setTolakTarget(null);
   }
 
+  async function generateKwitansiPendaftaran(userId) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/sahabat/${userId}/kwitansi-pendaftaran`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusy(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusy(false);
+  }
+
   async function approveVoucher(voucherId) {
     setBusy(true);
     try {
@@ -978,6 +989,35 @@ export default function DatabaseJamaahPage() {
                           {j.bukti_tf_verified_at && <span className="text-green-600 font-bold">✅ Terverifikasi</span>}
                         </div>
                       ) : <span className="text-gray-400">Belum diunggah</span>}
+                    </div>
+                    )}
+                    {/* Kwitansi setoran pendaftaran Rp1jt — otomatis lahir
+                        begitu bukti TF pertama diunggah (lihat
+                        generateKwitansiSetoranPendaftaranSahabat). Diminta
+                        user 2026-10-21 buat muncul langsung di sini (bukan
+                        cuma dicari manual di /admin/invoice-kwitansi) +
+                        tombol berubah state begitu udah dikirim, gak nawarin
+                        "Generate" lagi. */}
+                    {!isHop && (
+                    <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
+                      <span>Kwitansi Setoran Pendaftaran</span>
+                      {j.kwitansi_setoran_pendaftaran_id ? (
+                        j.kwitansi_pendaftaran_terkirim ? (
+                          <span className="text-green-600 font-bold">✅ Sudah Dikirim</span>
+                        ) : (
+                          <button onClick={() => window.open(`/admin/cetak-invoice/${j.kwitansi_setoran_pendaftaran_id}`, '_blank')}
+                            className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2.5 py-1 rounded-full hover:bg-blue-100">
+                            🧾 Lihat &amp; Kirim Kwitansi →
+                          </button>
+                        )
+                      ) : j.bukti_tf_path ? (
+                        <button disabled={busy} onClick={() => generateKwitansiPendaftaran(j.user_id)}
+                          className="text-[10px] font-bold text-white bg-[#1A4FA0] px-2.5 py-1 rounded-full disabled:opacity-50">
+                          🧾 Generate Kwitansi
+                        </button>
+                      ) : (
+                        <span className="text-gray-400">Belum ada bukti TF</span>
+                      )}
                     </div>
                     )}
 
