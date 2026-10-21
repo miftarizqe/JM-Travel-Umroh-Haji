@@ -285,21 +285,24 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
   return { id: result.insertId, nomor: null, isNew: true };
 }
 
-// Tanda Terima Uang buat setoran pendaftaran Rp1.000.000 Sahabat Baitullah
-// (dikonfirmasi user 2026-10-21 — gap ditemukan, beda dari
-// generateTandaTerimaUntukPayment di atas yang nempel ke tabel `payments`/
-// `bookings`: setoran ini hidup di `sahabat_pendaftaran`, gak ada booking/
-// payment row sama sekali, jadi booking_id & payment_id-nya NULL).
-// Idempoten lewat sahabat_pendaftaran.ttu_setoran_pendaftaran_id (migration
-// 245) — dipanggil ulang pas GANTI bukti TF gak bikin TTU dobel.
-export async function generateTandaTerimaSetoranPendaftaranSahabat(pool, userId, actorUserId) {
+// Kwitansi buat setoran pendaftaran Rp1.000.000 Sahabat Baitullah (gap
+// ditemukan 2026-10-21, awalnya dibikin jenis 'tanda_terima' -- DIKOREKSI
+// user hari sama: setoran ini LUNAS/TUNTAS buat transaksi ini, bukan DP yang
+// masih nyisain pelunasan nanti, jadi aturannya sama kayak program biasa
+// "Kwitansi cuma di pembayaran lunas total, TTU buat yang masih nyicil".
+// Beda dari generateOrUpdateKwitansi di atas yang nempel ke tabel
+// `payments`/`bookings`: setoran ini hidup di `sahabat_pendaftaran`, gak ada
+// booking/payment row sama sekali, jadi booking_id & payment_id-nya NULL.
+// Idempoten lewat sahabat_pendaftaran.kwitansi_setoran_pendaftaran_id
+// (migration 246) — dipanggil ulang pas GANTI bukti TF gak bikin dobel.
+export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId, actorUserId) {
   const [[pendaftaran]] = await pool.query(
-    'SELECT ttu_setoran_pendaftaran_id FROM sahabat_pendaftaran WHERE user_id = ?',
+    'SELECT kwitansi_setoran_pendaftaran_id FROM sahabat_pendaftaran WHERE user_id = ?',
     [userId]
   );
   if (!pendaftaran) return null;
-  if (pendaftaran.ttu_setoran_pendaftaran_id) {
-    const [[existing]] = await pool.query('SELECT id, nomor FROM invoice_kwitansi WHERE id = ?', [pendaftaran.ttu_setoran_pendaftaran_id]);
+  if (pendaftaran.kwitansi_setoran_pendaftaran_id) {
+    const [[existing]] = await pool.query('SELECT id, nomor FROM invoice_kwitansi WHERE id = ?', [pendaftaran.kwitansi_setoran_pendaftaran_id]);
     if (existing) return { id: existing.id, nomor: existing.nomor, isNew: false };
   }
 
@@ -308,10 +311,10 @@ export async function generateTandaTerimaSetoranPendaftaranSahabat(pool, userId,
 
   const [result] = await pool.query(
     `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, payment_id, nama, nominal, keterangan, tanggal, is_manual, dibuat_oleh, status)
-     VALUES (NULL, 'tanda_terima', NULL, NULL, ?, 1000000, ?, ?, 0, ?, 'paid')`,
+     VALUES (NULL, 'kwitansi', NULL, NULL, ?, 1000000, ?, ?, 0, ?, 'paid')`,
     [user.name, 'Setoran pendaftaran Sahabat Baitullah', fmtTgl(new Date()), actorUserId || userId]
   );
-  await pool.query('UPDATE sahabat_pendaftaran SET ttu_setoran_pendaftaran_id = ? WHERE user_id = ?', [result.insertId, userId]);
+  await pool.query('UPDATE sahabat_pendaftaran SET kwitansi_setoran_pendaftaran_id = ? WHERE user_id = ?', [result.insertId, userId]);
   return { id: result.insertId, nomor: null, isNew: true };
 }
 
@@ -324,16 +327,11 @@ export async function generateTandaTerimaSetoranPendaftaranSahabat(pool, userId,
  */
 export async function daftarTtuBelumDikirim(pool) {
   const [rows] = await pool.query(
-    // Fallback ke ik.dibuat_oleh (ditambahin 2026-10-21) -- TTU setoran
-    // pendaftaran Sahabat Baitullah gak punya booking_id/payment_id sama
-    // sekali (lihat generateTandaTerimaSetoranPendaftaranSahabat), jadi
-    // b.ordered_by/b.user_id selalu NULL buat baris itu -- tanpa fallback
-    // ini, nomor WA-nya gak kebaca di cluster "Perlu Perhatian".
     `SELECT ik.id, ik.nomor, ik.nominal, ik.tanggal, ik.booking_id, b.prog_name,
             COALESCE(u.name, ik.nama) AS nama, u.wa
      FROM invoice_kwitansi ik
      LEFT JOIN bookings b ON b.id = ik.booking_id
-     LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id, ik.dibuat_oleh)
+     LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
      WHERE ik.jenis = 'tanda_terima' AND ik.terkirim = 0
      ORDER BY ik.created_at ASC`
   );

@@ -6,7 +6,7 @@ import { wajibLogin } from '@/lib/auth';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { pesanUkuranFile } from '@/lib/batasUpload';
-import { generateTandaTerimaSetoranPendaftaranSahabat } from '@/lib/invoiceKwitansi';
+import { generateKwitansiSetoranPendaftaranSahabat } from '@/lib/invoiceKwitansi';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 
@@ -125,14 +125,15 @@ export async function POST(request) {
         keterangan: `Setoran pendaftaran Rp1.000.000 — ${auth.user.name || auth.user.id}`,
       });
 
-      // Tanda Terima Uang (dikonfirmasi user 2026-10-21, gap ditemukan —
-      // setoran pendaftaran ini sebelumnya gak pernah dibikinin TTU kayak
-      // DP/pelunasan program biasa). Best-effort, gagal generate JANGAN
-      // sampai gagalin upload bukti TF-nya sendiri.
+      // Kwitansi (dikonfirmasi user 2026-10-21, gap ditemukan — setoran
+      // pendaftaran ini sebelumnya gak pernah dibikinin dokumen apa pun.
+      // Jenis-nya Kwitansi bukan TTU — setoran ini LUNAS/TUNTAS buat
+      // transaksi ini, bukan DP yang masih nyisain pelunasan). Best-effort,
+      // gagal generate JANGAN sampai gagalin upload bukti TF-nya sendiri.
       try {
-        await generateTandaTerimaSetoranPendaftaranSahabat(pool, auth.user.id, auth.user.id);
+        await generateKwitansiSetoranPendaftaranSahabat(pool, auth.user.id, auth.user.id);
       } catch (e) {
-        console.error('Gagal generate TTU setoran pendaftaran sahabat:', e);
+        console.error('Gagal generate kwitansi setoran pendaftaran sahabat:', e);
       }
     } else {
       // Ganti bukti — cuma file & timestamp-nya yang diupdate, status funnel
