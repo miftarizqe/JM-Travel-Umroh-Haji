@@ -611,7 +611,7 @@ export default function DashboardJamaah() {
       {/* Ringkasan — susunan kartu warna disamain ke gaya dashboard HoP
           (dikonfirmasi user 2026-10-05, style/tatanan doang, angka yang
           udah ada gak ada yang ditambah/dikurangi). */}
-      <div className={`grid gap-3 mb-4 ${saldoDeposit > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-green-50 rounded-xl p-3 md:p-4">
           <div className="text-[11px] md:text-xs text-gray-500">Booking Aktif</div>
           <div className="text-2xl font-black text-green-700">{active.length}</div>
@@ -620,12 +620,13 @@ export default function DashboardJamaah() {
           <div className="text-[11px] md:text-xs text-gray-500">Riwayat</div>
           <div className="text-2xl font-black text-[#1A4FA0]">{done.length}</div>
         </div>
-        {saldoDeposit > 0 && (
-          <div className="bg-purple-50 rounded-xl p-3 md:p-4">
-            <div className="text-[11px] md:text-xs text-gray-500">💰 Saldo Deposit</div>
-            <div className="text-base md:text-xl font-black text-purple-700">Rp {saldoDeposit.toLocaleString('id-ID')}</div>
-          </div>
-        )}
+        {/* Selalu tampil (dikonfirmasi user 2026-10-21) — "biar jamaah
+            familiar" sama fitur ini walau saldonya masih Rp 0, bukan cuma
+            muncul begitu ada isinya. */}
+        <div className="bg-purple-50 rounded-xl p-3 md:p-4">
+          <div className="text-[11px] md:text-xs text-gray-500">💰 Saldo Deposit</div>
+          <div className="text-base md:text-xl font-black text-purple-700">Rp {saldoDeposit.toLocaleString('id-ID')}</div>
+        </div>
       </div>
 
       {/* Booking Aktif */}

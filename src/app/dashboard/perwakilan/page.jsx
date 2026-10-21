@@ -246,16 +246,15 @@ export default function DashboardPerwakilan() {
 
       {/* Saldo Deposit — saldo booking PRIBADI (sebagai jamaah), bukan
           komisi/ujroh perwakilan, makanya kartunya terpisah dari forecast
-          di atas. Cuma tampil kalau > 0. */}
-      {saldoDeposit > 0 && (
-        <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-          <div>
-            <div className="text-xs text-gray-500">💰 Saldo Deposit Anda</div>
-            <div className="text-[10px] text-gray-400 mt-0.5">Bisa dipakai bayar DP/pelunasan booking apa saja</div>
-          </div>
-          <div className="font-black text-purple-700 text-lg whitespace-nowrap">Rp {saldoDeposit.toLocaleString('id-ID')}</div>
+          di atas. Selalu tampil (dikonfirmasi user 2026-10-21) — "biar
+          familiar" sama fitur ini walau saldonya masih Rp 0. */}
+      <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+        <div>
+          <div className="text-xs text-gray-500">💰 Saldo Deposit Anda</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Bisa dipakai bayar DP/pelunasan booking apa saja</div>
         </div>
-      )}
+        <div className="font-black text-purple-700 text-lg whitespace-nowrap">Rp {saldoDeposit.toLocaleString('id-ID')}</div>
+      </div>
 
       {expandForecast && (
         <div className="bg-white rounded-xl border border-[#e0e8f0] p-4 mb-6 space-y-2">
