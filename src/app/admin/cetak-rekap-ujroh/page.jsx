@@ -127,19 +127,67 @@ function CetakRekapUjrohInner() {
                         <td style={tdLabel}>{fmtTanggal(it.created_at)}</td>
                         <td style={tdLabel}>
                           <span style={{ fontSize: 8, fontWeight: 700, color: '#1A4FA0' }}>{KATEGORI_LABEL[it.jenis] || it.jenis}</span>
+                          {' '}
+                          <span style={{ fontSize: 7, fontWeight: 700, color: it.rekening === 'alkhalid' ? '#1A4FA0' : '#7e22ce', border: '1px solid currentColor', borderRadius: 3, padding: '0 3px' }}>
+                            {it.rekening === 'alkhalid' ? 'ALKHALID' : 'SEJUTA BAITULLAH'}
+                          </span>
                           <div>{it.keterangan}</div>
                         </td>
                         <td style={tdAngka}>{rp(it.nominal)}</td>
                       </tr>
                     ))}
-                    <tr>
-                      <td colSpan={2} style={tdTotal}>Subtotal</td>
-                      <td style={tdTotalAngka}>{rp(k.subtotal)}</td>
-                    </tr>
+                    {/* Subtotal dipecah per rekening HANYA kalau penerima ini
+                        beneran kecampur dua-duanya (dikonfirmasi user
+                        2026-10-21, buntut bug lama rekeningUntukBooking.js —
+                        dokumen cetak ini yang di-TTD bos, harus jelas sumber
+                        dananya SEBELUM ditransfer). */}
+                    {k.subtotal_per_rekening && k.subtotal_per_rekening.alkhalid > 0 && k.subtotal_per_rekening.sahabat_baitullah > 0 ? (
+                      <>
+                        <tr>
+                          <td colSpan={2} style={{ ...tdTotal, color: '#1A4FA0' }}>Subtotal — Alkhalid</td>
+                          <td style={{ ...tdTotalAngka, color: '#1A4FA0' }}>{rp(k.subtotal_per_rekening.alkhalid)}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={2} style={{ ...tdTotal, color: '#7e22ce' }}>Subtotal — Sejuta Baitullah</td>
+                          <td style={{ ...tdTotalAngka, color: '#7e22ce' }}>{rp(k.subtotal_per_rekening.sahabat_baitullah)}</td>
+                        </tr>
+                        <tr>
+                          <td colSpan={2} style={tdTotal}>Subtotal</td>
+                          <td style={tdTotalAngka}>{rp(k.subtotal)}</td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr>
+                        <td colSpan={2} style={tdTotal}>Subtotal</td>
+                        <td style={tdTotalAngka}>{rp(k.subtotal)}</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             ))}
+
+            {/* Breakdown rekening keseluruhan — tetap ditampilin walau cuma
+                1 rekening yang kepakai (transparansi "dana ini dari mana"),
+                di atas TOTAL biar kebaca duluan sebelum TTD. */}
+            {data.grand_total_per_rekening && (data.grand_total_per_rekening.alkhalid > 0 || data.grand_total_per_rekening.sahabat_baitullah > 0) && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
+                <tbody>
+                  {data.grand_total_per_rekening.alkhalid > 0 && (
+                    <tr>
+                      <td style={{ ...tdTotal, width: '70%', color: '#1A4FA0' }}>Sumber Dana — Rekening Alkhalid</td>
+                      <td style={{ ...tdTotalAngka, color: '#1A4FA0' }}>{rp(data.grand_total_per_rekening.alkhalid)}</td>
+                    </tr>
+                  )}
+                  {data.grand_total_per_rekening.sahabat_baitullah > 0 && (
+                    <tr>
+                      <td style={{ ...tdTotal, width: '70%', color: '#7e22ce' }}>Sumber Dana — Rekening Sejuta Baitullah</td>
+                      <td style={{ ...tdTotalAngka, color: '#7e22ce' }}>{rp(data.grand_total_per_rekening.sahabat_baitullah)}</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
 
             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
               <tbody>
