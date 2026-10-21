@@ -163,20 +163,28 @@ const SPK_AK_RANGKAP_TEMPLATE_PATH = {
 // halaman 1 (Nomor/hari/tanggal) PERSIS SAMA posisinya dengan
 // KOORDINAT_RANGKAP.p1 di atas (template dibuat dari boilerplate yang sama)
 // -- tapi Pihak Kedua di sini (AGEN, bukan JAMAAH) CUMA 3 field: Nama,
-// Alamat (1 baris, BUKAN 2 kayak JAMAAH), No. Telepon. Gak ada No. Paspor
-// di halaman 1 (paspor Calon Jamaah diserahkan belakangan, bukan identitas
-// AGEN -- lihat Pasal 2.D). Pasal "biaya bulan X sebesar Rp Y" ada di
-// halaman 4 (index 3), bukan 3 -- Pasal 1-2 AGEN lebih panjang (flow BSI
-// tabungan wadiah dkk) jadi geser 1 halaman dibanding punya JAMAAH.
+// Alamat, No. Telepon. Gak ada No. Paspor di halaman 1 (paspor Calon
+// Jamaah diserahkan belakangan, bukan identitas AGEN -- lihat Pasal 2.D).
+// Pasal "biaya bulan X sebesar Rp Y" ada di halaman 4 (index 3), bukan 3 --
+// Pasal 1-2 AGEN lebih panjang (flow BSI tabungan wadiah dkk) jadi geser 1
+// halaman dibanding punya JAMAAH.
+//
+// Alamat SEKARANG 2 baris juga (ditemukan & diperbaiki 2026-10-21 — alamat
+// panjang kebaca kekecilan dipepetin 1 baris lewat drawFitKiri, screenshot
+// user). Gak perlu edit template PDF: diukur ulang pakai pdftotext -bbox,
+// gap antara label "Alamat" & "Telepon" di template ini 27.6pt (~2x baris
+// normal 13.7pt) -- udah ada ruang kosong 1 baris nganggur, cukup buat
+// alamatBaris2 tanpa nabrak apa pun di bawahnya.
 const KOORDINAT_RANGKAP_NONIS = {
   jumlahHalaman: 6,
   p1: {
-    nomor:     { x: 255, y: 669, maxWidth: 255, atasExtra: 4.5 },
-    hari:      { x: 142, y: 642, maxWidth: 64 },
-    tanggal:   { x: 253, y: 642, maxWidth: 88 },
-    nama:      { x: 190, y: 476, maxWidth: 334 },
-    alamat:    { x: 190, y: 462, maxWidth: 334 },
-    noTelepon: { x: 190, y: 435, maxWidth: 334 },
+    nomor:        { x: 255, y: 669, maxWidth: 255, atasExtra: 4.5 },
+    hari:         { x: 142, y: 642, maxWidth: 64 },
+    tanggal:      { x: 253, y: 642, maxWidth: 88 },
+    nama:         { x: 190, y: 476, maxWidth: 334 },
+    alamatBaris1: { x: 190, y: 462, maxWidth: 334 },
+    alamatBaris2: { x: 190, y: 448, maxWidth: 334 },
+    noTelepon:    { x: 190, y: 435, maxWidth: 334 },
   },
   // Template direvisi user 2026-10-18 (perbaikan teks Pasal 4.6 yang tadinya
   // ketimpa/numpuk) -- blank "bulan" & "Rp" geser posisi, diukur ulang pakai
@@ -199,7 +207,8 @@ const SPK_AK_NONIS_RANGKAP_TEMPLATE_PATH = {
  * @param {object} data
  * @param {string} data.nomor
  * @param {string} data.nama
- * @param {string} data.alamat - 1 baris (beda dari versi Muslim yang 2 baris)
+ * @param {string} data.alamatBaris1 - jalan/no rumah/RT-RW
+ * @param {string} data.alamatBaris2 - kelurahan/kecamatan/kota/provinsi
  * @param {string} data.noTelepon
  * @param {string} data.hari
  * @param {string} data.tanggal
@@ -207,7 +216,7 @@ const SPK_AK_NONIS_RANGKAP_TEMPLATE_PATH = {
  * @param {string} data.nominalTarget
  * @returns {Promise<Buffer>}
  */
-export async function generateSpkAkNonisRangkapPdf(rangkap, { nomor, nama, alamat, noTelepon, hari, tanggal, targetBulanTahun, nominalTarget }) {
+export async function generateSpkAkNonisRangkapPdf(rangkap, { nomor, nama, alamatBaris1, alamatBaris2, noTelepon, hari, tanggal, targetBulanTahun, nominalTarget }) {
   const templatePath = SPK_AK_NONIS_RANGKAP_TEMPLATE_PATH[rangkap];
   if (!templatePath) throw new Error(`Rangkap SPK-AK Non-Muslim tidak dikenal: "${rangkap}"`);
   const k = KOORDINAT_RANGKAP_NONIS;
@@ -224,7 +233,7 @@ export async function generateSpkAkNonisRangkapPdf(rangkap, { nomor, nama, alama
       drawFitKiri(page, font, hari, k.p1.hari, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, tanggal, k.p1.tanggal, FONT_SIZE_RANGKAP);
       drawFitKiri(page, font, nama, k.p1.nama, FONT_SIZE_RANGKAP);
-      drawFitKiri(page, font, alamat, k.p1.alamat, FONT_SIZE_RANGKAP);
+      drawAlamatWrap(page, font, [alamatBaris1, alamatBaris2].filter(Boolean).join(' '), k.p1.alamatBaris1, FONT_SIZE_RANGKAP, 2, 14);
       drawFitKiri(page, font, noTelepon, k.p1.noTelepon, FONT_SIZE_RANGKAP);
     }
     if (i === 3) {
