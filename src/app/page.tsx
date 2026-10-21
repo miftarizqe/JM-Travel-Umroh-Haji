@@ -9,7 +9,7 @@ import { useLandingTeks } from '@/lib/useLandingTeks';
 import Slideshow from '@/app/components/Slideshow';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
-import { ambilRefAgenWa, ambilRefAgenId, salamAgen } from '@/lib/referralCapture';
+import { ambilWaReferral, ambilRefAgenId, salamReferral } from '@/lib/referralCapture';
 
 interface Program {
   id: string;
@@ -152,16 +152,24 @@ export default function Home() {
   const [fasilitasAllIn, setFasilitasAllIn] = useState<FasilitasItem[]>([]);
   const snapwidgetId = process.env.NEXT_PUBLIC_SNAPWIDGET_ID;
   const [pengaturan] = usePengaturan();
-  // WA agen (link /a/[kode]) MENANG dari WA kantor di SEMUA tombol WA
-  // landing page (dikonfirmasi user 2026-10-17) — biar leads yang masuk
-  // lewat link pribadi agen langsung ngobrol sama agennya, bukan ke kantor.
-  const [waAgen] = useState<string | null>(() => ambilRefAgenWa());
+  // WA referral (link agen /a/[kode], ATAU ?ref=kode Perwakilan/Sahabat
+  // Baitullah -- diperluas 2026-10-21, sebelumnya cuma agen) MENANG dari WA
+  // kantor di SEMUA tombol WA landing page (dikonfirmasi user 2026-10-17) —
+  // biar leads yang masuk lewat link pribadi langsung ngobrol sama orangnya,
+  // bukan ke kantor. SYARAT TAMBAHAN `&& !user` (ditemukan & diperbaiki
+  // 2026-10-21) — user yang udah login (role apa pun) gak boleh diarahkan
+  // ke WA referral orang lain. Disimpan di sessionStorage (lihat
+  // referralCapture.js), BUKAN localStorage — tab/sesi baru tanpa link
+  // referral lagi otomatis balik netral ke WA kantor, gak nyangkut selamanya.
+  const [waAgen] = useState<string | null>(() => !user ? ambilWaReferral() : null);
   const waTarget = waAgen || pengaturan.wa_kantor;
-  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" kalau datang
-  // lewat link referral agen, fallback "Assalamualaikum" polos kalau
-  // enggak (dikonfirmasi user 2026-10-19, gantiin sapaan generik "JM
-  // Travel" yang kesannya nyapa perusahaan bukan orang).
-  const [salam] = useState<string>(() => salamAgen());
+  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama>" kalau datang lewat
+  // link referral (sesi ini), fallback "Assalamualaikum" polos kalau enggak
+  // (dikonfirmasi user 2026-10-19, gantiin sapaan generik "JM Travel" yang
+  // kesannya nyapa perusahaan bukan orang). `!user` (2026-10-21, sama akar
+  // masalah kayak waAgen di atas) -- user yang udah login gak boleh disapa
+  // pakai nama referral basi.
+  const [salam] = useState<string>(() => !user ? salamReferral() : 'Assalamualaikum');
   // Section "Jadi Perwakilan" disembunyikan buat pengunjung yang datang
   // lewat link referral agen (dikonfirmasi user 2026-10-20) — satu-satunya
   // jalur komisi agen itu jamaah booking program (ujroh flat per jamaah,

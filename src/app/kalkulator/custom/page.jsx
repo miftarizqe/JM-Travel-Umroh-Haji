@@ -4,7 +4,7 @@ import InputTanggal from '@/app/components/InputTanggal';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import { ambilRefAgenWa, salamAgen } from '@/lib/referralCapture';
+import { ambilWaReferral, salamReferral } from '@/lib/referralCapture';
 
 function fmtTgl(t) {
   if (!t) return null;
@@ -13,10 +13,10 @@ function fmtTgl(t) {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function pesanWa({ catatan, tanggal, jumlahPax }) {
+function pesanWa({ catatan, tanggal, jumlahPax, salam }) {
   // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" (dikonfirmasi
   // user 2026-10-19), gantiin "Assalamu'alaikum JM Travel" generik.
-  let pesan = `${salamAgen()}, saya mau ajukan permintaan custom Umroh Private:\n\n${catatan}`;
+  let pesan = `${salam}, saya mau ajukan permintaan custom Umroh Private:\n\n${catatan}`;
   if (tanggal) pesan += `\n\nTanggal keberangkatan: ${fmtTgl(tanggal)}`;
   if (jumlahPax) pesan += `\nJumlah pax: ${jumlahPax}`;
   return pesan;
@@ -45,10 +45,15 @@ export default function KalkulatorCustomPage() {
     setError('');
     if (!catatan.trim()) { setError('Ceritain dulu paket seperti apa yang kamu mau.'); return; }
 
-    // WA agen (link /a/[kode]) MENANG dari WA kantor (dikonfirmasi user
-    // 2026-10-19, mirror waTarget di page.tsx) -- bug nyata: halaman ini
-    // sebelumnya selalu pakai wa_kantor, gak ngecek referral agen sama sekali.
-    const link = waLink(ambilRefAgenWa() || pengaturan.wa_kantor, pesanWa({ catatan: catatan.trim(), tanggal, jumlahPax }));
+    // WA referral (link agen /a/[kode], ATAU ?ref=kode Perwakilan/Sahabat
+    // Baitullah -- diperluas 2026-10-21) MENANG dari WA kantor (dikonfirmasi
+    // user 2026-10-19, mirror waTarget di page.tsx) -- bug nyata: halaman
+    // ini sebelumnya selalu pakai wa_kantor, gak ngecek referral sama sekali.
+    // `!user &&` -- user yang udah login (role apa pun) gak boleh kebawa ke
+    // WA referral orang lain. Disimpan sessionStorage (referralCapture.js)
+    // -- tab/sesi baru tanpa link referral lagi otomatis balik netral.
+    const salam = !user ? salamReferral() : 'Assalamualaikum';
+    const link = waLink((!user && ambilWaReferral()) || pengaturan.wa_kantor, pesanWa({ catatan: catatan.trim(), tanggal, jumlahPax, salam }));
     if (!link) { setError('Nomor WhatsApp JM Travel belum diatur, coba lagi nanti.'); return; }
     window.open(link, '_blank');
     setTerkirim(true);
