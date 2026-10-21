@@ -155,7 +155,7 @@ export default function PencairanDetailPage() {
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">🏦 Alkhalid: {fmtRp(data.grand_total_per_rekening.alkhalid)}</span>
             )}
             {data.grand_total_per_rekening.sahabat_baitullah > 0 && (
-              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">🏦 Sejuta Baitullah: {fmtRp(data.grand_total_per_rekening.sahabat_baitullah)}</span>
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">🏦 Sahabat Baitullah: {fmtRp(data.grand_total_per_rekening.sahabat_baitullah)}</span>
             )}
           </div>
         )}
@@ -302,7 +302,7 @@ export default function PencairanDetailPage() {
                       ))}
                     </div>
                     <div className={`flex justify-between text-xs font-bold border-t border-gray-100 pt-1 mt-1 ${warna}`}>
-                      <span>Subtotal — Sumber Rekening {key === 'alkhalid' ? 'Utama (Alkhalid)' : 'Sejuta Baitullah'}</span>
+                      <span>Subtotal — Sumber Rekening {key === 'alkhalid' ? 'Utama (Alkhalid)' : 'Sahabat Baitullah'}</span>
                       <span>{fmtRp(k.subtotal_per_rekening[key])}</span>
                     </div>
                   </div>
