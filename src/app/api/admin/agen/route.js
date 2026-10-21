@@ -66,41 +66,47 @@ export async function POST(request) {
     // FOTO KTP-nya, bukan NIK). WA OPSIONAL buat agen (migration 243 --
     // kolomnya generik dipakai semua role, jadi NOT NULL dilonggarin cuma
     // buat wa, nik dikembalikan NOT NULL lagi lewat migration 244).
-    if (!name || !email || !nikInput || !jenisKelamin || !password) {
-      return Response.json({ error: 'Nama, email, NIK, jenis kelamin, dan password wajib diisi' }, { status: 400 });
-    }
+    if (!name) return Response.json({ error: 'Nama wajib diisi', field: 'nama' }, { status: 400 });
+    if (!email) return Response.json({ error: 'Email wajib diisi', field: 'email' }, { status: 400 });
+    if (!nikInput) return Response.json({ error: 'NIK wajib diisi', field: 'nik' }, { status: 400 });
+    if (!jenisKelamin) return Response.json({ error: 'Jenis kelamin wajib diisi', field: 'jk' }, { status: 400 });
+    if (!password) return Response.json({ error: 'Password wajib diisi', field: 'password' }, { status: 400 });
     if (!['Laki-Laki', 'Perempuan'].includes(jenisKelamin)) {
-      return Response.json({ error: 'Jenis kelamin tidak valid' }, { status: 400 });
+      return Response.json({ error: 'Jenis kelamin tidak valid', field: 'jk' }, { status: 400 });
     }
     if (!nikValid(nikInput)) {
-      return Response.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
+      return Response.json({ error: 'NIK harus 16 digit angka', field: 'nik' }, { status: 400 });
     }
     if (!emailValid(email)) {
-      return Response.json({ error: 'Format email tidak valid' }, { status: 400 });
+      return Response.json({ error: 'Format email tidak valid', field: 'email' }, { status: 400 });
     }
     const wa = waInput ? normalisasiWA(waInput) : null;
     if (waInput && !wa) {
-      return Response.json({ error: 'Nomor WhatsApp tidak valid (contoh: 081234567890)' }, { status: 400 });
+      return Response.json({ error: 'Nomor WhatsApp tidak valid (contoh: 081234567890)', field: 'wa' }, { status: 400 });
     }
     if (password.length < 8) {
-      return Response.json({ error: 'Password minimal 8 karakter' }, { status: 400 });
+      return Response.json({ error: 'Password minimal 8 karakter', field: 'password' }, { status: 400 });
     }
 
-    const existingParams = [email];
-    let existingQuery = 'SELECT id FROM users WHERE email = ?';
-    if (wa) { existingQuery += ' OR wa IN (?)'; existingParams.push(varianWA(wa)); }
-    if (nikInput) { existingQuery += ' OR nik = ?'; existingParams.push(nikInput); }
-    const [existing] = await pool.query(existingQuery, existingParams);
-    if (existing.length > 0) {
-      return Response.json({ error: 'Email, WA, atau NIK sudah terdaftar' }, { status: 400 });
+    // Dicek PER FIELD (bukan 1 query gabungan OR) biar frontend bisa
+    // nandain persis field mana yang bentrok, bukan cuma pesan generik
+    // "salah satu dari tiga ini" (dikonfirmasi user 2026-10-21 — field
+    // yang gak sesuai wajib dimerahin).
+    const [[dupEmail]] = await pool.query('SELECT id FROM users WHERE email = ?', [email]);
+    if (dupEmail) return Response.json({ error: 'Email sudah terdaftar', field: 'email' }, { status: 400 });
+    if (wa) {
+      const [[dupWa]] = await pool.query('SELECT id FROM users WHERE wa IN (?)', [varianWA(wa)]);
+      if (dupWa) return Response.json({ error: 'No. WhatsApp sudah terdaftar', field: 'wa' }, { status: 400 });
     }
+    const [[dupNik]] = await pool.query('SELECT id FROM users WHERE nik = ?', [nikInput]);
+    if (dupNik) return Response.json({ error: 'NIK sudah terdaftar', field: 'nik' }, { status: 400 });
 
     if (perekrutId) {
       const [[perekrutAda]] = await pool.query(
         "SELECT id FROM users WHERE id = ? AND role IN ('agen','admin','super_admin')", [perekrutId]
       );
       if (!perekrutAda) {
-        return Response.json({ error: 'Perekrut tidak ditemukan' }, { status: 400 });
+        return Response.json({ error: 'Perekrut tidak ditemukan', field: 'perekrut_id' }, { status: 400 });
       }
     }
 
