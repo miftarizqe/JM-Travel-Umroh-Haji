@@ -155,13 +155,20 @@ export default function Home() {
   // WA agen (link /a/[kode]) MENANG dari WA kantor di SEMUA tombol WA
   // landing page (dikonfirmasi user 2026-10-17) — biar leads yang masuk
   // lewat link pribadi agen langsung ngobrol sama agennya, bukan ke kantor.
-  const [waAgen] = useState<string | null>(() => ambilRefAgenWa());
+  // SYARAT TAMBAHAN `&& !user` (ditemukan & diperbaiki 2026-10-21, sama
+  // akar masalah kayak viaAgenLink di atas) — tag localStorage gak expired,
+  // jadi siapa pun yang login (role apa pun) di browser yang PERNAH buka
+  // link agen bakal tetap diarahkan ke WA agen itu, bukan WA admin/kantor,
+  // padahal mereka udah py akun sendiri.
+  const [waAgen] = useState<string | null>(() => !user ? ambilRefAgenWa() : null);
   const waTarget = waAgen || pengaturan.wa_kantor;
   // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" kalau datang
   // lewat link referral agen, fallback "Assalamualaikum" polos kalau
   // enggak (dikonfirmasi user 2026-10-19, gantiin sapaan generik "JM
-  // Travel" yang kesannya nyapa perusahaan bukan orang).
-  const [salam] = useState<string>(() => salamAgen());
+  // Travel" yang kesannya nyapa perusahaan bukan orang). `!user` (2026-10-21,
+  // sama akar masalah kayak waAgen di atas) -- user yang udah login gak
+  // boleh disapa pakai nama agen basi dari tag localStorage lama.
+  const [salam] = useState<string>(() => !user ? salamAgen() : 'Assalamualaikum');
   // Section "Jadi Perwakilan" disembunyikan buat pengunjung yang datang
   // lewat link referral agen (dikonfirmasi user 2026-10-20) — satu-satunya
   // jalur komisi agen itu jamaah booking program (ujroh flat per jamaah,

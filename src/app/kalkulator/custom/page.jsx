@@ -13,10 +13,10 @@ function fmtTgl(t) {
   return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-function pesanWa({ catatan, tanggal, jumlahPax }) {
+function pesanWa({ catatan, tanggal, jumlahPax, salam }) {
   // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" (dikonfirmasi
   // user 2026-10-19), gantiin "Assalamu'alaikum JM Travel" generik.
-  let pesan = `${salamAgen()}, saya mau ajukan permintaan custom Umroh Private:\n\n${catatan}`;
+  let pesan = `${salam}, saya mau ajukan permintaan custom Umroh Private:\n\n${catatan}`;
   if (tanggal) pesan += `\n\nTanggal keberangkatan: ${fmtTgl(tanggal)}`;
   if (jumlahPax) pesan += `\nJumlah pax: ${jumlahPax}`;
   return pesan;
@@ -48,7 +48,12 @@ export default function KalkulatorCustomPage() {
     // WA agen (link /a/[kode]) MENANG dari WA kantor (dikonfirmasi user
     // 2026-10-19, mirror waTarget di page.tsx) -- bug nyata: halaman ini
     // sebelumnya selalu pakai wa_kantor, gak ngecek referral agen sama sekali.
-    const link = waLink(ambilRefAgenWa() || pengaturan.wa_kantor, pesanWa({ catatan: catatan.trim(), tanggal, jumlahPax }));
+    // `!user &&` (ditemukan & diperbaiki 2026-10-21) -- tag localStorage
+    // ref_agen gak expired, jadi siapa pun yang login (role apa pun) di
+    // browser yang PERNAH buka link agen bakal tetap kebawa ke WA agen itu,
+    // bukan WA admin/kantor, padahal mereka udah py akun sendiri.
+    const salam = !user ? salamAgen() : 'Assalamualaikum';
+    const link = waLink((!user && ambilRefAgenWa()) || pengaturan.wa_kantor, pesanWa({ catatan: catatan.trim(), tanggal, jumlahPax, salam }));
     if (!link) { setError('Nomor WhatsApp JM Travel belum diatur, coba lagi nanti.'); return; }
     window.open(link, '_blank');
     setTerkirim(true);

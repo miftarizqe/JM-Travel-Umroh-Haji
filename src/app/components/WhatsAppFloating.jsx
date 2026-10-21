@@ -22,7 +22,11 @@ export default function WhatsAppFloating() {
   const pathname = usePathname() || '';
   const [pengaturan] = usePengaturan();
   const [user] = useCurrentUser();
-  const [waAgen] = useState(() => ambilRefAgenWa());
+  // `&& !user` (ditemukan & diperbaiki 2026-10-21) -- tag localStorage
+  // ref_agen gak expired, jadi siapa pun yang login (role apa pun) di
+  // browser yang PERNAH buka link agen bakal tetap diarahkan ke WA agen
+  // itu, bukan WA admin/kantor, padahal mereka udah py akun sendiri.
+  const [waAgen] = useState(() => !user ? ambilRefAgenWa() : null);
 
   if (pathname.startsWith('/admin')) return null;
   if (user && ['admin', 'super_admin'].includes(user.role)) return null;
@@ -30,7 +34,7 @@ export default function WhatsAppFloating() {
   // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" (dikonfirmasi
   // user 2026-10-19), gantiin "Halo JM Travel" generik yang kesannya nyapa
   // perusahaan bukan orang.
-  const link = waLink(waAgen || pengaturan.wa_kantor, `${salamAgen()}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`);
+  const link = waLink(waAgen || pengaturan.wa_kantor, `${!user ? salamAgen() : 'Assalamualaikum'}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`);
   if (!link) return null;
 
   // Bottom navbar mobile (Layout.jsx) cuma tampil kalau login — naikkan
