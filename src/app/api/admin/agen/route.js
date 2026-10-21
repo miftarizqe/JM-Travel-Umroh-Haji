@@ -19,7 +19,17 @@ export async function GET(request) {
       `SELECT id, name, nik, email, wa, jenis_kelamin, kode_unik, status, created_at
        FROM users WHERE role = 'agen' ORDER BY created_at DESC`
     );
-    return Response.json({ agen: rows });
+    // Opsi dropdown "Perekrut" pas bikin akun agen baru (dikonfirmasi user
+    // 2026-10-21) -- agen lain + staff admin, MURNI catatan "siapa yang
+    // bawa orang ini masuk", gak ngaruh ke komisi apa pun (beda dari
+    // perekrut_id perwakilan yang nentuin ujroh override). Ditaruh di sini
+    // (bukan GET /api/admin/users) karena admin biasa gak boleh lihat akun
+    // staff admin/super_admin lain lewat endpoint itu -- query khusus ini
+    // cuma balikin id+nama, gak ada data sensitif lain.
+    const [perekrutOptions] = await pool.query(
+      `SELECT id, name, role FROM users WHERE role IN ('agen','admin','super_admin') ORDER BY role, name ASC`
+    );
+    return Response.json({ agen: rows, perekrut_options: perekrutOptions });
   } catch (error) {
     console.error(error);
     return Response.json({ error: 'Terjadi kesalahan server' }, { status: 500 });
@@ -37,37 +47,61 @@ export async function POST(request) {
     const body = await request.json();
     const name = String(body.nama || '').trim();
     const email = String(body.email || '').trim().toLowerCase();
-    const nik = String(body.nik || '').trim();
+    const nikInput = String(body.nik || '').trim();
     const waInput = String(body.wa || '').trim();
     const jenisKelamin = String(body.jenis_kelamin || '').trim();
     const password = String(body.password || '').trim();
+    // Data tambahan (dikonfirmasi user 2026-10-21, "datanya sayang kalo gak
+    // dipake") -- semuanya opsional kecuali disebutkan lain, kolom generik
+    // yang udah ada di users (dipakai perwakilan/sahabat juga), gak perlu
+    // kolom baru.
+    const tempatLahir = String(body.tempat_lahir || '').trim() || null;
+    const bank = String(body.bank || '').trim() || null;
+    const noRekening = String(body.no_rekening || '').trim() || null;
+    const namaPemilikRekening = String(body.nama_pemilik_rekening || '').trim() || null;
+    const fotoKtpPath = String(body.foto_ktp_path || '').trim() || null;
+    const perekrutId = String(body.perekrut_id || '').trim() || null;
 
-    if (!name || !email || !nik || !waInput || !jenisKelamin || !password) {
-      return Response.json({ error: 'Semua field wajib diisi' }, { status: 400 });
+    // NIK tetap WAJIB (koreksi 2026-10-21 -- yang dimaksud opsional itu
+    // FOTO KTP-nya, bukan NIK). WA OPSIONAL buat agen (migration 243 --
+    // kolomnya generik dipakai semua role, jadi NOT NULL dilonggarin cuma
+    // buat wa, nik dikembalikan NOT NULL lagi lewat migration 244).
+    if (!name || !email || !nikInput || !jenisKelamin || !password) {
+      return Response.json({ error: 'Nama, email, NIK, jenis kelamin, dan password wajib diisi' }, { status: 400 });
     }
     if (!['Laki-Laki', 'Perempuan'].includes(jenisKelamin)) {
       return Response.json({ error: 'Jenis kelamin tidak valid' }, { status: 400 });
     }
-    if (!nikValid(nik)) {
+    if (!nikValid(nikInput)) {
       return Response.json({ error: 'NIK harus 16 digit angka' }, { status: 400 });
     }
     if (!emailValid(email)) {
       return Response.json({ error: 'Format email tidak valid' }, { status: 400 });
     }
-    const wa = normalisasiWA(waInput);
-    if (!wa) {
+    const wa = waInput ? normalisasiWA(waInput) : null;
+    if (waInput && !wa) {
       return Response.json({ error: 'Nomor WhatsApp tidak valid (contoh: 081234567890)' }, { status: 400 });
     }
     if (password.length < 8) {
       return Response.json({ error: 'Password minimal 8 karakter' }, { status: 400 });
     }
 
-    const [existing] = await pool.query(
-      'SELECT id FROM users WHERE email = ? OR wa IN (?) OR nik = ?',
-      [email, varianWA(wa), nik]
-    );
+    const existingParams = [email];
+    let existingQuery = 'SELECT id FROM users WHERE email = ?';
+    if (wa) { existingQuery += ' OR wa IN (?)'; existingParams.push(varianWA(wa)); }
+    if (nikInput) { existingQuery += ' OR nik = ?'; existingParams.push(nikInput); }
+    const [existing] = await pool.query(existingQuery, existingParams);
     if (existing.length > 0) {
       return Response.json({ error: 'Email, WA, atau NIK sudah terdaftar' }, { status: 400 });
+    }
+
+    if (perekrutId) {
+      const [[perekrutAda]] = await pool.query(
+        "SELECT id FROM users WHERE id = ? AND role IN ('agen','admin','super_admin')", [perekrutId]
+      );
+      if (!perekrutAda) {
+        return Response.json({ error: 'Perekrut tidak ditemukan' }, { status: 400 });
+      }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -81,9 +115,12 @@ export async function POST(request) {
     // /api/agen/kode-unik self-heal endpoint yang nambal gejalanya duluan).
     const userId = randomUUID();
     await pool.query(
-      `INSERT INTO users (id, name, email, wa, nik, jenis_kelamin, password, role, status, terverifikasi, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'agen', 'active', 1, NOW())`,
-      [userId, name, email, wa, nik, jenisKelamin, hashedPassword]
+      `INSERT INTO users
+        (id, name, email, wa, nik, jenis_kelamin, password, role, status, terverifikasi, created_at,
+         tempat_lahir, bank, no_rekening, nama_pemilik_rekening, foto_ktp_path, perekrut_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'agen', 'active', 1, NOW(), ?, ?, ?, ?, ?, ?)`,
+      [userId, name, email, wa, nikInput || null, jenisKelamin, hashedPassword,
+       tempatLahir, bank, noRekening, namaPemilikRekening, fotoKtpPath, perekrutId]
     );
     const kodeUnik = await pastikanKodeUnik(pool, userId, 'agen');
 
