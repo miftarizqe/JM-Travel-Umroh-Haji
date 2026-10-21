@@ -191,8 +191,11 @@ export default function Home() {
   // jadi array, buang baris kosong.
   const parseBaris = (s: string | undefined) => (s || '').split('\n').map(x => x.trim()).filter(Boolean);
   // Digabung dari semua batch (bukan per-batch grid lagi) buat 1 slideshow
-  // yang geser kanan-kiri, disandingkan sama kolom Instagram.
-  const semuaFotoKeberangkatan = galeriBatches.flatMap(b => b.foto);
+  // yang geser kanan-kiri, disandingkan sama kolom Instagram. Tiap foto
+  // bawa judul+tanggal batch asalnya (dikonfirmasi user 2026-10-21, "kenapa
+  // gak dibuat kayak IG, ada caption judul batch" — sebelumnya di-flatten
+  // jadi string polos, keterangan batch-nya ilang sama sekali di landing).
+  const semuaFotoKeberangkatan = galeriBatches.flatMap(b => b.foto.map(src => ({ src, judul: b.judul, tanggal: b.tanggal })));
   // Kelompokkan perlengkapan berdasarkan foto yang sama (mis. koper+tag+ransel
   // 1 foto, slayer+paspor+idcard foto lain) — biar modal-nya nampilin tiap
   // foto sekali aja diikuti daftar item yang ada di foto itu, bukan
