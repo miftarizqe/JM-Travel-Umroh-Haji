@@ -103,69 +103,57 @@ function CetakRekapUjrohInner() {
           </div>
         ) : (
           <>
-            {data.kelompok.map(k => (
-              <div key={k.penerima_id} style={{ marginBottom: 14 }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      <td colSpan={3} style={tdHeader}>
-                        {k.penerima_nama} ({k.kode_unik})
-                        <div style={{ fontWeight: 400, fontSize: 9, color: '#555', marginTop: 2 }}>
-                          TF ke No. Rek. Tabungan Umroh: <b>{k.no_rekening_tabungan_umroh || 'BELUM DIISI JAMAAH'}</b> a.n. <b>{k.penerima_nama}</b>
-                        </div>
-                      </td>
-                    </tr>
-                    <tr>
-                      <th style={{ ...th, textAlign: 'left', width: 90 }}>Tanggal</th>
-                      <th style={{ ...th, textAlign: 'left' }}>Keterangan</th>
-                      <th style={{ ...th, width: 110 }}>Nominal</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {k.items.map(it => (
-                      <tr key={it.id}>
-                        <td style={tdLabel}>{fmtTanggal(it.created_at)}</td>
-                        <td style={tdLabel}>
-                          <span style={{ fontSize: 8, fontWeight: 700, color: '#1A4FA0' }}>{KATEGORI_LABEL[it.jenis] || it.jenis}</span>
-                          {' '}
-                          <span style={{ fontSize: 7, fontWeight: 700, color: it.rekening === 'alkhalid' ? '#1A4FA0' : '#7e22ce', border: '1px solid currentColor', borderRadius: 3, padding: '0 3px' }}>
-                            {it.rekening === 'alkhalid' ? 'ALKHALID' : 'SEJUTA BAITULLAH'}
-                          </span>
-                          <div>{it.keterangan}</div>
-                        </td>
-                        <td style={tdAngka}>{rp(it.nominal)}</td>
-                      </tr>
-                    ))}
-                    {/* Subtotal dipecah per rekening HANYA kalau penerima ini
-                        beneran kecampur dua-duanya (dikonfirmasi user
-                        2026-10-21, buntut bug lama rekeningUntukBooking.js —
-                        dokumen cetak ini yang di-TTD bos, harus jelas sumber
-                        dananya SEBELUM ditransfer). */}
-                    {k.subtotal_per_rekening && k.subtotal_per_rekening.alkhalid > 0 && k.subtotal_per_rekening.sahabat_baitullah > 0 ? (
-                      <>
+            {data.kelompok.map(k => {
+              // Dikelompokkan PER REKENING SUMBER (dikonfirmasi user
+              // 2026-10-21) — bukan badge per baris lagi. Closing Sahabat
+              // Baitullah & Closing Program (reguler) masing-masing tabel
+              // + subtotal sendiri (1 penerima bisa punya 2 angka beda),
+              // grup yang kosong gak dirender.
+              const grup = [
+                { key: 'sahabat_baitullah', label: 'Closing Sahabat Baitullah', warna: '#7e22ce' },
+                { key: 'alkhalid', label: 'Closing Program (Reguler)', warna: '#1A4FA0' },
+              ].map(g => ({ ...g, items: k.items.filter(it => it.rekening === g.key) })).filter(g => g.items.length > 0);
+              return (
+                <div key={k.penerima_id} style={{ marginBottom: 14 }}>
+                  <div style={{ fontWeight: 700, fontSize: 11, color: '#0E2F6E', marginBottom: 2 }}>
+                    {k.penerima_nama} ({k.kode_unik})
+                  </div>
+                  <div style={{ fontWeight: 400, fontSize: 9, color: '#555', marginBottom: 4 }}>
+                    TF ke No. Rek. Tabungan Umroh: <b>{k.no_rekening_tabungan_umroh || 'BELUM DIISI JAMAAH'}</b> a.n. <b>{k.penerima_nama}</b>
+                  </div>
+                  {grup.map(g => (
+                    <table key={g.key} style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 6 }}>
+                      <thead>
                         <tr>
-                          <td colSpan={2} style={{ ...tdTotal, color: '#1A4FA0' }}>Subtotal — Alkhalid</td>
-                          <td style={{ ...tdTotalAngka, color: '#1A4FA0' }}>{rp(k.subtotal_per_rekening.alkhalid)}</td>
+                          <td colSpan={3} style={{ ...tdHeader, color: g.warna }}>{g.label}</td>
                         </tr>
                         <tr>
-                          <td colSpan={2} style={{ ...tdTotal, color: '#7e22ce' }}>Subtotal — Sejuta Baitullah</td>
-                          <td style={{ ...tdTotalAngka, color: '#7e22ce' }}>{rp(k.subtotal_per_rekening.sahabat_baitullah)}</td>
+                          <th style={{ ...th, textAlign: 'left', width: 90 }}>Tanggal</th>
+                          <th style={{ ...th, textAlign: 'left' }}>Keterangan</th>
+                          <th style={{ ...th, width: 110 }}>Nominal</th>
                         </tr>
+                      </thead>
+                      <tbody>
+                        {g.items.map(it => (
+                          <tr key={it.id}>
+                            <td style={tdLabel}>{fmtTanggal(it.created_at)}</td>
+                            <td style={tdLabel}>
+                              <span style={{ fontSize: 8, fontWeight: 700, color: '#1A4FA0' }}>{KATEGORI_LABEL[it.jenis] || it.jenis}</span>
+                              <div>{it.keterangan}</div>
+                            </td>
+                            <td style={tdAngka}>{rp(it.nominal)}</td>
+                          </tr>
+                        ))}
                         <tr>
-                          <td colSpan={2} style={tdTotal}>Subtotal</td>
-                          <td style={tdTotalAngka}>{rp(k.subtotal)}</td>
+                          <td colSpan={2} style={{ ...tdTotal, color: g.warna }}>Subtotal — Sumber Rekening {g.key === 'alkhalid' ? 'Utama (Alkhalid)' : 'Sejuta Baitullah'}</td>
+                          <td style={{ ...tdTotalAngka, color: g.warna }}>{rp(k.subtotal_per_rekening[g.key])}</td>
                         </tr>
-                      </>
-                    ) : (
-                      <tr>
-                        <td colSpan={2} style={tdTotal}>Subtotal</td>
-                        <td style={tdTotalAngka}>{rp(k.subtotal)}</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            ))}
+                      </tbody>
+                    </table>
+                  ))}
+                </div>
+              );
+            })}
 
             {/* Breakdown rekening keseluruhan — tetap ditampilin walau cuma
                 1 rekening yang kepakai (transparansi "dana ini dari mana"),
