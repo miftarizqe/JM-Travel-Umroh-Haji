@@ -1,8 +1,13 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-// Carousel foto auto-play sederhana — dipakai di landing page (dokumentasi
-// per keberangkatan) dan bisa dipakai ulang di tempat lain yang butuh galeri.
+// Carousel foto auto-play — dipakai di landing page (dokumentasi per
+// keberangkatan) dan bisa dipakai ulang di tempat lain yang butuh galeri.
+// Geser SLIDE beneran (strip semua gambar digeser transform translateX),
+// bukan cuma ganti `src` di 1 <img> yang keliatan "lempeng"/motong tanpa
+// animasi — ditemukan & diperbaiki 2026-10-21, transisi lama secara teknis
+// gak pernah kepicu (class transition-opacity nempel di <img> yang cuma
+// ganti src, bukan property yang di-animasi CSS).
 export default function Slideshow({ images, aspect = 'aspect-[4/3]', intervalMs = 4000 }) {
   const [i, setI] = useState(0);
 
@@ -16,8 +21,15 @@ export default function Slideshow({ images, aspect = 'aspect-[4/3]', intervalMs 
 
   return (
     <div className={`relative ${aspect} rounded-xl overflow-hidden bg-gray-100 group`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={images[i]} alt="" className="w-full h-full object-cover transition-opacity duration-500" />
+      <div
+        className="flex h-full transition-transform duration-700 ease-in-out"
+        style={{ width: `${images.length * 100}%`, transform: `translateX(-${i * (100 / images.length)}%)` }}
+      >
+        {images.map((src, idx) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={idx} src={src} alt="" className="h-full object-cover shrink-0" style={{ width: `${100 / images.length}%` }} />
+        ))}
+      </div>
 
       {images.length > 1 && (
         <>
