@@ -76,7 +76,7 @@ export default function CetakFormulirMitra() {
   const { user } = data;
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
+    <div className="cetak-page-bg" style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
         <button onClick={() => window.print()}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
@@ -131,6 +131,7 @@ export default function CetakFormulirMitra() {
         @media print {
           .no-print { display: none !important; }
           body { background: #fff !important; }
+          .cetak-page-bg { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
         }
         @page { size: A4; margin: 15mm; }

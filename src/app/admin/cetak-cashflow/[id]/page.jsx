@@ -91,7 +91,7 @@ export default function CetakCashflow() {
   const barisBon = kelompokkan(bonList, BON_KOLOM);
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
+    <div className="cetak-page-bg" style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
         <button onClick={() => window.print()} disabled={!semuaGambarSiap}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: semuaGambarSiap ? 'pointer' : 'not-allowed', fontSize: 14, opacity: semuaGambarSiap ? 1 : 0.6 }}>
@@ -244,6 +244,7 @@ export default function CetakCashflow() {
         @media print {
           .no-print { display: none !important; }
           body { background: #fff !important; }
+          .cetak-page-bg { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
           .sheet + .sheet { page-break-before: always; }
           /* baris tabel ledger & tiap baris lampiran bon jangan sampai

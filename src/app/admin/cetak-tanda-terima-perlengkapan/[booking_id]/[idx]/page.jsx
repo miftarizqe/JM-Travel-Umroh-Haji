@@ -41,7 +41,7 @@ export default function CetakTandaTerimaPerlengkapan() {
   if (!data) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Data tidak ditemukan — pastikan perlengkapan sudah ditandai &quot;Dikirim&quot;.</div>;
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
+    <div className="cetak-page-bg" style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
         <button onClick={() => window.print()}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
@@ -116,6 +116,7 @@ export default function CetakTandaTerimaPerlengkapan() {
         @media print {
           .no-print { display: none !important; }
           body { background: #fff !important; }
+          .cetak-page-bg { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
         }
         @page { size: 210mm 297mm; margin: 15mm; }
