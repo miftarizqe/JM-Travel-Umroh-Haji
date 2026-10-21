@@ -272,39 +272,42 @@ export default function PencairanDetailPage() {
                 </div>
               </div>
 
-              <div className="space-y-1 text-xs mb-2">
-                {k.items.map(it => (
-                  <div key={it.id} className="flex justify-between bg-gray-50 rounded-lg px-2.5 py-1.5">
-                    <div>
-                      <span className="text-[10px] font-bold text-[#1A4FA0]">{KATEGORI_LABEL[it.jenis] || it.jenis}</span>
-                      {' '}
-                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${it.rekening === 'alkhalid' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
-                        {it.rekening === 'alkhalid' ? 'Alkhalid' : 'Sejuta Baitullah'}
-                      </span>
-                      <div className="text-gray-600">{it.keterangan}</div>
+              {/* Dikelompokkan PER REKENING SUMBER (dikonfirmasi user
+                  2026-10-21) — bukan badge per baris lagi. Closing Sahabat
+                  Baitullah & Closing Program (reguler) masing-masing punya
+                  subtotal sendiri (1 penerima bisa punya 2 angka beda),
+                  grup yang kosong gak dirender (mayoritas penerima cuma
+                  punya 1 jenis closing). */}
+              {[
+                { key: 'sahabat_baitullah', label: 'Closing Sahabat Baitullah', warna: 'text-purple-700' },
+                { key: 'alkhalid', label: 'Closing Program (Reguler)', warna: 'text-blue-700' },
+              ].map(({ key, label, warna }) => {
+                const grupItems = k.items.filter(it => it.rekening === key);
+                if (grupItems.length === 0) return null;
+                return (
+                  <div key={key} className="mb-2">
+                    <div className={`text-[10px] font-bold uppercase tracking-wide mb-1 ${warna}`}>{label}</div>
+                    <div className="space-y-1 text-xs">
+                      {grupItems.map(it => (
+                        <div key={it.id} className="flex justify-between bg-gray-50 rounded-lg px-2.5 py-1.5">
+                          <div>
+                            <span className="text-[10px] font-bold text-[#1A4FA0]">{KATEGORI_LABEL[it.jenis] || it.jenis}</span>
+                            <div className="text-gray-600">{it.keterangan}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-bold text-[#0E2F6E]">{fmtRp(it.nominal)}</div>
+                            {it.dikonfirmasi_at ? <span className="text-green-600">✅</span> : <span className="text-gray-300">⏳</span>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="font-bold text-[#0E2F6E]">{fmtRp(it.nominal)}</div>
-                      {it.dikonfirmasi_at ? <span className="text-green-600">✅</span> : <span className="text-gray-300">⏳</span>}
+                    <div className={`flex justify-between text-xs font-bold border-t border-gray-100 pt-1 mt-1 ${warna}`}>
+                      <span>Subtotal — Sumber Rekening {key === 'alkhalid' ? 'Utama (Alkhalid)' : 'Sejuta Baitullah'}</span>
+                      <span>{fmtRp(k.subtotal_per_rekening[key])}</span>
                     </div>
                   </div>
-                ))}
-              </div>
-              {/* Subtotal split per rekening — cuma dipecah 2 baris kalau
-                  penerima ini BENERAN punya campuran dua-duanya, biar gak
-                  nambah noise buat mayoritas (1 orang biasanya 1 rekening
-                  doang). */}
-              {k.subtotal_per_rekening && k.subtotal_per_rekening.alkhalid > 0 && k.subtotal_per_rekening.sahabat_baitullah > 0 ? (
-                <div className="text-xs font-bold text-[#0E2F6E] border-t border-gray-100 pt-1.5 mb-2 space-y-0.5">
-                  <div className="flex justify-between text-blue-700"><span>Subtotal — Alkhalid</span><span>{fmtRp(k.subtotal_per_rekening.alkhalid)}</span></div>
-                  <div className="flex justify-between text-purple-700"><span>Subtotal — Sejuta Baitullah</span><span>{fmtRp(k.subtotal_per_rekening.sahabat_baitullah)}</span></div>
-                  <div className="flex justify-between border-t border-gray-100 pt-0.5"><span>Subtotal</span><span>{fmtRp(k.subtotal)}</span></div>
-                </div>
-              ) : (
-                <div className="flex justify-between text-xs font-bold text-[#0E2F6E] border-t border-gray-100 pt-1.5 mb-2">
-                  <span>Subtotal</span><span>{fmtRp(k.subtotal)}</span>
-                </div>
-              )}
+                );
+              })}
 
               {isAdmin && p.status === 'disetujui' && !semuaConfirmed && (
                 k.no_rekening_tabungan_umroh ? (
