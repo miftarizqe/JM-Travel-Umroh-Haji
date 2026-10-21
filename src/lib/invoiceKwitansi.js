@@ -285,6 +285,36 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
   return { id: result.insertId, nomor: null, isNew: true };
 }
 
+// Tanda Terima Uang buat setoran pendaftaran Rp1.000.000 Sahabat Baitullah
+// (dikonfirmasi user 2026-10-21 — gap ditemukan, beda dari
+// generateTandaTerimaUntukPayment di atas yang nempel ke tabel `payments`/
+// `bookings`: setoran ini hidup di `sahabat_pendaftaran`, gak ada booking/
+// payment row sama sekali, jadi booking_id & payment_id-nya NULL).
+// Idempoten lewat sahabat_pendaftaran.ttu_setoran_pendaftaran_id (migration
+// 245) — dipanggil ulang pas GANTI bukti TF gak bikin TTU dobel.
+export async function generateTandaTerimaSetoranPendaftaranSahabat(pool, userId, actorUserId) {
+  const [[pendaftaran]] = await pool.query(
+    'SELECT ttu_setoran_pendaftaran_id FROM sahabat_pendaftaran WHERE user_id = ?',
+    [userId]
+  );
+  if (!pendaftaran) return null;
+  if (pendaftaran.ttu_setoran_pendaftaran_id) {
+    const [[existing]] = await pool.query('SELECT id, nomor FROM invoice_kwitansi WHERE id = ?', [pendaftaran.ttu_setoran_pendaftaran_id]);
+    if (existing) return { id: existing.id, nomor: existing.nomor, isNew: false };
+  }
+
+  const [[user]] = await pool.query('SELECT name FROM users WHERE id = ?', [userId]);
+  if (!user) return null;
+
+  const [result] = await pool.query(
+    `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, payment_id, nama, nominal, keterangan, tanggal, is_manual, dibuat_oleh, status)
+     VALUES (NULL, 'tanda_terima', NULL, NULL, ?, 1000000, ?, ?, 0, ?, 'paid')`,
+    [user.name, 'Setoran pendaftaran Sahabat Baitullah', fmtTgl(new Date()), actorUserId || userId]
+  );
+  await pool.query('UPDATE sahabat_pendaftaran SET ttu_setoran_pendaftaran_id = ? WHERE user_id = ?', [result.insertId, userId]);
+  return { id: result.insertId, nomor: null, isNew: true };
+}
+
 /**
  * Tanda Terima Uang yang belum "dikirim" (belum dipilih jalur fisik/digital
  * sama sekali) — dipakai cluster "Perlu Perhatian" di admin dashboard biar
@@ -294,11 +324,16 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
  */
 export async function daftarTtuBelumDikirim(pool) {
   const [rows] = await pool.query(
+    // Fallback ke ik.dibuat_oleh (ditambahin 2026-10-21) -- TTU setoran
+    // pendaftaran Sahabat Baitullah gak punya booking_id/payment_id sama
+    // sekali (lihat generateTandaTerimaSetoranPendaftaranSahabat), jadi
+    // b.ordered_by/b.user_id selalu NULL buat baris itu -- tanpa fallback
+    // ini, nomor WA-nya gak kebaca di cluster "Perlu Perhatian".
     `SELECT ik.id, ik.nomor, ik.nominal, ik.tanggal, ik.booking_id, b.prog_name,
             COALESCE(u.name, ik.nama) AS nama, u.wa
      FROM invoice_kwitansi ik
      LEFT JOIN bookings b ON b.id = ik.booking_id
-     LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
+     LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id, ik.dibuat_oleh)
      WHERE ik.jenis = 'tanda_terima' AND ik.terkirim = 0
      ORDER BY ik.created_at ASC`
   );

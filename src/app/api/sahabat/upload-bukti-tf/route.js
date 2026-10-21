@@ -6,6 +6,7 @@ import { wajibLogin } from '@/lib/auth';
 import { catatRekening } from '@/lib/rekeningLedger';
 import { kirimNotifikasiAdmin } from '@/lib/notifikasi';
 import { pesanUkuranFile } from '@/lib/batasUpload';
+import { generateTandaTerimaSetoranPendaftaranSahabat } from '@/lib/invoiceKwitansi';
 
 const TIPE_OK = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
 
@@ -123,6 +124,16 @@ export async function POST(request) {
         sumber_id: auth.user.id, nominal: 1000000,
         keterangan: `Setoran pendaftaran Rp1.000.000 — ${auth.user.name || auth.user.id}`,
       });
+
+      // Tanda Terima Uang (dikonfirmasi user 2026-10-21, gap ditemukan —
+      // setoran pendaftaran ini sebelumnya gak pernah dibikinin TTU kayak
+      // DP/pelunasan program biasa). Best-effort, gagal generate JANGAN
+      // sampai gagalin upload bukti TF-nya sendiri.
+      try {
+        await generateTandaTerimaSetoranPendaftaranSahabat(pool, auth.user.id, auth.user.id);
+      } catch (e) {
+        console.error('Gagal generate TTU setoran pendaftaran sahabat:', e);
+      }
     } else {
       // Ganti bukti — cuma file & timestamp-nya yang diupdate, status funnel
       // yang udah lanjut (mis. udah 'active') TIDAK direset.

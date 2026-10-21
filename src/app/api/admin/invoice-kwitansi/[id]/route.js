@@ -184,9 +184,18 @@ export async function GET(request, { params }) {
         };
       }
     } else if (!isAdmin) {
-      // Dokumen manual tanpa booking_id — gak ada konsep "pemilik", cuma
-      // admin yang boleh akses.
-      return Response.json({ error: 'Akses ditolak.' }, { status: 403 });
+      // Dokumen tanpa booking_id biasanya "manual" (admin-created, gak ada
+      // konsep pemilik) -- TAPI TTU setoran pendaftaran Sahabat Baitullah
+      // (dikonfirmasi user 2026-10-21, lihat generateTandaTerimaSetoran
+      // PendaftaranSahabat) JUGA lewat sini, dan itu PUNYA pemilik: yang
+      // bikin (dibuat_oleh) ya sahabat-nya sendiri (self-service, bukan
+      // admin, beda dari dokumen manual admin yang dibuat_oleh-nya SELALU
+      // admin). Sama pola gating booking: cuma boleh kalau miliknya sendiri
+      // DAN udah terkirim.
+      const milikSendiriTanpaBooking = dokumen.dibuat_oleh && String(dokumen.dibuat_oleh) === String(auth.user.id);
+      if (!milikSendiriTanpaBooking || !dokumen.terkirim) {
+        return Response.json({ error: 'Akses ditolak.' }, { status: 403 });
+      }
     }
 
     return Response.json({ dokumen, booking, payment });
