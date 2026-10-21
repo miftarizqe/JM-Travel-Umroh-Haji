@@ -20,10 +20,13 @@ export async function GET(request) {
 
     const [rows] = await pool.query(
       `SELECT kl.id, kl.jenis, kl.nominal, kl.keterangan, kl.created_at, kl.dikonfirmasi_at, kl.bukti_tf_admin_path,
+              kl.booking_id, p.publish_type,
               u.id AS penerima_id, u.name AS penerima_nama, u.kode_unik, u.role AS penerima_role,
               u.bank, u.no_rekening, u.nama_pemilik_rekening, u.no_rekening_tabungan_umroh
        FROM komisi_ledger kl
        JOIN users u ON u.id = kl.penerima_id
+       LEFT JOIN bookings b ON b.id = kl.booking_id
+       LEFT JOIN programs p ON p.id = b.prog_id
        WHERE ${pengajuanId ? 'kl.pengajuan_ujroh_id = ?' : "kl.dikonfirmasi_at IS NULL AND kl.pengajuan_ujroh_id IS NULL"}
          AND kl.jenis IN ('komisi_sahabat','closing_langsung_sahabat','referral_closing_reguler_sahabat','tabungan_awal_sahabat','head_of_program_registrasi')
        -- 'tabungan_awal_sahabat' TETAP di list ini (beda dari JENIS_UJROH di
@@ -34,6 +37,16 @@ export async function GET(request) {
        ORDER BY u.name ASC, kl.created_at ASC`,
       pengajuanId ? [pengajuanId] : []
     );
+
+    // Rekening sumber dana per BARIS (dikonfirmasi user 2026-10-21, buntut
+    // bug lama di rekeningUntukBooking.js — biar admin lihat split-nya
+    // SEBELUM TF, gak baru ketauan keliru pas pembukuan) — logic HARUS
+    // PERSIS SAMA kayak rekeningUntukBooking() (baris tanpa booking_id
+    // fallback 'sahabat_baitullah', booking program bukan Sahabat
+    // Baitullah -> 'alkhalid'), dihitung inline di sini (bukan panggil
+    // rekeningUntukBooking per baris) karena publish_type udah ke-JOIN
+    // sekali buat semua baris lewat query di atas.
+    const rekeningBaris = (r) => !r.booking_id ? 'sahabat_baitullah' : (r.publish_type === 'sahabat_baitullah' ? 'sahabat_baitullah' : 'alkhalid');
 
     const kelompokMap = new Map();
     for (const r of rows) {
@@ -49,14 +62,17 @@ export async function GET(request) {
           no_rekening_tabungan_umroh: r.no_rekening_tabungan_umroh,
           items: [],
           subtotal: 0,
+          subtotal_per_rekening: { alkhalid: 0, sahabat_baitullah: 0 },
         });
       }
       const grp = kelompokMap.get(r.penerima_id);
+      const rekening = rekeningBaris(r);
       grp.items.push({
         id: r.id, jenis: r.jenis, nominal: r.nominal, keterangan: r.keterangan, created_at: r.created_at,
-        dikonfirmasi_at: r.dikonfirmasi_at, bukti_tf_admin_path: r.bukti_tf_admin_path,
+        dikonfirmasi_at: r.dikonfirmasi_at, bukti_tf_admin_path: r.bukti_tf_admin_path, rekening,
       });
       grp.subtotal += Number(r.nominal || 0);
+      grp.subtotal_per_rekening[rekening] += Number(r.nominal || 0);
     }
     // Head of Program selalu ditaruh paling atas, sisanya dari subtotal
     // terbesar ke terkecil (dikonfirmasi user 2026-10-06) — bukan urut nama.
@@ -82,6 +98,10 @@ export async function GET(request) {
     }
     for (const k of kelompok) delete k.penerima_role;
     const grandTotal = kelompok.reduce((s, k) => s + k.subtotal, 0);
+    const grandTotalPerRekening = kelompok.reduce((acc, k) => ({
+      alkhalid: acc.alkhalid + k.subtotal_per_rekening.alkhalid,
+      sahabat_baitullah: acc.sahabat_baitullah + k.subtotal_per_rekening.sahabat_baitullah,
+    }), { alkhalid: 0, sahabat_baitullah: 0 });
 
     let pengajuan = null;
     if (pengajuanId) {
@@ -106,6 +126,7 @@ export async function GET(request) {
       kelompok,
       jumlah_baris: rows.length,
       grand_total: grandTotal,
+      grand_total_per_rekening: grandTotalPerRekening,
       generated_at: new Date(),
       pengajuan,
       periode,

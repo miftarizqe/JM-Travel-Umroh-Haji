@@ -23,6 +23,11 @@ export default function DashboardPerwakilan() {
   const [statusDaftar, setStatusDaftar] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [kodeInvite, setKodeInvite] = useState(null);
+  // Saldo Deposit umum (dikonfirmasi user 2026-10-20) — ini saldo booking
+  // PRIBADI perwakilan sebagai jamaah (kalau dia pernah batal program atas
+  // kemauan sendiri), BUKAN komisi/ujroh — makanya ditampilin terpisah dari
+  // kartu forecast di atas.
+  const [saldoDeposit, setSaldoDeposit] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -34,8 +39,10 @@ export default function DashboardPerwakilan() {
       // DB), BUKAN dari localStorage user yang bisa stale kalau kode-nya
       // baru digenerate setelah sesi login ini dimulai.
       fetch(`/api/profil?user_id=${user.id}`).then(r => r.json()).catch(() => null),
-    ]).then(([d, s, p]) => {
-      setData(d); setStatusDaftar(s); setKodeInvite(p?.user?.kode_invite_perwakilan || null); setLoading(false);
+      fetch('/api/saldo-deposit').then(r => r.json()).catch(() => null),
+    ]).then(([d, s, p, sd]) => {
+      setData(d); setStatusDaftar(s); setKodeInvite(p?.user?.kode_invite_perwakilan || null);
+      setSaldoDeposit(sd?.saldo || 0); setLoading(false);
     })
       .catch(() => setLoading(false));
   }, [user]);
@@ -235,6 +242,18 @@ export default function DashboardPerwakilan() {
           <div className="font-black text-[#C9952A] text-lg">{rp(data?.forecast?.potensi_override || 0)}</div>
           <div className="text-[10px] text-gray-400 mt-0.5">Menunggu closing downline selesai · {expandForecast==='downline'?'Tutup ▲':'Lihat rincian ▼'}</div>
         </div>
+      </div>
+
+      {/* Saldo Deposit — saldo booking PRIBADI (sebagai jamaah), bukan
+          komisi/ujroh perwakilan, makanya kartunya terpisah dari forecast
+          di atas. Selalu tampil (dikonfirmasi user 2026-10-21) — "biar
+          familiar" sama fitur ini walau saldonya masih Rp 0. */}
+      <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+        <div>
+          <div className="text-xs text-gray-500">💰 Saldo Deposit Anda</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">Bisa dipakai bayar DP/pelunasan booking apa saja</div>
+        </div>
+        <div className="font-black text-purple-700 text-lg whitespace-nowrap">Rp {saldoDeposit.toLocaleString('id-ID')}</div>
       </div>
 
       {expandForecast && (

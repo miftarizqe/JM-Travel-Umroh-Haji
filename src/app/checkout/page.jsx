@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
 import CartPaketKamar, { jamaahKosong, kamarKeyOf, masalahJamaah, labelPaketKamar, hargaItem } from '@/app/components/CartPaketKamar';
-import SearchableSelect from '@/app/components/SearchableSelect';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser, segarkanStatusUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
@@ -130,23 +129,31 @@ function CheckoutPageInner() {
   // bawah, murni kosmetik karena server (buatSatuBooking) SUDAH memaksa
   // pakai nilai ini apapun yang dikirim client.
   const [permanentReferrer, setPermanentReferrer] = useState(null);
-  const [perwList, setPerwList] = useState([]);
-  // Daftar akun agen AKTIF — fallback MANUAL "Sumber Informasi: Agen"
-  // (dikonfirmasi user 2026-10-19, mirror dropdown Perwakilan di atas).
+  // Referral agen PERMANEN (dikunci sejak registrasi lewat link /a/[kode],
+  // migration 240, dikonfirmasi user 2026-10-20) — mirror persis
+  // permanentReferrer perwakilan di atas. Banner read-only, server
+  // (buatSatuBooking) SUDAH memaksa pakai nilai ini.
+  const [permanentAgenReferrer, setPermanentAgenReferrer] = useState(null);
+  // Jamaah ketik kode_unik Perwakilan/Agen/Sahabat yang mengajak, SATU kode
+  // diverifikasi ke server (POST /api/referral-list/cek-<role>, nama
+  // disamarkan) — BUKAN dropdown nge-list semua nama (dikonfirmasi user
+  // 2026-10-19, nyamain ke pola Sahabat Baitullah yang udah ditutup duluan
+  // 2026-09-28 — checkout sebelumnya kelewat masih expose GET
+  // /api/referral-list & ?role=agen yang balikin nama lengkap SEMUA
+  // perwakilan/agen ke siapa pun tanpa login).
+  const [perwakilanTerverifikasi, setPerwakilanTerverifikasi] = useState(null);
+  const [cekPerwakilanStatus, setCekPerwakilanStatus] = useState('');
   // referral_agen_id biasanya tag invisible dari localStorage (klik link
   // /a/[kode]) — tapi itu ilang kalau beda device/browser/cache kehapus.
-  // Pilihan manual ini JAGA-JAGA biar jamaah tetap bisa ngasih kredit ke
+  // Fallback manual ini JAGA-JAGA biar jamaah tetap bisa ngasih kredit ke
   // agen yang ngajak walau tag-nya udah gak ada, TANPA perlu ngunci
   // permanen ke akun (dikonfirmasi user, beda dari referral perwakilan).
-  const [agenList, setAgenList] = useState([]);
+  const [agenTerverifikasi, setAgenTerverifikasi] = useState(null);
+  const [cekAgenStatus, setCekAgenStatus] = useState('');
   // "Closing langsung" sahabat — jamaah booking langsung (bukan nabung),
   // atribusi ke anggota sahabat yang bantu, pola identik sumber='perwakilan'
   // di atas. MURNI tag (referral_sahabat_id) buat admin proses split
   // rekening pribadi secara manual — TIDAK ikut logic komisi/voucher apa pun.
-  // Daftar nama anggota Sahabat SENGAJA gak di-fetch lagi (ditutup
-  // 2026-09-28, dikonfirmasi user — dulu dropdown nampilin nama lengkap semua
-  // anggota). Jamaah ketik kode_unik Sahabat yang mengajak, diverifikasi
-  // server 1 kode (POST /api/referral-list/cek-sahabat, nama disamarkan).
   const [sahabatTerverifikasi, setSahabatTerverifikasi] = useState(null);
   const [cekSahabatStatus, setCekSahabatStatus] = useState('');
   const [buktiPath, setBuktiPath] = useState(null);
@@ -169,6 +176,16 @@ function CheckoutPageInner() {
   const [buktiNama, setBuktiNama] = useState(null);
   const [loading, setLoading] = useState(false);
   const [bookingIds, setBookingIds] = useState([]);
+  // Saldo Deposit umum (dikonfirmasi user 2026-10-20) — konversi DP batal
+  // program lain, gak ada expired, bisa dipakai atas nama siapa aja. Kalau
+  // cukup buat nutup totalDP, jadi ALTERNATIF transfer manual (skip upload
+  // bukti sama sekali, DP langsung confirmed).
+  const [saldoDeposit, setSaldoDeposit] = useState(0);
+  const [metodeBayarDp, setMetodeBayarDp] = useState('transfer'); // 'transfer' | 'saldo_deposit'
+  useEffect(() => {
+    if (!user) return;
+    fetch('/api/saldo-deposit').then(r => r.json()).then(d => setSaldoDeposit(d.saldo || 0)).catch(() => {});
+  }, [user]);
   const [timer, setTimer] = useState(3599);
   // Konsen eksplisit pemotongan saldo (dikonfirmasi user 2026-10-11) —
   // checkout-mandiri motong saldo tabungan LANGSUNG begitu submit (lihat
@@ -224,9 +241,12 @@ function CheckoutPageInner() {
   const isDirty = step > 1 && step < (isMandiriSahabat ? 3 : 4);
   useUnsavedGuard(isDirty);
 
-  // Verifikasi kode Sahabat yang diketik jamaah (didebounce 400ms). Akun
-  // Sahabat sendiri gak lewat sini — referralKode-nya kode milik sendiri &
-  // referral_sahabat_id dipaksa user.id pas submit.
+  // Verifikasi kode Sahabat/Perwakilan/Agen yang diketik jamaah (didebounce
+  // 400ms, 1 kode ke server — BUKAN cari di daftar lengkap yang di-fetch
+  // duluan, lihat catatan di atas). Akun Sahabat sendiri gak lewat sini —
+  // referralKode-nya kode milik sendiri & referral_sahabat_id dipaksa
+  // user.id pas submit. Perwakilan checkout sendiri juga gak lewat sini
+  // (ketutup banner read-only duluan, lihat render di bawah).
   useEffect(() => {
     if (user?.role === 'sahabat_baitullah' || sumber !== 'sahabat_baitullah') return;
     const kode = referralKode.trim();
@@ -249,33 +269,62 @@ function CheckoutPageInner() {
   }, [referralKode, sumber, user?.role]);
 
   useEffect(() => {
+    if (sumber !== 'perwakilan' || user?.role === 'perwakilan' || permanentReferrer) return;
+    const kode = referralKode.trim();
+    setPerwakilanTerverifikasi(null);
+    if (!kode) { setCekPerwakilanStatus(''); return; }
+    setCekPerwakilanStatus('cek');
+    const timer = setTimeout(() => {
+      fetch('/api/referral-list/cek-perwakilan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kode }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) { setPerwakilanTerverifikasi(d); setCekPerwakilanStatus(''); }
+          else setCekPerwakilanStatus('invalid');
+        })
+        .catch(() => setCekPerwakilanStatus('invalid'));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [referralKode, sumber, user?.role, permanentReferrer]);
+
+  useEffect(() => {
+    if (sumber !== 'agen') return;
+    const kode = referralKode.trim();
+    setAgenTerverifikasi(null);
+    if (!kode) { setCekAgenStatus(''); return; }
+    setCekAgenStatus('cek');
+    const timer = setTimeout(() => {
+      fetch('/api/referral-list/cek-agen', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kode }),
+      })
+        .then(r => r.json())
+        .then(d => {
+          if (d.valid) { setAgenTerverifikasi(d); setCekAgenStatus(''); }
+          else setCekAgenStatus('invalid');
+        })
+        .catch(() => setCekAgenStatus('invalid'));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [referralKode, sumber]);
+
+  useEffect(() => {
     if (!user) return;
 
-    // Ambil daftar perwakilan AKTIF untuk pilihan "siapa yang mengajak".
-    // Pakai /api/referral-list (boleh diakses jamaah), BUKAN /api/admin/users
-    // yang admin-only — itu penyebab dropdown kosong & referral_perw_id NULL.
-    fetch('/api/referral-list')
-      .then(r => r.json())
-      .then(d => {
-        const list = d.perwakilan || [];
-        setPerwList(list);
-        // Ref perwakilan yang ketangkep dari link publik (program/[id],
-        // programs, register) — auto-isi "Sumber Informasi" kalau jamaah
-        // belum milih apa-apa manual, biar gak perlu pilih dropdown lagi
-        // (dikonfirmasi user 2026-09-02). Perwakilan checkout sendiri
-        // (sumber sudah ke-set dari lazy initializer di atas) TIDAK
-        // ditimpa — cek `sumber` masih kosong dulu.
-        const ref = ambilRefPerwakilan();
-        if (ref && !sumber) {
-          const match = list.find(p => p.kode_unik === ref);
-          if (match) { setSumber('perwakilan'); setReferralKode(match.kode_unik); }
-        }
-      })
-      .catch(() => {});
-    fetch('/api/referral-list?role=agen')
-      .then(r => r.json())
-      .then(d => setAgenList(d.perwakilan || []))
-      .catch(() => {});
+    // Ref perwakilan yang ketangkep dari link publik (program/[id],
+    // programs, register) — auto-isi "Sumber Informasi" kalau jamaah belum
+    // milih apa-apa manual, biar gak perlu ketik ulang kodenya (dikonfirmasi
+    // user 2026-09-02). Perwakilan checkout sendiri (sumber sudah ke-set
+    // dari lazy initializer di atas) TIDAK ditimpa — cek `sumber` masih
+    // kosong dulu. Validitas kodenya diverifikasi oleh effect cek-perwakilan
+    // di atas (debounce jalan otomatis begitu referralKode ke-set) — gak
+    // perlu fetch daftar lengkap duluan buat cocokin (dikonfirmasi user
+    // 2026-10-19, itu penyebab GET /api/referral-list expose semua nama
+    // perwakilan ke publik).
+    const ref = ambilRefPerwakilan();
+    if (ref && !sumber) { setSumber('perwakilan'); setReferralKode(ref); }
     if (progId) {
       fetch('/api/programs')
         .then(r => r.json())
@@ -299,6 +348,13 @@ function CheckoutPageInner() {
             id: d.user.perekrut_perwakilan_jamaah_id,
             name: d.user.perekrut_perwakilan_jamaah_nama,
             kode_unik: d.user.perekrut_perwakilan_jamaah_kode,
+          });
+        }
+        if (d.user?.perekrut_agen_jamaah_id) {
+          setPermanentAgenReferrer({
+            id: d.user.perekrut_agen_jamaah_id,
+            name: d.user.perekrut_agen_jamaah_nama,
+            kode_unik: d.user.perekrut_agen_jamaah_kode,
           });
         }
       })
@@ -550,8 +606,8 @@ function CheckoutPageInner() {
           // itu duit khusus target program eksklusif, bukan metode bayar
           // buat program lain). Checkout mandiri program EKSKLUSIF (beda
           // flow, submitMandiri di bawah) sama sekali gak disentuh.
-          bukti_path: buktiPath,
-          bukti_nama: buktiNama,
+          bukti_path: metodeBayarDp === 'saldo_deposit' && sisaTransferDp === 0 ? null : buktiPath,
+          bukti_nama: metodeBayarDp === 'saldo_deposit' && sisaTransferDp === 0 ? null : buktiNama,
           voucher_kode: summary.voucherKode,
           // Referral: menentukan siapa penerima komisi. Untuk jamaah dengan
           // referral permanen, nilai ini murni ADVISORY — server
@@ -561,18 +617,21 @@ function CheckoutPageInner() {
           referral_kode: referralKode,
           referral_perw_id: user.role === 'perwakilan' ? user.id
             : permanentReferrer ? permanentReferrer.id
-            : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null,
+            : sumber === 'perwakilan' ? (perwakilanTerverifikasi?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
             : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
-          // Link referral agen (dikonfirmasi user 2026-10-17) — awalnya
-          // murni tag invisible dari localStorage (/a/[kode]). Sekarang
-          // ADA fallback manual juga (dikonfirmasi user 2026-10-19, lihat
-          // dropdown "Sumber Informasi: Agen" di atas) — buat jamaah yang
-          // checkout ULANG tanpa lewat link lagi (tag localStorage ilang,
-          // beda device/browser, dst), pilihan manual MENANG dari tag
-          // localStorage kalau dua-duanya ada.
-          referral_agen_id: sumber === 'agen' && referralKode
-            ? (agenList.find(a => a.kode_unik === referralKode)?.id || null)
+          // Link referral agen — nilai ini murni ADVISORY buat jamaah dengan
+          // referral permanen (dikunci sejak registrasi via /a/[kode],
+          // migration 240, dikonfirmasi user 2026-10-20): server
+          // (buatSatuBooking) SELALU memaksa pakai
+          // users.perekrut_agen_jamaah_id, apapun yang dikirim di sini,
+          // sama persis pola referral_perw_id. Jamaah TANPA referral
+          // permanen (daftar duluan, baru belakangan dapat link agen) tetap
+          // kepakai: prioritas pilihan manual "Kode Referral Agen" (lihat
+          // dropdown di atas) baru fallback tag localStorage dari link
+          // /a/[kode] terakhir yang diklik.
+          referral_agen_id: permanentAgenReferrer ? permanentAgenReferrer.id
+            : sumber === 'agen' && agenTerverifikasi ? agenTerverifikasi.id
             : (ambilRefAgenId() || undefined),
           // Dulu cuma dikirim /order-jamaah (sekarang dilebur ke sini,
           // dikonfirmasi user 2026-09-27) — tanpa ini, booking yang
@@ -584,7 +643,29 @@ function CheckoutPageInner() {
       });
       const data = await res.json();
       if (!res.ok) { alert(data.error); setLoading(false); return; }
-      setBookingIds(data.bookings.map(b => b.booking_id));
+      const bookingIdsBaru = data.bookings.map(b => b.booking_id);
+
+      // Bayar DP pakai Saldo Deposit — dipanggil SESUDAH booking tercipta,
+      // 1 booking 1 panggilan (tiap booking punya 1 baris payment DP pending
+      // sendiri). Backend motong "sebanyak mungkin" per panggilan (saldo
+      // dikonsumsi sekuensial lintas booking) — kalau gak nutup penuh
+      // semuanya, sisa totalnya (= sisaTransferDp yang udah dihitung di
+      // atas) tetap match sama bukti yang diupload, karena reconciliation
+      // admin batch-level (1 bukti utk SEMUA booking di batch_id yang sama,
+      // bukan per-baris). Sekuensial, bukan Promise.all, biar kalau ada yang
+      // gagal di tengah urutan masih jelas mana yang udah/belum kepotong.
+      if (metodeBayarDp === 'saldo_deposit') {
+        for (const bid of bookingIdsBaru) {
+          const rSaldo = await fetch(`/api/bookings/${bid}/bayar-dp-saldo`, { method: 'POST' });
+          const dSaldo = await rSaldo.json();
+          if (!rSaldo.ok) {
+            alert(`Booking ${bid} gagal dibayar pakai Saldo Deposit: ${dSaldo.error || 'Terjadi kesalahan'}. Booking lain yang sudah diproses tetap tersimpan — cek dashboard untuk lanjutkan transfer manual.`);
+            break;
+          }
+        }
+      }
+
+      setBookingIds(bookingIdsBaru);
       trackLead({ value: summary.totalDp, currency: 'IDR', sumber_info: sumber });
       setStep(4);
     } catch (e) {
@@ -595,6 +676,12 @@ function CheckoutPageInner() {
   const timerFmt = `${String(Math.floor(timer / 60)).padStart(2, '0')}:${String(timer % 60).padStart(2, '0')}`;
 
   const totalDP = (prog?.dp || 0) * cart.length;
+  // Saldo Deposit BOLEH motong SEBAGIAN (gak harus nutup penuh, dikonfirmasi
+  // user 2026-10-20) — potonganDp dibatasi saldo yang ada, sisaTransferDp
+  // (kalau > 0) tetap wajib transfer manual + upload bukti seperti biasa,
+  // cuma nominalnya udah lebih kecil.
+  const potonganDp = metodeBayarDp === 'saldo_deposit' ? Math.min(saldoDeposit, totalDP) : 0;
+  const sisaTransferDp = totalDP - potonganDp;
 
   // Setelah submit (step 4) yang aktif "Verifikasi Admin" — DP belum
   // beneran beres sampai admin konfirmasi (maks 1×24 jam), "Selesai" baru
@@ -1107,6 +1194,10 @@ function CheckoutPageInner() {
               <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
                 {`📌 Referral Anda terkunci ke ${permanentReferrer.name} (${permanentReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
               </div>
+            ) : permanentAgenReferrer ? (
+              <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
+                {`📌 Referral Anda terkunci ke Agen ${permanentAgenReferrer.name} (${permanentAgenReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
+              </div>
             ) : (
             <div className="bg-white border-2 border-[#C9952A] rounded-xl p-4 space-y-3">
               <div>
@@ -1136,35 +1227,31 @@ function CheckoutPageInner() {
 
               {sumber === 'perwakilan' && (
                 <div>
-                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Pilih Nama Perwakilan *</label>
-                  <SearchableSelect
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Perwakilan *</label>
+                  <input
                     value={referralKode}
-                    onChange={setReferralKode}
-                    placeholder="Ketik buat cari nama perwakilan..."
-                    options={perwList.map(p => ({ value: p.kode_unik, label: `${p.name}${p.wilayah ? ` — ${p.wilayah}` : ''} (${p.kode_unik})` }))}
+                    onChange={e => setReferralKode(e.target.value.toUpperCase())}
+                    placeholder="Masukkan kode referral Perwakilan"
+                    className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekPerwakilanStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
-                  {perwList.length === 0 && (
-                    <div className="text-[10px] text-red-500 mt-1">
-                      Belum ada perwakilan aktif. Hubungi admin JM Travel.
-                    </div>
-                  )}
+                  {cekPerwakilanStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
+                  {cekPerwakilanStatus === 'invalid' && <div className="text-[10px] text-red-500 mt-1">Kode tidak ditemukan. Tanyakan kode referral ke Perwakilan yang mengajak Anda.</div>}
+                  {perwakilanTerverifikasi && <div className="text-[10px] text-green-600 mt-1">✓ {perwakilanTerverifikasi.nama} ({perwakilanTerverifikasi.kode_unik})</div>}
                 </div>
               )}
 
               {sumber === 'agen' && (
                 <div>
-                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Pilih Nama Agen *</label>
-                  <SearchableSelect
+                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Agen *</label>
+                  <input
                     value={referralKode}
-                    onChange={setReferralKode}
-                    placeholder="Ketik buat cari nama agen..."
-                    options={agenList.map(a => ({ value: a.kode_unik, label: `${a.name} (${a.kode_unik})` }))}
+                    onChange={e => setReferralKode(e.target.value)}
+                    placeholder="Masukkan kode referral Agen"
+                    className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekAgenStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
-                  {agenList.length === 0 && (
-                    <div className="text-[10px] text-red-500 mt-1">
-                      Belum ada agen aktif. Hubungi admin JM Travel.
-                    </div>
-                  )}
+                  {cekAgenStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
+                  {cekAgenStatus === 'invalid' && <div className="text-[10px] text-red-500 mt-1">Kode tidak ditemukan. Tanyakan kode referral ke Agen yang mengajak Anda.</div>}
+                  {agenTerverifikasi && <div className="text-[10px] text-green-600 mt-1">✓ {agenTerverifikasi.nama} ({agenTerverifikasi.kode_unik})</div>}
                 </div>
               )}
 
@@ -1185,7 +1272,7 @@ function CheckoutPageInner() {
                   <input
                     value={referralKode}
                     onChange={e => setReferralKode(e.target.value.toUpperCase())}
-                    placeholder="Contoh: SBJM0002 atau 6X8AEVY"
+                    placeholder="Masukkan kode referral Sahabat Baitullah"
                     className={`w-full px-3 py-2 rounded-lg border-2 focus:outline-none text-sm ${cekSahabatStatus === 'invalid' ? 'border-red-300' : 'border-gray-200 focus:border-[#1A4FA0]'}`}
                   />
                   {cekSahabatStatus === 'cek' && <div className="text-[10px] text-gray-400 mt-1">Mengecek kode...</div>}
@@ -1194,7 +1281,7 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {((sumber === 'perwakilan' && referralKode) || (sumber === 'agen' && referralKode) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
+              {((sumber === 'perwakilan' && perwakilanTerverifikasi) || (sumber === 'agen' && agenTerverifikasi) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">
                   ✅ Pendaftaran akan tercatat atas nama {sumber} yang dipilih.
                 </div>
@@ -1204,13 +1291,13 @@ function CheckoutPageInner() {
 
             <button
               onClick={() => {
-                if (user?.role === 'perwakilan' || permanentReferrer) { setStep(2); return; }
+                if (user?.role === 'perwakilan' || permanentReferrer || permanentAgenReferrer) { setStep(2); return; }
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
-                if (sumber === 'perwakilan' && !referralKode) {
-                  alert('Pilih nama perwakilan terlebih dahulu!'); return;
+                if (sumber === 'perwakilan' && !perwakilanTerverifikasi) {
+                  alert('Masukkan kode referral Perwakilan yang valid!'); return;
                 }
-                if (sumber === 'agen' && !referralKode) {
-                  alert('Pilih nama agen terlebih dahulu!'); return;
+                if (sumber === 'agen' && !agenTerverifikasi) {
+                  alert('Masukkan kode referral Agen yang valid!'); return;
                 }
                 if (sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && !sahabatTerverifikasi) {
                   alert('Masukkan kode referral Sahabat Baitullah yang valid!'); return;
@@ -1236,7 +1323,7 @@ function CheckoutPageInner() {
               allowHargaCustom={user.role === 'admin' || user.role === 'super_admin'}
               referralPerwId={user.role === 'perwakilan' ? user.id
                 : permanentReferrer ? permanentReferrer.id
-                : sumber === 'perwakilan' ? (perwList.find(p => p.kode_unik === referralKode)?.id || null) : null}
+                : sumber === 'perwakilan' ? (perwakilanTerverifikasi?.id || null) : null}
               // Banner "Chat Admin" TETAP tampil apapun kondisinya (dikonfirmasi
               // user 2026-08-20) — walau kartu "🎨 Custom Hotel" udah nawarin
               // pilih Bintang Mekkah/Madinah langsung in-app per kartu, masih
@@ -1343,44 +1430,75 @@ function CheckoutPageInner() {
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 flex justify-between items-center">
                 <div>
                   <div className="text-sm font-bold text-red-700">Yang ditransfer SEKARANG</div>
-                  <div className="text-[11px] text-red-500">Total DP{cart.length > 1 ? ` ${cart.length} jamaah` : ''} — transfer tepat sesuai nominal ini</div>
+                  <div className="text-[11px] text-red-500">
+                    Total DP{cart.length > 1 ? ` ${cart.length} jamaah` : ''}{potonganDp > 0 ? ` − Rp ${potonganDp.toLocaleString('id-ID')} Saldo Deposit` : ''} — transfer tepat sesuai nominal ini
+                  </div>
                 </div>
-                <div className="text-lg font-black text-red-600 whitespace-nowrap">Rp {totalDP.toLocaleString('id-ID')}</div>
+                <div className="text-lg font-black text-red-600 whitespace-nowrap">Rp {sisaTransferDp.toLocaleString('id-ID')}</div>
               </div>
             </div>
 
             {/* Bayar DP dari saldo tabungan umroh buat program reguler
-                DICABUT (dikonfirmasi user 2026-10-15) — selalu transfer
-                manual sekarang, sama kayak jamaah biasa. */}
-            <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
-              <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan</div>
-              {metodePembayaran.map(m => (
-                <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
-                  <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
-                  {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
-                  {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
-                  {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
+                DICABUT (dikonfirmasi user 2026-10-15) — itu khusus BSI/
+                Sahabat Baitullah. Saldo Deposit DI SINI beda sama sekali:
+                umum, dari konversi DP batal, gak ada expired (dikonfirmasi
+                user 2026-10-20) — jadi ALTERNATIF transfer manual kalau
+                cukup buat nutup totalDP persis. */}
+            {saldoDeposit > 0 && totalDP > 0 && (
+              <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">💰 Saldo Deposit Anda: Rp {saldoDeposit.toLocaleString('id-ID')}</div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setMetodeBayarDp('transfer')}
+                    className={`flex-1 text-xs font-bold py-2 rounded-full border-2 transition-colors ${metodeBayarDp === 'transfer' ? 'bg-[#1A4FA0] border-[#1A4FA0] text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    Transfer Manual
+                  </button>
+                  <button type="button" onClick={() => setMetodeBayarDp('saldo_deposit')}
+                    className={`flex-1 text-xs font-bold py-2 rounded-full border-2 transition-colors ${metodeBayarDp === 'saldo_deposit' ? 'bg-[#1A4FA0] border-[#1A4FA0] text-white' : 'bg-white border-gray-200 text-gray-500'}`}>
+                    Pakai Saldo Deposit
+                  </button>
                 </div>
-              ))}
-            </div>
+                {metodeBayarDp === 'saldo_deposit' && (
+                  <div className="text-[11px] text-gray-400">
+                    {sisaTransferDp === 0
+                      ? 'DP langsung lunas dari Saldo Deposit, tanpa transfer & tanpa menunggu verifikasi admin.'
+                      : `Rp ${potonganDp.toLocaleString('id-ID')} dipotong dari Saldo Deposit. Saldo belum cukup nutup semua — sisa Rp ${sisaTransferDp.toLocaleString('id-ID')} tetap perlu ditransfer manual.`}
+                  </div>
+                )}
+              </div>
+            )}
+            {sisaTransferDp > 0 && (
+              <div className="bg-white border-2 border-[#1A4FA0] rounded-xl p-4 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#1A4FA0]">🏦 Rekening Tujuan</div>
+                {metodePembayaran.map(m => (
+                  <div key={m.id} className="text-sm text-gray-500 border-t border-gray-100 pt-2 first:border-0 first:pt-0">
+                    <div className="font-bold text-[#0E2F6E]">{m.nama}</div>
+                    {m.nomor && <div className="flex justify-between"><span>No. Rekening</span><span className="font-bold text-[#0E2F6E]">{m.nomor}</span></div>}
+                    {m.atas_nama && <div className="flex justify-between"><span>Atas Nama</span><span className="font-bold text-[#0E2F6E]">{m.atas_nama}</span></div>}
+                    {m.catatan && <div className="text-xs text-gray-400 mt-0.5">{m.catatan}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
             {/* Notice DP non-refundable (dikonfirmasi user 2026-09-27) — cuma
                 di flow checkout normal (ada DP), BUKAN di checkout mandiri
                 Sahabat Baitullah (dibayar dari saldo tabungan, gak ada DP). */}
             <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-xs text-red-600 text-center">
               ⚠️ DP tidak dapat dikembalikan, namun dapat dialihkan ke program lain.
             </div>
-            <UploadBukti
-              onUploaded={(path, nama) => { setBuktiPath(path); setBuktiNama(nama); }}
-              label="Klik untuk upload bukti transfer DP"
-            />
+            {metodeBayarDp !== 'saldo_deposit' && (
+              <UploadBukti
+                onUploaded={(path, nama) => { setBuktiPath(path); setBuktiNama(nama); }}
+                label="Klik untuk upload bukti transfer DP"
+              />
+            )}
             <div className="flex gap-3">
               <button onClick={() => setStep(2)}
                 className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold py-3 rounded-full transition-colors">
                 ← Kembali
               </button>
-              <button onClick={submitBooking} disabled={!buktiPath || loading}
+              <button onClick={submitBooking} disabled={(sisaTransferDp > 0 && !buktiPath) || loading}
                 className="flex-2 bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white font-bold py-3 px-8 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                {loading ? 'Memproses...' : 'Kirim Bukti Transfer'}
+                {loading ? 'Memproses...' : potonganDp > 0 && sisaTransferDp === 0 ? 'Bayar Pakai Saldo Deposit' : potonganDp > 0 ? 'Kirim Bukti + Potong Saldo Deposit' : 'Kirim Bukti Transfer'}
               </button>
             </div>
           </div>

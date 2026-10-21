@@ -144,6 +144,21 @@ export default function PencairanDetailPage() {
           <div className="text-gray-500">Total <b className="text-[#0E2F6E]">{fmtRp(p.grand_total)}</b> · {p.jumlah_baris} baris</div>
           <div className="text-gray-500">TF: <b className="text-green-600">{jumlahConfirmed}/{semuaItem.length}</b></div>
         </div>
+        {/* Split sumber rekening (dikonfirmasi user 2026-10-21, buntut bug
+            lama rekeningUntukBooking.js) — meski 1 batch/1 penerima, kalau
+            isinya kecampur closing program reguler & Sahabat Baitullah,
+            admin HARUS kelihatan berapa yang keluar dari rekening mana
+            SEBELUM TF, bukan baru ketauan pas audit pembukuan belakangan. */}
+        {data.grand_total_per_rekening && (data.grand_total_per_rekening.alkhalid > 0 || data.grand_total_per_rekening.sahabat_baitullah > 0) && (
+          <div className="flex gap-2 mt-2 flex-wrap">
+            {data.grand_total_per_rekening.alkhalid > 0 && (
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">🏦 Alkhalid: {fmtRp(data.grand_total_per_rekening.alkhalid)}</span>
+            )}
+            {data.grand_total_per_rekening.sahabat_baitullah > 0 && (
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-purple-50 text-purple-700">🏦 Sejuta Baitullah: {fmtRp(data.grand_total_per_rekening.sahabat_baitullah)}</span>
+            )}
+          </div>
+        )}
 
         {isAdmin && (
           <div className="flex gap-2 mt-3 flex-wrap">
@@ -262,6 +277,10 @@ export default function PencairanDetailPage() {
                   <div key={it.id} className="flex justify-between bg-gray-50 rounded-lg px-2.5 py-1.5">
                     <div>
                       <span className="text-[10px] font-bold text-[#1A4FA0]">{KATEGORI_LABEL[it.jenis] || it.jenis}</span>
+                      {' '}
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${it.rekening === 'alkhalid' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        {it.rekening === 'alkhalid' ? 'Alkhalid' : 'Sejuta Baitullah'}
+                      </span>
                       <div className="text-gray-600">{it.keterangan}</div>
                     </div>
                     <div className="text-right shrink-0">
@@ -271,9 +290,21 @@ export default function PencairanDetailPage() {
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between text-xs font-bold text-[#0E2F6E] border-t border-gray-100 pt-1.5 mb-2">
-                <span>Subtotal</span><span>{fmtRp(k.subtotal)}</span>
-              </div>
+              {/* Subtotal split per rekening — cuma dipecah 2 baris kalau
+                  penerima ini BENERAN punya campuran dua-duanya, biar gak
+                  nambah noise buat mayoritas (1 orang biasanya 1 rekening
+                  doang). */}
+              {k.subtotal_per_rekening && k.subtotal_per_rekening.alkhalid > 0 && k.subtotal_per_rekening.sahabat_baitullah > 0 ? (
+                <div className="text-xs font-bold text-[#0E2F6E] border-t border-gray-100 pt-1.5 mb-2 space-y-0.5">
+                  <div className="flex justify-between text-blue-700"><span>Subtotal — Alkhalid</span><span>{fmtRp(k.subtotal_per_rekening.alkhalid)}</span></div>
+                  <div className="flex justify-between text-purple-700"><span>Subtotal — Sejuta Baitullah</span><span>{fmtRp(k.subtotal_per_rekening.sahabat_baitullah)}</span></div>
+                  <div className="flex justify-between border-t border-gray-100 pt-0.5"><span>Subtotal</span><span>{fmtRp(k.subtotal)}</span></div>
+                </div>
+              ) : (
+                <div className="flex justify-between text-xs font-bold text-[#0E2F6E] border-t border-gray-100 pt-1.5 mb-2">
+                  <span>Subtotal</span><span>{fmtRp(k.subtotal)}</span>
+                </div>
+              )}
 
               {isAdmin && p.status === 'disetujui' && !semuaConfirmed && (
                 k.no_rekening_tabungan_umroh ? (

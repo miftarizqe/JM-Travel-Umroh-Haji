@@ -214,11 +214,24 @@ export async function buatSatuBooking(conn, params) {
   // harga yang ditagih ke jamaah bisa gak konsisten sama siapa yang
   // akhirnya dapat ujroh.
   const [[pemilikBooking]] = await conn.query(
-    'SELECT role, perekrut_perwakilan_jamaah_id FROM users WHERE id = ?', [user_id]
+    'SELECT role, perekrut_perwakilan_jamaah_id, perekrut_agen_jamaah_id FROM users WHERE id = ?', [user_id]
   );
   let referralPerwIdFinal = referral_perw_id || null;
   if (!isAdminBooking && pemilikBooking?.role === 'jamaah') {
     referralPerwIdFinal = pemilikBooking.perekrut_perwakilan_jamaah_id || null;
+  }
+  // Referral agen permanen (dikunci sejak registrasi lewat link /a/[kode],
+  // migration 240, dikonfirmasi user 2026-10-20) — SAMA POLA perwakilan di
+  // atas. Sebelumnya referral_agen_id MURNI kiriman client (default dari
+  // localStorage ref_agen ATAU pilihan manual "Sumber Informasi: Agen" di
+  // checkout) — bisa hilang kalau tag localStorage ke-reset/beda device,
+  // atau jamaah gak sengaja pilih sumber lain. Begitu jamaah daftar AKUN
+  // lewat link agen, atribusinya sekarang gak bisa lepas lagi dari agen
+  // itu di booking manapun (kecuali booking admin, yang tetap boleh
+  // override manual).
+  let referralAgenIdFinal = referral_agen_id || null;
+  if (!isAdminBooking && pemilikBooking?.role === 'jamaah' && pemilikBooking?.perekrut_agen_jamaah_id) {
+    referralAgenIdFinal = pemilikBooking.perekrut_agen_jamaah_id;
   }
 
   // 'private' = admin ATAU akun jamaah yang ditunjuk admin di
@@ -391,7 +404,7 @@ export async function buatSatuBooking(conn, params) {
     jumlah_jamaah||1, jamaahDataAwal, dpAmount, kode_unik_dp||0, totalSetelahVoucher,
     voucher_kode_final, voucher_nominal || 0,
     jumlah_jamaah||1, sumber_info||null, referral_kode||null,
-    referralPerwIdFinal||null, referralSahabatFinal, referral_agen_id||null,
+    referralPerwIdFinal||null, referralSahabatFinal, referralAgenIdFinal,
     ordered_by||user_id, ordered_by_role||'jamaah',
     JSON.stringify(opsiTambahanSnapshot), opsiTambahanTotal]
   );

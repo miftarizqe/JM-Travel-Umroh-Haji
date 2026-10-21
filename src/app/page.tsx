@@ -9,7 +9,7 @@ import { useLandingTeks } from '@/lib/useLandingTeks';
 import Slideshow from '@/app/components/Slideshow';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
-import { ambilRefAgenWa, salamAgen } from '@/lib/referralCapture';
+import { ambilRefAgenWa, ambilRefAgenId, salamAgen } from '@/lib/referralCapture';
 
 interface Program {
   id: string;
@@ -162,6 +162,16 @@ export default function Home() {
   // enggak (dikonfirmasi user 2026-10-19, gantiin sapaan generik "JM
   // Travel" yang kesannya nyapa perusahaan bukan orang).
   const [salam] = useState<string>(() => salamAgen());
+  // Section "Jadi Perwakilan" disembunyikan buat pengunjung yang datang
+  // lewat link referral agen (dikonfirmasi user 2026-10-20) — satu-satunya
+  // jalur komisi agen itu jamaah booking program (ujroh flat per jamaah,
+  // dikunci permanen sejak registrasi, lihat migration 240), BUKAN
+  // ngerekrut Perwakilan baru (gak ada jalur komisi ke situ sama sekali).
+  // Register yang dibuka lewat link ini juga udah dikunci ke tipe akun
+  // Jamaah doang (lihat viaAgenLink di register/page.jsx) -- mitra teaser
+  // ini cuma bikin bingung/nyasarin visitor ke jalur yang gak ngasih
+  // apa-apa ke agen yang ngajak.
+  const [viaAgenLink] = useState<boolean>(() => !!ambilRefAgenId());
   const [metodePembayaran] = useMetodePembayaran() as [MetodePembayaran[], boolean];
   const [alurPendaftaran, setAlurPendaftaran] = useState<AlurLangkah[]>([]);
   const [skemaPembayaran, setSkemaPembayaran] = useState<SkemaPembayaran[]>([]);
@@ -265,7 +275,7 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-6 text-sm">
             <a href="#fasilitas" className="opacity-80 hover:opacity-100 transition-opacity">Fasilitas</a>
             <a href="#programs" className="opacity-80 hover:opacity-100 transition-opacity">Program</a>
-            <a href="#kemitraan" className="opacity-80 hover:opacity-100 transition-opacity">Kemitraan</a>
+            {!viaAgenLink && <a href="#kemitraan" className="opacity-80 hover:opacity-100 transition-opacity">Kemitraan</a>}
             <a href="#dokumentasi" className="opacity-80 hover:opacity-100 transition-opacity">Dokumentasi</a>
             <a href="#kontak" className="opacity-80 hover:opacity-100 transition-opacity">Kontak</a>
           </div>
@@ -565,7 +575,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* KEMITRAAN */}
+      {/* KEMITRAAN — disembunyikan buat pengunjung via link referral agen
+          (dikonfirmasi user 2026-10-20), lihat viaAgenLink di atas. */}
+      {!viaAgenLink && (
       <section className="bg-[#F8F9FD] py-12 px-4" id="kemitraan">
         <div className="max-w-5xl mx-auto text-center">
           <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.kemitraan_eyebrow || 'Program Kemitraan'}</div>
@@ -646,6 +658,7 @@ export default function Home() {
           )}
         </div>
       </section>
+      )}
 
       {/* DOKUMENTASI — Instagram (kiri) disandingkan sama slideshow galeri
           keberangkatan (kanan), 2 kolom seimbang biar gak "menclok" sendirian

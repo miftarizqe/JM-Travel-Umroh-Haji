@@ -50,6 +50,11 @@ export default function DashboardSahabatPage() {
   // Ringkasan booking aktif di Beranda (dikonfirmasi user 2026-10-12) —
   // termasuk status "✅ Lunas", sebelumnya cuma kelihatan di Booking Saya.
   const [bookingAktif, setBookingAktif] = useState([]);
+  // Saldo Deposit umum (dikonfirmasi user 2026-10-20) — BEDA SAMA SEKALI dari
+  // "Saldo Tabungan Umroh" di atas (itu BSI-terikat, program Sejuta
+  // Baitullah). Ini saldo booking PRIBADI (sebagai jamaah) dari konversi DP
+  // batal, bisa dipakai bayar DP/pelunasan booking apa saja.
+  const [saldoDeposit, setSaldoDeposit] = useState(0);
 
   async function setujuDataPribadi() {
     setMenyimpanPersetujuan(true);
@@ -70,6 +75,10 @@ export default function DashboardSahabatPage() {
     fetch(`/api/bookings?user_id=${user.id}`)
       .then(r => r.json())
       .then(d => setBookingAktif((d.bookings || []).filter(b => b.status === 'active')))
+      .catch(() => {});
+    fetch('/api/saldo-deposit')
+      .then(r => r.json())
+      .then(d => setSaldoDeposit(d.saldo || 0))
       .catch(() => {});
   }
 
@@ -240,7 +249,7 @@ export default function DashboardSahabatPage() {
             <span className="bg-white/15 border border-white/30 rounded-full px-2.5 py-1 text-[10px] font-bold shrink-0">👑 Head of Program</span>
           )}
         </div>
-        <div className={`grid gap-3 ${adaPending ? 'grid-cols-3' : 'grid-cols-2'}`}>
+        <div className={`grid gap-3 ${adaPending ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
           <button onClick={() => router.push('/dashboard/sahabat/team')} className="bg-purple-50 rounded-xl p-3 text-left cursor-pointer">
             <div className="text-[11px] text-gray-500">Team</div>
             <div className="text-xl font-black text-purple-700 underline decoration-dotted">{data.ringkasan.jumlah_rekrutan}</div>
@@ -261,6 +270,15 @@ export default function DashboardSahabatPage() {
               <div className="text-lg font-black text-amber-700 underline decoration-dotted">{fmtRp(data.ringkasan.saldo_pending)}</div>
             </button>
           )}
+          {/* Saldo Deposit — beda sama sekali dari Saldo Tabungan Umroh di
+              atas (lihat catatan state di atas), gak ada link klik (gak ada
+              halaman riwayat khusus, cek detail lewat Booking Saya). Selalu
+              tampil (dikonfirmasi user 2026-10-21) — "biar familiar" sama
+              fitur ini walau saldonya masih Rp 0. */}
+          <div className="bg-blue-50 rounded-xl p-3 text-left">
+            <div className="text-[11px] text-gray-500">💰 Saldo Deposit</div>
+            <div className="text-lg font-black text-[#1A4FA0]">{fmtRp(saldoDeposit)}</div>
+          </div>
         </div>
 
         {/* Booking aktif — ringkas per booking, detail & aksinya tetap di

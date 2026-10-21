@@ -26,6 +26,12 @@ export default function DashboardJamaah() {
   // jamaah lain yang gak diajukan) — jadi dicek terpisah di sini biar tetap
   // kelihatan "sedang diajukan" di kartu booking-nya.
   const [pembatalanMenunggu, setPembatalanMenunggu] = useState([]);
+  // Saldo Deposit (dikonfirmasi user 2026-10-20) — halaman ini dipakai
+  // SEMUA role sebagai "Booking Saya" (bukan cuma jamaah), jadi saldo
+  // ditampilkan di sini otomatis kebaca lintas role tanpa perlu halaman
+  // terpisah per role. Cuma muncul kalau > 0, biar gak nambah noise buat
+  // mayoritas yang belum pernah pakai fitur ini.
+  const [saldoDeposit, setSaldoDeposit] = useState(0);
 
   function muatBookings() {
     if (!user) return;
@@ -35,6 +41,10 @@ export default function DashboardJamaah() {
     fetch('/api/pembatalan?status=menunggu')
       .then(r => r.json())
       .then(d => setPembatalanMenunggu(d.pembatalan || []))
+      .catch(() => {});
+    fetch('/api/saldo-deposit')
+      .then(r => r.json())
+      .then(d => setSaldoDeposit(d.saldo || 0))
       .catch(() => {});
   }
   useEffect(muatBookings, [user]);
@@ -601,7 +611,7 @@ export default function DashboardJamaah() {
       {/* Ringkasan — susunan kartu warna disamain ke gaya dashboard HoP
           (dikonfirmasi user 2026-10-05, style/tatanan doang, angka yang
           udah ada gak ada yang ditambah/dikurangi). */}
-      <div className="grid grid-cols-2 gap-3 mb-4">
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-green-50 rounded-xl p-3 md:p-4">
           <div className="text-[11px] md:text-xs text-gray-500">Booking Aktif</div>
           <div className="text-2xl font-black text-green-700">{active.length}</div>
@@ -609,6 +619,13 @@ export default function DashboardJamaah() {
         <div className="bg-blue-50 rounded-xl p-3 md:p-4">
           <div className="text-[11px] md:text-xs text-gray-500">Riwayat</div>
           <div className="text-2xl font-black text-[#1A4FA0]">{done.length}</div>
+        </div>
+        {/* Selalu tampil (dikonfirmasi user 2026-10-21) — "biar jamaah
+            familiar" sama fitur ini walau saldonya masih Rp 0, bukan cuma
+            muncul begitu ada isinya. */}
+        <div className="bg-purple-50 rounded-xl p-3 md:p-4">
+          <div className="text-[11px] md:text-xs text-gray-500">💰 Saldo Deposit</div>
+          <div className="text-base md:text-xl font-black text-purple-700">Rp {saldoDeposit.toLocaleString('id-ID')}</div>
         </div>
       </div>
 

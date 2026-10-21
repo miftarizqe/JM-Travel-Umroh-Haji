@@ -215,7 +215,7 @@ function AdminPageInner() {
   // sub-view
   const [openPayment, setOpenPayment] = useState(null);
   const [openPembatalan, setOpenPembatalan] = useState(null);
-  const [pembatalanForm, setPembatalanForm] = useState({ penyebab: 'lainnya', refund_nominal: 0, catatan_admin: '' });
+  const [pembatalanForm, setPembatalanForm] = useState({ penyebab: 'lainnya', refund_nominal: 0, refund_metode: 'transfer', catatan_admin: '' });
   const [openProgram, setOpenProgram] = useState(null);
   const [progJamaah, setProgJamaah] = useState([]);
   const [vouchers, setVouchers] = useState([]);
@@ -230,6 +230,11 @@ function AdminPageInner() {
   const [auditLog, setAuditLog] = useState([]);
   const [auditFilter, setAuditFilter] = useState('');
   const [detailUser, setDetailUser] = useState(null);
+  // Saldo Deposit (dikonfirmasi user 2026-10-20) — dimuat terpisah dari
+  // /api/admin/user-detail (endpoint itu gak nyentuh deposit_saldo_ledger
+  // sama sekali) biar modal user-detail yang udah ada gak perlu diubah
+  // backend-nya, cukup fetch tambahan paralel di openUserDetail.
+  const [saldoDepositDetail, setSaldoDepositDetail] = useState(null);
   const [tolakAkun, setTolakAkun] = useState(null); // akun yang mau ditolak permanen (ModalTolakPermanen)
   const [tolakAkunBusy, setTolakAkunBusy] = useState(false);
   const [detailBooking, setDetailBooking] = useState(null);
@@ -563,13 +568,14 @@ function AdminPageInner() {
         id, action,
         penyebab: action === 'approve' ? pembatalanForm.penyebab : undefined,
         refund_nominal: action === 'approve' ? pembatalanForm.refund_nominal : undefined,
+        refund_metode: action === 'approve' ? pembatalanForm.refund_metode : undefined,
         catatan_admin: pembatalanForm.catatan_admin || undefined,
       })
     });
     const d = await res.json();
     if (!res.ok) { alert(d.error || 'Gagal memproses pengajuan'); return; }
     alert(d.message);
-    setPembatalanForm({ penyebab: 'lainnya', refund_nominal: 0, catatan_admin: '' });
+    setPembatalanForm({ penyebab: 'lainnya', refund_nominal: 0, refund_metode: 'transfer', catatan_admin: '' });
     loadAll();
     setOpenPembatalan(null);
   }
@@ -696,8 +702,27 @@ function AdminPageInner() {
 
   async function openUserDetail(u) {
     setDetailUser({ loading: true });
+    setSaldoDepositDetail(null);
     const d = await fetch(`/api/admin/user-detail?user_id=${u.id}`).then(r => r.json());
     setDetailUser(d);
+    fetch(`/api/admin/saldo-deposit?user_id=${u.id}`).then(r => r.json()).then(setSaldoDepositDetail).catch(() => {});
+  }
+
+  async function koreksiSaldoDepositUser(u) {
+    const nominalStr = prompt(`Koreksi Saldo Deposit ${u.name} (boleh negatif buat ngurangin, contoh: -500000):`);
+    if (!nominalStr) return;
+    const nominal = Number(nominalStr.replace(/[^\d-]/g, ''));
+    if (!Number.isFinite(nominal) || nominal === 0) { alert('Nominal tidak valid'); return; }
+    const keterangan = prompt('Keterangan koreksi (wajib diisi):');
+    if (!keterangan || !keterangan.trim()) { alert('Keterangan wajib diisi'); return; }
+    const res = await fetch('/api/admin/saldo-deposit', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: u.id, nominal, keterangan }),
+    });
+    const d = await res.json();
+    if (!res.ok) { alert(d.error || 'Gagal koreksi saldo'); return; }
+    alert(d.message);
+    fetch(`/api/admin/saldo-deposit?user_id=${u.id}`).then(r => r.json()).then(setSaldoDepositDetail).catch(() => {});
   }
 
   async function resetPassword(u) {
@@ -852,6 +877,7 @@ function AdminPageInner() {
           booking_id: detailBooking.id, admin_langsung: true,
           jamaah_idx: perJamaah ? batalForm.jamaah_idx : undefined,
           penyebab: batalForm.penyebab, refund_nominal: Number(batalForm.refund_nominal) || 0,
+          refund_metode: batalForm.refund_metode || 'transfer',
           catatan_admin: batalForm.catatan_admin,
         }),
       });
@@ -1468,6 +1494,10 @@ function AdminPageInner() {
                           <div className="text-xs font-bold text-[#1A4FA0]">Lihat Bukti Transfer</div>
                           <div className="text-[10px] text-gray-400 mt-0.5">{first.bukti_nama || 'bukti'}</div>
                         </a>
+                      ) : first.sumber_dana === 'saldo_deposit' ? (
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-2 text-xs text-purple-700 text-center font-semibold">
+                          💰 Dibayar pakai Saldo Deposit — tidak ada transfer, tinggal diverifikasi.
+                        </div>
                       ) : (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-xs text-red-600 text-center">
                           ⚠️ Tidak ada bukti transfer terlampir
@@ -1739,6 +1769,16 @@ function AdminPageInner() {
                             className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm"/>
                         </div>
                       )}
+                      {pembatalanForm.penyebab !== 'kesalahan_jm_travel' && (
+                        <div>
+                          <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Metode Pengembalian</label>
+                          <select value={pembatalanForm.refund_metode || 'transfer'} onChange={e => setPembatalanForm({...pembatalanForm, refund_metode: e.target.value})}
+                            className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
+                            <option value="transfer">Transfer Bank</option>
+                            <option value="saldo_deposit">Saldo Deposit (konversi, gak ada expired)</option>
+                          </select>
+                        </div>
+                      )}
                       <div>
                         <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Catatan Admin (opsional)</label>
                         <input value={pembatalanForm.catatan_admin}
@@ -1753,15 +1793,17 @@ function AdminPageInner() {
                   ) : (
                     <div className="pt-2 space-y-1">
                       {p.status === 'disetujui' && (
-                        <div className="flex justify-between"><span className="text-gray-400">Refund</span><span className="font-semibold">{rp(p.refund_nominal)} ({p.refund_persen}%)</span></div>
+                        <div className="flex justify-between"><span className="text-gray-400">Refund</span><span className="font-semibold">{rp(p.refund_nominal)} ({p.refund_persen}%){p.refund_metode === 'saldo_deposit' ? ' — Saldo Deposit' : ''}</span></div>
                       )}
                       {p.catatan_admin && (
                         <div className="flex justify-between"><span className="text-gray-400">Catatan Admin</span><span className="font-semibold text-right max-w-[60%]">{p.catatan_admin}</span></div>
                       )}
                       {/* Bukti TF refund — begitu diunggah, refund_status
                           jadi 'selesai' & cluster reminder "Refund Belum
-                          Ditransfer" ilang otomatis (lihat endpoint). */}
-                      {p.status === 'disetujui' && p.refund_nominal > 0 && (
+                          Ditransfer" ilang otomatis (lihat endpoint). Gak
+                          perlu kalau refund_metode = saldo_deposit (gak ada
+                          transfer beneran, saldo langsung dikredit). */}
+                      {p.status === 'disetujui' && p.refund_nominal > 0 && p.refund_metode !== 'saldo_deposit' && (
                         <UploadScanDokumen label="Bukti TF Refund" uploadUrl={`/api/admin/pembatalan/${p.id}/bukti-refund`}
                           userId={p.id} path={p.bukti_refund_path} uploadedAt={p.bukti_refund_uploaded_at}
                           onUploaded={() => loadAll()} />
@@ -2746,6 +2788,40 @@ function AdminPageInner() {
                     <Field label="Setuju PKS" value={u.setuju_pks ? `Ya (${tgl(u.setuju_pks_at)})` : 'Belum'} />
                   </div>
 
+                  {/* Saldo Deposit (dikonfirmasi user 2026-10-20) — berlaku
+                      SEMUA role (siapa pun bisa booking buat diri sendiri
+                      sebagai jamaah), BUKAN cuma role tertentu. Dimuat
+                      terpisah (lihat saldoDepositDetail), jadi bisa null
+                      sesaat sambil detailUser utama udah ke-render. */}
+                  <div className="border-t border-gray-100 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-sm text-[#0E2F6E]">💰 Saldo Deposit</div>
+                      <button onClick={() => koreksiSaldoDepositUser(u)} className="text-[11px] font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">✏️ Koreksi</button>
+                    </div>
+                    {saldoDepositDetail == null ? (
+                      <div className="text-xs text-gray-400">Memuat...</div>
+                    ) : (
+                      <>
+                        <div className="text-lg font-black text-purple-700">Rp {Number(saldoDepositDetail.saldo || 0).toLocaleString('id-ID')}</div>
+                        {saldoDepositDetail.riwayat?.length > 0 && (
+                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {saldoDepositDetail.riwayat.map(r => (
+                              <div key={r.id} className="flex justify-between text-[11px] bg-gray-50 rounded px-2 py-1.5">
+                                <div className="min-w-0">
+                                  <div className="text-gray-600">{r.keterangan || r.jenis}</div>
+                                  <div className="text-gray-400">{tgl(r.created_at)}{r.booking_id_asal ? ` · asal ${r.booking_id_asal}` : ''}{r.booking_id_pakai ? ` · pakai ${r.booking_id_pakai}` : ''}</div>
+                                </div>
+                                <span className={`font-bold whitespace-nowrap ${Number(r.nominal) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {Number(r.nominal) >= 0 ? '+' : ''}Rp {Number(r.nominal).toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
                   {u.role==='perwakilan' && (
                     <div className="border-t border-gray-100 pt-3 space-y-2">
                       <div className="font-bold text-sm text-[#0E2F6E]">Info {roleLabel}</div>
@@ -2896,6 +2972,13 @@ function AdminPageInner() {
                           <option value="kesalahan_jm_travel">Kesalahan JM Travel (refund 100% porsi yang dibatalkan)</option>
                           <option value="lainnya">Lainnya</option>
                         </select>
+                        {!b.sahabat_eksklusif && (
+                          <select value={batalForm.refund_metode || 'transfer'} onChange={e => setBatalForm({ ...batalForm, refund_metode: e.target.value, error: null })}
+                            className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm">
+                            <option value="transfer">Metode: Transfer Bank</option>
+                            <option value="saldo_deposit">Metode: Saldo Deposit (konversi, gak ada expired)</option>
+                          </select>
+                        )}
                         {b.sahabat_eksklusif ? (
                           <div className="text-[10px] text-purple-800 bg-purple-100 rounded-lg px-3 py-2">
                             Program Sahabat Baitullah — tidak ada refund tunai. <b>{rp(kembaliKeSaldo)} dikembalikan ke saldo tabungan {b.pemesan_nama || 'pemilik booking'}</b> dan bisa dipakai checkout program lain.
@@ -2938,7 +3021,7 @@ function AdminPageInner() {
                               <li><b>{rp(kembaliKeSaldo)} dikembalikan ke saldo tabungan {b.pemesan_nama || 'pemilik booking'}</b>, bisa dipakai checkout program lain.</li>
                             </>
                           ) : (
-                            <li>Refund: <b>{rp(refundEstimasi)}</b>{refundEstimasi === 0 ? ' (tidak ada dana yang ditransfer balik)' : ''}</li>
+                            <li>Refund: <b>{rp(refundEstimasi)}</b>{refundEstimasi === 0 ? ' (tidak ada dana yang ditransfer balik)' : (batalForm.refund_metode || 'transfer') === 'saldo_deposit' ? ' — masuk Saldo Deposit (gak ada expired)' : ' — transfer bank'}</li>
                           )}
                           <li>{infoSeat}</li>
                           {batalTotal && <li>Pembayaran yang masih pending (kalau ada) otomatis ditolak.</li>}

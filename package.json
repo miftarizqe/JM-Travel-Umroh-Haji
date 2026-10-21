@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "cek:route-go": "node scripts/cek-route-go.mjs",
     "migrate": "node scripts/migrate.mjs",
     "migrate:dry-run": "node scripts/migrate.mjs --dry-run",
     "migrate:dev": "node scripts/with-env.mjs dev node scripts/migrate.mjs",

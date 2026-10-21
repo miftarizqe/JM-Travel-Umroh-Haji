@@ -157,6 +157,11 @@ export async function POST(request) {
     // atau nonaktif -> diabaikan diam-diam, gak menggagalkan registrasi.
     let perekrutPerwJamaahId = null;
     let perekrutKopJamaahId = null;
+    // Agen (link /a/[kode], dikonfirmasi user 2026-10-20) — mirror persis
+    // perwakilan/sahabat di atas, bedanya sumber kode BUKAN dari query URL
+    // (link agen gak bawa ?ref=, cuma redirect lewat /a/[kode] yang nyimpen
+    // id-nya ke localStorage, lihat register/page.jsx viaAgenLink/kirim).
+    let perekrutAgenJamaahId = null;
     if (role === 'jamaah') {
       const refPerw = body.ref_perwakilan_jamaah_id ? String(body.ref_perwakilan_jamaah_id).trim() : null;
       if (refPerw) {
@@ -171,6 +176,13 @@ export async function POST(request) {
           `SELECT id FROM users WHERE id = ? AND (role = 'sahabat_baitullah' OR role_kedua = 'sahabat_baitullah') AND status = 'active'`, [refKop]
         );
         if (k.length > 0) perekrutKopJamaahId = refKop;
+      }
+      const refAgen = body.ref_agen_jamaah_id ? String(body.ref_agen_jamaah_id).trim() : null;
+      if (refAgen) {
+        const [a] = await pool.query(
+          `SELECT id FROM users WHERE id = ? AND role = 'agen' AND status = 'active'`, [refAgen]
+        );
+        if (a.length > 0) perekrutAgenJamaahId = refAgen;
       }
     }
 
@@ -226,10 +238,10 @@ export async function POST(request) {
           // (action 'verifikasi_akun' di /api/admin/users). Sebelum itu
           // cekPemesanBolehOrder & prasyarat daftar-perwakilan menahan akun.
           `INSERT INTO users (name, email, wa, nik, agama, password, role, kode_unik, status, terverifikasi, perekrut_id,
-            perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id, setuju_data_pribadi_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?, ${role === 'sahabat_baitullah' ? 'NOW()' : 'NULL'})`,
+            perekrut_perwakilan_jamaah_id, perekrut_sahabat_jamaah_id, perekrut_agen_jamaah_id, setuju_data_pribadi_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, ${role === 'sahabat_baitullah' ? 'NOW()' : 'NULL'})`,
           [name, email, wa, nik, agama, hashedPassword, role, kodeUnik, status, terverifikasi, perekrutId,
-            perekrutPerwJamaahId, perekrutKopJamaahId]
+            perekrutPerwJamaahId, perekrutKopJamaahId, perekrutAgenJamaahId]
         );
         break;
       } catch (e) {

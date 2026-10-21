@@ -26,11 +26,12 @@ const BATAS_MATERAI = 5_000_000;
 // juga (bukan cuma disembunyikan di UI) biar gak bisa dilewatin lewat
 // panggilan API langsung (dikonfirmasi user 2026-10-13).
 //
-// Sebelumnya endpoint ini ditangani Go backend (lihat komentar lama di
-// halaman cetak) — dipindah ke Next.js supaya gating materai di atas bisa
-// ditegakkan tanpa perlu sentuh repo jm-travel-api. Kalau Caddyfile.tahap2
-// di VPS masih proxy path ini ke Go, endpoint ini gak akan kepanggil sampai
-// routing-nya disesuaikan juga.
+// Sebelumnya endpoint ini ditangani Go backend — dipindah ke Next.js
+// (2026-10-13) supaya gating materai, penomoran tunda, snapshot & notifikasi
+// di atas pakai lib/invoiceKwitansi.js yang sama dengan GET/scan-fisik.
+// Caddy baru benar-benar mengirim path ini ke sini sejak 2026-10-20
+// (dikeluarkan dari @go di Caddyfile.tahap2, handler Go-nya dihapus).
+// Kalau mau pindah ke Go, porting bareng seluruh modul invoice-kwitansi.
 export async function POST(request, { params }) {
   const auth = wajibRole(request, ['admin', 'super_admin']);
   if (auth.error) return auth.error;
