@@ -83,7 +83,8 @@ export async function GET(request) {
       // dikonfirmasi user 2026-10-18, nyusul spk_ak) -- preview pakai rangkap
       // "jamaah" sama kayak spk_ak.
       buffer = await generateSpkAkNonisRangkapPdf('jamaah', {
-        nomor: '000001.10/JMT-ASB/2026 (contoh)', nama: CONTOH_USER.name, alamat: CONTOH_USER.alamat,
+        nomor: '000001.10/JMT-ASB/2026 (contoh)', nama: CONTOH_USER.name,
+        alamatBaris1: CONTOH_USER.alamat, alamatBaris2: '',
         noTelepon: '08xxxxxxxxxx', hari: 'Senin', tanggal: '1 Oktober 2026',
         targetBulanTahun: 'Januari 2027', nominalTarget: '39.500.000',
       });

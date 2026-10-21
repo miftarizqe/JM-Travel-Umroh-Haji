@@ -84,7 +84,14 @@ export function wrapTextLines(text, font, fontSize, maxWidth, maxLines) {
       baris.push(current);
       current = '';
     } else {
-      current = kata.slice(i).join(' ');
+      // Baris TERAKHIR yang boleh kepanjangan — BUG ditemukan & diperbaiki
+      // 2026-10-21: versi lama nimpa `current` cuma dengan `kata.slice(i)`,
+      // BUANG semua kata yang udah kebukti MUAT dan nempel di `current` dari
+      // iterasi sebelumnya (overflow KEDUA di baris terakhir ini bikin
+      // sebagian alamat ilang total dari PDF, bukan cuma kekecilan/kepotong
+      // — ketemu pas alamat panjang di dokumen Agen). `current` WAJIB
+      // digabung duluan, bukan ditimpa.
+      current = (current ? `${current} ` : '') + kata.slice(i).join(' ');
       break;
     }
   }

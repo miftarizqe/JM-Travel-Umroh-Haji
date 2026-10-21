@@ -78,11 +78,13 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
       nominalTarget: pendaftaran?.target_estimasi_harga ? Number(pendaftaran.target_estimasi_harga).toLocaleString('id-ID') : '-',
     };
 
-    // generateSpkAkRangkapPdf (Muslim, alamat 2 baris) vs
-    // generateSpkAkNonisRangkapPdf (Agen, alamat 1 baris) -- beda fungsi &
-    // beda bentuk data, tapi API pemanggilnya (opts.rangkap, metode kantor/
-    // kirim) sama persis buat dua-duanya, jadi dipilih sekali di sini lewat
-    // variabel generator & dataRangkap, bukan diduplikasi 2x di bawah.
+    // generateSpkAkRangkapPdf (Muslim) vs generateSpkAkNonisRangkapPdf
+    // (Agen) -- beda fungsi & beda koordinat template, tapi dua-duanya
+    // SEKARANG sama-sama alamat 2 baris (ditemukan & diperbaiki 2026-10-21,
+    // sebelumnya Nonis dipepetin 1 baris lewat drawFitKiri). API pemanggilnya
+    // (opts.rangkap, metode kantor/kirim) sama persis buat dua-duanya, jadi
+    // dipilih sekali di sini lewat variabel generator & dataRangkap, bukan
+    // diduplikasi 2x di bawah.
     let generator, dataRangkap;
     if (dokumen === 'spk_ak') {
       // Template rangkap punya 2 baris alamat (dikonfirmasi user 2026-10-03,
@@ -94,10 +96,14 @@ export async function buatPdfSpkAkUntukUser(pool, userId, opts = {}) {
       generator = generateSpkAkRangkapPdf;
       dataRangkap = { ...dataUmum, alamatBaris1, alamatBaris2, ...dataTarget };
     } else {
-      // spk_ak_nonis (AGEN) -- alamat CUMA 1 baris di template ini (beda dari
-      // versi Muslim), udah ada di dataUmum.alamat, gak perlu formatAlamatDuaBaris.
+      // spk_ak_nonis (AGEN) -- alamat panjang kebaca kekecilan dipepetin 1
+      // baris (screenshot user 2026-10-21) -- ternyata template-nya SUDAH
+      // punya ruang kosong ~2 baris antara Alamat & No. Telepon (diukur
+      // pdftotext -bbox, gap 27.6pt vs 13.7pt baris normal lainnya), jadi
+      // dipecah 2 baris juga kayak versi Muslim, TANPA perlu edit template.
+      const { alamatBaris1, alamatBaris2 } = formatAlamatDuaBaris(user);
       generator = generateSpkAkNonisRangkapPdf;
-      dataRangkap = { ...dataUmum, ...dataTarget };
+      dataRangkap = { ...dataUmum, alamatBaris1, alamatBaris2, ...dataTarget };
     }
 
     // 2 rangkap CUMA buat metode "datang kantor" (admin siapin 2 fisik
