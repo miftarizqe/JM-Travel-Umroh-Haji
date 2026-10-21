@@ -145,7 +145,7 @@ function CetakRekapUjrohInner() {
                           </tr>
                         ))}
                         <tr>
-                          <td colSpan={2} style={{ ...tdTotal, color: g.warna }}>Subtotal — Sumber Rekening {g.key === 'alkhalid' ? 'Utama (Alkhalid)' : 'Sejuta Baitullah'}</td>
+                          <td colSpan={2} style={{ ...tdTotal, color: g.warna }}>Subtotal — Sumber Rekening {g.key === 'alkhalid' ? 'Utama (Alkhalid)' : 'Sahabat Baitullah'}</td>
                           <td style={{ ...tdTotalAngka, color: g.warna }}>{rp(k.subtotal_per_rekening[g.key])}</td>
                         </tr>
                       </tbody>
@@ -169,7 +169,7 @@ function CetakRekapUjrohInner() {
                   )}
                   {data.grand_total_per_rekening.sahabat_baitullah > 0 && (
                     <tr>
-                      <td style={{ ...tdTotal, width: '70%', color: '#7e22ce' }}>Sumber Dana — Rekening Sejuta Baitullah</td>
+                      <td style={{ ...tdTotal, width: '70%', color: '#7e22ce' }}>Sumber Dana — Rekening Sahabat Baitullah</td>
                       <td style={{ ...tdTotalAngka, color: '#7e22ce' }}>{rp(data.grand_total_per_rekening.sahabat_baitullah)}</td>
                     </tr>
                   )}
