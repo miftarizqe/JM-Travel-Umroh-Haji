@@ -27,6 +27,9 @@ export default function AdminAgenPage() {
   const [password, setPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  // Field yang gagal validasi (client atau server) dimerahin (dikonfirmasi
+  // user 2026-10-21) -- key = nama field, true = tampil merah.
+  const [fieldErr, setFieldErr] = useState({});
   // Data tambahan (dikonfirmasi user 2026-10-21, "datanya sayang kalo gak
   // dipake") -- semuanya opsional, kolom generik yang udah ada di users
   // (dipakai perwakilan/sahabat juga).
@@ -81,10 +84,16 @@ export default function AdminAgenPage() {
 
   async function buatAkun() {
     // NIK tetap wajib (koreksi 2026-10-21 -- yang opsional itu Foto KTP-nya,
-    // bukan NIK). WA opsional.
-    if (!nama.trim() || !nik.trim() || !email.trim() || !jk || !password.trim()) {
-      alert('Nama, NIK, email, jenis kelamin, dan password wajib diisi!'); return;
-    }
+    // bukan NIK). WA opsional. Field yang kosong dimerahin langsung
+    // (dikonfirmasi user 2026-10-21 — "kalo ada yang belum sesuai fieldnya
+    // dimerahin aja kalo emg wajib"), gak pake alert generik lagi buat kasus
+    // ini.
+    const kosong = {
+      nama: !nama.trim(), nik: !nik.trim(), email: !email.trim(), jk: !jk, password: !password.trim(),
+    };
+    setFieldErr(kosong);
+    if (Object.values(kosong).some(Boolean)) return;
+
     setSaving(true);
     try {
       const res = await fetch('/api/admin/agen', {
@@ -96,13 +105,25 @@ export default function AdminAgenPage() {
         }),
       });
       const d = await res.json();
-      if (!res.ok) { alert(d.error || 'Gagal membuat akun'); return; }
+      if (!res.ok) {
+        alert(d.error || 'Gagal membuat akun');
+        if (d.field) setFieldErr(prev => ({ ...prev, [d.field]: true }));
+        return;
+      }
       alert(`Akun agen "${nama}" dibuat. Kode: ${d.kode_unik}. Sampaikan email+password ini ke yang bersangkutan buat login.`);
       setNama(''); setNik(''); setEmail(''); setWa(''); setJk(''); setPassword('');
       setTempatLahir(''); setBank(''); setNoRekening(''); setNamaPemilikRekening(''); setFotoKtpPath(''); setPerekrutId('');
+      setFieldErr({});
       muatData();
-    } catch { alert('Terjadi kesalahan'); }
-    setSaving(false);
+    } catch {
+      alert('Terjadi kesalahan');
+    } finally {
+      // finally (bukan trailing statement) — BUG ditemukan 2026-10-21:
+      // `return` di dalam blok `if (!res.ok)` di atas sebelumnya nyelonong
+      // lewatin baris setSaving(false) ini, tombol kejebak "Membuat..."
+      // selamanya kalau server balikin error (mis. email/NIK/WA dobel).
+      setSaving(false);
+    }
   }
 
   async function toggleAktif(row) {
@@ -153,6 +174,9 @@ export default function AdminAgenPage() {
 
   const inp = "w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
   const lbl = "block text-xs font-semibold text-gray-500 mb-1";
+  const inpErr = inp.replace('border-gray-200', 'border-red-400 bg-red-50');
+  const c = (key) => fieldErr[key] ? inpErr : inp;
+  const clearErr = (key) => { if (fieldErr[key]) setFieldErr(prev => ({ ...prev, [key]: false })); };
 
   return (
     <Layout title="🔗 Database Account Agen" backHref="/admin?tab=dashboard">
@@ -165,25 +189,25 @@ export default function AdminAgenPage() {
         <div className="grid sm:grid-cols-2 gap-3 mb-3">
           <div>
             <label className={lbl}>Nama Lengkap *</label>
-            <input value={nama} onChange={e => setNama(e.target.value)} className={inp} />
+            <input value={nama} onChange={e => { setNama(e.target.value); clearErr('nama'); }} className={c('nama')} />
           </div>
           <div className="sm:col-span-2">
             <TempatLahirField value={tempatLahir} onChange={setTempatLahir} inp={inp} lbl={lbl} />
           </div>
           <div>
             <label className={lbl}>Email *</label>
-            <input value={email} onChange={e => setEmail(e.target.value)} type="email" className={inp} />
+            <input value={email} onChange={e => { setEmail(e.target.value); clearErr('email'); }} type="email" className={c('email')} />
           </div>
           <div>
             <label className={lbl}>No. WhatsApp</label>
-            <input value={wa} onChange={e => setWa(e.target.value.replace(/\D/g, ''))} placeholder="08xxxxxxxxxx (opsional)" inputMode="numeric" className={inp} />
+            <input value={wa} onChange={e => { setWa(e.target.value.replace(/\D/g, '')); clearErr('wa'); }} placeholder="08xxxxxxxxxx (opsional)" inputMode="numeric" className={c('wa')} />
           </div>
           <div>
             {/* Dipakai nentuin sapaan "Ibu"/"Bapak" + nama di pesan WA
                 otomatis pengunjung yang datang lewat link agen ini
                 (dikonfirmasi user 2026-10-19). */}
             <label className={lbl}>Jenis Kelamin *</label>
-            <select value={jk} onChange={e => setJk(e.target.value)} className={inp}>
+            <select value={jk} onChange={e => { setJk(e.target.value); clearErr('jk'); }} className={c('jk')}>
               <option value="">— Pilih —</option>
               <option value="Laki-Laki">Laki-Laki</option>
               <option value="Perempuan">Perempuan</option>
@@ -191,11 +215,11 @@ export default function AdminAgenPage() {
           </div>
           <div>
             <label className={lbl}>Password Awal (min. 8 karakter) *</label>
-            <input value={password} onChange={e => setPassword(e.target.value)} type="text" className={inp} />
+            <input value={password} onChange={e => { setPassword(e.target.value); clearErr('password'); }} type="text" className={c('password')} />
           </div>
           <div>
             <label className={lbl}>NIK (16 digit) *</label>
-            <input value={nik} onChange={e => setNik(e.target.value.replace(/\D/g, ''))} maxLength={16} inputMode="numeric" className={inp} />
+            <input value={nik} onChange={e => { setNik(e.target.value.replace(/\D/g, '')); clearErr('nik'); }} maxLength={16} inputMode="numeric" className={c('nik')} />
           </div>
           <div>
             <label className={lbl}>Foto KTP</label>
@@ -226,7 +250,7 @@ export default function AdminAgenPage() {
                 user 2026-10-21) -- gak ngaruh ke komisi apa pun, beda dari
                 perekrut_id perwakilan yang nentuin ujroh override. */}
             <label className={lbl}>Perekrut</label>
-            <select value={perekrutId} onChange={e => setPerekrutId(e.target.value)} className={inp}>
+            <select value={perekrutId} onChange={e => { setPerekrutId(e.target.value); clearErr('perekrut_id'); }} className={c('perekrut_id')}>
               <option value="">— Tidak ada / tidak diketahui —</option>
               {perekrutOptions.map(o => (
                 <option key={o.id} value={o.id}>{o.name} ({o.role === 'agen' ? 'Agen' : o.role === 'super_admin' ? 'Super Admin' : 'Admin'})</option>
