@@ -370,22 +370,31 @@ export async function PATCH(req) {
       // sahabat, dst) — gak ada fast-track, cuma jalur masuknya beda.
       case 'tambah_role_kedua': {
         const roleKedua = body.role_kedua;
-        // Cuma 'sahabat_baitullah' (dipicu dari Database Perwakilan) --
-        // arah 'perwakilan' sekarang dipusatkan di action
-        // 'rekrut_jadi_perwakilan' (dikonfirmasi user 2026-10-12), gak lagi
-        // lewat sini.
+        // Cuma 'sahabat_baitullah' (dipicu dari admin/sahabat) -- arah
+        // 'perwakilan' dipusatkan di action 'rekrut_jadi_perwakilan'
+        // (dikonfirmasi user 2026-10-12), gak lagi lewat sini.
         if (roleKedua !== 'sahabat_baitullah') {
           return NextResponse.json({ error: 'role_kedua harus sahabat_baitullah' }, { status: 400 });
         }
         if (target.status !== 'active') {
           return NextResponse.json({ error: 'Akun harus aktif dulu sebelum diberi role kedua' }, { status: 400 });
         }
-        if (target.role !== 'perwakilan') {
-          return NextResponse.json({ error: 'Role kedua "sahabat_baitullah" cuma bisa ditambahkan ke akun dengan role utama "perwakilan".' }, { status: 400 });
+        // Jamaah ATAU Perwakilan boleh direkrut jadi Sahabat Baitullah
+        // (dikonfirmasi user 2026-10-21 -- mirror rekrut_jadi_perwakilan yang
+        // udah lebih dulu bisa narik dari Jamaah/Sahabat Baitullah, picker
+        // ini sebelumnya cuma Perwakilan doang, inkonsisten). Sumber Jamaah
+        // TIDAK langsung dapet role_kedua (mirror isDariSahabat di
+        // rekrut_jadi_perwakilan) -- role-nya baru resmi diputuskan pas
+        // pendaftaran Sahabat Baitullah-nya diaktifkan, SAMA PERSIS jalur
+        // jamaah yang daftar sendiri lewat funnel native.
+        if (!['jamaah', 'perwakilan'].includes(target.role)) {
+          return NextResponse.json({ error: 'Role kedua "sahabat_baitullah" cuma bisa ditambahkan ke akun Jamaah atau Perwakilan.' }, { status: 400 });
         }
         if (target.role_kedua) {
           return NextResponse.json({ error: 'Akun ini sudah punya role kedua' }, { status: 400 });
         }
+
+        const isDariPerwakilan = target.role === 'perwakilan';
 
         const [[u]] = await db.query(
           `SELECT name, nik, tempat_lahir, tanggal_lahir, jenis_kelamin, nama_ibu, alamat,
@@ -400,22 +409,26 @@ export async function PATCH(req) {
              alamat, alamat_ktp, alamat_domisili, kode_pos, wa, email, pekerjaan,
              bank, no_rekening, nama_pemilik_rekening, foto_ktp_path, perekrut_id,
              status, untuk_role_kedua)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', 1)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, 'pending', ?)`,
           [user_id, u.name, u.nik, u.tempat_lahir, u.tanggal_lahir, u.jenis_kelamin, u.nama_ibu,
            u.alamat_ktp || u.alamat, u.alamat_ktp, u.alamat_domisili, u.kode_pos, u.wa, u.email, u.pekerjaan,
-           u.bank, u.no_rekening, u.nama_pemilik_rekening, u.foto_ktp_path]
+           u.bank, u.no_rekening, u.nama_pemilik_rekening, u.foto_ktp_path, isDariPerwakilan ? 1 : 0]
         );
 
-        await db.query(
-          'UPDATE users SET role_kedua = ?, role_kedua_ditambahkan_at = NOW() WHERE id = ?',
-          [roleKedua, user_id]
-        );
+        if (isDariPerwakilan) {
+          await db.query(
+            'UPDATE users SET role_kedua = ?, role_kedua_ditambahkan_at = NOW() WHERE id = ?',
+            [roleKedua, user_id]
+          );
+        }
 
         await kirimNotifikasi(db, {
           user_id: target.id,
           tipe: 'akun_aktif',
-          judul: 'Role Kedua Ditambahkan',
-          pesan: 'Akun Anda sekarang juga terdaftar sebagai Jamaah Sahabat Baitullah. Lengkapi proses pendaftarannya di halaman Profil.',
+          judul: isDariPerwakilan ? 'Role Kedua Ditambahkan' : 'Direkrut Jadi Sahabat Baitullah',
+          pesan: isDariPerwakilan
+            ? 'Akun Anda sekarang juga terdaftar sebagai Jamaah Sahabat Baitullah. Lengkapi proses pendaftarannya di halaman Profil.'
+            : 'Anda direkrut langsung oleh manajemen JM Travel sebagai Jamaah Sahabat Baitullah. Lengkapi proses pendaftarannya di halaman Profil.',
           link: '/profil',
         });
 
@@ -424,7 +437,7 @@ export async function PATCH(req) {
           aksi: 'tambah_role_kedua',
           target_type: 'user',
           target_id: target.id,
-          keterangan: `${target.name}: role kedua ditambahkan -> ${roleKedua}`,
+          keterangan: `${target.name}: direkrut jadi Sahabat Baitullah dari akun ${isDariPerwakilan ? 'Perwakilan (dual-role)' : 'Jamaah'}`,
         });
 
         return NextResponse.json({ message: 'Role kedua berhasil ditambahkan.', role_kedua: roleKedua });
