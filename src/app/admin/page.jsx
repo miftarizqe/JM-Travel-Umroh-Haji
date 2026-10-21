@@ -230,6 +230,11 @@ function AdminPageInner() {
   const [auditLog, setAuditLog] = useState([]);
   const [auditFilter, setAuditFilter] = useState('');
   const [detailUser, setDetailUser] = useState(null);
+  // Saldo Deposit (dikonfirmasi user 2026-10-20) — dimuat terpisah dari
+  // /api/admin/user-detail (endpoint itu gak nyentuh deposit_saldo_ledger
+  // sama sekali) biar modal user-detail yang udah ada gak perlu diubah
+  // backend-nya, cukup fetch tambahan paralel di openUserDetail.
+  const [saldoDepositDetail, setSaldoDepositDetail] = useState(null);
   const [tolakAkun, setTolakAkun] = useState(null); // akun yang mau ditolak permanen (ModalTolakPermanen)
   const [tolakAkunBusy, setTolakAkunBusy] = useState(false);
   const [detailBooking, setDetailBooking] = useState(null);
@@ -697,8 +702,27 @@ function AdminPageInner() {
 
   async function openUserDetail(u) {
     setDetailUser({ loading: true });
+    setSaldoDepositDetail(null);
     const d = await fetch(`/api/admin/user-detail?user_id=${u.id}`).then(r => r.json());
     setDetailUser(d);
+    fetch(`/api/admin/saldo-deposit?user_id=${u.id}`).then(r => r.json()).then(setSaldoDepositDetail).catch(() => {});
+  }
+
+  async function koreksiSaldoDepositUser(u) {
+    const nominalStr = prompt(`Koreksi Saldo Deposit ${u.name} (boleh negatif buat ngurangin, contoh: -500000):`);
+    if (!nominalStr) return;
+    const nominal = Number(nominalStr.replace(/[^\d-]/g, ''));
+    if (!Number.isFinite(nominal) || nominal === 0) { alert('Nominal tidak valid'); return; }
+    const keterangan = prompt('Keterangan koreksi (wajib diisi):');
+    if (!keterangan || !keterangan.trim()) { alert('Keterangan wajib diisi'); return; }
+    const res = await fetch('/api/admin/saldo-deposit', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: u.id, nominal, keterangan }),
+    });
+    const d = await res.json();
+    if (!res.ok) { alert(d.error || 'Gagal koreksi saldo'); return; }
+    alert(d.message);
+    fetch(`/api/admin/saldo-deposit?user_id=${u.id}`).then(r => r.json()).then(setSaldoDepositDetail).catch(() => {});
   }
 
   async function resetPassword(u) {
@@ -2762,6 +2786,40 @@ function AdminPageInner() {
                     {u.role === 'perwakilan' && <Field label="Jadwal" value={u.reg_jadwal} />}
                     {u.reg_notes && <Field label="Catatan Pendaftaran" value={u.reg_notes} full />}
                     <Field label="Setuju PKS" value={u.setuju_pks ? `Ya (${tgl(u.setuju_pks_at)})` : 'Belum'} />
+                  </div>
+
+                  {/* Saldo Deposit (dikonfirmasi user 2026-10-20) — berlaku
+                      SEMUA role (siapa pun bisa booking buat diri sendiri
+                      sebagai jamaah), BUKAN cuma role tertentu. Dimuat
+                      terpisah (lihat saldoDepositDetail), jadi bisa null
+                      sesaat sambil detailUser utama udah ke-render. */}
+                  <div className="border-t border-gray-100 pt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-bold text-sm text-[#0E2F6E]">💰 Saldo Deposit</div>
+                      <button onClick={() => koreksiSaldoDepositUser(u)} className="text-[11px] font-bold text-[#1A4FA0] hover:underline whitespace-nowrap">✏️ Koreksi</button>
+                    </div>
+                    {saldoDepositDetail == null ? (
+                      <div className="text-xs text-gray-400">Memuat...</div>
+                    ) : (
+                      <>
+                        <div className="text-lg font-black text-purple-700">Rp {Number(saldoDepositDetail.saldo || 0).toLocaleString('id-ID')}</div>
+                        {saldoDepositDetail.riwayat?.length > 0 && (
+                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                            {saldoDepositDetail.riwayat.map(r => (
+                              <div key={r.id} className="flex justify-between text-[11px] bg-gray-50 rounded px-2 py-1.5">
+                                <div className="min-w-0">
+                                  <div className="text-gray-600">{r.keterangan || r.jenis}</div>
+                                  <div className="text-gray-400">{tgl(r.created_at)}{r.booking_id_asal ? ` · asal ${r.booking_id_asal}` : ''}{r.booking_id_pakai ? ` · pakai ${r.booking_id_pakai}` : ''}</div>
+                                </div>
+                                <span className={`font-bold whitespace-nowrap ${Number(r.nominal) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {Number(r.nominal) >= 0 ? '+' : ''}Rp {Number(r.nominal).toLocaleString('id-ID')}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
 
                   {u.role==='perwakilan' && (
