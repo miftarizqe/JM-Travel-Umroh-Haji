@@ -304,18 +304,25 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 40 }}>
-        <div style={{ textAlign: 'center', fontSize: 12, position: 'relative' }}>
+        {/* Width DIKUNCI 220px (dikonfirmasi user 2026-10-21, cap masih
+            belum nimpa TTD walau udah diluruskan) -- sebelumnya div ini
+            lebar otomatis ngikutin baris jabatan terpanjang di bawah (mis.
+            "Direktur Pengembangan Bisnis & Sumber Daya Manusia"), jadi TTD
+            yang di-center jadi jauh ke kanan dan cap (posisi fixed left:-30)
+            gak pernah ketemu lagi. Jabatan panjang sekarang wrap 2 baris,
+            itu wajar & tetap rapi karena tetap center. */}
+        <div style={{ textAlign: 'center', fontSize: 12, position: 'relative', width: 220 }}>
           {tgl(dokumen.tanggal)}
           <div style={{ height: butuhMaterai ? 110 : 70, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            {/* Lurus (gak dirotasi lagi) tapi digeser lebih ke kanan biar
-                dikit nimpa TTD (dikonfirmasi user 2026-10-21) — sebelumnya
-                rotate(-10deg) + left:-75 bikin cap keliatan miring & kejauhan
-                dari TTD, gak ada kesan "resmi ditempel di atas tanda tangan"
-                kayak dokumen fisik beneran. */}
+            {/* Lurus (gak dirotasi lagi) & digeser biar nimpa TTD
+                (dikonfirmasi user 2026-10-21) — sebelumnya rotate(-10deg) +
+                left:-75 bikin cap keliatan miring & kejauhan dari TTD, gak
+                ada kesan "resmi ditempel di atas tanda tangan" kayak
+                dokumen fisik beneran. */}
             {!butuhMaterai && pengaturan.cap_perusahaan_path && (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={pengaturan.cap_perusahaan_path} alt="Cap Perusahaan"
-                style={{ position: 'absolute', left: -30, top: '50%', transform: 'translateY(-50%)', width: 95, opacity: 0.85, zIndex: 1 }} />
+                style={{ position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)', width: 95, opacity: 0.85, zIndex: 1 }} />
             )}
             {butuhMaterai && (
               <div style={{ color: '#999', fontSize: 11, textAlign: 'center', lineHeight: 1.4 }}>
