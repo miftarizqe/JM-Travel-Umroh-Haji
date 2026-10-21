@@ -3,18 +3,17 @@ import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { useCurrentUser } from '@/lib/useCurrentUser';
-import { ambilRefAgenWa, salamAgen } from '@/lib/referralCapture';
+import { ambilWaReferral, salamReferral } from '@/lib/referralCapture';
 
 // Tombol WhatsApp melayang pojok kanan bawah — quick action chat ke kantor
 // (dikonfirmasi user 2026-09-28). Nomor ikut Pengaturan Umum (wa_kantor),
 // jadi admin bisa ganti tanpa deploy. Dipasang sekali di root layout biar
 // muncul juga di landing page (page.tsx gak pakai Layout.jsx).
 //
-// WA agen (link /a/[kode]) MENANG dari WA kantor (dikonfirmasi user
-// 2026-10-19, mirror waTarget di page.tsx) -- pengunjung yang datang lewat
-// link referral agen ngobrol langsung sama agennya, bukan ke kantor. Bug
-// nyata: tombol ini sebelumnya SELALU pakai wa_kantor, gak ngecek
-// localStorage ref_agen sama sekali (beda dari page.tsx yang udah bener).
+// WA referral (link agen /a/[kode], ATAU ?ref=kode Perwakilan/Sahabat
+// Baitullah -- diperluas 2026-10-21) MENANG dari WA kantor (dikonfirmasi
+// user 2026-10-19, mirror waTarget di page.tsx) -- pengunjung yang datang
+// lewat link referral ngobrol langsung sama orangnya, bukan ke kantor.
 //
 // Disembunyikan di panel admin (/admin/*, termasuk halaman cetak) & buat
 // akun staff — mereka gak perlu chat ke nomor kantornya sendiri.
@@ -22,19 +21,19 @@ export default function WhatsAppFloating() {
   const pathname = usePathname() || '';
   const [pengaturan] = usePengaturan();
   const [user] = useCurrentUser();
-  // `&& !user` (ditemukan & diperbaiki 2026-10-21) -- tag localStorage
-  // ref_agen gak expired, jadi siapa pun yang login (role apa pun) di
-  // browser yang PERNAH buka link agen bakal tetap diarahkan ke WA agen
-  // itu, bukan WA admin/kantor, padahal mereka udah py akun sendiri.
-  const [waAgen] = useState(() => !user ? ambilRefAgenWa() : null);
+  // `&& !user` (ditemukan & diperbaiki 2026-10-21) -- user yang udah login
+  // (role apa pun) gak boleh diarahkan ke WA referral orang lain. Disimpan
+  // sessionStorage (lihat referralCapture.js) -- tab/sesi baru tanpa link
+  // referral lagi otomatis balik netral, gak nyangkut selamanya.
+  const [waAgen] = useState(() => !user ? ambilWaReferral() : null);
 
   if (pathname.startsWith('/admin')) return null;
   if (user && ['admin', 'super_admin'].includes(user.role)) return null;
 
-  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama agen>" (dikonfirmasi
-  // user 2026-10-19), gantiin "Halo JM Travel" generik yang kesannya nyapa
+  // Sapaan personal "Assalamualaikum Ibu/Bapak <nama>" (dikonfirmasi user
+  // 2026-10-19), gantiin "Halo JM Travel" generik yang kesannya nyapa
   // perusahaan bukan orang.
-  const link = waLink(waAgen || pengaturan.wa_kantor, `${!user ? salamAgen() : 'Assalamualaikum'}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`);
+  const link = waLink(waAgen || pengaturan.wa_kantor, `${!user ? salamReferral() : 'Assalamualaikum'}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`);
   if (!link) return null;
 
   // Bottom navbar mobile (Layout.jsx) cuma tampil kalau login — naikkan
