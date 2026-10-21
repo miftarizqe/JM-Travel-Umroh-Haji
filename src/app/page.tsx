@@ -171,7 +171,14 @@ export default function Home() {
   // Jamaah doang (lihat viaAgenLink di register/page.jsx) -- mitra teaser
   // ini cuma bikin bingung/nyasarin visitor ke jalur yang gak ngasih
   // apa-apa ke agen yang ngajak.
-  const [viaAgenLink] = useState<boolean>(() => !!ambilRefAgenId());
+  // SYARAT TAMBAHAN `&& !user` (ditemukan & diperbaiki 2026-10-21) — tag
+  // localStorage dari link agen GAK ADA EXPIRED, jadi browser yang PERNAH
+  // buka link itu bakal nyimpen tag-nya SELAMANYA. Tanpa syarat ini, siapa
+  // pun yang login (perwakilan, sahabat, jamaah lama, bahkan admin) di
+  // browser itu ikut kehilangan section Kemitraan padahal rasionalnya
+  // ("jangan nyasarin visitor BARU yang masuk via link agen") udah gak
+  // relevan buat orang yang udah py akun & login.
+  const [viaAgenLink] = useState<boolean>(() => !!ambilRefAgenId() && !user);
   const [metodePembayaran] = useMetodePembayaran() as [MetodePembayaran[], boolean];
   const [alurPendaftaran, setAlurPendaftaran] = useState<AlurLangkah[]>([]);
   const [skemaPembayaran, setSkemaPembayaran] = useState<SkemaPembayaran[]>([]);
