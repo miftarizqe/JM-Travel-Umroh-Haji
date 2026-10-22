@@ -522,6 +522,12 @@ function CheckoutPageInner() {
 
   async function lanjutMandiri() {
     if (hargaMandiri <= 0) { alert('Kombinasi paket & kamar ini belum tersedia harganya. Pilih kombinasi lain.'); return; }
+    // No. WA & Jenis Kelamin dikunci sesuai profil kalau checkout buat diri
+    // sendiri (sama kayak Nama/NIK) -- kalau di profil kosong, user gak bisa
+    // isi sendiri di sini, arahkan ke admin.
+    if (namaMandiriTerkunci && (!waMandiri || !jkMandiri)) {
+      alert('No. WhatsApp / Jenis Kelamin di profil akun Anda belum ada. Hubungi admin untuk melengkapinya.'); return;
+    }
     if (!namaMandiri || !waMandiri || !jkMandiri || !alamatMandiri) { alert('Lengkapi data diri terlebih dahulu!'); return; }
     if (blokirMandiri) { alert(blokirMandiri); return; }
     const nik = nikMandiri.trim();
@@ -843,8 +849,13 @@ function CheckoutPageInner() {
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">No. WhatsApp *</label>
                   <input value={waMandiri} onChange={e => setWaMandiri(e.target.value.replace(/\D/g, ''))}
-                    inputMode="numeric" maxLength={13}
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
+                    disabled={namaMandiriTerkunci} inputMode="numeric" maxLength={13}
+                    className={`w-full px-3 py-2 rounded-lg border-2 text-sm ${namaMandiriTerkunci
+                      ? 'border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed'
+                      : 'border-gray-200 focus:border-[#1A4FA0] focus:outline-none'}`} />
+                  {namaMandiriTerkunci && (
+                    <div className="text-[10px] text-gray-400 mt-1">Sesuai profil akun Anda.</div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">NIK (No. KTP) {tanpaNikMandiri ? '' : '*'}</label>
@@ -866,12 +877,17 @@ function CheckoutPageInner() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Jenis Kelamin *</label>
-                  <select value={jkMandiri} onChange={e => setJkMandiri(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm">
+                  <select value={jkMandiri} onChange={e => setJkMandiri(e.target.value)} disabled={namaMandiriTerkunci}
+                    className={`w-full px-3 py-2 rounded-lg border-2 text-sm ${namaMandiriTerkunci
+                      ? 'border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed'
+                      : 'border-gray-200 focus:border-[#1A4FA0] focus:outline-none'}`}>
                     <option value="">-- Pilih --</option>
                     <option value="Laki-Laki">Laki-Laki</option>
                     <option value="Perempuan">Perempuan</option>
                   </select>
+                  {namaMandiriTerkunci && (
+                    <div className="text-[10px] text-gray-400 mt-1">Sesuai profil akun Anda.</div>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">Alamat Pengiriman Perlengkapan Umroh *</label>
