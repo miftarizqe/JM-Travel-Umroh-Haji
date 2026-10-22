@@ -8,6 +8,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { renderPasalBlock, FONT_DOKUMEN, UKURAN_DOKUMEN } from '@/lib/pasalMarkup';
 import { pesanUkuranFile } from '@/lib/batasUpload';
+import { bersihkanDataLokalAkun } from '@/lib/dataLokal';
 
 function Item({ done, label, children }) {
   return (
@@ -183,7 +184,7 @@ export default function StatusPendaftaranSahabatPage() {
 
   async function keluarAkun() {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    try { localStorage.removeItem('user'); } catch {}
+    bersihkanDataLokalAkun();
     window.location.assign('/login'); // navigasi penuh, lihat logout() di Layout.jsx
   }
 

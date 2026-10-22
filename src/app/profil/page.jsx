@@ -6,6 +6,7 @@ import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
 import StatusPendaftaranModal from '@/app/components/StatusPendaftaranModal';
 import BankInput from '@/app/components/BankInput';
+import { bersihkanDataLokalAkun } from '@/lib/dataLokal';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -203,7 +204,7 @@ export default function ProfilPage() {
     if (!confirm('Keluar dari akun?')) return;
     // Cookie token httpOnly hanya bisa dihapus oleh server
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    localStorage.removeItem('user');
+    bersihkanDataLokalAkun();
     window.location.assign('/'); // navigasi penuh, lihat logout() di Layout.jsx
   }
 

@@ -158,6 +158,8 @@ function FormJamaahPageInner() {
   // baru dihapus SETELAH formulir berhasil disimpan (DELETE
   // /api/upload-dokumen-jamaah), biar booking gak pernah nunjuk file yang udah hilang.
   const dokumenDilepas = useRef(new Set());
+  // JSON isian formulir saat baru dimuat (data server + profil) — patokan draft, lihat effect simpan draft.
+  const dasarDraft = useRef(null);
   // jamaah_data versi server — status verifikasi (doc_status) cuma valid buat
   // path yang SAMA dengan yang tersimpan; upload baru = belum dikirim.
   const [tersimpan, setTersimpan] = useState([]);
@@ -239,39 +241,49 @@ function FormJamaahPageInner() {
         setTersimpan(dataLama);
       }
 
+      // Data pendaftaran Sahabat cuma ngisi field yang MASIH KOSONG — isian
+      // lama (jamaah_data/draft) tetap menang, gak ketimpa.
+      // Field profil yang dikunci DIPAKSA sama persis nilai profil (bukan
+      // cuma ngisi yang kosong) -- draft/jamaah_data lama yang beda gak boleh
+      // nyangkut di field yang gak bisa diedit.
+      const nilaiKunci = diriSendiri && profil ? nilaiKunciProfil(profil) : {};
+      const terapkanProfil = (arr) => {
+        let hasil = arr;
+        if (profil) hasil = [isiDariProfil(hasil[0], profil), ...hasil.slice(1)];
+        if (diriSendiri && profil) hasil = [{ ...hasil[0], ...nilaiKunci }, ...hasil.slice(1)];
+        return hasil;
+      };
+      const dariServer = terapkanProfil(list);
+
       // Draft otomatis (localStorage) — jaga-jaga kalau sebelumnya
       // keluar sebelum sempat klik "Kirim Semua Formulir", karena
       // data baru benar-benar tersimpan ke server pas submit akhir.
-      let finalList = list;
+      let finalList = dariServer;
       let finalCurrentJ = 0;
       try {
         const draftRaw = localStorage.getItem(draftKey(bookingId));
         if (draftRaw) {
           const draft = JSON.parse(draftRaw);
-          if (draft?.jamaahList?.length === list.length &&
+          // Draft yang isinya sama persis dengan data server bukan "belum terkirim" —
+          // buang diam-diam, jangan tanya.
+          const draftBeda = draft?.jamaahList?.length === list.length
+            && JSON.stringify(terapkanProfil(draft.jamaahList.map((dj, i) => ({ ...dj, doc_status: list[i]?.doc_status })))) !== JSON.stringify(dariServer);
+          if (draftBeda &&
               confirm('Ditemukan draft formulir yang belum terkirim di perangkat ini. Lanjutkan mengedit draft tersebut?')) {
             // doc_status di draft bisa basi (admin verifikasi setelah
             // draft dibuat) — selalu pakai yang dari server.
-            finalList = draft.jamaahList.map((dj, i) => ({ ...dj, doc_status: list[i]?.doc_status }));
+            finalList = terapkanProfil(draft.jamaahList.map((dj, i) => ({ ...dj, doc_status: list[i]?.doc_status })));
             finalCurrentJ = draft.currentJ || 0;
           } else {
             localStorage.removeItem(draftKey(bookingId));
           }
         }
       } catch {}
-
-      // Data pendaftaran Sahabat cuma ngisi field yang MASIH KOSONG — isian
-      // lama (jamaah_data/draft) tetap menang, gak ketimpa.
-      if (profil) finalList = [isiDariProfil(finalList[0], profil), ...finalList.slice(1)];
-      // Field profil yang dikunci DIPAKSA sama persis nilai profil (bukan
-      // cuma ngisi yang kosong) -- draft/jamaah_data lama yang beda gak boleh
-      // nyangkut di field yang gak bisa diedit.
-      let kunci = {};
-      if (diriSendiri && profil) {
-        const nilai = nilaiKunciProfil(profil);
-        finalList = [{ ...finalList[0], ...nilai }, ...finalList.slice(1)];
-        kunci = Object.fromEntries(Object.keys(nilai).map(k => [k, true]));
-      }
+      // Patokan "belum ada perubahan": draft cuma disimpan kalau isian beda dari ini
+      // (lihat effect simpan draft) — dulu draft langsung ditulis begitu formulir dibuka,
+      // jadi kunjungan berikutnya selalu nanya "draft belum terkirim" walau gak diubah.
+      dasarDraft.current = JSON.stringify(dariServer);
+      const kunci = Object.fromEntries(Object.keys(nilaiKunci).map(k => [k, true]));
       setKunciProfil(kunci);
 
       setBooking(found);
@@ -285,9 +297,10 @@ function FormJamaahPageInner() {
   // Simpan draft ke localStorage tiap ada perubahan — antisipasi keluar
   // sebelum submit akhir (yang baru itu momen data beneran tersimpan).
   useEffect(() => {
-    if (!bookingId || jamaahList.length === 0) return;
+    if (!bookingId || jamaahList.length === 0 || dasarDraft.current === null) return;
     try {
-      localStorage.setItem(draftKey(bookingId), JSON.stringify({ jamaahList, currentJ }));
+      if (JSON.stringify(jamaahList) === dasarDraft.current) localStorage.removeItem(draftKey(bookingId));
+      else localStorage.setItem(draftKey(bookingId), JSON.stringify({ jamaahList, currentJ }));
     } catch {}
   }, [bookingId, jamaahList, currentJ]);
 

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { usePengaturan, waLink, waDisplay } from '@/lib/usePengaturan';
+import { bersihkanDataLokalAkun } from '@/lib/dataLokal';
 
 export default function StatusPendaftaranPage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function StatusPendaftaranPage() {
 
   async function keluarAkun() {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    try { localStorage.removeItem('user'); } catch {}
+    bersihkanDataLokalAkun();
     window.location.assign('/login'); // navigasi penuh, lihat logout() di Layout.jsx
   }
 

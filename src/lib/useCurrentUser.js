@@ -106,6 +106,20 @@ const snapshotServer = () => undefined;
 // nimpa cache `user` pakai hasil cek lama masing2 -> storage event bolak-
 // balik tanpa henti, NotificationBell nembak /api/notifications ribuan kali
 // (403 buat akun yang cookie-nya udah gak aktif).
+// Field cache `user` yang nilainya milik server & bisa berubah di tengah sesi tanpa ganti
+// status: admin memverifikasi akun (terverifikasi, banner "Perbaiki data akun" harus hilang),
+// admin minta perbaikan, role kedua ditambahkan, nama/agama dikoreksi admin. Dulu cache cuma
+// disegarkan kalau id/status beda, jadi banner & gerbang di atas nyangkut sampai logout.
+// wajib_ganti_password SENGAJA tidak ikut: reset password oleh admin berlaku di login berikutnya
+// (password sementara), jangan paksa sesi yang sedang jalan ke /ganti-password-wajib.
+const KOLOM_DARI_SERVER = ['status', 'terverifikasi', 'perlu_perbaikan_akun', 'role', 'role_kedua', 'name', 'agama', 'kode_unik'];
+function gabungCacheUser(cache, dariServer) {
+  const hasil = { ...cache };
+  for (const k of KOLOM_DARI_SERVER) hasil[k] = dariServer[k] ?? null;
+  if (!hasil.sesi_berakhir_at) hasil.sesi_berakhir_at = dariServer.sesi_berakhir_at;
+  return hasil;
+}
+
 let cekSesiCacheSaatCek = null;
 function cekSesiServer() {
   let sekarang = null;
@@ -155,8 +169,8 @@ export function useCurrentUser() {
         // status yang dijaga, akun beda tetap ditimpa & bikin ping-pong
         // antar-tab (bug 2026-10-19).
         if (sekarang !== d.cacheSaatCek) return;
-        if (d.user && (cache?.id !== d.user.id || cache?.status !== d.user.status)) {
-          isiCacheUser(cache?.id === d.user.id ? { ...cache, ...d.user } : d.user);
+        if (d.user && (cache?.id !== d.user.id || KOLOM_DARI_SERVER.some(k => (cache?.[k] ?? null) !== (d.user[k] ?? null)))) {
+          isiCacheUser(cache?.id === d.user.id ? gabungCacheUser(cache, d.user) : d.user);
         }
         setSesiTerkonfirmasi(true);
         return;

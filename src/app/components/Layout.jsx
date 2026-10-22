@@ -3,6 +3,7 @@ import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { bersihkanDataLokalAkun } from '@/lib/dataLokal';
 
 const DEFAULT_CONFIRM_MSG = 'Yakin ingin keluar? Perubahan yang belum disimpan akan hilang.';
 
@@ -371,7 +372,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     guardedNavigate(async () => {
       // Cookie token httpOnly hanya bisa dihapus oleh server
       try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-      localStorage.removeItem('user');
+      bersihkanDataLokalAkun();
       // Navigasi penuh: buang Client Cache Next yang masih nyimpen
       // halaman versi login (lihat login/page.jsx).
       window.location.assign('/login');
