@@ -266,8 +266,24 @@ export default function CetakInvoiceKwitansi() {
              KopSurat kejauhan (ditemukan user 2026-10-21). */
           .cetak-page-bg { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
+          /* Kop surat RESMI (file asli dari user, 2026-10-22) — dipasang
+             position:fixed, browser ngulang otomatis di SETIAP halaman
+             fisik kalau dokumennya >1 halaman. @page margin jadi 0 (full
+             bleed) supaya gambarnya nutup SELURUH kertas persis ukuran
+             aslinya (A4), padding .sheet DIGANTI jadi yang reservasi ruang
+             buat garis biru atas (~42mm dari tepi di file asli, dikasih
+             buffer jadi 46mm) & garis biru bawah (~11mm dari tepi, dikasih
+             buffer jadi 16mm) biar konten gak numpuk sama elemen di gambar.
+             KopSurat versi HTML (<KopSurat>, logo+teks biasa) disembunyikan
+             pas print -- gambar ini udah include header-nya. */
+          .kop-surat-onscreen { display: none !important; }
+          .kop-surat-print-bg {
+            display: block !important; position: fixed; top: 0; left: 0;
+            width: 210mm; height: 297mm; z-index: -1;
+          }
+          .sheet { padding: 46mm 18mm 16mm 18mm !important; }
         }
-        @page { size: 210mm 297mm; margin: 15mm; }
+        @page { size: 210mm 297mm; margin: 0; }
       `}</style>
     </div>
   );

@@ -10,7 +10,7 @@
 // namanya/format/siapa yg ttd, yang udah terkirim gabakal ikutan berubah").
 // Murni presentational -- TANPA hook, TANPA 'use client' -- supaya aman
 // dipakai di server (Node.js runtime API route).
-import KopSurat from '@/app/components/KopSurat';
+import KopSurat, { KopSuratPrintBg } from '@/app/components/KopSurat';
 import { terbilang } from '@/lib/terbilang';
 
 export const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
@@ -183,6 +183,7 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
 
   return (
     <div className="sheet" style={{ background: '#fff', width: 720, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+      <KopSuratPrintBg />
       <KopSurat pengaturan={pengaturan} />
 
       <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, letterSpacing: 0.5, color: '#0E2F6E' }}>{judul}</div>
