@@ -139,6 +139,24 @@ export function KeteranganPembayaran({ list }) {
 
 export function BarisItem({ label, sub, qty, satuan, jumlah, tebal }) {
   const j = rpMinusAware(jumlah);
+  // Baris RINGKASAN (Total Tagihan Paket, Sudah Dibayarkan, [Judul]/
+  // Pelunasan, Sisa Pembayaran) — gak punya qty/satuan sama sekali (beda
+  // dari baris rincian paket/pembayaran yang emang breakdown per-unit) —
+  // labelnya DIGABUNG jadi 1 sel lebar (colSpan 3, teks di-tengah) + sel
+  // Jumlah sendiri di kanan, BUKAN 4 kolom terpisah dengan Qty/Satuan
+  // kosong (dikonfirmasi user 2026-10-22, minta disamain ke contoh yang
+  // dikirim).
+  if (qty == null && satuan == null) {
+    return (
+      <tr>
+        <td colSpan={3} style={{ ...td, textAlign: 'center', fontWeight: tebal ? 700 : 400 }}>
+          {label}
+          {sub && <div style={{ fontWeight: 400, fontSize: 10, color: '#666', marginTop: 2 }}>{sub}</div>}
+        </td>
+        <td style={{ ...td, textAlign: 'right', fontWeight: tebal ? 700 : 400, color: j.negatif ? '#dc2626' : undefined }}>{j.text}</td>
+      </tr>
+    );
+  }
   return (
     <tr>
       <td style={{ ...td, fontWeight: tebal ? 700 : 400 }}>
