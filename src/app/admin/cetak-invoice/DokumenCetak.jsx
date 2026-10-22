@@ -14,6 +14,15 @@ import KopSurat, { KopSuratPrintBg } from '@/app/components/KopSurat';
 import { terbilang } from '@/lib/terbilang';
 
 export const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
+// Format akuntansi buat angka negatif (potongan/pengurang, mis. "Sudah
+// Dibayarkan") — kurung + merah, TANPA tanda minus (dikonfirmasi user
+// 2026-10-22, "Rp -15.000.000" diganti "(Rp15.000.000)" warna merah).
+// Angka >=0 tetap pakai rp() biasa, gak kena kurung/warna.
+const rpMinusAware = (n) => {
+  const num = Number(n || 0);
+  if (num >= 0) return { text: rp(num), negatif: false };
+  return { text: `(${rp(Math.abs(num))})`, negatif: true };
+};
 export const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' }) : '-';
 export const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
 // per-unit = total / qty (dibulatkan) — kalau qty gak ada/0, ya satuan = total (qty tersirat 1).
@@ -129,6 +138,7 @@ export function KeteranganPembayaran({ list }) {
 }
 
 export function BarisItem({ label, sub, qty, satuan, jumlah, tebal }) {
+  const j = rpMinusAware(jumlah);
   return (
     <tr>
       <td style={{ ...td, fontWeight: tebal ? 700 : 400 }}>
@@ -137,7 +147,7 @@ export function BarisItem({ label, sub, qty, satuan, jumlah, tebal }) {
       </td>
       <td style={{ ...td, textAlign: 'center', fontWeight: tebal ? 700 : 400 }}>{qty ?? ''}</td>
       <td style={{ ...td, textAlign: 'right', fontWeight: tebal ? 700 : 400 }}>{satuan != null ? rp(satuan) : ''}</td>
-      <td style={{ ...td, textAlign: 'right', fontWeight: tebal ? 700 : 400 }}>{rp(jumlah)}</td>
+      <td style={{ ...td, textAlign: 'right', fontWeight: tebal ? 700 : 400, color: j.negatif ? '#dc2626' : undefined }}>{j.text}</td>
     </tr>
   );
 }
