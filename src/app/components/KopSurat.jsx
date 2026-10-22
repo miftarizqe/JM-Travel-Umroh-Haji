@@ -1,19 +1,16 @@
-// Kop surat (logo + info perusahaan) buat halaman cetak — dipakai di
-// cetak-invoice. Pola ini sebenarnya juga diduplikasi lokal di beberapa
-// halaman cetak lain (proposal, formulir-mitra, pks-mitra); di sini dibikin
-// shared cuma buat halaman baru, tanpa retrofit yang lama (di luar scope).
-export default function KopSurat({ pengaturan, warnaBorder = '#0E2F6E' }) {
+// Kop surat RESMI — preview di layar sekarang pakai gambar pita header asli
+// yang sama dengan hasil print/PDF (bukan logo+teks manual lagi), biar
+// preview gak beda sama hasil cetak (ditemukan user 2026-10-22: "preview
+// kwitansinya belum pake kop surat terbaru tp pas print sih udah").
+// `pengaturan`/`warnaBorder` gak kepakai lagi (gambar udah include nama/
+// alamat/telepon/email perusahaan) tapi DIBIARKAN di signature biar caller
+// lama (cetak-rekap-ujroh, cetak-tanda-terima-perlengkapan, dst) gak perlu
+// diubah semua.
+export default function KopSurat({ pengaturan, warnaBorder } = {}) {
   return (
-    <div className="kop-surat-onscreen" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: `3px solid ${warnaBorder}`, paddingBottom: 10, marginBottom: 20 }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/logo/jm-travel-logo.png" alt="JM Travel" style={{ height: 70, objectFit: 'contain' }} />
-      <div style={{ fontSize: 10, textAlign: 'right', lineHeight: 1.5, color: warnaBorder }}>
-        <div style={{ fontWeight: 700 }}>{pengaturan.nama_perusahaan}</div>
-        <div>{pengaturan.alamat_kantor}</div>
-        <div>Phone: {pengaturan.telepon_kantor}</div>
-        <div>Email: {pengaturan.email_kantor}</div>
-      </div>
-    </div>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src="/kop-surat/kop-surat-header.png" alt="JM Travel"
+      className="kop-surat-onscreen" style={{ display: 'block', width: '100%', marginBottom: 20 }} />
   );
 }
 

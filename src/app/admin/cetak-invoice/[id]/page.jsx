@@ -14,7 +14,15 @@ export default function CetakInvoiceKwitansi() {
   const router = useRouter();
   const id = params?.id;
   const [user] = useCurrentUser();
-  const [pengaturan] = usePengaturan();
+  // `pengaturanLoading` WAJIB ditunggu sebelum kirim -- kalau admin pencet
+  // Kirim pas fetch /api/pengaturan belum selesai, DokumenCetak render
+  // dengan cap_perusahaan_path/ttd_penandatangan_keuangan_path masih kosong
+  // (default usePengaturan), snapshot HTML BEKU (migration 227) yang
+  // kerekam jadi PERMANEN gak ada cap/TTD walau datanya sendiri sebenarnya
+  // udah ada di Pengaturan (ditemukan user 2026-10-22 -- kwitansi terkirim
+  // gak ikut cap/TTD walau tombol Print/PDF yang query pengaturan fresh
+  // tiap kali selalu nampilin dengan benar).
+  const [pengaturan, pengaturanLoading] = usePengaturan();
   const [dokumen, setDokumen] = useState(null);
   const [booking, setBooking] = useState(null);
   const [payment, setPayment] = useState(null);
@@ -86,6 +94,9 @@ export default function CetakInvoiceKwitansi() {
   // jm-travel-api). Cek Caddyfile.tahap2 di VPS kalau ternyata masih
   // keproxy ke Go.
   async function setujui() {
+    // Defensif -- tombol udah di-disable pas pengaturanLoading, tapi dicek
+    // lagi di sini jaga-jaga race (klik kepencet sebelum re-render disabled).
+    if (pengaturanLoading) { alert('Lagi memuat data cap/TTD, tunggu sebentar lalu coba lagi.'); return; }
     const pesanKonfirmasi = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
       ? `Kirim ${JUDUL[dokumen.jenis]} ${dokumen.nomor || '(nomor baru akan dibuat)'} ke jamaah sekarang? Setelah dikirim, isi dokumen ini terkunci permanen.`
       : `Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor || ''}? Dokumen akan ditandai sudah dikirim.`;
@@ -224,9 +235,9 @@ export default function CetakInvoiceKwitansi() {
             <input type="checkbox" checked={nominalBenar} onChange={e => setNominalBenar(e.target.checked)} />
             Nominal {rp(dokumen.nominal)} di atas sudah benar
           </label>
-          <button onClick={setujui} disabled={menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
-            {menyetujui ? 'Mengirim...' : '📤 Kirim ke Jamaah'}
+          <button onClick={setujui} disabled={menyetujui || pengaturanLoading || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
+            {menyetujui ? 'Mengirim...' : pengaturanLoading ? 'Memuat cap/TTD...' : '📤 Kirim ke Jamaah'}
           </button>
         </div>
       ) : (
@@ -237,9 +248,9 @@ export default function CetakInvoiceKwitansi() {
         // gak perlu info soal batas Rp5jt lagi (itu cuma relevan buat
         // dokumen yang BENERAN jadi bukti penerimaan uang).
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
-          <button onClick={setujui} disabled={menyetujui}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: menyetujui ? 0.6 : 1 }}>
-            {menyetujui ? 'Memproses...' : '✅ Setuju'}
+          <button onClick={setujui} disabled={menyetujui || pengaturanLoading}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading) ? 0.6 : 1 }}>
+            {menyetujui ? 'Memproses...' : pengaturanLoading ? 'Memuat cap/TTD...' : '✅ Setuju'}
           </button>
         </div>
       )}
