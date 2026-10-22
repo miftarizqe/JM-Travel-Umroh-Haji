@@ -116,6 +116,26 @@ function InvoiceKwitansiPageInner() {
     finally { setRekomBusyId(null); }
   }
 
+  // Tombol "Batal" di rekomendasi Kwitansi — buat booking yang dimasukkin
+  // manual ke database & admin emang gak mau bikinin Kwitansi formalnya
+  // (dikonfirmasi user 2026-10-22, "masih muncul terus di rekomendasi...
+  // gausah gue bikin lagi"). Permanen (migration 249), gak ada jalur undo
+  // di UI -- kalau butuh di-munculin lagi, langsung di database.
+  async function batalkanRekomendasiKwitansi(bookingId) {
+    if (!confirm('Batalkan rekomendasi Kwitansi buat booking ini? Booking ini gak akan muncul lagi di rekomendasi, dan gak ada Kwitansi yang dibuat.')) return;
+    setRekomBusyId(bookingId);
+    try {
+      const res = await fetch('/api/admin/invoice-kwitansi/abaikan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: bookingId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d.error || 'Gagal membatalkan rekomendasi'); return; }
+      setRekomKwitansi(prev => prev.filter(b => b.booking_id !== bookingId));
+    } catch { alert('Terjadi kesalahan'); }
+    finally { setRekomBusyId(null); }
+  }
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (user) muat();
@@ -493,10 +513,17 @@ function InvoiceKwitansiPageInner() {
                   <td className="px-3 py-2 whitespace-nowrap">{b.prog_name}</td>
                   <td className="px-3 py-2 whitespace-nowrap italic">lunas, rekomendasi dibuat</td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <button onClick={() => buatDariRekomendasi('kwitansi', 'booking_id', b.booking_id)} disabled={rekomBusyId === b.booking_id}
-                      className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
-                      {rekomBusyId === b.booking_id ? '...' : '🧾 Buat Kwitansi'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => buatDariRekomendasi('kwitansi', 'booking_id', b.booking_id)} disabled={rekomBusyId === b.booking_id}
+                        className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                        {rekomBusyId === b.booking_id ? '...' : '🧾 Buat Kwitansi'}
+                      </button>
+                      <button onClick={() => batalkanRekomendasiKwitansi(b.booking_id)} disabled={rekomBusyId === b.booking_id}
+                        title="Booking ini gak perlu Kwitansi (mis. data manual) -- hilangkan dari rekomendasi"
+                        className="text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                        ✕ Batal
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
