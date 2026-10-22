@@ -133,6 +133,21 @@ export default function CetakInvoiceKwitansi() {
     finally { setMenyetujui(false); }
   }
 
+  // Batalkan Invoice yang BELUM dikirim (dikonfirmasi user 2026-10-22,
+  // "invoice tuh bisa di cancel gak sih kalo belum dikirim") -- cuma
+  // jenis='invoice' (server juga nggerbang ini, lihat DELETE route).
+  const [membatalkan, setMembatalkan] = useState(false);
+  async function batalkanInvoice() {
+    if (!confirm(`Batalkan Invoice ${dokumen.nomor || '(belum dikirim)'} — ${dokumen.nama}, ${rp(dokumen.nominal)}? Gak bisa dikembalikan lagi.`)) return;
+    setMembatalkan(true);
+    try {
+      const res = await fetch(`/api/admin/invoice-kwitansi/${dokumen.id}`, { method: 'DELETE' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d.error || 'Gagal membatalkan Invoice'); setMembatalkan(false); return; }
+      router.push('/admin/invoice-kwitansi');
+    } catch { alert('Terjadi kesalahan'); setMembatalkan(false); }
+  }
+
   if (loading) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Memuat data...</div>;
 
   if (ditolak) return (
@@ -274,10 +289,16 @@ export default function CetakInvoiceKwitansi() {
         // gak perlu info soal batas Rp5jt lagi (itu cuma relevan buat
         // dokumen yang BENERAN jadi bukti penerimaan uang).
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
-          <button onClick={setujui} disabled={menyetujui || pengaturanLoading}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading) ? 0.6 : 1 }}>
-            {menyetujui ? 'Memproses...' : pengaturanLoading ? 'Memuat cap/TTD...' : '✅ Setuju'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button onClick={setujui} disabled={menyetujui || pengaturanLoading || membatalkan}
+              style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading || membatalkan) ? 0.6 : 1 }}>
+              {menyetujui ? 'Memproses...' : pengaturanLoading ? 'Memuat cap/TTD...' : '✅ Setuju'}
+            </button>
+            <button onClick={batalkanInvoice} disabled={menyetujui || membatalkan}
+              style={{ background: '#fff', color: '#dc2626', border: '1px solid #dc2626', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || membatalkan) ? 0.6 : 1 }}>
+              {membatalkan ? 'Membatalkan...' : '✕ Batalkan Invoice'}
+            </button>
+          </div>
         </div>
       )}
 
