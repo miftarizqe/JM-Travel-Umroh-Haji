@@ -226,7 +226,7 @@ export default function CetakInvoiceKwitansi() {
               </div>
               <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
                 userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
-                onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path }))} />
+                onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path, scan_fisik_uploaded_at: new Date().toISOString() }))} />
             </>
           ) : (
             <div style={{ fontSize: 11, color: '#666', marginBottom: 10 }}>Nominal &lt; Rp5.000.000, gak perlu materai — tinggal kirim.</div>
