@@ -30,6 +30,7 @@ export const RUTE_TERLINDUNGI = [
   '/batalkan-program',
   '/upgrade-perwakilan',
   '/tanda-tangan',
+  '/riwayat-transaksi',
 ];
 
 export function isRuteTerlindungi(pathname) {

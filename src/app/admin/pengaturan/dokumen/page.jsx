@@ -443,7 +443,6 @@ export default function AdminPengaturanDokumenPage() {
   const [signerSaving, setSignerSaving] = useState(false);
   const [signerSaved, setSignerSaved] = useState(false);
   const [uploadingTtd, setUploadingTtd] = useState(false);
-  const [uploadingCap, setUploadingCap] = useState(false);
   const [uploadingPanduanBsi, setUploadingPanduanBsi] = useState(false);
   const [uploadingPanduanUmroh, setUploadingPanduanUmroh] = useState(false);
 
@@ -613,29 +612,24 @@ export default function AdminPengaturanDokumenPage() {
           ))}
         </div>
 
-        <div className="grid sm:grid-cols-2 gap-4 mb-3">
-          <div>
-            <label className={lbl}>Tanda Tangan Digital (gambar, background transparan lebih bagus)</label>
-            {signerForm.ttd_penandatangan_keuangan_path && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={signerForm.ttd_penandatangan_keuangan_path} alt="TTD" className="h-16 mb-2 border border-gray-100 rounded-lg bg-gray-50 px-2" />
-            )}
-            <input type="file" accept="image/jpeg,image/png" disabled={uploadingTtd}
-              onChange={e => { uploadGambarSigner('ttd_penandatangan_keuangan_path', e.target.files?.[0], setUploadingTtd); e.target.value = ''; }}
-              className="text-xs" />
-            {uploadingTtd && <div className="text-xs text-gray-400 mt-1">Mengunggah...</div>}
-          </div>
-          <div>
-            <label className={lbl}>Cap Perusahaan (gambar, background transparan lebih bagus)</label>
-            {signerForm.cap_perusahaan_path && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={signerForm.cap_perusahaan_path} alt="Cap Perusahaan" className="h-16 mb-2 border border-gray-100 rounded-lg bg-gray-50 px-2" />
-            )}
-            <input type="file" accept="image/jpeg,image/png" disabled={uploadingCap}
-              onChange={e => { uploadGambarSigner('cap_perusahaan_path', e.target.files?.[0], setUploadingCap); e.target.value = ''; }}
-              className="text-xs" />
-            {uploadingCap && <div className="text-xs text-gray-400 mt-1">Mengunggah...</div>}
-          </div>
+        <div className="mb-3">
+          {/* Cap & TTD digabung jadi 1 gambar (dikonfirmasi user 2026-10-22 --
+              sebelumnya 2 gambar terpisah/overlap manual pakai offset px yang
+              gampang nyimpang antara preview HTML & PDF). Admin upload 1 file
+              yang udah dikomposit cap+tanda tangan sendiri (mis. di Canva),
+              ukurannya ngikut gambar itu apa adanya -- gak ada lagi
+              perhitungan posisi/ukuran kode yang perlu "ditebak". Kolom DB
+              `cap_perusahaan_path` SENGAJA dibiarkan ada (gak di-drop) tapi
+              gak dipakai lagi di sini maupun di cetak. */}
+          <label className={lbl}>Cap + Tanda Tangan (1 gambar gabungan, background transparan lebih bagus)</label>
+          {signerForm.ttd_penandatangan_keuangan_path && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={signerForm.ttd_penandatangan_keuangan_path} alt="Cap + Tanda Tangan" className="h-20 mb-2 border border-gray-100 rounded-lg bg-gray-50 px-2" />
+          )}
+          <input type="file" accept="image/jpeg,image/png" disabled={uploadingTtd}
+            onChange={e => { uploadGambarSigner('ttd_penandatangan_keuangan_path', e.target.files?.[0], setUploadingTtd); e.target.value = ''; }}
+            className="text-xs" />
+          {uploadingTtd && <div className="text-xs text-gray-400 mt-1">Mengunggah...</div>}
         </div>
 
         <div className="flex items-center gap-3">

@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ['mysql2'],
   async redirects() {
     return [
       // Halaman "Program Kalkulator Biaya" diganti nama jadi "Costing Program"
@@ -10,11 +9,16 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    // Hanya untuk `next dev` lokal tanpa Caddy: /api/* yang tidak punya route Next.js dilayani
-    // jm-travel-api (Go). Di dev/prod GO_API_URL tidak di-set — Caddy yang membagi (Caddyfile.tahap2).
-    const go = process.env.GO_API_URL;
-    if (!go) return [];
-    return { beforeFiles: [], afterFiles: [], fallback: [{ source: '/api/:path*', destination: `${go.replace(/\/$/, '')}/api/:path*` }] };
+    // Repo ini FE saja — backend ada di repo jm-travel-api. Di dev/prod Caddy yang mengirim
+    // /api/*, /uploads/* & /healthz ke backend; API_URL TIDAK di-set di sana. Untuk `next dev`
+    // di laptop, set API_URL (mis. http://localhost:3001, backend lokal) supaya fetch('/api/...')
+    // dari halaman diteruskan ke backend.
+    const api = process.env.API_URL?.replace(/\/$/, '');
+    if (!api) return [];
+    return [
+      { source: '/api/:path*', destination: `${api}/api/:path*` },
+      { source: '/uploads/:path*', destination: `${api}/uploads/:path*` },
+    ];
   },
 };
 

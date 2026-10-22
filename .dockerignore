@@ -3,7 +3,6 @@ node_modules
 .git
 .env*
 .vscode
-private-uploads
 public/uploads
 *.pdf
 docs

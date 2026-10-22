@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { warnaProgress } from '@/lib/kesiapanTabungan';
-import { isHopRole } from '@/lib/hopAuth';
 
 const FUNNEL_LABEL = {
   pending: 'Verifikasi TF', menunggu_bsi: 'Menunggu BSI', menunggu_sk_cif: 'Menunggu SK-CIF',
@@ -278,7 +277,7 @@ function TeamContent() {
   // berubah, cuma halaman ini sekarang bisa nunjukkin hasilnya).
   const paramId = searchParams.get('sahabat_id');
   const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
-  const isHop = isHopRole(user);
+  const isHop = user?.role === 'hop';
   const bolehLihatSemua = isAdmin || isHop;
   const targetId = (paramId && bolehLihatSemua) ? paramId : user?.id;
   const lihatJaringanOrangLain = bolehLihatSemua && paramId && paramId !== user?.id;

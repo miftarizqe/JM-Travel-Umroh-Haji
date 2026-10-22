@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePengaturan } from '@/lib/usePengaturan';
-import KopSurat from '@/app/components/KopSurat';
+import KopSurat, { KopSuratPrintBg } from '@/app/components/KopSurat';
 import { namaPengajuanPerwakilan } from '@/lib/pengajuanUjrohPerwakilan';
 
 const STATUS_LABEL_PENGAJUAN = { draft: 'Draft', diajukan: 'Diajukan', disetujui: 'Disetujui', ditolak: 'Ditolak' };
@@ -62,7 +62,7 @@ function CetakRekapUjrohPerwakilanInner() {
   if (!data?.pengajuan) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Data tidak ditemukan.</div>;
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
+    <div className="cetak-page-bg" style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
         <button onClick={() => window.print()}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
@@ -74,6 +74,7 @@ function CetakRekapUjrohPerwakilanInner() {
       </div>
 
       <div className="sheet" style={{ background: '#fff', width: 700, margin: '0 auto', padding: 30, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+        <KopSuratPrintBg />
         <KopSurat pengaturan={pengaturan} />
 
         <div style={{ textAlign: 'center', fontSize: 16, fontWeight: 800, marginBottom: 4 }}>
@@ -165,9 +166,18 @@ function CetakRekapUjrohPerwakilanInner() {
         @media print {
           .no-print { display: none !important; }
           body { background: #fff !important; }
+          .cetak-page-bg { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
+          /* Kop surat RESMI full-bleed per halaman (2026-10-22) — lihat
+             komentar lengkap di cetak-invoice/[id]/page.jsx. */
+          .kop-surat-onscreen { display: none !important; }
+          .kop-surat-print-bg {
+            display: block !important; position: fixed; top: 0; left: 0;
+            width: 210mm; height: 34.3mm;
+          }
+          .sheet { padding: 38mm 18mm 16mm 18mm !important; }
         }
-        @page { size: A4; margin: 15mm; }
+        @page { size: A4; margin: 0; }
       `}</style>
     </div>
   );

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { semuaTokenDariHeader, headerHapusTokenLama, headerCookieToken } from '@/lib/auth';
+import { semuaTokenDariHeader, headerHapusTokenLama, headerCookieToken } from '@/lib/sesiCookie';
 import { isRuteTerlindungi } from '@/lib/ruteTerlindungi';
 
 /**
@@ -21,7 +21,7 @@ function tokenSah(token) {
 }
 
 // Sesi 4 jam sejak login (dikonfirmasi user 2026-10-13, aturan sama dengan
-// DURASI_SESI_DETIK di src/lib/auth.js). Proxy cuma BACA payload (gak
+// DURASI_SESI_DETIK di src/lib/auth.js repo jm-travel-api). Proxy cuma BACA payload (gak
 // verifikasi tanda tangan — itu tugas API); cukup buat nentuin sesi udah
 // habis & cookie-nya dibuang, biar user gak nyangkut "kelihatan login"
 // padahal semua API udah nolak.

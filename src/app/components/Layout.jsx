@@ -3,6 +3,7 @@ import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import { bersihkanDataLokalAkun } from '@/lib/dataLokal';
 
 const DEFAULT_CONFIRM_MSG = 'Yakin ingin keluar? Perubahan yang belum disimpan akan hilang.';
 
@@ -371,7 +372,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
     guardedNavigate(async () => {
       // Cookie token httpOnly hanya bisa dihapus oleh server
       try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-      localStorage.removeItem('user');
+      bersihkanDataLokalAkun();
       // Navigasi penuh: buang Client Cache Next yang masih nyimpen
       // halaman versi login (lihat login/page.jsx).
       window.location.assign('/login');
@@ -640,6 +641,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       // sehingga dua tab menyala bersamaan. Booking sudah jadi bagian Beranda.
       { icon: '🏠', label: 'Beranda', path: '/dashboard/jamaah' },
       { icon: '🕌', label: 'Program', path: '/programs' },
+      { icon: '🧾', label: 'Riwayat Transaksi', path: '/riwayat-transaksi' },
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],
     perwakilan: [
@@ -653,6 +655,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '🌳', label: 'Team', path: '/dashboard/downline' },
       { icon: '💰', label: 'Harga', path: '/perwakilan/harga' },
       { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/perwakilan/riwayat-closing' },
+      { icon: '🧾', label: 'Riwayat Transaksi', path: '/riwayat-transaksi' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },
     ],
@@ -667,6 +670,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '🌳', label: 'Team', path: '/dashboard/sahabat/team' },
       { icon: '📜', label: 'Riwayat Closing', path: '/dashboard/sahabat/riwayat-closing' },
       { icon: '🧾', label: 'Riwayat Tabungan Umroh', path: '/dashboard/sahabat/riwayat' },
+      { icon: '📄', label: 'Riwayat Transaksi', path: '/riwayat-transaksi' },
       { icon: '🎞️', label: 'Materi Presentasi', path: '/dashboard/sahabat/materi' },
       { icon: '🎟️', label: 'Voucher', path: '/voucher' },
       { icon: '👤', label: 'Profil', path: '/profil' },

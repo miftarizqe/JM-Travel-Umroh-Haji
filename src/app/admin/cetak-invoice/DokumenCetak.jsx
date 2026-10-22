@@ -10,7 +10,7 @@
 // namanya/format/siapa yg ttd, yang udah terkirim gabakal ikutan berubah").
 // Murni presentational -- TANPA hook, TANPA 'use client' -- supaya aman
 // dipakai di server (Node.js runtime API route).
-import KopSurat from '@/app/components/KopSurat';
+import KopSurat, { KopSuratPrintBg } from '@/app/components/KopSurat';
 import { terbilang } from '@/lib/terbilang';
 
 export const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
@@ -162,8 +162,12 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
   // sama kayak booking penuh TAPI dibekukan begitu udah terkirim (lihat
   // migration 224 & lock-on-send di POST .../setuju). Invoice tetap pakai
   // breakdown booking LIVE, belum ikut lock (dikonfirmasi user 2026-10-14).
+  // Fallback "Atas Nama Jamaah" buat dokumen TANPA booking (mis. Kwitansi
+  // setoran pendaftaran Sahabat Baitullah) — sebelumnya kosong total kalau
+  // gak ada booking, padahal `dokumen.nama` (penerimanya) udah pasti ada
+  // (dikonfirmasi user 2026-10-21).
   const jamaahUntukPembayaran = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
-    ? (booking?.jamaah_breakdown_pembayaran || booking?.jamaah_breakdown || [])
+    ? (booking?.jamaah_breakdown_pembayaran || booking?.jamaah_breakdown || (!booking && dokumen.nama ? [{ nama: dokumen.nama }] : []))
     : (booking?.jamaah_breakdown || []);
   const qtyJamaah = jamaahUntukPembayaran.length || (booking ? Number(booking.jumlah_jamaah || 1) : 1);
   // Invoice itu TAGIHAN, bukan tanda terima (dikonfirmasi user 2026-10-14)
@@ -179,6 +183,7 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
 
   return (
     <div className="sheet" style={{ background: '#fff', width: 720, margin: '0 auto', padding: 40, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>
+      <KopSuratPrintBg />
       <KopSurat pengaturan={pengaturan} />
 
       <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, letterSpacing: 0.5, color: '#0E2F6E' }}>{judul}</div>
@@ -229,7 +234,14 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
             // sudah lunas total, jadi "total terbayar" = dokumen.nominal
             // (keseluruhan), gak perlu embel-embel tahap pembayaran.
             <>
-              <BarisItem label={LABEL_BARIS.kwitansi}
+              {/* `judul` override (dikonfirmasi user 2026-10-21) — dipakai
+                  Kwitansi setoran pendaftaran Sahabat Baitullah buat label
+                  "DP Program Umroh Exclusive ... Keberangkatan <bulan
+                  tahun>" (lihat generateKwitansiSetoranPendaftaranSahabat),
+                  bukan lagi selalu LABEL_BARIS.kwitansi generik. Kwitansi
+                  closing booking biasa gak ngisi `judul`, jadi fallback-nya
+                  TETAP sama kayak sebelumnya. */}
+              <BarisItem label={dokumen.judul || LABEL_BARIS.kwitansi}
                 sub={<KeteranganPembayaran list={jamaahUntukPembayaran} />}
                 qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
               <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
@@ -293,24 +305,31 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
       )}
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 40 }}>
-        <div style={{ textAlign: 'center', fontSize: 12, position: 'relative' }}>
+        {/* Width DIKUNCI 220px (dikonfirmasi user 2026-10-21, cap masih
+            belum nimpa TTD walau udah diluruskan) -- sebelumnya div ini
+            lebar otomatis ngikutin baris jabatan terpanjang di bawah (mis.
+            "Direktur Pengembangan Bisnis & Sumber Daya Manusia"), jadi TTD
+            yang di-center jadi jauh ke kanan dan cap (posisi fixed left:-30)
+            gak pernah ketemu lagi. Jabatan panjang sekarang wrap 2 baris,
+            itu wajar & tetap rapi karena tetap center. */}
+        <div style={{ textAlign: 'center', fontSize: 12, width: 220 }}>
           {tgl(dokumen.tanggal)}
-          <div style={{ height: butuhMaterai ? 110 : 70, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            {!butuhMaterai && pengaturan.cap_perusahaan_path && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={pengaturan.cap_perusahaan_path} alt="Cap Perusahaan"
-                style={{ position: 'absolute', left: -75, top: '50%', transform: 'translateY(-50%) rotate(-10deg)', width: 95, opacity: 0.85 }} />
-            )}
-            {butuhMaterai && (
+          {/* Cap & TTD digabung jadi 1 gambar (dikonfirmasi user 2026-10-22 --
+              sebelumnya 2 gambar terpisah di-overlap manual pakai offset px
+              yang gampang nyimpang antara preview HTML & PDF). Ukurannya
+              ngikut gambar aslinya (maxHeight/maxWidth doang, objectFit
+              contain) -- gak ada lagi perhitungan posisi yang perlu
+              "ditebak". */}
+          <div style={{ height: butuhMaterai ? 110 : 90, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {butuhMaterai ? (
               <div style={{ color: '#999', fontSize: 11, textAlign: 'center', lineHeight: 1.4 }}>
                 Materai<br />Rp10.000
               </div>
-            )}
-            {!butuhMaterai && pengaturan.ttd_penandatangan_keuangan_path && (
+            ) : pengaturan.ttd_penandatangan_keuangan_path ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={pengaturan.ttd_penandatangan_keuangan_path} alt="Tanda Tangan"
-                style={{ position: 'absolute', height: 65, objectFit: 'contain' }} />
-            )}
+              <img src={pengaturan.ttd_penandatangan_keuangan_path} alt="Cap & Tanda Tangan"
+                style={{ maxHeight: 90, maxWidth: 200, objectFit: 'contain' }} />
+            ) : null}
           </div>
           <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{pengaturan.nama_penandatangan_keuangan || '-'}</div>
           <div style={{ color: '#666' }}>{pengaturan.jabatan_penandatangan_keuangan || '-'}</div>

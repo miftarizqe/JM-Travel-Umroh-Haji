@@ -14,7 +14,15 @@ export default function CetakInvoiceKwitansi() {
   const router = useRouter();
   const id = params?.id;
   const [user] = useCurrentUser();
-  const [pengaturan] = usePengaturan();
+  // `pengaturanLoading` WAJIB ditunggu sebelum kirim -- kalau admin pencet
+  // Kirim pas fetch /api/pengaturan belum selesai, DokumenCetak render
+  // dengan cap_perusahaan_path/ttd_penandatangan_keuangan_path masih kosong
+  // (default usePengaturan), snapshot HTML BEKU (migration 227) yang
+  // kerekam jadi PERMANEN gak ada cap/TTD walau datanya sendiri sebenarnya
+  // udah ada di Pengaturan (ditemukan user 2026-10-22 -- kwitansi terkirim
+  // gak ikut cap/TTD walau tombol Print/PDF yang query pengaturan fresh
+  // tiap kali selalu nampilin dengan benar).
+  const [pengaturan, pengaturanLoading] = usePengaturan();
   const [dokumen, setDokumen] = useState(null);
   const [booking, setBooking] = useState(null);
   const [payment, setPayment] = useState(null);
@@ -32,7 +40,13 @@ export default function CetakInvoiceKwitansi() {
   // lokal (gak perlu disimpan ke server, cuma penanda visual) begitu
   // window.print() beneran dipanggil dari tombol manapun di halaman ini.
   const [sudahPrint, setSudahPrint] = useState(false);
-  function cetak() { setSudahPrint(true); window.print(); }
+  // PDF ASLI (react-pdf server-side, /api/admin/invoice-kwitansi/[id]/pdf)
+  // dibuka di tab baru -- BUKAN window.print() ke HTML lagi (dikonfirmasi
+  // user 2026-10-22, "kenapasih gakbisa kayak perjanjian yang gampang
+  // rapihnya" -- preview di bawah bisa beda sama hasil print browser karena
+  // CSS @page/padding gak selalu konsisten lintas browser; PDF asli gak
+  // punya masalah itu sama sekali, tab baru itu PERSIS yang bakal diprint).
+  function cetak() { setSudahPrint(true); window.open(`/api/admin/invoice-kwitansi/${id}/pdf`, '_blank'); }
 
   // Snapshot HTML BEKU (migration 227, dikonfirmasi user 2026-10-14:
   // "walaupun next time format/nama paket/siapa yg ttd diubah, yang udah
@@ -80,6 +94,9 @@ export default function CetakInvoiceKwitansi() {
   // jm-travel-api). Cek Caddyfile.tahap2 di VPS kalau ternyata masih
   // keproxy ke Go.
   async function setujui() {
+    // Defensif -- tombol udah di-disable pas pengaturanLoading, tapi dicek
+    // lagi di sini jaga-jaga race (klik kepencet sebelum re-render disabled).
+    if (pengaturanLoading) { alert('Lagi memuat data cap/TTD, tunggu sebentar lalu coba lagi.'); return; }
     const pesanKonfirmasi = ['tanda_terima', 'kwitansi'].includes(dokumen.jenis)
       ? `Kirim ${JUDUL[dokumen.jenis]} ${dokumen.nomor || '(nomor baru akan dibuat)'} ke jamaah sekarang? Setelah dikirim, isi dokumen ini terkunci permanen.`
       : `Setujui ${JUDUL[dokumen.jenis] || 'dokumen'} ${dokumen.nomor || ''}? Dokumen akan ditandai sudah dikirim.`;
@@ -124,13 +141,13 @@ export default function CetakInvoiceKwitansi() {
   const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
 
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
+    <div className="cetak-page-bg" style={{ fontFamily: 'Arial, sans-serif', background: '#eee', minHeight: '100vh', padding: '20px 0' }}>
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
         <button onClick={cetak}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
-          🖨️ Print / Save PDF
+          🖨️ Lihat PDF Asli / Print
         </button>
-        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor || 'Nomor diberikan otomatis'} · di dialog print pilih &quot;Save as PDF&quot;</div>
+        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor || 'Nomor diberikan otomatis'} · dibuka di tab baru, print/save langsung dari situ</div>
       </div>
 
       {/* TTD digital & e-materai belum bisa dipakai (dikonfirmasi user 2026-10-04) — tombol
@@ -218,9 +235,9 @@ export default function CetakInvoiceKwitansi() {
             <input type="checkbox" checked={nominalBenar} onChange={e => setNominalBenar(e.target.checked)} />
             Nominal {rp(dokumen.nominal)} di atas sudah benar
           </label>
-          <button onClick={setujui} disabled={menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
-            {menyetujui ? 'Mengirim...' : '📤 Kirim ke Jamaah'}
+          <button onClick={setujui} disabled={menyetujui || pengaturanLoading || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading || !nominalBenar || (butuhMaterai && !dokumen.scan_fisik_path)) ? 0.5 : 1 }}>
+            {menyetujui ? 'Mengirim...' : pengaturanLoading ? 'Memuat cap/TTD...' : '📤 Kirim ke Jamaah'}
           </button>
         </div>
       ) : (
@@ -231,9 +248,9 @@ export default function CetakInvoiceKwitansi() {
         // gak perlu info soal batas Rp5jt lagi (itu cuma relevan buat
         // dokumen yang BENERAN jadi bukti penerimaan uang).
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
-          <button onClick={setujui} disabled={menyetujui}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: menyetujui ? 0.6 : 1 }}>
-            {menyetujui ? 'Memproses...' : '✅ Setuju'}
+          <button onClick={setujui} disabled={menyetujui || pengaturanLoading}
+            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading) ? 0.6 : 1 }}>
+            {menyetujui ? 'Memproses...' : pengaturanLoading ? 'Memuat cap/TTD...' : '✅ Setuju'}
           </button>
         </div>
       )}
@@ -258,9 +275,32 @@ export default function CetakInvoiceKwitansi() {
         @media print {
           .no-print { display: none !important; }
           body { background: #fff !important; }
+          /* Padding/background pembungkus ini buat tampilan "kertas di atas
+             abu-abu" PAS DI LAYAR doang -- sebelumnya gak ke-reset pas print
+             (cuma inline style, @media print gak bisa nimpa inline style
+             tanpa className), jadi ikut numpuk di ATAS @page margin 15mm +
+             padding internal .sheet sendiri, bikin jarak dari tepi kertas ke
+             KopSurat kejauhan (ditemukan user 2026-10-21). */
+          .cetak-page-bg { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; width: 100% !important; }
+          /* Kop surat RESMI (file asli dari user, 2026-10-22) — dipasang
+             position:fixed, browser ngulang otomatis di SETIAP halaman
+             fisik kalau dokumennya >1 halaman. @page margin jadi 0 (full
+             bleed) supaya gambarnya nutup SELURUH kertas persis ukuran
+             aslinya (A4), padding .sheet DIGANTI jadi yang reservasi ruang
+             buat garis biru atas (~42mm dari tepi di file asli, dikasih
+             buffer jadi 46mm) & garis biru bawah (~11mm dari tepi, dikasih
+             buffer jadi 16mm) biar konten gak numpuk sama elemen di gambar.
+             KopSurat versi HTML (<KopSurat>, logo+teks biasa) disembunyikan
+             pas print -- gambar ini udah include header-nya. */
+          .kop-surat-onscreen { display: none !important; }
+          .kop-surat-print-bg {
+            display: block !important; position: fixed; top: 0; left: 0;
+            width: 210mm; height: 34.3mm;
+          }
+          .sheet { padding: 38mm 18mm 16mm 18mm !important; }
         }
-        @page { size: 210mm 297mm; margin: 15mm; }
+        @page { size: 210mm 297mm; margin: 0; }
       `}</style>
     </div>
   );

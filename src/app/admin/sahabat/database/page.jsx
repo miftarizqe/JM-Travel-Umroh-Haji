@@ -422,6 +422,17 @@ export default function DatabaseJamaahPage() {
     if (await aksi({ action: 'reject', user_id: tolakTarget.user_id, catatan_admin: catatan })) setTolakTarget(null);
   }
 
+  async function generateKwitansiPendaftaran(userId) {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/sahabat/${userId}/kwitansi-pendaftaran`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error); setBusy(false); return; }
+      muat();
+    } catch { alert('Terjadi kesalahan'); }
+    setBusy(false);
+  }
+
   async function approveVoucher(voucherId) {
     setBusy(true);
     try {
@@ -962,22 +973,45 @@ export default function DatabaseJamaahPage() {
                         <span className="text-green-600 font-bold">✅ Ya</span>
                       ) : <span className="text-gray-400">⏳ Belum</span>}
                     </div>
-                    {/* Bukti Transfer Rp1jt, Rekening Tabungan Umroh, Metode
-                        TTD Fisik — HoP gak boleh tau (dikonfirmasi user
-                        2026-10-05). */}
+                    {/* Bukti Transfer Rp1jt + Kwitansi Setoran Pendaftaran
+                        DIGABUNG 1 row (dikonfirmasi user 2026-10-22,
+                        sebelumnya 2 row terpisah) — aksi kwitansi nempel di
+                        sebelah status verifikasi TF: belum ada bukti ->
+                        "Belum ada bukti TF", belum diverifikasi -> cuma Lihat
+                        +Verifikasi, abis Terverifikasi baru tombol Generate
+                        Kwitansi muncul, abis di-generate jadi Lihat & Kirim,
+                        abis dikirim jadi tombol Lihat Kwitansi (sebelumnya
+                        cuma teks "Sudah Dikirim" tanpa link). HoP gak boleh
+                        tau (dikonfirmasi user 2026-10-05). */}
                     {!isHop && (
                     <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-100">
                       <span>Bukti Transfer Rp1jt</span>
-                      {j.bukti_tf_path ? (
-                        <div className="flex items-center gap-2">
-                          <a href={j.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat</a>
-                          {!j.bukti_tf_verified_at && j.status === 'pending' && (
-                            <button disabled={busy} onClick={() => aksi({ action: 'verify_tf', user_id: j.user_id })}
-                              className="bg-green-600 text-white font-bold px-3 py-1 rounded-full">Verifikasi</button>
-                          )}
-                          {j.bukti_tf_verified_at && <span className="text-green-600 font-bold">✅ Terverifikasi</span>}
-                        </div>
-                      ) : <span className="text-gray-400">Belum diunggah</span>}
+                      <div className="flex items-center gap-2">
+                        {j.bukti_tf_path ? (
+                          <>
+                            <a href={j.bukti_tf_path} target="_blank" rel="noopener noreferrer" className="text-[#1A4FA0] font-bold">Lihat</a>
+                            {!j.bukti_tf_verified_at && j.status === 'pending' && (
+                              <button disabled={busy} onClick={() => aksi({ action: 'verify_tf', user_id: j.user_id })}
+                                className="bg-green-600 text-white font-bold px-3 py-1 rounded-full">Verifikasi</button>
+                            )}
+                            {j.bukti_tf_verified_at && <span className="text-green-600 font-bold">✅ Terverifikasi</span>}
+                          </>
+                        ) : <span className="text-gray-400">Belum diunggah</span>}
+
+                        {j.bukti_tf_verified_at && (
+                          j.kwitansi_setoran_pendaftaran_id ? (
+                            <button onClick={() => window.open(`/admin/cetak-invoice/${j.kwitansi_setoran_pendaftaran_id}`, '_blank')}
+                              className="text-[10px] font-bold text-[#1A4FA0] bg-[#E8F0FB] px-2.5 py-1 rounded-full hover:bg-blue-100">
+                              🧾 {j.kwitansi_pendaftaran_terkirim ? 'Lihat Kwitansi' : 'Lihat & Kirim Kwitansi →'}
+                            </button>
+                          ) : (
+                            <button disabled={busy} onClick={() => generateKwitansiPendaftaran(j.user_id)}
+                              className="text-[10px] font-bold text-white bg-[#1A4FA0] px-2.5 py-1 rounded-full disabled:opacity-50">
+                              🧾 Generate Kwitansi
+                            </button>
+                          )
+                        )}
+                      </div>
                     </div>
                     )}
 

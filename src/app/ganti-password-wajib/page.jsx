@@ -5,6 +5,7 @@ import { useCurrentUser } from '@/lib/useCurrentUser';
 import PasswordInput from '@/app/components/PasswordInput';
 import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
+import { bersihkanDataLokalAkun } from '@/lib/dataLokal';
 
 // Halaman WAJIB buat akun yang password-nya baru di-reset admin (lihat
 // /api/profil/password) — dicek di Layout.jsx, semua halaman
@@ -56,7 +57,7 @@ export default function GantiPasswordWajibPage() {
   // Keluar bawaan. Sama dengan logout() di Layout.jsx.
   async function keluar() {
     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch {}
-    localStorage.removeItem('user');
+    bersihkanDataLokalAkun();
     window.location.replace('/login'); // navigasi penuh, lihat logout() di Layout.jsx
   }
 
