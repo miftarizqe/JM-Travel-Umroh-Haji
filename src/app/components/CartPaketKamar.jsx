@@ -204,6 +204,12 @@ function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion
   const diriSendiriDiblokir = diriSendiriTersedia && !!diriSendiriBookingId;
   const nikTerkunci = !!item.diriSendiri && !!dataDiriSendiri?.nik;
   const fieldTerkunci = !!item.diriSendiri;
+  // Kunci per field CUMA kalau profilnya beneran keisi (sama kayak NIK) --
+  // akun jamaah daftar tanpa Jenis Kelamin, dulu field-nya kekunci kosong &
+  // checkout mentok di "Pilih jenis kelamin dulu!". Yang kosong diisi manual.
+  const namaTerkunci = fieldTerkunci && !!dataDiriSendiri?.nama;
+  const jkTerkunci = fieldTerkunci && ['Laki-Laki', 'Perempuan'].includes(dataDiriSendiri?.jk);
+  const waTerkunci = fieldTerkunci && !!dataDiriSendiri?.wa;
 
   useEffect(() => {
     if (diriSendiriDiblokir && item.diriSendiri) onChange({ ...item, diriSendiri: false, nama: '', jk: '', nik: '', wa: '' });
@@ -214,7 +220,7 @@ function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion
     if (checked) {
       onChange({
         ...item, diriSendiri: true, tanpaNik: false,
-        nama: dataDiriSendiri?.nama || '', jk: dataDiriSendiri?.jk || '',
+        nama: dataDiriSendiri?.nama || '', jk: ['Laki-Laki', 'Perempuan'].includes(dataDiriSendiri?.jk) ? dataDiriSendiri.jk : '',
         nik: dataDiriSendiri?.nik || '', wa: dataDiriSendiri?.wa || '',
       });
     } else {
@@ -343,11 +349,11 @@ function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion
         </>
       )}
 
-      <input value={item.nama} readOnly={fieldTerkunci} onChange={e => onChange({ ...item, nama: e.target.value })}
-        placeholder="Nama lengkap sesuai paspor/KTP" className={fieldTerkunci ? inpTerkunci : inpNormal} />
+      <input value={item.nama} readOnly={namaTerkunci} onChange={e => onChange({ ...item, nama: e.target.value })}
+        placeholder="Nama lengkap sesuai paspor/KTP" className={namaTerkunci ? inpTerkunci : inpNormal} />
 
-      <select value={item.jk} disabled={fieldTerkunci} onChange={e => onChange({ ...item, jk: e.target.value })}
-        className={fieldTerkunci ? inpTerkunci : `${inpNormal} text-gray-700`}>
+      <select value={item.jk} disabled={jkTerkunci} onChange={e => onChange({ ...item, jk: e.target.value })}
+        className={jkTerkunci ? inpTerkunci : `${inpNormal} text-gray-700`}>
         <option value="">Pilih jenis kelamin...</option>
         <option value="Laki-Laki">Laki-Laki</option>
         <option value="Perempuan">Perempuan</option>
@@ -371,9 +377,9 @@ function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion
         )}
       </div>
 
-      <input value={item.wa} readOnly={fieldTerkunci} onChange={e => onChange({ ...item, wa: e.target.value.replace(/\D/g, '') })}
+      <input value={item.wa} readOnly={waTerkunci} onChange={e => onChange({ ...item, wa: e.target.value.replace(/\D/g, '') })}
         placeholder="No. Telepon / WhatsApp (opsional)" inputMode="numeric" maxLength={13}
-        className={fieldTerkunci ? inpTerkunci : inpNormal} />
+        className={waTerkunci ? inpTerkunci : inpNormal} />
 
       <div className="border-t border-gray-100 pt-3 space-y-2.5">
         <div className="text-xs font-bold text-[#0E2F6E]">📦 Alamat Kirim Perlengkapan <span className="font-normal text-gray-500">(koper, ihrom/mukena, dll)</span></div>
