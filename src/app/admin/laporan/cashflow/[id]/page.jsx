@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBon from '@/app/components/UploadBon';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -70,7 +71,7 @@ function FormTransaksi({ form, setForm, akunList, kategoriList, programList, sav
         </div>
         <div>
           <label className={lbl}>Nominal (Rp)</label>
-          <input type="number" value={form.nominal} onChange={e => setForm({ ...form, nominal: e.target.value })} placeholder="Mis. 150000" className={inp} />
+          <InputNominal value={form.nominal} onChange={e => setForm({ ...form, nominal: e.target.value })} placeholder="Mis. 150000" className={inp} />
         </div>
       </div>
       <div>
@@ -706,7 +707,7 @@ function CashflowPeriodeInner() {
             </div>
             <input value={formReimburse.deskripsi} onChange={e => setFormReimburse({ ...formReimburse, deskripsi: e.target.value })} placeholder="Dipakai buat apa (mis. bensin Karawang-Bandung)" className={inp} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <input type="number" value={formReimburse.nominal} onChange={e => setFormReimburse({ ...formReimburse, nominal: e.target.value })} placeholder="Nominal" className={inp} />
+              <InputNominal value={formReimburse.nominal} onChange={e => setFormReimburse({ ...formReimburse, nominal: e.target.value })} placeholder="Nominal" className={inp} />
               <select value={formReimburse.kategori_id} onChange={e => setFormReimburse({ ...formReimburse, kategori_id: e.target.value ? Number(e.target.value) : '' })} className={inp}>
                 <option value="">— Tanpa kategori —</option>
                 {kategoriList.filter(k => k.tipe === 'out').map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}
@@ -812,7 +813,7 @@ function CashflowPeriodeInner() {
             </div>
             <div>
               <label className={lbl}>Nominal (Rp)</label>
-              <input type="number" value={transferForm.nominal} onChange={e => setTransferForm({ ...transferForm, nominal: e.target.value })} className={inp} />
+              <InputNominal value={transferForm.nominal} onChange={e => setTransferForm({ ...transferForm, nominal: e.target.value })} className={inp} />
             </div>
             <div className="flex gap-2 pt-2">
               <button onClick={simpanTransfer} disabled={busyAksi} className="bg-[#1A4FA0] hover:bg-[#0E2F6E] disabled:opacity-50 text-white text-sm font-bold px-5 py-2.5 rounded-xl">💾 Simpan</button>
@@ -941,7 +942,7 @@ function CashflowPeriodeInner() {
                         <input type="checkbox" checked={r.sertakan} onChange={e => ubahBarisImport(idx, { sertakan: e.target.checked })} className="mt-2" />
                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <InputTanggal value={r.tanggal} onChange={e => { if (e.target.value) ubahBarisImport(idx, { tanggal: e.target.value }); }} className={inp} />
-                          <input type="number" value={r.nominal} onChange={e => ubahBarisImport(idx, { nominal: e.target.value })} className={inp} />
+                          <InputNominal value={r.nominal} onChange={e => ubahBarisImport(idx, { nominal: e.target.value })} className={inp} />
                           <input value={r.deskripsi} onChange={e => ubahBarisImport(idx, { deskripsi: e.target.value })} className={`${inp} sm:col-span-2`} />
                           <div className="flex gap-2">
                             <button type="button" onClick={() => ubahBarisImport(idx, { tipe: 'out', kategori_id: null })}
@@ -1156,7 +1157,7 @@ function CashflowPeriodeInner() {
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                                 <InputTanggal value={item.tanggal} onChange={e => { if (e.target.value) ubahItemRincikan(idx, { tanggal: e.target.value }); }} className={inp} />
                                 <input value={item.deskripsi} onChange={e => ubahItemRincikan(idx, { deskripsi: e.target.value })} placeholder="Item apa" className={inp} />
-                                <input type="number" value={item.nominal} onChange={e => ubahItemRincikan(idx, { nominal: e.target.value })} placeholder="Nominal" className={inp} />
+                                <InputNominal value={item.nominal} onChange={e => ubahItemRincikan(idx, { nominal: e.target.value })} placeholder="Nominal" className={inp} />
                               </div>
                               <label className="flex items-center gap-2 text-xs font-semibold text-gray-600">
                                 <input type="checkbox" checked={item.kembalian} onChange={e => ubahItemRincikan(idx, { kembalian: e.target.checked, kategori_id: '' })} />

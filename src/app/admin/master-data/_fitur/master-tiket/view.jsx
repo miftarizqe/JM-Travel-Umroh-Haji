@@ -2,6 +2,7 @@
 import { inp, lbl, rp, sudahKadaluarsa, labelPeriode } from '../util';
 import InputTanggal from '@/app/components/InputTanggal';
 import { RUTE_LABEL } from './helpers';
+import InputNominal from '@/app/components/InputNominal';
 
 export default function MasterTiketView({
   tiketList, modulList, editorTerbuka, editId, formTiket, busy,
@@ -68,7 +69,7 @@ export default function MasterTiketView({
           <div className="grid grid-cols-2 gap-3 mb-4">
             <div>
               <label className={lbl}>Rate</label>
-              <input type="number" value={formTiket.rate} onChange={e => onUbahForm({ rate: e.target.value })} placeholder="0" className={inp} />
+              <InputNominal desimal value={formTiket.rate} onChange={e => onUbahForm({ rate: e.target.value })} placeholder="0" className={inp} />
             </div>
             <div>
               <label className={lbl}>Mata Uang</label>

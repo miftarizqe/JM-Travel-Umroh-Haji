@@ -2,6 +2,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import InputTanggal from '@/app/components/InputTanggal';
 import KalkulatorBiaya, { hitungHppKamar, cariTierModulNegara, totalModulNegaraTerpilih, modulTambahanArray, totalTiketPesawat, subtotalPerKelompok, tlShareTiket, tlShareVisa, nilaiItem, itemAktif, paxBerbayarModul, rincianAddonModul, nilaiTarifModul, bulatkanKeAtas, itineraryHariModul, includeExcludeModul, transportasiOtomatis } from '@/app/components/KalkulatorBiaya';
+import InputNominal from '@/app/components/InputNominal';
 
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KAMAR = ['quad', 'triple', 'double'];
@@ -744,11 +745,11 @@ export default function KalkulatorTerpadu({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={lbl}>Kurs SAR → IDR</label>
-                  <input type="number" value={shared.kurs_sar_idr} onChange={e => setS({ kurs_sar_idr: e.target.value })} placeholder="5000" className={inp} />
+                  <InputNominal desimal value={shared.kurs_sar_idr} onChange={e => setS({ kurs_sar_idr: e.target.value })} placeholder="5000" className={inp} />
                 </div>
                 <div>
                   <label className={lbl}>Kurs USD → IDR</label>
-                  <input type="number" value={shared.kurs_usd_idr} onChange={e => setS({ kurs_usd_idr: e.target.value })} placeholder="18000" className={inp} />
+                  <InputNominal desimal value={shared.kurs_usd_idr} onChange={e => setS({ kurs_usd_idr: e.target.value })} placeholder="18000" className={inp} />
                 </div>
               </div>
             )}
@@ -1187,7 +1188,7 @@ export default function KalkulatorTerpadu({
                         {tiketRows.length > 1 && (
                           <input value={t.nama || ''} onChange={e => ubahTiket(i, { nama: e.target.value })} placeholder="Mis. JKT-Dubai" className={`${inp} w-24`} />
                         )}
-                        <input type="number" value={t.rate} onChange={e => ubahTiket(i, { rate: e.target.value })} placeholder="0" className={inp} />
+                        <InputNominal desimal value={t.rate} onChange={e => ubahTiket(i, { rate: e.target.value })} placeholder="0" className={inp} />
                         <select value={t.mata_uang || 'IDR'} onChange={e => ubahTiket(i, { mata_uang: e.target.value })} className={inp}>
                           <option value="IDR">IDR</option><option value="SAR">SAR</option><option value="USD">USD</option>
                         </select>
@@ -1225,7 +1226,7 @@ export default function KalkulatorTerpadu({
               <div>
                 <label className={lbl}>Visa</label>
                 <div className="flex gap-1">
-                  <input type="number" value={shared.visa_rate} onChange={e => setS({ visa_rate: e.target.value })} placeholder="0" className={`${inp} w-20`} />
+                  <InputNominal desimal value={shared.visa_rate} onChange={e => setS({ visa_rate: e.target.value })} placeholder="0" className={`${inp} w-20`} />
                   <select value={shared.visa_mata_uang || 'IDR'} onChange={e => setS({ visa_mata_uang: e.target.value })} className={`${inp} w-20`}>
                     <option value="IDR">IDR</option><option value="SAR">SAR</option><option value="USD">USD</option>
                   </select>
@@ -1234,7 +1235,7 @@ export default function KalkulatorTerpadu({
               <div>
                 <label className={lbl}>Biaya Lain-lain</label>
                 <div className="flex gap-1">
-                  <input type="number" value={shared.biaya_lain_lain} onChange={e => setS({ biaya_lain_lain: e.target.value })} placeholder="0" className={`${inp} w-20`} />
+                  <InputNominal desimal value={shared.biaya_lain_lain} onChange={e => setS({ biaya_lain_lain: e.target.value })} placeholder="0" className={`${inp} w-20`} />
                   <select value={shared.biaya_lain_lain_mata_uang || 'IDR'} onChange={e => setS({ biaya_lain_lain_mata_uang: e.target.value })} className={`${inp} w-20`}>
                     <option value="IDR">IDR</option><option value="SAR">SAR</option><option value="USD">USD</option>
                   </select>
@@ -1244,7 +1245,7 @@ export default function KalkulatorTerpadu({
                 <div>
                   <label className={lbl}>Biaya per Umroh Tambahan</label>
                   <div className="flex gap-1">
-                    <input type="number" value={shared.biaya_umroh_tambahan ?? ''} onChange={e => setS({ biaya_umroh_tambahan: e.target.value })} placeholder="0" className={`${inp} w-20`} />
+                    <InputNominal desimal value={shared.biaya_umroh_tambahan ?? ''} onChange={e => setS({ biaya_umroh_tambahan: e.target.value })} placeholder="0" className={`${inp} w-20`} />
                     <select value={shared.biaya_umroh_tambahan_mata_uang || 'IDR'} onChange={e => setS({ biaya_umroh_tambahan_mata_uang: e.target.value })} className={`${inp} w-20`}>
                       <option value="IDR">IDR</option><option value="SAR">SAR</option><option value="USD">USD</option>
                     </select>
@@ -1324,15 +1325,15 @@ export default function KalkulatorTerpadu({
                           <div className="grid grid-cols-4 gap-1.5">
                             <div>
                               <div className="text-[9px] text-gray-400 mb-0.5">Double</div>
-                              <input type="number" value={hotel[paket][field('rate_double')]} onChange={e => setH(paket, { [field('rate_double')]: e.target.value })} placeholder="0" className={inp} />
+                              <InputNominal desimal value={hotel[paket][field('rate_double')]} onChange={e => setH(paket, { [field('rate_double')]: e.target.value })} placeholder="0" className={inp} />
                             </div>
                             <div>
                               <div className="text-[9px] text-gray-400 mb-0.5">Triple</div>
-                              <input type="number" value={hotel[paket][field('rate_triple')]} onChange={e => setH(paket, { [field('rate_triple')]: e.target.value })} placeholder="0" className={inp} />
+                              <InputNominal desimal value={hotel[paket][field('rate_triple')]} onChange={e => setH(paket, { [field('rate_triple')]: e.target.value })} placeholder="0" className={inp} />
                             </div>
                             <div>
                               <div className="text-[9px] text-gray-400 mb-0.5">Quad</div>
-                              <input type="number" value={hotel[paket][field('rate_quad')]} onChange={e => setH(paket, { [field('rate_quad')]: e.target.value })} placeholder="0" className={inp} />
+                              <InputNominal desimal value={hotel[paket][field('rate_quad')]} onChange={e => setH(paket, { [field('rate_quad')]: e.target.value })} placeholder="0" className={inp} />
                             </div>
                             <div>
                               <div className="text-[9px] text-gray-400 mb-0.5">Mata Uang</div>
@@ -1369,11 +1370,11 @@ export default function KalkulatorTerpadu({
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <div className="text-[10px] text-gray-400 mb-0.5">Margin (Rp)</div>
-                            <input type="number" value={margin[paket]} onChange={e => setMargin(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
+                            <InputNominal value={margin[paket]} onChange={e => setMargin(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
                           </div>
                           <div>
                             <div className="text-[10px] text-gray-400 mb-0.5">Ujroh (Rp)</div>
-                            <input type="number" value={komisi[paket]} onChange={e => setKomisi(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
+                            <InputNominal value={komisi[paket]} onChange={e => setKomisi(prev => ({ ...prev, [paket]: e.target.value }))} placeholder="0" className={inp} />
                           </div>
                         </div>
                       </div>
@@ -1424,11 +1425,11 @@ export default function KalkulatorTerpadu({
                   <div className="grid grid-cols-2 gap-2 max-w-md">
                     <div>
                       <label className={lbl}>Margin Flat (Rp)</label>
-                      <input type="number" value={shared.margin_flat ?? ''} onChange={e => setS({ margin_flat: e.target.value })} placeholder="0" className={inp} />
+                      <InputNominal value={shared.margin_flat ?? ''} onChange={e => setS({ margin_flat: e.target.value })} placeholder="0" className={inp} />
                     </div>
                     <div>
                       <label className={lbl}>Ujroh Flat (Rp)</label>
-                      <input type="number" value={shared.komisi_flat ?? ''} onChange={e => setS({ komisi_flat: e.target.value })} placeholder="0" className={inp} />
+                      <InputNominal value={shared.komisi_flat ?? ''} onChange={e => setS({ komisi_flat: e.target.value })} placeholder="0" className={inp} />
                     </div>
                   </div>
                 </div>
@@ -1470,9 +1471,9 @@ export default function KalkulatorTerpadu({
                           <td className="p-1"><input type="number" value={h.bintang} onChange={e => ubahHotelDaftar(hi, { bintang: e.target.value })} placeholder="4" className={`${inp} w-14`} /></td>
                           <td className="p-1">
                             <div className="flex gap-1">
-                              <input type="number" value={h.rate_double} onChange={e => ubahHotelDaftar(hi, { rate_double: e.target.value })} placeholder="Double" title="Rate Double" className={`${inp} w-20`} />
-                              <input type="number" value={h.rate_triple} onChange={e => ubahHotelDaftar(hi, { rate_triple: e.target.value })} placeholder="Triple" title="Rate Triple" className={`${inp} w-20`} />
-                              <input type="number" value={h.rate_quad} onChange={e => ubahHotelDaftar(hi, { rate_quad: e.target.value })} placeholder="Quad" title="Rate Quad" className={`${inp} w-20`} />
+                              <InputNominal desimal value={h.rate_double} onChange={e => ubahHotelDaftar(hi, { rate_double: e.target.value })} placeholder="Double" title="Rate Double" className={`${inp} w-20`} />
+                              <InputNominal desimal value={h.rate_triple} onChange={e => ubahHotelDaftar(hi, { rate_triple: e.target.value })} placeholder="Triple" title="Rate Triple" className={`${inp} w-20`} />
+                              <InputNominal desimal value={h.rate_quad} onChange={e => ubahHotelDaftar(hi, { rate_quad: e.target.value })} placeholder="Quad" title="Rate Quad" className={`${inp} w-20`} />
                             </div>
                           </td>
                           <td className="p-1">
@@ -1498,11 +1499,11 @@ export default function KalkulatorTerpadu({
                 <div className="grid grid-cols-2 gap-2 max-w-md">
                   <div>
                     <label className={lbl}>Margin (Rp)</label>
-                    <input type="number" value={margin.deluxe} onChange={e => setMargin({ deluxe: e.target.value, eksekutif: e.target.value, signature: e.target.value })} placeholder="0" className={inp} />
+                    <InputNominal value={margin.deluxe} onChange={e => setMargin({ deluxe: e.target.value, eksekutif: e.target.value, signature: e.target.value })} placeholder="0" className={inp} />
                   </div>
                   <div>
                     <label className={lbl}>Ujroh (Rp)</label>
-                    <input type="number" value={komisi.deluxe} onChange={e => setKomisi({ deluxe: e.target.value, eksekutif: e.target.value, signature: e.target.value })} placeholder="0" className={inp} />
+                    <InputNominal value={komisi.deluxe} onChange={e => setKomisi({ deluxe: e.target.value, eksekutif: e.target.value, signature: e.target.value })} placeholder="0" className={inp} />
                   </div>
                 </div>
               </div>

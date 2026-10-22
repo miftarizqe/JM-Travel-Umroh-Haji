@@ -11,6 +11,7 @@ import { resolveJamaahHarga } from '@/lib/jamaahHarga';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { keArray, keObjek } from '@/lib/jsonKolomAman';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
+import InputNominal from '@/app/components/InputNominal';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
@@ -1870,7 +1871,7 @@ function OpsiTambahanBaruEditor({ items, setItems }) {
       {form ? (
         <div className="bg-gray-50 rounded-xl border-2 border-[#1A4FA0]/30 p-3 space-y-2">
           <input value={form.nama || ''} onChange={e => setForm({ ...form, nama: e.target.value })} placeholder="Nama Opsi (mis. Upgrade Kamar Single)" className={inpKecil} />
-          <input type="number" value={form.harga || ''} onChange={e => setForm({ ...form, harga: e.target.value })} placeholder="Harga per Jamaah (Rp)" className={inpKecil} />
+          <InputNominal value={form.harga || ''} onChange={e => setForm({ ...form, harga: e.target.value })} placeholder="Harga per Jamaah (Rp)" className={inpKecil} />
           <input value={form.deskripsi || ''} onChange={e => setForm({ ...form, deskripsi: e.target.value })} placeholder="Deskripsi (opsional)" className={inpKecil} />
           <div className="flex gap-2">
             <button onClick={tambah} className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-xs font-bold px-4 py-2 rounded-lg">💾 Tambah</button>

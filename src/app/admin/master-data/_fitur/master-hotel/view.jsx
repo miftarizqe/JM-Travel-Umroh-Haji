@@ -1,6 +1,7 @@
 'use client';
 import { inp, lbl, rp, sudahKadaluarsa, labelPeriode, KOTA_LABEL } from '../util';
 import InputTanggal from '@/app/components/InputTanggal';
+import InputNominal from '@/app/components/InputNominal';
 
 export default function MasterHotelView({
   hotelList,
@@ -71,15 +72,15 @@ export default function MasterHotelView({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div>
                       <label className={lbl}>Rate Double</label>
-                      <input type="number" value={p.rate_double} onChange={e => onUbahBarisPeriodeBaru(idx, { rate_double: e.target.value })} placeholder="0" className={inp} />
+                      <InputNominal desimal value={p.rate_double} onChange={e => onUbahBarisPeriodeBaru(idx, { rate_double: e.target.value })} placeholder="0" className={inp} />
                     </div>
                     <div>
                       <label className={lbl}>Rate Triple</label>
-                      <input type="number" value={p.rate_triple} onChange={e => onUbahBarisPeriodeBaru(idx, { rate_triple: e.target.value })} placeholder="0" className={inp} />
+                      <InputNominal desimal value={p.rate_triple} onChange={e => onUbahBarisPeriodeBaru(idx, { rate_triple: e.target.value })} placeholder="0" className={inp} />
                     </div>
                     <div>
                       <label className={lbl}>Rate Quad</label>
-                      <input type="number" value={p.rate_quad} onChange={e => onUbahBarisPeriodeBaru(idx, { rate_quad: e.target.value })} placeholder="0" className={inp} />
+                      <InputNominal desimal value={p.rate_quad} onChange={e => onUbahBarisPeriodeBaru(idx, { rate_quad: e.target.value })} placeholder="0" className={inp} />
                     </div>
                     <div>
                       <label className={lbl}>Mata Uang</label>
@@ -148,15 +149,15 @@ export default function MasterHotelView({
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                                 <div>
                                   <label className={lbl}>Rate Double</label>
-                                  <input type="number" value={formPeriode.rate_double} onChange={e => onUbahFormPeriode({ rate_double: e.target.value })} placeholder="0" className={inp} />
+                                  <InputNominal desimal value={formPeriode.rate_double} onChange={e => onUbahFormPeriode({ rate_double: e.target.value })} placeholder="0" className={inp} />
                                 </div>
                                 <div>
                                   <label className={lbl}>Rate Triple</label>
-                                  <input type="number" value={formPeriode.rate_triple} onChange={e => onUbahFormPeriode({ rate_triple: e.target.value })} placeholder="0" className={inp} />
+                                  <InputNominal desimal value={formPeriode.rate_triple} onChange={e => onUbahFormPeriode({ rate_triple: e.target.value })} placeholder="0" className={inp} />
                                 </div>
                                 <div>
                                   <label className={lbl}>Rate Quad</label>
-                                  <input type="number" value={formPeriode.rate_quad} onChange={e => onUbahFormPeriode({ rate_quad: e.target.value })} placeholder="0" className={inp} />
+                                  <InputNominal desimal value={formPeriode.rate_quad} onChange={e => onUbahFormPeriode({ rate_quad: e.target.value })} placeholder="0" className={inp} />
                                 </div>
                                 <div>
                                   <label className={lbl}>Mata Uang</label>

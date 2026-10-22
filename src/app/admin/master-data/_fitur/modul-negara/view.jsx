@@ -2,6 +2,7 @@
 import { inp, lbl, MATA_UANG_LIST, sudahKadaluarsa } from '../util';
 import InputTanggal from '@/app/components/InputTanggal';
 import { KOSONG_ADDON, KOSONG_BRACKET, KOSONG_CLUSTER, BASIS_ADDON_LIST, variantUnikTier, cityTourUnikTier, kelompokkanTier, ratakanCluster } from './helpers';
+import InputNominal from '@/app/components/InputNominal';
 
 // View — presentational murni: gak ada fetch, gak ada useState. Semua data
 // & aksi datang lewat props dari controller.jsx.
@@ -205,7 +206,7 @@ function FormModulNegara({ value, onChange, onSimpan, onBatal, busy }) {
                           <tr key={bi} className="border-t border-gray-100">
                             <td className="p-1"><input type="number" value={b.pax_min ?? ''} onChange={e => ubahBracket(ci, bi, { pax_min: e.target.value })} className={`${inp} w-20`} /></td>
                             <td className="p-1"><input type="number" value={b.pax_max ?? ''} onChange={e => ubahBracket(ci, bi, { pax_max: e.target.value })} className={`${inp} w-20`} /></td>
-                            <td className="p-1"><input type="number" value={b.harga_per_pax ?? ''} onChange={e => ubahBracket(ci, bi, { harga_per_pax: e.target.value })} className={`${inp} w-24`} /></td>
+                            <td className="p-1"><InputNominal desimal value={b.harga_per_pax ?? ''} onChange={e => ubahBracket(ci, bi, { harga_per_pax: e.target.value })} className={`${inp} w-24`} /></td>
                             <td className="p-1"><button onClick={() => hapusBracket(ci, bi)} className="text-red-500 text-xs font-bold hover:underline">Hapus</button></td>
                           </tr>
                         ))}
@@ -251,7 +252,7 @@ function FormModulNegara({ value, onChange, onSimpan, onBatal, busy }) {
                           {MATA_UANG_LIST.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                       </td>
-                      <td className="p-1"><input type="number" value={a.harga_per_unit} onChange={e => ubahAddon(ai, { harga_per_unit: e.target.value })} className={`${inp} w-24`} /></td>
+                      <td className="p-1"><InputNominal desimal value={a.harga_per_unit} onChange={e => ubahAddon(ai, { harga_per_unit: e.target.value })} className={`${inp} w-24`} /></td>
                       <td className="p-1">
                         <select value={a.basis} onChange={e => ubahAddon(ai, { basis: e.target.value })} className={inp}>
                           {BASIS_ADDON_LIST.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}

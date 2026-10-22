@@ -4,6 +4,7 @@ import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 function fmtTanggalJam(iso) {
@@ -176,7 +177,7 @@ export default function RekeningDashboardPage() {
                 Saldo awal rekening ini (akan kehitung mulai tanggal yang dipilih). Kalau sudah pernah diisi, nilai lama otomatis tampil &amp; bisa dikoreksi.
               </div>
               <div className="flex gap-2">
-                <input type="number" value={editSaldoAwal.nominal} placeholder="0"
+                <InputNominal bolehMinus value={editSaldoAwal.nominal} placeholder="0"
                   onChange={e => setEditSaldoAwal(s => ({ ...s, nominal: e.target.value }))}
                   className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
                 <InputTanggal value={editSaldoAwal.tanggal}

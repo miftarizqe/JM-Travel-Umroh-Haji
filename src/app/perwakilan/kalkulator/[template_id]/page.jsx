@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { KAPASITAS_KAMAR } from '@/lib/kalkulatorBiaya';
+import InputNominal from '@/app/components/InputNominal';
 
 const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
 const KAMAR_LABEL = { quad: 'Quad (ber-4)', triple: 'Triple (ber-3)', double: 'Double (ber-2)' };
@@ -737,7 +738,7 @@ export default function KalkulatorPerwakilanDetailPage() {
             </div>
             <div>
               <label className={lbl}>Margin / Ujroh Anda (Rp per orang)</label>
-              <input type="number" min={0} value={marginInput} onChange={e => setMarginInput(e.target.value)} placeholder="0" className={inp} />
+              <InputNominal value={marginInput} onChange={e => setMarginInput(e.target.value)} placeholder="0" className={inp} />
             </div>
             <div className="bg-[#E8F0FB] rounded-xl p-4">
               <div className="text-xs text-[#1A4FA0] mb-1">Harga Jual ke Jamaah</div>

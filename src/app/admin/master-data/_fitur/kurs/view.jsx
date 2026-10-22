@@ -1,5 +1,6 @@
 'use client';
 import { inp, lbl } from '../util';
+import InputNominal from '@/app/components/InputNominal';
 
 export default function KursView({ formKurs, busyKurs, savedKurs, onUbahField, onSimpan }) {
   return (
@@ -11,11 +12,11 @@ export default function KursView({ formKurs, busyKurs, savedKurs, onUbahField, o
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div>
           <label className={lbl}>Kurs SAR → IDR</label>
-          <input type="number" value={formKurs.kurs_sar_idr} onChange={e => onUbahField('kurs_sar_idr', e.target.value)} placeholder="5000" className={inp} />
+          <InputNominal desimal value={formKurs.kurs_sar_idr} onChange={e => onUbahField('kurs_sar_idr', e.target.value)} placeholder="5000" className={inp} />
         </div>
         <div>
           <label className={lbl}>Kurs USD → IDR</label>
-          <input type="number" value={formKurs.kurs_usd_idr} onChange={e => onUbahField('kurs_usd_idr', e.target.value)} placeholder="18000" className={inp} />
+          <InputNominal desimal value={formKurs.kurs_usd_idr} onChange={e => onUbahField('kurs_usd_idr', e.target.value)} placeholder="18000" className={inp} />
         </div>
       </div>
       <div className="flex items-center gap-3">

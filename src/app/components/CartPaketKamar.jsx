@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useOpsiTambahan } from '@/lib/useOpsiTambahan';
 import WaitlistCTA from '@/app/components/WaitlistCTA';
 import { formatAlamatSatuBaris } from '@/lib/formatAlamat';
+import InputNominal from '@/app/components/InputNominal';
 
 export const kamarKeyOf = (kamar) => kamar?.includes('Quad') ? 'quad' : kamar?.includes('Double') ? 'double' : 'triple';
 
@@ -410,7 +411,7 @@ function JamaahCard({ idx, item, semua, onChange, onRemove, canRemove, accordion
         <div className="bg-gray-900 rounded-xl p-3 space-y-1.5">
           <div className="font-bold text-white text-xs">💰 Set Harga Sendiri (Admin)</div>
           <div className="text-[11px] text-gray-300">Kosongkan untuk pakai harga normal (Rp {Number(hargaNormal).toLocaleString('id-ID')}).</div>
-          <input type="number" value={item.hargaCustom} onChange={e => onChange({ ...item, hargaCustom: e.target.value })}
+          <InputNominal value={item.hargaCustom} onChange={e => onChange({ ...item, hargaCustom: e.target.value })}
             placeholder={`Rp ${Number(hargaNormal).toLocaleString('id-ID')}`}
             className="w-full px-3 py-2 rounded-lg border-2 border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-[#C9952A] focus:outline-none text-sm" />
           {item.hargaCustom !== '' && (

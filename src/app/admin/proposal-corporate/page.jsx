@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
 
 function tglIndoSingkat(t) {
   return new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -249,12 +250,12 @@ export default function ProposalCorporatePage() {
                   </div>
                   {p.harga_mode === 'per_kamar' ? (
                     <div className="grid grid-cols-3 gap-2">
-                      <input type="number" value={p.harga_quad} onChange={e => ubahProgramCustom(i, 'harga_quad', e.target.value)} placeholder="Harga Quad" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                      <input type="number" value={p.harga_triple} onChange={e => ubahProgramCustom(i, 'harga_triple', e.target.value)} placeholder="Harga Triple" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                      <input type="number" value={p.harga_double} onChange={e => ubahProgramCustom(i, 'harga_double', e.target.value)} placeholder="Harga Double" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                      <InputNominal value={p.harga_quad} onChange={e => ubahProgramCustom(i, 'harga_quad', e.target.value)} placeholder="Harga Quad" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                      <InputNominal value={p.harga_triple} onChange={e => ubahProgramCustom(i, 'harga_triple', e.target.value)} placeholder="Harga Triple" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                      <InputNominal value={p.harga_double} onChange={e => ubahProgramCustom(i, 'harga_double', e.target.value)} placeholder="Harga Double" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                     </div>
                   ) : (
-                    <input type="number" value={p.harga_semua} onChange={e => ubahProgramCustom(i, 'harga_semua', e.target.value)} placeholder="Harga (semua tipe kamar)" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    <InputNominal value={p.harga_semua} onChange={e => ubahProgramCustom(i, 'harga_semua', e.target.value)} placeholder="Harga (semua tipe kamar)" className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                   )}
                 </div>
               ))}

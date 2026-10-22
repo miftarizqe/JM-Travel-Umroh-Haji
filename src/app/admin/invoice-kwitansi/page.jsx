@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBukti from '@/app/components/UploadBukti';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -794,7 +795,7 @@ function InvoiceKwitansiPageInner() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-400 block mb-1">Nominal</label>
-                <input type="number" value={form.nominal} onChange={e => setForm(f => ({ ...f, nominal: e.target.value }))}
+                <InputNominal value={form.nominal} onChange={e => setForm(f => ({ ...f, nominal: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
                 {form.jenis === 'invoice' && sisaSetelahIni != null && (
                   <div className="text-[11px] text-gray-500 mt-1">

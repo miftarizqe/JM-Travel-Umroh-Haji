@@ -1,6 +1,7 @@
 'use client';
 import { BasisPicker, TRIGGER_KUNCI_LIST, FREKUENSI_LIST } from '@/app/components/KalkulatorBiaya';
 import { inp, lbl, MATA_UANG_LIST } from '../util';
+import InputNominal from '@/app/components/InputNominal';
 
 // Form tambah/edit Master Item — dipakai baik buat "+ Tambah Item" (di atas
 // list) maupun buat Edit (nempel inline di baris item yang diedit) biar gak
@@ -50,7 +51,7 @@ function FormMasterItem({ value, onChange, onSimpan, onBatal, kelompokMaster, mo
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={lbl}>Harga Default</label>
-              <input type="number" value={value.harga_default} onChange={e => onChange({ ...value, harga_default: e.target.value })} className={inp} />
+              <InputNominal desimal value={value.harga_default} onChange={e => onChange({ ...value, harga_default: e.target.value })} className={inp} />
             </div>
             <div>
               <label className={lbl}>Mata Uang</label>

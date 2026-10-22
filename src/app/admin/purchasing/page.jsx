@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import UploadBon from '@/app/components/UploadBon';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -98,7 +99,7 @@ export default function PurchasingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className={lbl}>Nominal (Rp)</label>
-            <input type="number" value={form.nominal} onChange={e => setForm({ ...form, nominal: e.target.value })} placeholder="Mis. 15000000" className={inp} />
+            <InputNominal value={form.nominal} onChange={e => setForm({ ...form, nominal: e.target.value })} placeholder="Mis. 15000000" className={inp} />
           </div>
           <div>
             <label className={lbl}>Kategori (opsional)</label>
