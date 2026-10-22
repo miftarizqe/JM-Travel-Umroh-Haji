@@ -116,11 +116,12 @@ function InvoiceKwitansiPageInner() {
     finally { setRekomBusyId(null); }
   }
 
-  // Tombol "Batal" di rekomendasi Kwitansi — buat booking yang dimasukkin
-  // manual ke database & admin emang gak mau bikinin Kwitansi formalnya
-  // (dikonfirmasi user 2026-10-22, "masih muncul terus di rekomendasi...
-  // gausah gue bikin lagi"). Permanen (migration 249), gak ada jalur undo
-  // di UI -- kalau butuh di-munculin lagi, langsung di database.
+  // Tombol "Batal" di rekomendasi Kwitansi/Tanda Terima Uang — buat
+  // booking/payment yang dimasukkin manual ke database & admin emang gak
+  // mau bikinin dokumen formalnya (dikonfirmasi user 2026-10-22, "masih
+  // muncul terus di rekomendasi... gausah gue bikin lagi" / "itung2 buat
+  // ngebersihin rekomendasi"). Permanen (migration 249 & 250), gak ada
+  // jalur undo di UI -- kalau butuh di-munculin lagi, langsung di database.
   async function batalkanRekomendasiKwitansi(bookingId) {
     if (!confirm('Batalkan rekomendasi Kwitansi buat booking ini? Booking ini gak akan muncul lagi di rekomendasi, dan gak ada Kwitansi yang dibuat.')) return;
     setRekomBusyId(bookingId);
@@ -132,6 +133,21 @@ function InvoiceKwitansiPageInner() {
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { alert(d.error || 'Gagal membatalkan rekomendasi'); return; }
       setRekomKwitansi(prev => prev.filter(b => b.booking_id !== bookingId));
+    } catch { alert('Terjadi kesalahan'); }
+    finally { setRekomBusyId(null); }
+  }
+
+  async function batalkanRekomendasiTandaTerima(paymentId) {
+    if (!confirm('Batalkan rekomendasi Tanda Terima Uang buat pembayaran ini? Pembayaran ini gak akan muncul lagi di rekomendasi, dan gak ada dokumen yang dibuat.')) return;
+    setRekomBusyId(paymentId);
+    try {
+      const res = await fetch('/api/admin/invoice-kwitansi/abaikan', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_id: paymentId }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d.error || 'Gagal membatalkan rekomendasi'); return; }
+      setRekomTandaTerima(prev => prev.filter(p => p.payment_id !== paymentId));
     } catch { alert('Terjadi kesalahan'); }
     finally { setRekomBusyId(null); }
   }
@@ -537,10 +553,17 @@ function InvoiceKwitansiPageInner() {
                   <td className="px-3 py-2 whitespace-nowrap">{p.prog_name || '-'}</td>
                   <td className="px-3 py-2 whitespace-nowrap italic">{LABEL_TIPE_PEMBAYARAN[p.type] || p.type} confirmed, rekomendasi dibuat</td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <button onClick={() => buatDariRekomendasi('tanda_terima', 'payment_id', p.payment_id)} disabled={rekomBusyId === p.payment_id}
-                      className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
-                      {rekomBusyId === p.payment_id ? '...' : '🧾 Buat Tanda Terima'}
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => buatDariRekomendasi('tanda_terima', 'payment_id', p.payment_id)} disabled={rekomBusyId === p.payment_id}
+                        className="text-[10px] font-bold text-white bg-[#0E2F6E] hover:bg-[#1A4FA0] px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                        {rekomBusyId === p.payment_id ? '...' : '🧾 Buat Tanda Terima'}
+                      </button>
+                      <button onClick={() => batalkanRekomendasiTandaTerima(p.payment_id)} disabled={rekomBusyId === p.payment_id}
+                        title="Pembayaran ini gak perlu Tanda Terima Uang (mis. data manual) -- hilangkan dari rekomendasi"
+                        className="text-[10px] font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full disabled:opacity-50 whitespace-nowrap">
+                        ✕ Batal
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
