@@ -9,6 +9,7 @@ import { urutkan, cocok } from '@/lib/sortTable';
 import { downloadExcel } from '@/lib/downloadExcel';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { pesanReminderFormulir } from '@/lib/waTemplates';
+import { hanyaAngka, bersihkanPaspor, bersihkanTempat, WA_MAKS } from '@/lib/dataJamaah';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -587,7 +588,7 @@ export default function DatabasePage() {
                     <label className={lbl}>Nama Sesuai Paspor</label>
                     <input value={editForm.nama} onChange={e => setE('nama', e.target.value)} className={inp} />
                     <label className={lbl}>No. Paspor</label>
-                    <input value={editForm.paspor} onChange={e => setE('paspor', e.target.value)} className={inp} />
+                    <input value={editForm.paspor} onChange={e => setE('paspor', bersihkanPaspor(e.target.value))} maxLength={9} placeholder="Contoh: C1234567" className={inp} />
                     <div className="grid grid-cols-2 gap-2">
                       <div><label className={lbl}>Masa Berlaku (Mulai)</label>
                         <InputTanggal value={editForm.exp_mulai} onChange={e => { if (e.target.value) setE('exp_mulai', e.target.value); }} className={inp} /></div>
@@ -595,12 +596,12 @@ export default function DatabasePage() {
                         <InputTanggal value={editForm.exp_paspor} onChange={e => { if (e.target.value) setE('exp_paspor', e.target.value); }} className={inp} /></div>
                     </div>
                     <label className={lbl}>Tempat Keluar Paspor</label>
-                    <input value={editForm.tkp} onChange={e => setE('tkp', e.target.value)} className={inp} />
+                    <input value={editForm.tkp} onChange={e => setE('tkp', bersihkanTempat(e.target.value))} className={inp} />
                     <div className="grid grid-cols-2 gap-2">
                       <div><label className={lbl}>Tempat Lahir</label>
                         <input value={editForm.tl} onChange={e => setE('tl', e.target.value)} className={inp} /></div>
                       <div><label className={lbl}>Tanggal Lahir</label>
-                        <InputTanggal value={editForm.ttl} onChange={e => { if (e.target.value) setE('ttl', e.target.value); }} className={inp} /></div>
+                        <InputTanggal max={new Date().toISOString().slice(0, 10)} value={editForm.ttl} onChange={e => { if (e.target.value) setE('ttl', e.target.value); }} className={inp} /></div>
                     </div>
                     <label className={lbl}>NIK</label>
                     <input value={editForm.nik} onChange={e => setE('nik', e.target.value.replace(/\D/g, '').slice(0, 16))} inputMode="numeric" className={inp} />
@@ -611,9 +612,9 @@ export default function DatabasePage() {
                     <label className={lbl}>Alamat</label>
                     <input value={editForm.alamat} onChange={e => setE('alamat', e.target.value)} className={inp} />
                     <label className={lbl}>WhatsApp</label>
-                    <input value={editForm.wa} onChange={e => setE('wa', e.target.value)} className={inp} />
+                    <input value={editForm.wa} onChange={e => setE('wa', hanyaAngka(e.target.value))} inputMode="numeric" maxLength={WA_MAKS} className={inp} />
                     <label className={lbl}>Email</label>
-                    <input value={editForm.email} onChange={e => setE('email', e.target.value)} className={inp} />
+                    <input type="email" value={editForm.email} onChange={e => setE('email', e.target.value.trim())} className={inp} />
                     <label className={lbl}>Riwayat Penyakit</label>
                     <input value={editForm.penyakit} onChange={e => setE('penyakit', e.target.value)} className={inp} />
                     <label className={lbl}>Pekerjaan</label>
@@ -629,7 +630,7 @@ export default function DatabasePage() {
                     <label className={lbl}>Nama</label>
                     <input value={editForm.kdnama} onChange={e => setE('kdnama', e.target.value)} className={inp} />
                     <label className={lbl}>WhatsApp</label>
-                    <input value={editForm.kdwa} onChange={e => setE('kdwa', e.target.value)} className={inp} />
+                    <input value={editForm.kdwa} onChange={e => setE('kdwa', hanyaAngka(e.target.value))} inputMode="numeric" maxLength={WA_MAKS} className={inp} />
                     <label className={lbl}>Hubungan</label>
                     <input value={editForm.kdhub} onChange={e => setE('kdhub', e.target.value)} className={inp} />
 
@@ -657,7 +658,7 @@ export default function DatabasePage() {
                     <label className={lbl}>Tempat Lahir</label>
                     <input value={editForm.tempat_lahir} onChange={e => setE('tempat_lahir', e.target.value)} className={inp} />
                     <label className={lbl}>Tanggal Lahir</label>
-                    <InputTanggal value={editForm.tanggal_lahir} onChange={e => { if (e.target.value) setE('tanggal_lahir', e.target.value); }} className={inp} />
+                    <InputTanggal max={new Date().toISOString().slice(0, 10)} value={editForm.tanggal_lahir} onChange={e => { if (e.target.value) setE('tanggal_lahir', e.target.value); }} className={inp} />
                     <label className={lbl}>Jenis Kelamin</label>
                     <select value={editForm.jenis_kelamin} onChange={e => setE('jenis_kelamin', e.target.value)} className={inp}>
                       <option>Laki-Laki</option><option>Perempuan</option>
@@ -673,9 +674,9 @@ export default function DatabasePage() {
                       <input value={editForm.wilayah} onChange={e => setE('wilayah', e.target.value)} className={inp} />
                     </>)}
                     <label className={lbl}>WhatsApp</label>
-                    <input value={editForm.wa} onChange={e => setE('wa', e.target.value)} className={inp} />
+                    <input value={editForm.wa} onChange={e => setE('wa', hanyaAngka(e.target.value))} inputMode="numeric" maxLength={WA_MAKS} className={inp} />
                     <label className={lbl}>Email</label>
-                    <input value={editForm.email} onChange={e => setE('email', e.target.value)} className={inp} />
+                    <input type="email" value={editForm.email} onChange={e => setE('email', e.target.value.trim())} className={inp} />
                     <label className={lbl}>Pekerjaan</label>
                     <input value={editForm.pekerjaan} onChange={e => setE('pekerjaan', e.target.value)} className={inp} />
                     <label className={lbl}>Perekrut</label>
@@ -690,7 +691,7 @@ export default function DatabasePage() {
                     <label className={lbl}>Bank</label>
                     <input value={editForm.bank} onChange={e => setE('bank', e.target.value)} className={inp} />
                     <label className={lbl}>No. Rekening</label>
-                    <input value={editForm.no_rekening} onChange={e => setE('no_rekening', e.target.value.replace(/\D/g, ''))} inputMode="numeric" className={inp} />
+                    <input value={editForm.no_rekening} onChange={e => setE('no_rekening', e.target.value.replace(/\D/g, '').slice(0, 20))} maxLength={20} inputMode="numeric" className={inp} />
                     <label className={lbl}>Nama Pemilik Rekening</label>
                     <input value={editForm.nama_pemilik_rekening} onChange={e => setE('nama_pemilik_rekening', e.target.value)} className={inp} />
 

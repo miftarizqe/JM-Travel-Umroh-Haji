@@ -7,6 +7,7 @@ import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { resolveJamaahHarga } from '@/lib/jamaahHarga';
+import { hanyaAngka, WA_MAKS } from '@/lib/dataJamaah';
 
 const rp = (n) => 'Rp ' + Number(n || 0).toLocaleString('id-ID');
 const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
@@ -202,7 +203,7 @@ function TambahJamaahInner() {
                 <option value="Laki-Laki">Laki-Laki</option>
                 <option value="Perempuan">Perempuan</option>
               </select>
-              <input value={j.wa} onChange={e => ubah(idx, 'wa', e.target.value)}
+              <input value={j.wa} onChange={e => ubah(idx, 'wa', hanyaAngka(e.target.value))} inputMode="numeric" maxLength={WA_MAKS}
                 placeholder="No. Whatsapp (opsional)"
                 className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
               <input value={j.alamat_kirim} onChange={e => ubah(idx, 'alamat_kirim', e.target.value)}

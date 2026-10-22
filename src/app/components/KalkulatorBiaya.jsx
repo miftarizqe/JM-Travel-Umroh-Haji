@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BASIS_KATEGORI, toggleBasisToken, nilaiItem, itemAktif, cariTierModulNegara, dimsUntukModul, TRIGGER_KUNCI_LIST, FREKUENSI_LIST, tlShareTiket, tlShareVisa } from '@/lib/kalkulatorBiaya';
 import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 // Kalkulator biaya/budgeting program v2 — selaras ke Master Sheet Costing
 // asli (multi-currency + daftar harga acuan yang bisa dipilih ulang, bukan
@@ -191,7 +192,7 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
             <InputNominal desimal value={value.hotel_mekkah_rate_quad} onChange={e => set({ hotel_mekkah_rate_quad: e.target.value })} placeholder="Rate Quad" className={inp} />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={value.hotel_mekkah_malam} onChange={e => set({ hotel_mekkah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
+            <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.hotel_mekkah_malam} onChange={e => set({ hotel_mekkah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
             <select value={value.hotel_mekkah_mata_uang} onChange={e => set({ hotel_mekkah_mata_uang: e.target.value })} className={inp}>
               {MATA_UANG_LIST.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
@@ -206,7 +207,7 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
             <InputNominal desimal value={value.hotel_madinah_rate_quad} onChange={e => set({ hotel_madinah_rate_quad: e.target.value })} placeholder="Rate Quad" className={inp} />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={value.hotel_madinah_malam} onChange={e => set({ hotel_madinah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
+            <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.hotel_madinah_malam} onChange={e => set({ hotel_madinah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
             <select value={value.hotel_madinah_mata_uang} onChange={e => set({ hotel_madinah_mata_uang: e.target.value })} className={inp}>
               {MATA_UANG_LIST.map(m => <option key={m} value={m}>{m}</option>)}
             </select>

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 function tglIndoSingkat(t) {
   return new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -205,10 +206,10 @@ export default function ProposalCorporatePage() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3">
                     <input value={p.nama} onChange={e => ubahProgramCustom(i, 'nama', e.target.value)} placeholder="Nama Program" className="col-span-2 sm:col-span-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                     <input value={p.jenis_program} onChange={e => ubahProgramCustom(i, 'jenis_program', e.target.value)} placeholder="Jenis Program" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                    <input type="number" value={p.durasi} onChange={e => ubahProgramCustom(i, 'durasi', e.target.value)} placeholder="Total Hari" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                    <input type="number" value={p.pax_jamaah} onChange={e => ubahProgramCustom(i, 'pax_jamaah', e.target.value)} placeholder="Pax Jamaah" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                    <input type="number" value={p.pax_tl} onChange={e => ubahProgramCustom(i, 'pax_tl', e.target.value)} placeholder="Pax Tour Leader" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                    <input type="number" value={p.pax_mutawwif} onChange={e => ubahProgramCustom(i, 'pax_mutawwif', e.target.value)} placeholder="Pax Mutawwif" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={0} value={p.durasi} onChange={e => ubahProgramCustom(i, 'durasi', e.target.value)} placeholder="Total Hari" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={0} value={p.pax_jamaah} onChange={e => ubahProgramCustom(i, 'pax_jamaah', e.target.value)} placeholder="Pax Jamaah" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={0} value={p.pax_tl} onChange={e => ubahProgramCustom(i, 'pax_tl', e.target.value)} placeholder="Pax Tour Leader" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={0} value={p.pax_mutawwif} onChange={e => ubahProgramCustom(i, 'pax_mutawwif', e.target.value)} placeholder="Pax Mutawwif" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                     <input value={p.transportasi} onChange={e => ubahProgramCustom(i, 'transportasi', e.target.value)} placeholder="Transportasi" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                     <input value={p.haramain_express} onChange={e => ubahProgramCustom(i, 'haramain_express', e.target.value)} placeholder="Haramain Express" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                     <input value={p.city_tour} onChange={e => ubahProgramCustom(i, 'city_tour', e.target.value)} placeholder="City Tour" className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
@@ -219,8 +220,8 @@ export default function ProposalCorporatePage() {
                     {p.hotel.map((h, hi) => (
                       <div key={hi} className="flex gap-2">
                         <input value={h.lokasi} onChange={e => ubahHotelCustom(i, hi, 'lokasi', e.target.value)} placeholder="Lokasi (mis. Mekkah)" className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                        <input value={h.bintang} onChange={e => ubahHotelCustom(i, hi, 'bintang', e.target.value)} placeholder="Bintang" className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
-                        <input value={h.malam} onChange={e => ubahHotelCustom(i, hi, 'malam', e.target.value)} placeholder="Malam" className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                        <input value={h.bintang} onChange={e => ubahHotelCustom(i, hi, 'bintang', e.target.value.replace(/[^1-5]/g, '').slice(0, 1))} inputMode="numeric" maxLength={1} placeholder="Bintang (1-5)" className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
+                        <input value={h.malam} onChange={e => ubahHotelCustom(i, hi, 'malam', e.target.value.replace(/\D/g, '').slice(0, 2))} inputMode="numeric" maxLength={2} placeholder="Malam" className="w-20 border border-gray-300 rounded-lg px-3 py-1.5 text-sm" />
                         <button onClick={() => hapusHotelCustom(i, hi)} className="text-red-500 text-xs font-bold px-2">✕</button>
                       </div>
                     ))}

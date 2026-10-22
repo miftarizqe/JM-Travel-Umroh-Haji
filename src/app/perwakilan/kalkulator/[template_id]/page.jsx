@@ -6,6 +6,7 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { KAPASITAS_KAMAR } from '@/lib/kalkulatorBiaya';
 import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 const PAKET_LABEL = { deluxe: 'Deluxe', eksekutif: 'Eksekutif', signature: 'Signature' };
 const KAMAR_LABEL = { quad: 'Quad (ber-4)', triple: 'Triple (ber-3)', double: 'Double (ber-2)' };
@@ -490,11 +491,11 @@ export default function KalkulatorPerwakilanDetailPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Malam di Mekkah</label>
-                <input type="number" min={0} max={20} value={malamMekkah} onChange={e => ubahMalamMekkah(e.target.value)} placeholder="0" className={inp} />
+                <input type="number" onKeyDown={tolakTandaAngka} min={0} max={20} value={malamMekkah} onChange={e => ubahMalamMekkah(e.target.value)} placeholder="0" className={inp} />
               </div>
               <div>
                 <label className={lbl}>Malam di Madinah</label>
-                <input type="number" min={0} max={20} value={malamMadinah} onChange={e => ubahMalamMadinah(e.target.value)} placeholder="0" className={inp} />
+                <input type="number" onKeyDown={tolakTandaAngka} min={0} max={20} value={malamMadinah} onChange={e => ubahMalamMadinah(e.target.value)} placeholder="0" className={inp} />
               </div>
             </div>
             {durasiTerpilih?.malam ? (
@@ -527,7 +528,7 @@ export default function KalkulatorPerwakilanDetailPage() {
           ) : (
             <div>
               <label className={lbl}>Pakai Mutawwif Berapa Hari?</label>
-              <input type="number" min={3} value={mutawwifHari} onChange={e => setMutawwifHari(e.target.value)}
+              <input type="number" onKeyDown={tolakTandaAngka} min={3} value={mutawwifHari} onChange={e => setMutawwifHari(e.target.value)}
                 placeholder="Kosongkan = sepanjang trip" className={`${inp} ${mutawwifInvalid ? 'border-red-400 focus:border-red-400' : ''}`} />
               {mutawwifInvalid && <div className="text-[10px] text-red-500 mt-1 font-semibold">Minimal 3 hari — kosongkan aja kalau mau sepanjang trip.</div>}
             </div>
@@ -548,7 +549,7 @@ export default function KalkulatorPerwakilanDetailPage() {
           {jumlahTl !== '' && (
             <div className="mt-2">
               <div className="text-xs font-semibold text-gray-500 mb-1">Jumlah TL</div>
-              <input type="number" min={1} value={jumlahTl} onChange={e => setJumlahTl(e.target.value)} placeholder="1" className={inp} />
+              <input type="number" onKeyDown={tolakTandaAngka} min={1} value={jumlahTl} onChange={e => setJumlahTl(e.target.value)} placeholder="1" className={inp} />
             </div>
           )}
         </div>
@@ -619,7 +620,7 @@ export default function KalkulatorPerwakilanDetailPage() {
         {paxAturan.mode === 'pasangan' ? (
           <div>
             <label className={lbl}>Jumlah Pasangan Suami Istri{paxAturan.pasanganMax != null ? ` — maks ${paxAturan.pasanganMax} pasang` : ''}</label>
-            <input type="number" min={1} max={paxAturan.pasanganMax ?? undefined} value={jumlahCowok}
+            <input type="number" onKeyDown={tolakTandaAngka} min={1} max={paxAturan.pasanganMax ?? undefined} value={jumlahCowok}
               onChange={e => {
                 let v = e.target.value;
                 if (v !== '' && paxAturan.pasanganMax != null && Number(v) > paxAturan.pasanganMax) v = String(paxAturan.pasanganMax);
@@ -634,12 +635,12 @@ export default function KalkulatorPerwakilanDetailPage() {
               {paxAturan.mode === 'fix' && <span className="text-[#C9952A]"> — khusus {paxAturan.fixTotal} orang</span>}
             </label>
             <div className="grid grid-cols-2 gap-3">
-              <input type="number" min={0} value={jumlahCowok} onChange={e => {
+              <input type="number" onKeyDown={tolakTandaAngka} min={0} value={jumlahCowok} onChange={e => {
                 let v = e.target.value;
                 if (v !== '' && paxAturan.mode === 'fix') v = String(Math.min(Number(v), Math.max(0, paxAturan.fixTotal - (Number(jumlahCewek) || 0))));
                 setJumlahCowok(v);
               }} placeholder="Cowok" className={inp} />
-              <input type="number" min={0} value={jumlahCewek} onChange={e => {
+              <input type="number" onKeyDown={tolakTandaAngka} min={0} value={jumlahCewek} onChange={e => {
                 let v = e.target.value;
                 if (v !== '' && paxAturan.mode === 'fix') v = String(Math.min(Number(v), Math.max(0, paxAturan.fixTotal - (Number(jumlahCowok) || 0))));
                 setJumlahCewek(v);
@@ -648,7 +649,7 @@ export default function KalkulatorPerwakilanDetailPage() {
             {cowokN > 0 && cewekN > 0 && (
               <div className="mt-2">
                 <label className={lbl}>Jumlah Pasangan Suami Istri (sekamar berdua, opsional)</label>
-                <input type="number" min={0} max={Math.min(cowokN, cewekN)} value={jumlahPasangan}
+                <input type="number" onKeyDown={tolakTandaAngka} min={0} max={Math.min(cowokN, cewekN)} value={jumlahPasangan}
                   onChange={e => setJumlahPasangan(e.target.value)} placeholder="0" className={inp} />
               </div>
             )}
@@ -679,7 +680,7 @@ export default function KalkulatorPerwakilanDetailPage() {
                   </label>
                   {Number(jumlahUmroh) > 2 && (
                     <div className="mt-2">
-                      <input type="number" min={1} value={Math.max(1, Number(jumlahUmroh) - 2)}
+                      <input type="number" onKeyDown={tolakTandaAngka} min={1} value={Math.max(1, Number(jumlahUmroh) - 2)}
                         onChange={e => setJumlahUmroh(String(2 + (Number(e.target.value) || 1)))}
                         placeholder="1" className={inp} />
                     </div>

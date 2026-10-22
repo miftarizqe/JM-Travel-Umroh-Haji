@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState } from 'react';
 import InputTanggal from '@/app/components/InputTanggal';
 import KalkulatorBiaya, { hitungHppKamar, cariTierModulNegara, totalModulNegaraTerpilih, modulTambahanArray, totalTiketPesawat, subtotalPerKelompok, tlShareTiket, tlShareVisa, nilaiItem, itemAktif, paxBerbayarModul, rincianAddonModul, nilaiTarifModul, bulatkanKeAtas, itineraryHariModul, includeExcludeModul, transportasiOtomatis } from '@/app/components/KalkulatorBiaya';
 import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 const PAKET = ['deluxe', 'eksekutif', 'signature'];
 const KAMAR = ['quad', 'triple', 'double'];
@@ -783,7 +784,7 @@ export default function KalkulatorTerpadu({
               {!sembunyikanTotalHari && (
                 <div>
                   <label className={lbl}>{modulTerpilih.length > 0 ? 'Total Hari Umroh (di luar hari negara tambahan)' : 'Total Hari Program'}</label>
-                  <input type="number" value={shared.total_hari_program} onChange={e => setS({ total_hari_program: e.target.value })} placeholder="0" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={0} value={shared.total_hari_program} onChange={e => setS({ total_hari_program: e.target.value })} placeholder="0" className={inp} />
                   <div className="text-[10px] text-gray-400 mt-1">Dipakai kalau jamaah gak pilih durasi sendiri di bawah (fallback/dasar hitung Item &quot;/Day&quot;).</div>
                 </div>
               )}
@@ -978,29 +979,29 @@ export default function KalkulatorTerpadu({
               {!showOpsiPublik && (
                 <div>
                   <label className={lbl}>Jamaah (baseline internal)</label>
-                  <input type="number" value={shared.pax_jamaah} onChange={e => setS({ pax_jamaah: e.target.value })} placeholder="0" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={0} value={shared.pax_jamaah} onChange={e => setS({ pax_jamaah: e.target.value })} placeholder="0" className={inp} />
                 </div>
               )}
               <div>
                 <label className={lbl}>Tour Leader</label>
-                <input type="number" value={shared.pax_tl} onChange={e => setS({ pax_tl: e.target.value })} placeholder="0" className={inp} />
+                <input type="number" onKeyDown={tolakTandaAngka} min={0} value={shared.pax_tl} onChange={e => setS({ pax_tl: e.target.value })} placeholder="0" className={inp} />
               </div>
               {!isWisata && (
                 <div>
                   <label className={lbl}>Mutawwif</label>
-                  <input type="number" value={shared.pax_mutawwif} onChange={e => setS({ pax_mutawwif: e.target.value })} placeholder="0" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={0} value={shared.pax_mutawwif} onChange={e => setS({ pax_mutawwif: e.target.value })} placeholder="0" className={inp} />
                 </div>
               )}
               {!isWisata && (
                 <div>
                   <label className={lbl}>Mutawwifah (Raudhah)</label>
-                  <input type="number" value={shared.pax_mutawwifah} onChange={e => setS({ pax_mutawwifah: e.target.value })} placeholder="0" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={0} value={shared.pax_mutawwifah} onChange={e => setS({ pax_mutawwifah: e.target.value })} placeholder="0" className={inp} />
                 </div>
               )}
               {!isWisata && (
                 <div>
                   <label className={lbl}>Driver</label>
-                  <input type="number" value={shared.pax_driver} onChange={e => setS({ pax_driver: e.target.value })} placeholder="0" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={0} value={shared.pax_driver} onChange={e => setS({ pax_driver: e.target.value })} placeholder="0" className={inp} />
                 </div>
               )}
             </div>
@@ -1031,23 +1032,23 @@ export default function KalkulatorTerpadu({
               {shared.pax_mode === 'fix' ? (
                 <div className="w-32">
                   <label className={lbl}>Jumlah Pax Tetap</label>
-                  <input type="number" min={1} value={shared.pax_fix_total ?? ''} onChange={e => setS({ pax_fix_total: e.target.value })} placeholder="mis. 2" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={1} value={shared.pax_fix_total ?? ''} onChange={e => setS({ pax_fix_total: e.target.value })} placeholder="mis. 2" className={inp} />
                 </div>
               ) : shared.pax_mode === 'pasangan' ? (
                 <div className="w-48">
                   <label className={lbl}>Maksimal Jumlah Pasangan (opsional)</label>
-                  <input type="number" min={1} value={shared.pax_pasangan_max ?? ''} onChange={e => setS({ pax_pasangan_max: e.target.value })} placeholder="Gak dibatasi" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={1} value={shared.pax_pasangan_max ?? ''} onChange={e => setS({ pax_pasangan_max: e.target.value })} placeholder="Gak dibatasi" className={inp} />
                   <div className="text-[10px] text-gray-400 mt-1">Pengunjung pilih jumlah pasang (min 1) — tiap pasang = 1 suami + 1 istri, otomatis sekamar berdua.</div>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 w-64">
                   <div>
                     <label className={lbl}>Minimal (opsional)</label>
-                    <input type="number" min={1} value={shared.pax_min ?? ''} onChange={e => setS({ pax_min: e.target.value })} placeholder="Gak dibatasi" className={inp} />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={1} value={shared.pax_min ?? ''} onChange={e => setS({ pax_min: e.target.value })} placeholder="Gak dibatasi" className={inp} />
                   </div>
                   <div>
                     <label className={lbl}>Maksimal (opsional)</label>
-                    <input type="number" min={1} value={shared.pax_max ?? ''} onChange={e => setS({ pax_max: e.target.value })} placeholder="Gak dibatasi" className={inp} />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={1} value={shared.pax_max ?? ''} onChange={e => setS({ pax_max: e.target.value })} placeholder="Gak dibatasi" className={inp} />
                   </div>
                 </div>
               )}
@@ -1066,7 +1067,7 @@ export default function KalkulatorTerpadu({
                 {shared.mutawwif_mode === 'fix' && (
                   <div className="w-48">
                     <label className={lbl}>Override Jumlah Hari (opsional)</label>
-                    <input type="number" min={0} value={shared.mutawwif_fix_hari ?? ''} onChange={e => setS({ mutawwif_fix_hari: e.target.value })} placeholder="0" className={inp} />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={0} value={shared.mutawwif_fix_hari ?? ''} onChange={e => setS({ mutawwif_fix_hari: e.target.value })} placeholder="0" className={inp} />
                     <div className="text-[10px] text-gray-400 mt-1">Kosongkan aja kalau mutawwif nemenin SEPANJANG trip (default) — isi cuma kalau mutawwif-nya cuma nemenin sebagian hari doang, mis. 3 dari 9 hari.</div>
                   </div>
                 )}
@@ -1094,11 +1095,11 @@ export default function KalkulatorTerpadu({
                     }
                     return (
                       <div key={i} className="flex items-center gap-1 bg-white border border-gray-200 rounded-lg px-2 py-1 w-fit">
-                        <input type="number" min={1} value={d.hari ?? ''} onChange={e => ubah({ hari: Number(e.target.value) })}
+                        <input type="number" onKeyDown={tolakTandaAngka} min={1} value={d.hari ?? ''} onChange={e => ubah({ hari: Number(e.target.value) })}
                           className="w-12 text-sm border-none focus:outline-none" />
                         <span className="text-xs text-gray-400">Hari</span>
                         <span className="text-gray-200 mx-1">|</span>
-                        <input type="number" min={0} value={d.malam ?? ''} onChange={e => ubah({ malam: e.target.value === '' ? '' : Number(e.target.value) })}
+                        <input type="number" onKeyDown={tolakTandaAngka} min={0} value={d.malam ?? ''} onChange={e => ubah({ malam: e.target.value === '' ? '' : Number(e.target.value) })}
                           placeholder="Total malam" className="w-16 text-sm border-none focus:outline-none" />
                         <span className="text-xs text-gray-400">Malam</span>
                         <button type="button" onClick={() => setS({ durasi_opsi: shared.durasi_opsi.filter((_, j) => j !== i) })} className="text-red-500 text-xs font-bold ml-1">✕</button>
@@ -1262,11 +1263,11 @@ export default function KalkulatorTerpadu({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className={lbl}>Malam di Hotel 1</label>
-                  <input type="number" value={malam.mekkah} onChange={e => setMalam(prev => ({ ...prev, mekkah: e.target.value }))} placeholder="0" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={0} value={malam.mekkah} onChange={e => setMalam(prev => ({ ...prev, mekkah: e.target.value }))} placeholder="0" className={inp} />
                 </div>
                 <div>
                   <label className={lbl}>Malam di Hotel 2</label>
-                  <input type="number" value={malam.madinah} onChange={e => setMalam(prev => ({ ...prev, madinah: e.target.value }))} placeholder="0" className={inp} />
+                  <input type="number" onKeyDown={tolakTandaAngka} min={0} value={malam.madinah} onChange={e => setMalam(prev => ({ ...prev, madinah: e.target.value }))} placeholder="0" className={inp} />
                 </div>
               </div>
             </div>
@@ -1468,7 +1469,7 @@ export default function KalkulatorTerpadu({
                               </select>
                             )}
                           </td>
-                          <td className="p-1"><input type="number" value={h.bintang} onChange={e => ubahHotelDaftar(hi, { bintang: e.target.value })} placeholder="4" className={`${inp} w-14`} /></td>
+                          <td className="p-1"><input type="number" onKeyDown={tolakTandaAngka} min={1} max={5} value={h.bintang} onChange={e => ubahHotelDaftar(hi, { bintang: e.target.value })} placeholder="4" className={`${inp} w-14`} /></td>
                           <td className="p-1">
                             <div className="flex gap-1">
                               <InputNominal desimal value={h.rate_double} onChange={e => ubahHotelDaftar(hi, { rate_double: e.target.value })} placeholder="Double" title="Rate Double" className={`${inp} w-20`} />
@@ -1481,7 +1482,7 @@ export default function KalkulatorTerpadu({
                               <option value="SAR">SAR</option><option value="USD">USD</option><option value="IDR">IDR</option>
                             </select>
                           </td>
-                          <td className="p-1"><input type="number" value={h.malam} onChange={e => ubahHotelDaftar(hi, { malam: e.target.value })} placeholder="0" className={`${inp} w-16`} /></td>
+                          <td className="p-1"><input type="number" onKeyDown={tolakTandaAngka} min={0} value={h.malam} onChange={e => ubahHotelDaftar(hi, { malam: e.target.value })} placeholder="0" className={`${inp} w-16`} /></td>
                           <td className="p-1"><button type="button" onClick={() => hapusHotelDaftar(hi)} className="text-red-500 text-xs font-bold hover:underline">Hapus</button></td>
                         </tr>
                       ))}
@@ -1539,7 +1540,7 @@ export default function KalkulatorTerpadu({
                     Aktifkan (Margin Persen %)
                   </label>
                   {shared.margin_mode === 'persen' && (
-                    <input type="number" value={shared.margin_persen ?? ''} onChange={e => setS({ margin_persen: e.target.value })} placeholder="0" className={inp} />
+                    <input type="number" onKeyDown={tolakTandaAngka} min={0} max={100} value={shared.margin_persen ?? ''} onChange={e => setS({ margin_persen: e.target.value })} placeholder="0" className={inp} />
                   )}
                 </div>
                 {shared.margin_mode === 'persen' && (
@@ -1551,7 +1552,7 @@ export default function KalkulatorTerpadu({
                       Ujroh Persen (%)
                     </label>
                     {shared.komisi_mode === 'persen' && (
-                      <input type="number" value={shared.komisi_persen ?? ''} onChange={e => setS({ komisi_persen: e.target.value })} placeholder="0" className={inp} />
+                      <input type="number" onKeyDown={tolakTandaAngka} min={0} max={100} value={shared.komisi_persen ?? ''} onChange={e => setS({ komisi_persen: e.target.value })} placeholder="0" className={inp} />
                     )}
                   </div>
                 )}

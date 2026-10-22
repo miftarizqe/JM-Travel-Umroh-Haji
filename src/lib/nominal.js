@@ -44,3 +44,11 @@ export function parseNominal(teks, { desimal = false, bolehMinus = false } = {})
   if (bulat === '' && pecahan === undefined) return neg ? '-' : '';
   return (neg ? '-' : '') + (bulat || '0') + (pecahan !== undefined ? '.' + pecahan : '');
 }
+
+// onKeyDown buat <input type="number"> jumlah (pax, hari, malam, urutan, dst):
+// browser tetap nerima "-", "+" & "e" (notasi ilmiah) di field number, jadi
+// isian minus / "1e5" bisa lolos. Ditolak dari keyboard di sini; `min` di
+// tag-nya tetap dipasang buat tombol panah & validasi browser.
+export function tolakTandaAngka(e) {
+  if (['-', '+', 'e', 'E'].includes(e.key)) e.preventDefault();
+}

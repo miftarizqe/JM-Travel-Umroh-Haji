@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -45,7 +46,7 @@ function FormAkun({ value, onChange, onSimpan, onBatal }) {
       </div>
       <div>
         <label className={lbl}>Urutan Kolom</label>
-        <input type="number" value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
+        <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
       </div>
       <div>
         <label className={lbl}>Saldo Awal{value.id ? ' (akun lama)' : ''}</label>
@@ -79,7 +80,7 @@ function FormKategori({ value, onChange, onSimpan, onBatal }) {
         </div>
         <div>
           <label className={lbl}>Urutan</label>
-          <input type="number" value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
+          <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
         </div>
         <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 pb-2.5">
           <input type="checkbox" checked={value.termasuk_laba_rugi} onChange={e => onChange({ ...value, termasuk_laba_rugi: e.target.checked })} />

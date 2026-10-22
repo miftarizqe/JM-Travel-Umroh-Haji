@@ -3,6 +3,7 @@ import { inp, lbl, MATA_UANG_LIST, sudahKadaluarsa } from '../util';
 import InputTanggal from '@/app/components/InputTanggal';
 import { KOSONG_ADDON, KOSONG_BRACKET, KOSONG_CLUSTER, BASIS_ADDON_LIST, variantUnikTier, cityTourUnikTier, kelompokkanTier, ratakanCluster } from './helpers';
 import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 // View — presentational murni: gak ada fetch, gak ada useState. Semua data
 // & aksi datang lewat props dari controller.jsx.
@@ -102,7 +103,7 @@ function FormModulNegara({ value, onChange, onSimpan, onBatal, busy }) {
       </div>
       <div>
         <label className={lbl}>TL Gratis Mulai Berapa Jamaah (opsional)</label>
-        <input type="number" value={value.tl_gratis_min_pax} onChange={e => onChange({ ...value, tl_gratis_min_pax: e.target.value })} placeholder="Kosongkan kalau TL selalu gratis" className={`${inp} max-w-xs`} />
+        <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.tl_gratis_min_pax} onChange={e => onChange({ ...value, tl_gratis_min_pax: e.target.value })} placeholder="Kosongkan kalau TL selalu gratis" className={`${inp} max-w-xs`} />
         <div className="text-[10px] text-gray-400 mt-1">
           Skema umum vendor: &quot;20 jamaah + 1 TL gratis&quot; — isi 20 kalau TL baru gratis mulai grup 20 jamaah (di bawah itu TL tetap kena tarif per-pax penuh). Kosongkan kalau TL emang selalu gratis apapun jumlah jamaahnya.
         </div>
@@ -174,7 +175,7 @@ function FormModulNegara({ value, onChange, onSimpan, onBatal, busy }) {
                     {!!value.pakai_hotel_star && (
                       <div>
                         <div className="text-[10px] text-gray-400 mb-1">Bintang Hotel (kosongkan = semua bintang)</div>
-                        <input type="number" value={c.hotel_star} onChange={e => ubahCluster(ci, { hotel_star: e.target.value })} placeholder="Semua" className={`${inp} w-24`} />
+                        <input type="number" onKeyDown={tolakTandaAngka} min={1} max={5} value={c.hotel_star} onChange={e => ubahCluster(ci, { hotel_star: e.target.value })} placeholder="Semua" className={`${inp} w-24`} />
                       </div>
                     )}
                     {!!value.pakai_city_tour_opsi && (
@@ -185,7 +186,7 @@ function FormModulNegara({ value, onChange, onSimpan, onBatal, busy }) {
                     )}
                     <div>
                       <div className="text-[10px] text-gray-400 mb-1">Hari</div>
-                      <input type="number" value={c.hari} onChange={e => ubahCluster(ci, { hari: e.target.value })} placeholder="Wajib diisi" className={`${inp} w-16`} />
+                      <input type="number" onKeyDown={tolakTandaAngka} min={0} value={c.hari} onChange={e => ubahCluster(ci, { hari: e.target.value })} placeholder="Wajib diisi" className={`${inp} w-16`} />
                     </div>
                     <button onClick={() => duplikatCluster(ci)} className="text-[#1A4FA0] text-xs font-bold hover:underline mb-2 ml-auto shrink-0">Duplikat Cluster</button>
                     <button onClick={() => hapusCluster(ci)} className="text-red-500 text-xs font-bold hover:underline mb-2 shrink-0">Hapus Cluster</button>
@@ -204,8 +205,8 @@ function FormModulNegara({ value, onChange, onSimpan, onBatal, busy }) {
                       <tbody>
                         {c.brackets.map((b, bi) => (
                           <tr key={bi} className="border-t border-gray-100">
-                            <td className="p-1"><input type="number" value={b.pax_min ?? ''} onChange={e => ubahBracket(ci, bi, { pax_min: e.target.value })} className={`${inp} w-20`} /></td>
-                            <td className="p-1"><input type="number" value={b.pax_max ?? ''} onChange={e => ubahBracket(ci, bi, { pax_max: e.target.value })} className={`${inp} w-20`} /></td>
+                            <td className="p-1"><input type="number" onKeyDown={tolakTandaAngka} min={0} value={b.pax_min ?? ''} onChange={e => ubahBracket(ci, bi, { pax_min: e.target.value })} className={`${inp} w-20`} /></td>
+                            <td className="p-1"><input type="number" onKeyDown={tolakTandaAngka} min={0} value={b.pax_max ?? ''} onChange={e => ubahBracket(ci, bi, { pax_max: e.target.value })} className={`${inp} w-20`} /></td>
                             <td className="p-1"><InputNominal desimal value={b.harga_per_pax ?? ''} onChange={e => ubahBracket(ci, bi, { harga_per_pax: e.target.value })} className={`${inp} w-24`} /></td>
                             <td className="p-1"><button onClick={() => hapusBracket(ci, bi)} className="text-red-500 text-xs font-bold hover:underline">Hapus</button></td>
                           </tr>

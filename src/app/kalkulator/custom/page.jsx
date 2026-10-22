@@ -5,6 +5,7 @@ import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { ambilWaReferral, salamReferral } from '@/lib/referralCapture';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 function fmtTgl(t) {
   if (!t) return null;
@@ -97,7 +98,7 @@ export default function KalkulatorCustomPage() {
               </div>
               <div>
                 <label className={lbl}>Jumlah Pax (opsional)</label>
-                <input type="number" min={1} value={jumlahPax} onChange={e => setJumlahPax(e.target.value)} placeholder="0" className={inp} />
+                <input type="number" onKeyDown={tolakTandaAngka} min={1} value={jumlahPax} onChange={e => setJumlahPax(e.target.value)} placeholder="0" className={inp} />
               </div>
             </div>
 

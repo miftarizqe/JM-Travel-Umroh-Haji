@@ -427,7 +427,7 @@ export default function DaftarPerwakilanPage() {
               <BankInput value={form.bank} onChange={v=>setF('bank',v)} className={inp}/></div>
             <div className="grid grid-cols-2 gap-3">
               <div><label className={lbl}>No. Rekening *</label>
-                <input value={form.norek} onChange={e=>setF('norek',e.target.value.replace(/\D/g,''))} inputMode="numeric" className={inp}/></div>
+                <input value={form.norek} onChange={e=>setF('norek',e.target.value.replace(/\D/g,'').slice(0,20))} inputMode="numeric" maxLength={20} className={inp}/></div>
               <div><label className={lbl}>Nama Pemilik *</label>
                 <input value={form.pemilik} onChange={e=>setF('pemilik',e.target.value)} className={inp}/></div>
             </div>

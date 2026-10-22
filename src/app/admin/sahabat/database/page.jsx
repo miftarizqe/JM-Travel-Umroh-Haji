@@ -8,6 +8,8 @@ import ModalTolakPermanen from '@/app/components/ModalTolakPermanen';
 import { persenKesiapan, warnaProgress } from '@/lib/kesiapanTabungan';
 import { downloadExcel } from '@/lib/downloadExcel';
 import InputNominal from '@/app/components/InputNominal';
+import { hanyaAngka } from '@/lib/dataJamaah';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -700,7 +702,7 @@ export default function DatabaseJamaahPage() {
                       <InputNominal value={form.target_estimasi_harga} onChange={e => setForm(f => ({ ...f, target_estimasi_harga: e.target.value }))}
                         placeholder="Estimasi harga (Rp)"
                         className="w-full sm:w-40 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
-                      <input type="number" value={form.target_bulan} onChange={e => setForm(f => ({ ...f, target_bulan: e.target.value }))}
+                      <input type="number" onKeyDown={tolakTandaAngka} min={0} value={form.target_bulan} onChange={e => setForm(f => ({ ...f, target_bulan: e.target.value }))}
                         placeholder="Target (bulan)"
                         className="w-full sm:w-32 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
                       <div className="flex gap-2">
@@ -852,7 +854,7 @@ export default function DatabaseJamaahPage() {
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="block text-gray-400 mb-0.5">No. Rek. Tabungan Umroh (BSI)</label>
-                            <input value={formData.no_rekening_tabungan_umroh} onChange={e => setFormData(f => ({ ...f, no_rekening_tabungan_umroh: e.target.value }))}
+                            <input value={formData.no_rekening_tabungan_umroh} onChange={e => setFormData(f => ({ ...f, no_rekening_tabungan_umroh: hanyaAngka(e.target.value, 20) }))} inputMode="numeric" maxLength={20}
                               className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
                           </div>
                           <div>

@@ -1,6 +1,7 @@
 'use client';
 import KalkulatorAcuanEditor from '@/app/components/KalkulatorAcuanEditor';
 import { inp, lbl } from '../util';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 const TIPE_PROGRAM_LIST = ['Umroh', 'Haji', 'Wisata Muslim'];
 
@@ -35,7 +36,7 @@ function FormJenisProgram({ value, onChange, onSimpan, onBatal, busy }) {
         </div>
         <div>
           <label className={lbl}>Urutan Tampil</label>
-          <input type="number" value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
+          <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
         </div>
       </div>
       <div className="flex gap-2">

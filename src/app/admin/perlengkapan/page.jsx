@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 const GENDER_LABEL = { semua: 'Semua', laki: 'Laki-laki', perempuan: 'Perempuan' };
 const KATEGORI_LABEL = { umum: 'Umum', sahabat_baitullah: 'Sahabat Baitullah' };
@@ -103,7 +104,7 @@ function ModalTambahStok({ item, onClose, onSaved }) {
       <div className="bg-white rounded-xl p-5 w-full max-w-sm">
         <div className="font-bold text-[#0E2F6E] mb-3">➕ Tambah Stok — {item.nama}</div>
         <label className="text-xs font-semibold text-gray-500">Jumlah masuk</label>
-        <input type="number" min="1" value={qty} onChange={e => setQty(e.target.value)}
+        <input type="number" onKeyDown={tolakTandaAngka} min="1" value={qty} onChange={e => setQty(e.target.value)}
           className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" autoFocus />
         <label className="text-xs font-semibold text-gray-500">Keterangan (opsional)</label>
         <input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="mis. Pembelian dari supplier X"
@@ -174,7 +175,7 @@ function ModalEditItem({ item, onClose, onSaved }) {
         <input value={deskripsi} onChange={e => setDeskripsi(e.target.value)}
           className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" />
         <label className="text-xs font-semibold text-gray-500">Ambang Minimum (buat alert perlu dipesan ulang)</label>
-        <input type="number" min="0" value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
+        <input type="number" onKeyDown={tolakTandaAngka} min="0" value={stokMinimum} onChange={e => setStokMinimum(e.target.value)}
           className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" />
         <div className="flex gap-2">
           <button onClick={onClose} className="flex-1 bg-gray-100 text-gray-600 font-bold py-2 rounded-full text-sm">Batal</button>
@@ -220,7 +221,7 @@ function ModalStokKeluar({ item, onClose, onSaved }) {
         <div className="font-bold text-[#0E2F6E] mb-3">➖ Stok Keluar (Manual) — {item.nama}</div>
         <div className="text-[10px] text-gray-400 mb-3">Buat stok yang berkurang DI LUAR pengiriman kit otomatis — mis. rusak, hilang, dipakai sampel, atau koreksi hitung fisik. Stok saat ini: <b>{item.stok_saat_ini}</b>.</div>
         <label className="text-xs font-semibold text-gray-500">Jumlah keluar</label>
-        <input type="number" min="1" max={item.stok_saat_ini} value={qty} onChange={e => setQty(e.target.value)}
+        <input type="number" onKeyDown={tolakTandaAngka} min="1" max={item.stok_saat_ini} value={qty} onChange={e => setQty(e.target.value)}
           className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm mb-3 mt-1" autoFocus />
         <label className="text-xs font-semibold text-gray-500">Keterangan (wajib)</label>
         <input value={keterangan} onChange={e => setKeterangan(e.target.value)} placeholder="mis. Rusak kena hujan, diambil manual oleh Tim X"
