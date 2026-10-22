@@ -140,7 +140,9 @@ export default function RekeningDashboardPage() {
     return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
   }
 
-  function RekeningCard({ kode, label, icon, warna, ringkasan }) {
+  // Dipanggil sebagai fungsi (bukan <RekeningCard/>) — kalau jadi komponen di dalam
+  // render, tiap ketikan di input Saldo Awal bikin kartu di-mount ulang & fokus hilang.
+  function renderRekeningCard({ kode, label, icon, warna, ringkasan }) {
     const isOpen = expand === kode;
     if (!ringkasan) return null;
     return (
@@ -265,8 +267,8 @@ export default function RekeningDashboardPage() {
       ) : (
         <div className="space-y-3">
           <CekDanaJamaah cek={data?.cek_dana_jamaah} bulan={bulan} />
-          <RekeningCard kode="alkhalid" label="Alkhalid Jaya Megah" icon="🏢" warna="border-blue-200" ringkasan={data?.alkhalid} />
-          <RekeningCard kode="sahabat_baitullah" label="Sahabat Baitullah" icon="🤝" warna="border-amber-200" ringkasan={data?.sahabat_baitullah} />
+          {renderRekeningCard({ kode: 'alkhalid', label: 'Alkhalid Jaya Megah', icon: '🏢', warna: 'border-blue-200', ringkasan: data?.alkhalid })}
+          {renderRekeningCard({ kode: 'sahabat_baitullah', label: 'Sahabat Baitullah', icon: '🤝', warna: 'border-amber-200', ringkasan: data?.sahabat_baitullah })}
 
           <div className="border border-emerald-200 rounded-xl bg-white p-4">
             <div className="text-xs font-bold text-gray-500 mb-1">💵 Cashflow (Operasional Kantor)</div>
