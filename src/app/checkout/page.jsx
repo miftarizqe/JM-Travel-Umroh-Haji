@@ -134,6 +134,14 @@ function CheckoutPageInner() {
   // permanentReferrer perwakilan di atas. Banner read-only, server
   // (buatSatuBooking) SUDAH memaksa pakai nilai ini.
   const [permanentAgenReferrer, setPermanentAgenReferrer] = useState(null);
+  // Referral Sahabat Baitullah PERMANEN (dikunci sejak registrasi lewat link
+  // sahabat, kolom users.perekrut_sahabat_jamaah_id) — mirror persis
+  // permanentReferrer/permanentAgenReferrer di atas (dikonfirmasi user
+  // 2026-10-22: sebelumnya gap tersembunyi, cuma perwakilan & agen yang
+  // ngunci dropdown, jamaah dgn referral permanen sahabat tetap bebas
+  // pilih sumber lain padahal server referral_closing_reguler_sahabat
+  // SUDAH memaksa pakai kolom ini apapun yang dikirim client).
+  const [permanentSahabatReferrer, setPermanentSahabatReferrer] = useState(null);
   // Jamaah ketik kode_unik Perwakilan/Agen/Sahabat yang mengajak, SATU kode
   // diverifikasi ke server (POST /api/referral-list/cek-<role>, nama
   // disamarkan) — BUKAN dropdown nge-list semua nama (dikonfirmasi user
@@ -355,6 +363,13 @@ function CheckoutPageInner() {
             id: d.user.perekrut_agen_jamaah_id,
             name: d.user.perekrut_agen_jamaah_nama,
             kode_unik: d.user.perekrut_agen_jamaah_kode,
+          });
+        }
+        if (d.user?.perekrut_sahabat_jamaah_id) {
+          setPermanentSahabatReferrer({
+            id: d.user.perekrut_sahabat_jamaah_id,
+            name: d.user.perekrut_sahabat_jamaah_nama,
+            kode_unik: d.user.perekrut_sahabat_jamaah_kode,
           });
         }
       })
@@ -619,6 +634,7 @@ function CheckoutPageInner() {
             : permanentReferrer ? permanentReferrer.id
             : sumber === 'perwakilan' ? (perwakilanTerverifikasi?.id || null) : null,
           referral_sahabat_id: user.role === 'sahabat_baitullah' ? user.id
+            : permanentSahabatReferrer ? permanentSahabatReferrer.id
             : sumber === 'sahabat_baitullah' ? (sahabatTerverifikasi?.id || null) : null,
           // Link referral agen — nilai ini murni ADVISORY buat jamaah dengan
           // referral permanen (dikunci sejak registrasi via /a/[kode],
@@ -1190,6 +1206,17 @@ function CheckoutPageInner() {
               <div className="rounded-xl p-4 text-sm border-2 bg-purple-50 text-purple-700 border-[#C9952A]">
                 {`🏢 Checkout sebagai Perwakilan — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
               </div>
+            ) : user?.role === 'sahabat_baitullah' ? (
+              // Dropdown DULU tetap bisa diganti bebas di sini walau
+              // referral_sahabat_id submit SUDAH dipaksa user.id (gak
+              // kebawa komisi salah) -- cuma sumber_info (label) yang bisa
+              // kesimpen ngaco kalau dropdown diganti (dikonfirmasi user
+              // 2026-10-22, "harusnya udah sesuai role, gabisa diganti
+              // kecuali admin/jamaah tanpa referral"). Sekarang dikunci
+              // total jadi banner, sama pola kayak Perwakilan di atas.
+              <div className="rounded-xl p-4 text-sm border-2 bg-purple-50 text-purple-700 border-[#C9952A]">
+                {`🤝 Checkout sebagai Sahabat Baitullah — closing otomatis tercatat ke akun Anda (${user.name}, ${user.kode_unik})`}
+              </div>
             ) : permanentReferrer ? (
               <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
                 {`📌 Referral Anda terkunci ke ${permanentReferrer.name} (${permanentReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
@@ -1197,6 +1224,10 @@ function CheckoutPageInner() {
             ) : permanentAgenReferrer ? (
               <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
                 {`📌 Referral Anda terkunci ke Agen ${permanentAgenReferrer.name} (${permanentAgenReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
+              </div>
+            ) : permanentSahabatReferrer ? (
+              <div className="rounded-xl p-4 text-sm border-2 bg-amber-50 text-amber-700 border-amber-300">
+                {`📌 Referral Anda terkunci ke Sahabat Baitullah ${permanentSahabatReferrer.name} (${permanentSahabatReferrer.kode_unik}) sejak pendaftaran akun — tidak bisa diubah.`}
               </div>
             ) : (
             <div className="bg-white border-2 border-[#C9952A] rounded-xl p-4 space-y-3">
@@ -1255,18 +1286,11 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {sumber === 'sahabat_baitullah' && user?.role === 'sahabat_baitullah' && (
-                // Dropdown sumber tetap bebas dipilih; yang dikunci cuma kode
-                // referral-nya — akun Sahabat gak bisa atas-namakan anggota lain.
-                <div>
-                  <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Sahabat Baitullah</label>
-                  <input value={`${user.kode_unik || ''} — ${user.name}`} readOnly disabled
-                    className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 bg-gray-50 text-gray-500 text-sm cursor-not-allowed" />
-                  <div className="text-[10px] text-gray-400 mt-1">🔒 Terkunci ke akun Anda sendiri.</div>
-                </div>
-              )}
-
-              {sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && (
+              {/* Akun role sahabat_baitullah gak pernah sampai sini lagi
+                  (banner di atas, sebelum fallback card ini) — opsi
+                  "Jamaah Sahabat Baitullah" di dropdown sekarang CUMA buat
+                  jamaah BIASA yang mau ketik kode referral sahabat lain. */}
+              {sumber === 'sahabat_baitullah' && (
                 <div>
                   <label className="block text-xs font-semibold text-[#0E2F6E] mb-1">Kode Referral Sahabat Baitullah *</label>
                   <input
@@ -1281,7 +1305,7 @@ function CheckoutPageInner() {
                 </div>
               )}
 
-              {((sumber === 'perwakilan' && perwakilanTerverifikasi) || (sumber === 'agen' && agenTerverifikasi) || (sumber === 'sahabat_baitullah' && (sahabatTerverifikasi || user?.role === 'sahabat_baitullah'))) && (
+              {((sumber === 'perwakilan' && perwakilanTerverifikasi) || (sumber === 'agen' && agenTerverifikasi) || (sumber === 'sahabat_baitullah' && sahabatTerverifikasi)) && (
                 <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-xs text-green-700">
                   ✅ Pendaftaran akan tercatat atas nama {sumber} yang dipilih.
                 </div>
@@ -1291,7 +1315,7 @@ function CheckoutPageInner() {
 
             <button
               onClick={() => {
-                if (user?.role === 'perwakilan' || permanentReferrer || permanentAgenReferrer) { setStep(2); return; }
+                if (user?.role === 'perwakilan' || user?.role === 'sahabat_baitullah' || permanentReferrer || permanentAgenReferrer || permanentSahabatReferrer) { setStep(2); return; }
                 if (!sumber) { alert('Pilih dari mana Anda mengetahui JM Travel!'); return; }
                 if (sumber === 'perwakilan' && !perwakilanTerverifikasi) {
                   alert('Masukkan kode referral Perwakilan yang valid!'); return;
@@ -1299,7 +1323,7 @@ function CheckoutPageInner() {
                 if (sumber === 'agen' && !agenTerverifikasi) {
                   alert('Masukkan kode referral Agen yang valid!'); return;
                 }
-                if (sumber === 'sahabat_baitullah' && user?.role !== 'sahabat_baitullah' && !sahabatTerverifikasi) {
+                if (sumber === 'sahabat_baitullah' && !sahabatTerverifikasi) {
                   alert('Masukkan kode referral Sahabat Baitullah yang valid!'); return;
                 }
                 setStep(2);
