@@ -173,9 +173,9 @@ function CetakRekapUjrohPerwakilanInner() {
           .kop-surat-onscreen { display: none !important; }
           .kop-surat-print-bg {
             display: block !important; position: fixed; top: 0; left: 0;
-            width: 210mm; height: 297mm; z-index: -1;
+            width: 210mm; height: 34.3mm;
           }
-          .sheet { padding: 46mm 18mm 16mm 18mm !important; }
+          .sheet { padding: 38mm 18mm 16mm 18mm !important; }
         }
         @page { size: A4; margin: 0; }
       `}</style>

@@ -3,6 +3,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { usePengaturan } from '@/lib/usePengaturan';
 import { resolveJamaahHarga } from '@/lib/jamaahHarga';
+import { KopSuratPrintBg } from '@/app/components/KopSurat';
 
 function Field({ label, value, star }) {
   return (
@@ -25,7 +26,7 @@ function fmtTgl(t) {
 
 function Kop({ pengaturan }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #1A4FA0', paddingBottom: 10, marginBottom: 16 }}>
+    <div className="kop-surat-onscreen" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderBottom: '2px solid #1A4FA0', paddingBottom: 10, marginBottom: 16 }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/logo/jm-travel-logo.png" alt="JM Travel" style={{ height: 78, objectFit: 'contain' }} />
       <div style={{ fontSize: 10, textAlign: 'right', lineHeight: 1.5 }}>
@@ -124,6 +125,7 @@ function CetakFormulirInner() {
         </div>
       </div>
 
+      <KopSuratPrintBg />
       {sheetsToRender.map(({ j, idx }) => {
         const jk = resolveJamaahHarga(booking, j); // kombo paket/kamar/harga jamaah ini (sendiri kalau pernah diedit per-orang, else ikut booking)
         return (
@@ -189,8 +191,16 @@ function CetakFormulirInner() {
           body { background: #fff !important; }
           .cetak-page-bg { padding: 0 !important; background: #fff !important; min-height: 0 !important; }
           .sheet { box-shadow: none !important; margin: 0 auto !important; page-break-after: always; width: 100% !important; }
+          /* Kop surat RESMI, berulang tiap halaman (2026-10-22) — lihat
+             komentar lengkap di src/app/components/KopSurat.jsx. */
+          .kop-surat-onscreen { display: none !important; }
+          .kop-surat-print-bg {
+            display: block !important; position: fixed; top: 0; left: 0;
+            width: 210mm; height: 34.3mm;
+          }
+          .sheet { padding: 38mm 18mm 16mm 18mm !important; }
         }
-        @page { size: A4; margin: 15mm; }
+        @page { size: A4; margin: 0; }
       `}</style>
     </div>
   );

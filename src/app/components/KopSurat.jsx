@@ -17,23 +17,28 @@ export default function KopSurat({ pengaturan, warnaBorder = '#0E2F6E' }) {
   );
 }
 
-// Kop surat RESMI (file asli dari user, 2026-10-22) — file utuh 1 halaman
-// A4 penuh (header + watermark tengah + garis biru bawah), dipasang sebagai
-// background position:fixed KHUSUS PRINT, biar browser otomatis ngulang
-// gambar ini di SETIAP halaman fisik kalau dokumennya >1 halaman (dikonfirmasi
-// user: "kalo dia ada 3 halaman ya masing2 selalu ada kopnya ini") — beda
-// dari <KopSurat> di atas yang cuma elemen biasa di ALIRAN KONTEN, otomatis
-// cuma nongol 1x di halaman pertama.
+// Kop surat RESMI (file asli dari user, revisi 2026-10-22 — versi pertama
+// full 1 halaman A4 + watermark ternyata bikin tampilan "ngeblock"/cacat pas
+// print, user ganti ke versi simpel: CUMA pita header, gak ada watermark/
+// garis bawah lagi). Gambar ini CUMA pita header (bukan 1 halaman penuh),
+// dipasang position:fixed KHUSUS PRINT nempel di TOP:0 — browser otomatis
+// ngulang di SETIAP halaman fisik kalau dokumennya >1 halaman (dikonfirmasi
+// user: "kalo dia ada 3 halaman ya masing2 selalu ada kopnya ini"). SENGAJA
+// TANPA z-index (biar ikut urutan DOM biasa, dirender sebagai child
+// PERTAMA di .sheet jadi otomatis di BELAKANG konten lain yang nyusul —
+// z-index negatif di versi sebelumnya dicurigai jadi penyebab "ngeblock"
+// karena print engine browser kadang gak taat stacking context yang sama
+// kayak di layar).
 // WAJIB dipasang bareng CSS print di pemanggil (lihat cetak-invoice/[id]/page.jsx):
-//   @page { margin: 0 }  -- biar gambar nutup SELURUH kertas, bukan cuma area margin
-//   .sheet padding di-override lewat @media print supaya konten gak numpuk
-//   sama header/garis bawah di gambar (lihat komentar ukuran di sana).
+//   @page { margin: 0 }  -- biar pita header nempel PERSIS di tepi kertas
+//   .sheet padding-top di-override lewat @media print (~38mm, lihat komentar
+//   ukuran di sana) supaya konten gak numpuk garis biru di gambar.
 // display:none di luar print — SENGAJA gak ikut dirender pas preview layar,
 // <KopSurat> di atas yang jadi preview-nya.
 export function KopSuratPrintBg() {
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src="/kop-surat/kop-surat-a4.png" alt="" aria-hidden="true"
+    <img src="/kop-surat/kop-surat-header.png" alt="" aria-hidden="true"
       className="kop-surat-print-bg" style={{ display: 'none' }} />
   );
 }
