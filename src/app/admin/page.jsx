@@ -2001,19 +2001,22 @@ function AdminPageInner() {
       {/* ================= PROGRAMS TAB ================= */}
       {activeTab === 'programs' && !openProgram && (() => {
         // "📦 Program" pecah jadi 3 cluster (dikonfirmasi user 2026-09-06,
-        // mirror gaya cluster "Perlu Perhatian") — Draft belum diposting =
-        // active=0. Selesai = active=1 tapi tanggal_berangkat sudah lewat
-        // hari ini. Aktif = sisanya. Sama persis definisi di
-        // /api/admin/dashboard & filter status yang tadinya sempet ditaruh
-        // (salah tempat) di /admin/programs.
+        // mirror gaya cluster "Perlu Perhatian"). Tanggal keberangkatan
+        // sudah lewat SELALU masuk Selesai, gak peduli status publish-nya
+        // (dikonfirmasi user 2026-10-22 — sebelumnya program active=0 yang
+        // tanggalnya udah lewat tetap nyangkut di Draft selamanya, padahal
+        // secara faktual udah "selesai & lewat", bukan draft lagi). Draft
+        // belum diposting sekarang CUMA buat active=0 yang tanggalnya BELUM
+        // lewat (atau belum ada tanggal). Aktif = sisanya.
         const hariIni = new Date(new Date().toDateString());
+        const sudahLewat = p => p.tanggal_berangkat && new Date(p.tanggal_berangkat) < hariIni;
         const klaster = [
           { key: 'aktif', label: '📦 Program Aktif', defaultOpen: true,
-            match: p => p.active !== 0 && !(p.tanggal_berangkat && new Date(p.tanggal_berangkat) < hariIni) },
+            match: p => p.active !== 0 && !sudahLewat(p) },
           { key: 'selesai', label: '✅ Program Selesai', defaultOpen: false,
-            match: p => p.active !== 0 && p.tanggal_berangkat && new Date(p.tanggal_berangkat) < hariIni },
+            match: p => sudahLewat(p) },
           { key: 'draft', label: '📝 Program Draft Belum Diposting', defaultOpen: false,
-            match: p => p.active === 0 },
+            match: p => p.active === 0 && !sudahLewat(p) },
         ];
         return (
         <div className="space-y-4">

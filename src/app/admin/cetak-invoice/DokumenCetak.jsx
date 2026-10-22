@@ -214,15 +214,14 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
         <tbody>
           {dokumen.jenis === 'tanda_terima' ? (
             <>
+              {/* Dulu ikut nampilin "Total Harga Program" & "DP Sudah
+                  Dibayar" pas payment.type==='lunas' -- dicabut (dikonfirmasi
+                  user 2026-10-22): TTU cukup infoin nominal yang DITERIMA
+                  SAAT ITU doang, gak perlu bongkar harga total paket atau
+                  riwayat DP sebelumnya. */}
               <BarisItem label={`${LABEL_TIPE_PEMBAYARAN[payment?.type] || 'Pembayaran'} — diterima`}
                 sub={<KeteranganPembayaran list={jamaahUntukPembayaran} />}
                 qty={qtyJamaah} satuan={perUnit(dokumen.nominal, qtyJamaah)} jumlah={dokumen.nominal} tebal />
-              {payment?.type === 'lunas' && booking?.total_harga != null && (
-                <>
-                  <BarisItem label="Total Harga Program" jumlah={booking.total_harga} />
-                  <BarisItem label="DP Sudah Dibayar" jumlah={-Number(booking.dp_amount || 0)} />
-                </>
-              )}
               <BarisCatatan>Terbilang: <i>{terbilang(dokumen.nominal)}</i></BarisCatatan>
             </>
           ) : dokumen.jenis === 'kwitansi' ? (
