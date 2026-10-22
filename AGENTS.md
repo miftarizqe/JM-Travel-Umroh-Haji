@@ -4,18 +4,34 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-# Backend ada di jm-travel-api (Go), bukan di repo ini
+# Repo ini FRONTEND saja — backend ada di repo `jm-travel-api`
 
-Repo ini FE. Semua perubahan backend — endpoint baru, field respons, logika server, migrasi DB —
-dibuat di repo `jm-travel-api` (Go), kecuali user minta eksplisit per tugas.
+Sejak 2026-10-22 JM Travel dipecah jadi dua repo:
 
-- Di dev & prod, Caddy (`jm-travel-api/deploy/caddy/Caddyfile.tahap2`, matcher `@go` /
-  `@go_programs`) mengirim sebagian `/api/*` ke Go. Route Next.js di path itu tidak pernah jalan;
-  mengeditnya = perubahan diam-diam tidak berlaku (kasus 2026-10-20: field referral agen ditambah
-  di `src/app/api/profil/route.js`, padahal `/api/profil` dilayani Go).
-- Route seperti itu sudah dihapus dan dijaga `npm run cek:route-go` (juga dijalankan saat
-  auto-deploy; gagal = deploy batal). Kalau sebuah path pindah ke Go, hapus route Next.js-nya.
-- Endpoint yang belum ada di Go (mis. `/api/bookings*`, `/api/auth/register`): jangan tambah fitur
-  backend baru di route Next.js-nya — porting dulu ke Go, atau tanya user.
-- Sebelum mengubah respons API yang dipakai halaman, cek dulu path itu dilayani Go atau Next.js.
-- `next dev` lokal: set `GO_API_URL` (lihat `.env.example`) dan jalankan jm-travel-api lokal.
+| Repo | Isi | Contoh file |
+|---|---|---|
+| **jm-travel-web** (repo ini) | halaman & komponen (UI) | `src/app/**/page.jsx`, `src/app/components/**`, `src/lib/use*.js` |
+| **jm-travel-api** | SEMUA backend: route API, akses database, migrasi DB, job terjadwal, upload file | `src/app/api/**/route.js`, `src/lib/db.js`, `migrations/*.sql` |
+
+## Aturan
+
+- **Endpoint baru / ubah respons API / logika server / kolom & tabel baru → kerjakan di repo
+  `jm-travel-api`**, bukan di sini. Panduannya: `PANDUAN-BACKEND.md` di repo itu.
+- Halaman memanggil backend lewat `fetch('/api/...')` seperti biasa. Di dev & prod Caddy yang
+  mengirim `/api/*`, `/uploads/*`, `/healthz` ke backend; lokal lewat `API_URL` (lihat bawah).
+- Jangan menambah `src/app/api/`, `migrations/`, `route.js`, atau import `mysql2`/`bcryptjs`/
+  `jsonwebtoken`/`@/lib/db` di repo ini. `npm run build` (juga build Docker saat deploy) **gagal**
+  kalau ada — dijaga `scripts/cek-tanpa-backend.mjs`.
+- Fitur yang butuh FE + BE: buat dua perubahan (dua PR), **deploy backend dulu**, baru frontend.
+  Backend harus tetap kompatibel dengan frontend lama selama jeda itu (tambah field, jangan ganti
+  nama/hapus field yang masih dipakai halaman).
+- Beberapa helper murni ada salinannya di kedua repo (dipakai halaman & server), mis.
+  `harga.js`, `kalkulatorBiaya.js`, `bookingStage.js`, `jamaahHarga.js`, `formatAlamat.js`,
+  `terbilang.js`. Kalau mengubah aturan bisnis di salah satunya, ubah juga salinannya di repo lain.
+  `src/lib/sesiCookie.js` = salinan helper cookie dari `src/lib/auth.js` backend.
+
+## Menjalankan lokal
+
+1. Jalankan backend dulu di repo `jm-travel-api`: `npm run dev` (port 3001, lihat README-nya).
+2. Di repo ini: salin `.env.example` → `.env.local` (isi `API_URL=http://localhost:3001`), lalu
+   `npm run dev` → http://localhost:3000.

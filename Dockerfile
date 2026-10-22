@@ -1,14 +1,7 @@
-# Next.js JM Travel — jalan sebagai satu proses (bukan cluster): src/instrumentation.js
-# menjalankan job terjadwal di dalam proses, jadi instance harus tepat 1.
+# Frontend JM Travel (Next.js, halaman saja). Backend/API ada di repo jm-travel-api.
 FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
-
-# poppler-utils (pdftoppm) — konversi PDF materi presentasi Sahabat
-# Baitullah jadi gambar per-slide di runtime (dikonfirmasi user
-# 2026-09-29, lihat src/app/api/admin/sahabat/materi/route.js).
-RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev
