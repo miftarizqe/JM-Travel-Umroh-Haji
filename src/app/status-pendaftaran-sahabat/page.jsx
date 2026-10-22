@@ -700,6 +700,17 @@ export default function StatusPendaftaranSahabatPage() {
               <div className="flex flex-wrap gap-2">
                 <a href={prasyarat.bukti_tf_path} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">📎 Lihat Bukti Transfer</a>
+                {/* Kwitansi setoran pendaftaran Rp1jt (dikonfirmasi user
+                    2026-10-22, gap ditemukan: sebelumnya jamaah gak punya
+                    jalur SAMA SEKALI buat liat dokumen ini) -- cuma muncul
+                    begitu admin beneran "Kirim"/Setuju-in dokumennya (akses
+                    GET-nya digerbang terkirim, bukan sekadar sudah ter-
+                    generate). Sebelum terkirim sengaja gak ditampilin apa2,
+                    biar gak kelihatan ada link yang bakal 403 kalau diklik. */}
+                {pendaftaran?.kwitansi_terkirim && (
+                  <a href={`/admin/cetak-invoice/${pendaftaran.kwitansi_setoran_pendaftaran_id}`} target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🧾 Lihat Kwitansi</a>
+                )}
                 {!(metodeTtdSelesai || sudahDiajukan) && !gantiBuktiTf && (
                   <button onClick={() => setGantiBuktiTf(true)} className="inline-flex items-center gap-1 text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] px-3 py-1.5 rounded-full hover:bg-[#D3E2F7] transition-colors cursor-pointer">🔄 Ganti Bukti Transfer</button>
                 )}

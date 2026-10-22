@@ -117,6 +117,28 @@ export async function POST(request, { params }) {
       } catch (e) {
         console.error('Gagal kirim notifikasi dokumen terkirim:', e);
       }
+    } else if (!dokumen.is_manual && dokumen.dibuat_oleh) {
+      // Dokumen TANPA booking tapi BUKAN manual admin (dikonfirmasi user
+      // 2026-10-22, gap ditemukan: Kwitansi setoran pendaftaran Sahabat
+      // Baitullah gak pernah ngirim notif SAMA SEKALI pas disetujui, karena
+      // cabang di atas cuma cek booking_id). Dokumen jenis ini `dibuat_oleh`-
+      // nya ya si jamaah sendiri (self-service, lihat
+      // generateKwitansiSetoranPendaftaranSahabat) -- BEDA dari dokumen
+      // manual admin (is_manual=1) yang dibuat_oleh-nya SELALU admin, itu
+      // SENGAJA gak dikirimin notif (admin gak perlu notif buat dokumen yang
+      // dia bikin sendiri).
+      try {
+        const label = JENIS_LABEL[dokumen.jenis] || dokumen.jenis;
+        await kirimNotifikasi(pool, {
+          user_id: dokumen.dibuat_oleh,
+          tipe: 'dokumen_terkirim',
+          judul: `${label} Tersedia`,
+          pesan: `${label}${dokumen.nomor ? ` (${dokumen.nomor})` : ''} sudah tersedia, bisa dilihat/diunduh.`,
+          link: `/admin/cetak-invoice/${id}`,
+        });
+      } catch (e) {
+        console.error('Gagal kirim notifikasi dokumen terkirim:', e);
+      }
     }
 
     return Response.json({ message: 'Dokumen disetujui.', terkirim_at: terkirimAt.toISOString(), terkirim_metode: metode, nomor: dokumen.nomor });

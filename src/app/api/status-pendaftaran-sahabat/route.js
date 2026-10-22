@@ -65,6 +65,17 @@ export async function GET(request) {
       [auth.user.id]
     );
     const pendaftaran = kp[0] || null;
+    // Status terkirim Kwitansi setoran pendaftaran Rp1jt (dikonfirmasi user
+    // 2026-10-22 -- sebelumnya jamaah gak punya jalur SAMA SEKALI buat liat
+    // dokumen ini). Ditempel di `pendaftaran` biar FE bisa langsung pakai
+    // kwitansi_setoran_pendaftaran_id yang udah ada dari `sp.*` di atas.
+    // Link cetaknya baru BOLEH ditampilkan kalau udah terkirim (akses GET
+    // /api/admin/invoice-kwitansi/[id] buat non-admin emang digerbang
+    // dokumen.terkirim, lihat route itu).
+    if (pendaftaran?.kwitansi_setoran_pendaftaran_id) {
+      const [[kw]] = await pool.query('SELECT terkirim FROM invoice_kwitansi WHERE id = ?', [pendaftaran.kwitansi_setoran_pendaftaran_id]);
+      pendaftaran.kwitansi_terkirim = !!kw?.terkirim;
+    }
 
     // Dokumen SPK-AK-nya beda buat anggota non-Muslim (spk_ak_nonis,
     // dikonfirmasi user 2026-09-20). SPK-AK sekarang 1 RANGKAP
