@@ -88,6 +88,23 @@ export default function CetakInvoiceKwitansi() {
 
   const isAdmin = ['admin', 'super_admin'].includes(user?.role);
 
+  // Jamaah yang buka dokumen >Rp5jt (wajib materai, terkirim_metode==='fisik')
+  // LANGSUNG diarahkan ke file scan (bukti TTD+materai fisik ASLI), SKIP
+  // tampilan render "kosongan" sama sekali (placeholder teks "Materai
+  // Rp10.000" doang, lihat DokumenCetak.jsx) — dikonfirmasi user 2026-10-22,
+  // "jangan dikasih tau yang kosongan, langsung aja yang scannan only".
+  // Dipasang di level halaman (bukan cuma ganti link di Riwayat Transaksi)
+  // biar BERLAKU dari link manapun jamaah masuk ke sini (notifikasi,
+  // Riwayat Transaksi, dsb) — 1 titik gerbang, bukan ditempel ulang di tiap
+  // pemanggil. Admin TETAP lihat halaman render ini (butuh buat cek ulang/
+  // kirim ulang WA, lihat tombol "Lihat Scan"/"Kirim Ulang Scan via WA").
+  useEffect(() => {
+    if (loading || isAdmin || !dokumen) return;
+    if (dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path) {
+      window.location.replace(dokumen.scan_fisik_path);
+    }
+  }, [loading, isAdmin, dokumen]);
+
   // Setuju tanpa TTD digital -- endpoint-nya di Next.js sendiri sekarang
   // (/api/admin/invoice-kwitansi/[id]/setuju, dipindah dari Go 2026-10-13
   // biar gating materai Rp5jt bisa ditegakkan server-side tanpa sentuh repo
@@ -128,6 +145,10 @@ export default function CetakInvoiceKwitansi() {
 
   if (!dokumen) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Dokumen tidak ditemukan.</div>;
 
+  if (!isAdmin && dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path) {
+    return <div style={{ padding: 40, fontFamily: 'Arial', textAlign: 'center' }}>Membuka dokumen...</div>;
+  }
+
   // berfungsiTandaTerima/butuhMaterai dihitung ULANG di sini (SAMA PERSIS
   // formula di DokumenCetak.jsx & POST .../setuju) -- dipakai buat gating UI
   // tombol/banner di LUAR .sheet (materai, scan, step indicator), bukan buat
@@ -162,29 +183,25 @@ export default function CetakInvoiceKwitansi() {
           <div style={{ display: 'inline-block', padding: '8px 16px', borderRadius: 10, fontSize: 12, background: '#ecfdf5', color: '#047857', fontWeight: 700 }}>
             ✅ {dokumen.terkirim_metode === 'setuju' ? 'Sudah disetujui' : `Sudah dikirim (${dokumen.terkirim_metode === 'fisik' ? 'fisik' : 'digital'})`}, {tgl(dokumen.terkirim_at)}
           </div>
-          {dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
+          {isAdmin && dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
             <div style={{ marginTop: 8, display: 'flex', gap: 8, justifyContent: 'center' }}>
-              {/* Link langsung buka file scan — WAJIB kelihatan juga buat
-                  jamaah (bukan admin-only), BUKAN cuma admin (ditemukan user
-                  2026-10-22 lewat Riwayat Transaksi: dokumen >Rp5jt wajib
-                  materai render-nya CUMA placeholder teks "Materai Rp10.000"
-                  (lihat DokumenCetak.jsx) — bukti TTD+materai ASLI cuma ada
-                  di scan ini, jadi kalau cuma admin yang bisa lihat, jamaah
-                  gak pernah bisa liat bukti fisik dokumennya sendiri sama
-                  sekali). Sebelumnya admin cuma bisa "lihat" scan secara gak
-                  langsung lewat tombol WA di bawah (ditemukan via pertanyaan
-                  user 2026-10-14). */}
+              {/* ADMIN-ONLY lagi (dikonfirmasi user 2026-10-22) — jamaah
+                  sekarang gak pernah sampai ke bagian render ini sama sekali
+                  buat dokumen fisik, langsung di-redirect ke scan_fisik_path
+                  duluan (lihat useEffect redirect + early return di atas),
+                  "jangan dikasih tau yang kosongan, langsung aja yang
+                  scannan only" — bukan ditampilin tombol "Lihat Scan" di
+                  tengah halaman placeholder lagi kayak sebelumnya. Tombol
+                  ini sekarang murni alat admin buat cek ulang/kirim ulang WA. */}
               <a href={dokumen.scan_fisik_path} target="_blank" rel="noopener noreferrer"
                 style={{ background: '#1A4FA0', color: '#fff', padding: '8px 16px', borderRadius: 20, fontWeight: 700, fontSize: 12, textDecoration: 'none' }}>
                 👁️ Lihat Scan
               </a>
-              {isAdmin && (
-                <TombolWA nomor={booking?.pemesan_wa} label="Kirim Ulang Scan via WA"
-                  pesan={pesanDokumenFisikTerkirim({
-                    namaJamaah: dokumen.nama, jenis: dokumen.jenis, nomor: dokumen.nomor,
-                    linkScan: typeof window !== 'undefined' ? `${window.location.origin}${dokumen.scan_fisik_path}` : dokumen.scan_fisik_path,
-                  })} />
-              )}
+              <TombolWA nomor={booking?.pemesan_wa} label="Kirim Ulang Scan via WA"
+                pesan={pesanDokumenFisikTerkirim({
+                  namaJamaah: dokumen.nama, jenis: dokumen.jenis, nomor: dokumen.nomor,
+                  linkScan: typeof window !== 'undefined' ? `${window.location.origin}${dokumen.scan_fisik_path}` : dokumen.scan_fisik_path,
+                })} />
             </div>
           )}
           {/* Jalur "Setuju" (digital) gak punya file terpisah yang bisa
