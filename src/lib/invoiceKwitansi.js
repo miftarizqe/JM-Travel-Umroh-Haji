@@ -1,5 +1,5 @@
 import { generateNomorInvoice, generateNomorKwitansi, generateNomorTandaTerima } from './nomorInvoiceKwitansi';
-import { resolveJamaahHarga } from './jamaahHarga';
+import { resolveJamaahHarga, ringkasanPaketKamar } from './jamaahHarga';
 import { hitungSisaBayar } from './pelunasan';
 
 const fmtTgl = (d) => new Date(d).toISOString().slice(0, 10);
@@ -429,4 +429,122 @@ export async function daftarPaymentPerluTandaTerima(pool) {
      ORDER BY py.created_at DESC`
   );
   return rows;
+}
+
+// Data lengkap 1 dokumen buat halaman cetak (HTML) & PDF asli (react-pdf) —
+// DIPISAH dari GET /api/admin/invoice-kwitansi/[id]/route.js (2026-10-22,
+// dipakai ULANG persis sama di .../pdf/route.js) biar dua jalur ini TIDAK
+// pernah nyimpang (booking/jamaah_breakdown/gerbang akses harus identik,
+// apapun format output akhirnya). Balikin { status, dokumen, booking,
+// payment } -- status 404/403 kalau gak ketemu/ditolak, caller yang nentuin
+// bentuk response-nya sendiri (JSON vs PDF stream).
+export async function ambilDokumenCetak(pool, id, auth) {
+  const [[dokumen]] = await pool.query('SELECT * FROM invoice_kwitansi WHERE id = ?', [id]);
+  if (!dokumen) return { status: 404 };
+
+  const isAdmin = ['admin', 'super_admin'].includes(auth.user.role);
+  const BATAS_MATERAI = 5_000_000;
+
+  // Nomor TTU/Kwitansi yang WAJIB materai dibakar PAS PERTAMA KALI admin
+  // buka halaman cetak ini (dikonfirmasi user 2026-10-14) — idempotent.
+  if (isAdmin && ['tanda_terima', 'kwitansi'].includes(dokumen.jenis) && !dokumen.nomor) {
+    const berfungsiTandaTerima = dokumen.jenis === 'kwitansi' || dokumen.status === 'paid';
+    const butuhMaterai = berfungsiTandaTerima && Number(dokumen.nominal) > BATAS_MATERAI;
+    if (butuhMaterai) dokumen.nomor = await pastikanNomorDokumen(pool, dokumen);
+  }
+
+  // Backfill `judul` Kwitansi setoran pendaftaran Sahabat Baitullah
+  // (dikonfirmasi user 2026-10-22) — lihat pastikanJudulKwitansiSahabat.
+  if (isAdmin && dokumen.jenis === 'kwitansi' && !dokumen.booking_id && !dokumen.judul) {
+    dokumen.judul = await pastikanJudulKwitansiSahabat(pool, dokumen);
+  }
+
+  let payment = null;
+  if (dokumen.payment_id) {
+    const [[p]] = await pool.query('SELECT type FROM payments WHERE id = ?', [dokumen.payment_id]);
+    payment = p || null;
+  }
+
+  let booking = null;
+  if (dokumen.booking_id) {
+    const [[b]] = await pool.query(
+      `SELECT b.id, b.user_id, b.ordered_by, b.prog_name, b.paket, b.kamar, b.jumlah_jamaah, b.total_harga, b.dp_amount, b.jamaah_data,
+              b.opsi_tambahan_data, b.opsi_tambahan_total,
+              p.tanggal_berangkat, u.wa AS pemesan_wa
+       FROM bookings b LEFT JOIN programs p ON p.id = b.prog_id
+                        LEFT JOIN users u ON u.id = COALESCE(b.ordered_by, b.user_id)
+       WHERE b.id = ?`,
+      [dokumen.booking_id]
+    );
+
+    if (!isAdmin) {
+      const milikSendiri = b && (String(b.user_id) === String(auth.user.id) || String(b.ordered_by) === String(auth.user.id));
+      if (!milikSendiri || !dokumen.terkirim) return { status: 403 };
+    }
+
+    if (b) {
+      let jamaahNama = [];
+      let jamaahParsed = [];
+      try {
+        jamaahParsed = typeof b.jamaah_data === 'string' ? JSON.parse(b.jamaah_data || '[]') : b.jamaah_data;
+        if (!Array.isArray(jamaahParsed)) jamaahParsed = [];
+        jamaahNama = jamaahParsed.map(j => j.nama).filter(Boolean);
+      } catch { jamaahNama = []; jamaahParsed = []; }
+
+      const rpk = ringkasanPaketKamar({ ...b, jamaah_data: jamaahParsed });
+      if (rpk.campuran) { b.paket = 'Campuran'; b.kamar = 'Campuran'; }
+
+      const jamaahBreakdown = jamaahParsed
+        .filter(j => j?.status_jamaah !== 'dibatalkan')
+        .map(j => {
+          const r = resolveJamaahHarga({ ...b, jamaah_data: jamaahParsed }, j);
+          return { nama: j.nama || '-', paket: r.paket, kamar: r.kamar, hargaJual: r.hargaJual };
+        });
+
+      let jamaahBreakdownPembayaran = jamaahBreakdown;
+      if (['tanda_terima', 'kwitansi'].includes(dokumen.jenis)) {
+        if (dokumen.terkirim && dokumen.jamaah_breakdown_snapshot) {
+          let snap = dokumen.jamaah_breakdown_snapshot;
+          if (typeof snap === 'string') { try { snap = JSON.parse(snap); } catch { snap = null; } }
+          if (Array.isArray(snap)) jamaahBreakdownPembayaran = snap;
+        } else {
+          jamaahBreakdownPembayaran = await hitungJamaahBreakdownTtu(pool, dokumen);
+        }
+      }
+
+      let opsiTambahanNama = [];
+      try {
+        const parsedOpsi = typeof b.opsi_tambahan_data === 'string' ? JSON.parse(b.opsi_tambahan_data || '[]') : b.opsi_tambahan_data;
+        opsiTambahanNama = (Array.isArray(parsedOpsi) ? parsedOpsi : []).map(o => o.nama).filter(Boolean);
+      } catch { opsiTambahanNama = []; }
+
+      const [[bayarDp]] = await pool.query(
+        `SELECT created_at FROM payments WHERE booking_id = ? AND type = 'dp' AND status = 'confirmed'
+         ORDER BY created_at DESC LIMIT 1`,
+        [dokumen.booking_id]
+      );
+
+      let sisaPembayaran = null;
+      let sudahDibayar = null;
+      if (dokumen.jenis === 'invoice') {
+        const sisaSebelumInvoiceIni = await hitungSisaBayar(pool, dokumen.booking_id);
+        sisaPembayaran = Math.max(0, sisaSebelumInvoiceIni - Number(dokumen.nominal || 0));
+        sudahDibayar = Math.max(0, Number(b.total_harga || 0) - sisaSebelumInvoiceIni);
+      }
+
+      booking = {
+        ...b, jamaah_data: undefined, jamaah_nama: jamaahNama,
+        jamaah_breakdown: jamaahBreakdown, jamaah_breakdown_pembayaran: jamaahBreakdownPembayaran,
+        opsi_tambahan_data: undefined, opsi_tambahan_nama: opsiTambahanNama,
+        dp_dibayar_tanggal: bayarDp?.created_at || null,
+        sisa_pembayaran: sisaPembayaran,
+        sudah_dibayar: sudahDibayar,
+      };
+    }
+  } else if (!isAdmin) {
+    const milikSendiriTanpaBooking = dokumen.dibuat_oleh && String(dokumen.dibuat_oleh) === String(auth.user.id);
+    if (!milikSendiriTanpaBooking || !dokumen.terkirim) return { status: 403 };
+  }
+
+  return { status: 200, dokumen, booking, payment };
 }

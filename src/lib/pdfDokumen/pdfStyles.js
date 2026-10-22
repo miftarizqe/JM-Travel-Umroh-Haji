@@ -3,6 +3,12 @@
 // konsisten antar dokumen, gak diduplikasi 4x.
 import { View, Text, Image, StyleSheet } from '@react-pdf/renderer';
 import { UKURAN_DOKUMEN } from '@/lib/pasalMarkup';
+import { kopSuratHeaderAbsolutePath } from './simpanPdf';
+
+// Rasio asli pita kop surat (1654x270px, lihat kopSuratHeaderAbsolutePath)
+// — width dikunci ke lebar konten halaman (page width - padding kiri+kanan),
+// height dihitung proporsional biar gak gepeng/molor.
+const KOP_RATIO = 270 / 1654;
 
 // react-pdf pakai POIN (pt) sebagai satuan asli buat SEMUA angka (fontSize,
 // padding, margin, dst) — BUKAN piksel CSS kayak versi HTML (pasalMarkup.jsx
@@ -26,6 +32,9 @@ export const styles = StyleSheet.create({
   page: { fontFamily: 'Times-Roman', fontSize: UKURAN_PDF.normal, padding: px(40), lineHeight: 1.4 },
   kop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderBottomWidth: 2, borderBottomColor: '#1A4FA0', paddingBottom: px(10), marginTop: 0, marginBottom: px(16) },
   kopLogo: { height: px(46), objectFit: 'contain' },
+  // Lebar = lebar konten halaman (595.28pt A4 - 2x padding px(40)=30pt),
+  // height proporsional (lihat KOP_RATIO) biar gambar gak gepeng.
+  kopImg: { width: 595.28 - 2 * px(40), marginBottom: px(16) },
   // flex:1 WAJIB — tanpa ini kopInfo cuma selebar kontennya sendiri
   // (shrink-to-fit), jadi textAlign:'right' di Text anaknya gak ada efek
   // keliatan (gak ada "sisa lebar" buat digeser ke kanan). Dengan flex:1,
@@ -77,18 +86,15 @@ export const SPASI_SEBELUM_PASAL_PDF = px(19.2);
 // wajib dipasang eksplisit di TIAP <Text>, kalau enggak jatuhnya rata kiri
 // (dikonfirmasi bug nyata dari screenshot user 2026-09-10, padahal
 // kopInfo.textAlign udah 'right' dari awal).
-export function Kop({ pengaturan, logoPath }) {
-  return (
-    <View style={styles.kop}>
-      {logoPath ? <Image src={logoPath} style={styles.kopLogo} /> : <View />}
-      <View style={styles.kopInfo}>
-        <Text style={[styles.kopNama, { textAlign: 'right' }]}>{pengaturan?.nama_perusahaan || 'JM Travel'}</Text>
-        <Text style={{ textAlign: 'right' }}>{pengaturan?.alamat_kantor || ''}</Text>
-        <Text style={{ textAlign: 'right' }}>Phone: {pengaturan?.telepon_kantor || ''}</Text>
-        <Text style={{ textAlign: 'right' }}>Email: {pengaturan?.email_kantor || ''}</Text>
-      </View>
-    </View>
-  );
+// Kop surat RESMI (file asli dari user, 2026-10-22) — GANTI logo+teks yang
+// digambar manual (pola lama, params pengaturan/logoPath gak kepakai lagi
+// tapi DIBIARKAN di signature biar caller lama gak perlu diubah semua)
+// jadi 1 gambar utuh, branding PDF persis sama kayak file fisiknya.
+// Pasang di `<View fixed>` di tiap Page pemanggil (pola sama kayak
+// renderJamaah/renderSpkaIns) biar react-pdf otomatis ngulang ini di
+// SETIAP halaman kalau dokumennya >1 halaman.
+export function Kop() {
+  return <Image src={kopSuratHeaderAbsolutePath()} style={styles.kopImg} />;
 }
 
 export function Field({ label, value }) {

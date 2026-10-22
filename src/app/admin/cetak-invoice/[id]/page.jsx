@@ -32,7 +32,13 @@ export default function CetakInvoiceKwitansi() {
   // lokal (gak perlu disimpan ke server, cuma penanda visual) begitu
   // window.print() beneran dipanggil dari tombol manapun di halaman ini.
   const [sudahPrint, setSudahPrint] = useState(false);
-  function cetak() { setSudahPrint(true); window.print(); }
+  // PDF ASLI (react-pdf server-side, /api/admin/invoice-kwitansi/[id]/pdf)
+  // dibuka di tab baru -- BUKAN window.print() ke HTML lagi (dikonfirmasi
+  // user 2026-10-22, "kenapasih gakbisa kayak perjanjian yang gampang
+  // rapihnya" -- preview di bawah bisa beda sama hasil print browser karena
+  // CSS @page/padding gak selalu konsisten lintas browser; PDF asli gak
+  // punya masalah itu sama sekali, tab baru itu PERSIS yang bakal diprint).
+  function cetak() { setSudahPrint(true); window.open(`/api/admin/invoice-kwitansi/${id}/pdf`, '_blank'); }
 
   // Snapshot HTML BEKU (migration 227, dikonfirmasi user 2026-10-14:
   // "walaupun next time format/nama paket/siapa yg ttd diubah, yang udah
@@ -128,9 +134,9 @@ export default function CetakInvoiceKwitansi() {
       <div className="no-print" style={{ textAlign: 'center', marginBottom: 16 }}>
         <button onClick={cetak}
           style={{ background: '#1A4FA0', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
-          🖨️ Print / Save PDF
+          🖨️ Lihat PDF Asli / Print
         </button>
-        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor || 'Nomor diberikan otomatis'} · di dialog print pilih &quot;Save as PDF&quot;</div>
+        <div style={{ fontSize: 12, color: '#666', marginTop: 8 }}>{dokumen.nomor || 'Nomor diberikan otomatis'} · dibuka di tab baru, print/save langsung dari situ</div>
       </div>
 
       {/* TTD digital & e-materai belum bisa dipakai (dikonfirmasi user 2026-10-04) — tombol
