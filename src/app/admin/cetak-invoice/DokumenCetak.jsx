@@ -312,29 +312,24 @@ export default function DokumenCetak({ dokumen, booking, payment, pengaturan }) 
             yang di-center jadi jauh ke kanan dan cap (posisi fixed left:-30)
             gak pernah ketemu lagi. Jabatan panjang sekarang wrap 2 baris,
             itu wajar & tetap rapi karena tetap center. */}
-        <div style={{ textAlign: 'center', fontSize: 12, position: 'relative', width: 220 }}>
+        <div style={{ textAlign: 'center', fontSize: 12, width: 220 }}>
           {tgl(dokumen.tanggal)}
-          <div style={{ height: butuhMaterai ? 110 : 70, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-            {/* Lurus (gak dirotasi lagi) & digeser biar nimpa TTD
-                (dikonfirmasi user 2026-10-21) — sebelumnya rotate(-10deg) +
-                left:-75 bikin cap keliatan miring & kejauhan dari TTD, gak
-                ada kesan "resmi ditempel di atas tanda tangan" kayak
-                dokumen fisik beneran. */}
-            {!butuhMaterai && pengaturan.cap_perusahaan_path && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={pengaturan.cap_perusahaan_path} alt="Cap Perusahaan"
-                style={{ position: 'absolute', left: 20, top: '50%', transform: 'translateY(-50%)', width: 95, opacity: 0.85, zIndex: 1 }} />
-            )}
-            {butuhMaterai && (
+          {/* Cap & TTD digabung jadi 1 gambar (dikonfirmasi user 2026-10-22 --
+              sebelumnya 2 gambar terpisah di-overlap manual pakai offset px
+              yang gampang nyimpang antara preview HTML & PDF). Ukurannya
+              ngikut gambar aslinya (maxHeight/maxWidth doang, objectFit
+              contain) -- gak ada lagi perhitungan posisi yang perlu
+              "ditebak". */}
+          <div style={{ height: butuhMaterai ? 110 : 90, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {butuhMaterai ? (
               <div style={{ color: '#999', fontSize: 11, textAlign: 'center', lineHeight: 1.4 }}>
                 Materai<br />Rp10.000
               </div>
-            )}
-            {!butuhMaterai && pengaturan.ttd_penandatangan_keuangan_path && (
+            ) : pengaturan.ttd_penandatangan_keuangan_path ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={pengaturan.ttd_penandatangan_keuangan_path} alt="Tanda Tangan"
-                style={{ position: 'absolute', height: 65, objectFit: 'contain' }} />
-            )}
+              <img src={pengaturan.ttd_penandatangan_keuangan_path} alt="Cap & Tanda Tangan"
+                style={{ maxHeight: 90, maxWidth: 200, objectFit: 'contain' }} />
+            ) : null}
           </div>
           <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{pengaturan.nama_penandatangan_keuangan || '-'}</div>
           <div style={{ color: '#666' }}>{pengaturan.jabatan_penandatangan_keuangan || '-'}</div>
