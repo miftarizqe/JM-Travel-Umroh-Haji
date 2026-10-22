@@ -23,7 +23,7 @@ export async function POST(request, { params }) {
       return Response.json({ error: 'Bukti transfer Rp1.000.000 belum diunggah jamaah ini.' }, { status: 400 });
     }
 
-    const hasil = await generateKwitansiSetoranPendaftaranSahabat(pool, user_id, auth.user.id);
+    const hasil = await generateKwitansiSetoranPendaftaranSahabat(pool, user_id);
     if (!hasil) return Response.json({ error: 'Gagal membuat kwitansi' }, { status: 500 });
     return Response.json({ message: 'Kwitansi berhasil dibuat.', id: hasil.id });
   } catch (error) {

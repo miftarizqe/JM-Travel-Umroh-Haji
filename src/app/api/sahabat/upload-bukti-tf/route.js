@@ -131,7 +131,7 @@ export async function POST(request) {
       // transaksi ini, bukan DP yang masih nyisain pelunasan). Best-effort,
       // gagal generate JANGAN sampai gagalin upload bukti TF-nya sendiri.
       try {
-        await generateKwitansiSetoranPendaftaranSahabat(pool, auth.user.id, auth.user.id);
+        await generateKwitansiSetoranPendaftaranSahabat(pool, auth.user.id);
       } catch (e) {
         console.error('Gagal generate kwitansi setoran pendaftaran sahabat:', e);
       }

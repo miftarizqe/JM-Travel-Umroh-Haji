@@ -295,7 +295,7 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
 // booking/payment row sama sekali, jadi booking_id & payment_id-nya NULL.
 // Idempoten lewat sahabat_pendaftaran.kwitansi_setoran_pendaftaran_id
 // (migration 246) — dipanggil ulang pas GANTI bukti TF gak bikin dobel.
-export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId, actorUserId) {
+export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId) {
   const [[pendaftaran]] = await pool.query(
     'SELECT kwitansi_setoran_pendaftaran_id, program_id FROM sahabat_pendaftaran WHERE user_id = ?',
     [userId]
@@ -324,10 +324,17 @@ export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId, ac
     }
   }
 
+  // `dibuat_oleh` DIPAKSA selalu si jamaah sendiri (BUKAN admin yang
+  // mungkin mencet tombol Generate manual) -- kolom ini dipakai GANDA
+  // sebagai "siapa pemilik dokumen ini" buat akses self-view (lihat GET
+  // /api/admin/invoice-kwitansi/[id]) & penerima notifikasi (lihat POST
+  // .../setuju). Sebelumnya kalau admin yang generate (jalur backfill
+  // manual), dibuat_oleh kebawa jadi id admin -- jamaah jadi 403 pas buka
+  // link-nya sendiri & notifnya nyasar ke admin (ditemukan user 2026-10-22).
   const [result] = await pool.query(
     `INSERT INTO invoice_kwitansi (nomor, jenis, booking_id, payment_id, nama, nominal, keterangan, judul, tanggal, is_manual, dibuat_oleh, status)
      VALUES (NULL, 'kwitansi', NULL, NULL, ?, 1000000, ?, ?, ?, 0, ?, 'paid')`,
-    [user.name, 'Setoran pendaftaran Sahabat Baitullah', judul, fmtTgl(new Date()), actorUserId || userId]
+    [user.name, 'Setoran pendaftaran Sahabat Baitullah', judul, fmtTgl(new Date()), userId]
   );
   await pool.query('UPDATE sahabat_pendaftaran SET kwitansi_setoran_pendaftaran_id = ? WHERE user_id = ?', [result.insertId, userId]);
   return { id: result.insertId, nomor: null, isNew: true };
