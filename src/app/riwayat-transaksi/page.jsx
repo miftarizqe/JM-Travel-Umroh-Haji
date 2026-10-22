@@ -52,7 +52,7 @@ export default function RiwayatTransaksiPage() {
       ) : (
         <div className="space-y-2">
           {dokumen.map(d => (
-            <a key={d.id} href={`/admin/cetak-invoice/${d.id}`} target="_blank" rel="noopener noreferrer"
+            <a key={d.id} href={d.link_url || `/admin/cetak-invoice/${d.id}`} target="_blank" rel="noopener noreferrer"
               className="block bg-white rounded-xl border border-gray-200 p-3 hover:border-[#1A4FA0] transition-colors">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">

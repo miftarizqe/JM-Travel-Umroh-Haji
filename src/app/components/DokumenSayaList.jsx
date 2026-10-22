@@ -29,6 +29,23 @@ export default function DokumenSayaList({ bookingId, booking, onUpdated }) {
   const [bukaPendukung, setBukaPendukung] = useState(false);
   // Keyed `${idx}-${key}` -> 'uploading' | error string | undefined.
   const [gantiState, setGantiState] = useState({});
+  // "Minta Invoice" — SEKEDAR reminder/ping ke admin (dikonfirmasi user
+  // 2026-10-22), BUKAN auto-generate. Admin udah bisa kapan pun generate+
+  // kirim Invoice manual lewat /admin/invoice-kwitansi, cuma gak ada jalur
+  // jamaah ngingetin "tolong kirim Invoice-nya" dari sisi mereka sendiri.
+  // State lokal doang (gak dicek ke server) buat nyegah dobel-klik beruntun
+  // dalam 1 sesi — reset kalau halaman di-reload, itu disengaja (bukan
+  // permintaan sekali-seumur-hidup).
+  const [mintaInvoiceStatus, setMintaInvoiceStatus] = useState(null);
+
+  async function mintaInvoice() {
+    setMintaInvoiceStatus('mengirim');
+    try {
+      const res = await fetch(`/api/bookings/${bookingId}/minta-invoice`, { method: 'POST' });
+      if (!res.ok) { setMintaInvoiceStatus(null); alert('Gagal mengirim permintaan, coba lagi.'); return; }
+      setMintaInvoiceStatus('terkirim');
+    } catch { setMintaInvoiceStatus(null); alert('Terjadi kesalahan.'); }
+  }
 
   useEffect(() => {
     if (!bookingId) return;
@@ -189,6 +206,21 @@ export default function DokumenSayaList({ bookingId, booking, onUpdated }) {
               ) : null}
             </div>
           ))}
+        </div>
+      )}
+      {/* "Minta Invoice" — sekedar reminder/ping ke admin, BUKAN auto-
+          generate (dikonfirmasi user 2026-10-22). Booking yang udah
+          dibatalkan gak relevan diminta Invoice-nya lagi. */}
+      {bookingId && booking?.status !== 'dibatalkan' && (
+        <div className="mt-2 pt-2 border-t border-gray-200 text-center">
+          {mintaInvoiceStatus === 'terkirim' ? (
+            <span className="text-[11px] text-green-600 font-semibold">✅ Permintaan terkirim, admin akan segera mengirimkan Invoice.</span>
+          ) : (
+            <button onClick={mintaInvoice} disabled={mintaInvoiceStatus === 'mengirim'}
+              className="text-[11px] font-bold text-[#1A4FA0] hover:underline disabled:opacity-50 disabled:no-underline">
+              {mintaInvoiceStatus === 'mengirim' ? 'Mengirim permintaan…' : '📨 Minta Invoice Dikirimkan'}
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -88,6 +88,23 @@ export default function CetakInvoiceKwitansi() {
 
   const isAdmin = ['admin', 'super_admin'].includes(user?.role);
 
+  // Jamaah yang buka dokumen >Rp5jt (wajib materai, terkirim_metode==='fisik')
+  // LANGSUNG diarahkan ke file scan (bukti TTD+materai fisik ASLI), SKIP
+  // tampilan render "kosongan" sama sekali (placeholder teks "Materai
+  // Rp10.000" doang, lihat DokumenCetak.jsx) — dikonfirmasi user 2026-10-22,
+  // "jangan dikasih tau yang kosongan, langsung aja yang scannan only".
+  // Dipasang di level halaman (bukan cuma ganti link di Riwayat Transaksi)
+  // biar BERLAKU dari link manapun jamaah masuk ke sini (notifikasi,
+  // Riwayat Transaksi, dsb) — 1 titik gerbang, bukan ditempel ulang di tiap
+  // pemanggil. Admin TETAP lihat halaman render ini (butuh buat cek ulang/
+  // kirim ulang WA, lihat tombol "Lihat Scan"/"Kirim Ulang Scan via WA").
+  useEffect(() => {
+    if (loading || isAdmin || !dokumen) return;
+    if (dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path) {
+      window.location.replace(dokumen.scan_fisik_path);
+    }
+  }, [loading, isAdmin, dokumen]);
+
   // Setuju tanpa TTD digital -- endpoint-nya di Next.js sendiri sekarang
   // (/api/admin/invoice-kwitansi/[id]/setuju, dipindah dari Go 2026-10-13
   // biar gating materai Rp5jt bisa ditegakkan server-side tanpa sentuh repo
@@ -116,6 +133,21 @@ export default function CetakInvoiceKwitansi() {
     finally { setMenyetujui(false); }
   }
 
+  // Batalkan Invoice yang BELUM dikirim (dikonfirmasi user 2026-10-22,
+  // "invoice tuh bisa di cancel gak sih kalo belum dikirim") -- cuma
+  // jenis='invoice' (server juga nggerbang ini, lihat DELETE route).
+  const [membatalkan, setMembatalkan] = useState(false);
+  async function batalkanInvoice() {
+    if (!confirm(`Batalkan Invoice ${dokumen.nomor || '(belum dikirim)'} — ${dokumen.nama}, ${rp(dokumen.nominal)}? Gak bisa dikembalikan lagi.`)) return;
+    setMembatalkan(true);
+    try {
+      const res = await fetch(`/api/admin/invoice-kwitansi/${dokumen.id}`, { method: 'DELETE' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(d.error || 'Gagal membatalkan Invoice'); setMembatalkan(false); return; }
+      router.push('/admin/invoice-kwitansi');
+    } catch { alert('Terjadi kesalahan'); setMembatalkan(false); }
+  }
+
   if (loading) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Memuat data...</div>;
 
   if (ditolak) return (
@@ -127,6 +159,10 @@ export default function CetakInvoiceKwitansi() {
   );
 
   if (!dokumen) return <div style={{ padding: 40, fontFamily: 'Arial' }}>Dokumen tidak ditemukan.</div>;
+
+  if (!isAdmin && dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path) {
+    return <div style={{ padding: 40, fontFamily: 'Arial', textAlign: 'center' }}>Membuka dokumen...</div>;
+  }
 
   // berfungsiTandaTerima/butuhMaterai dihitung ULANG di sini (SAMA PERSIS
   // formula di DokumenCetak.jsx & POST .../setuju) -- dipakai buat gating UI
@@ -164,9 +200,14 @@ export default function CetakInvoiceKwitansi() {
           </div>
           {isAdmin && dokumen.terkirim_metode === 'fisik' && dokumen.scan_fisik_path && (
             <div style={{ marginTop: 8, display: 'flex', gap: 8, justifyContent: 'center' }}>
-              {/* Link langsung buka file scan -- SEBELUMNYA gak ada sama sekali,
-                  admin cuma bisa "lihat" scan secara gak langsung lewat tombol
-                  WA di bawah (ditemukan via pertanyaan user 2026-10-14). */}
+              {/* ADMIN-ONLY lagi (dikonfirmasi user 2026-10-22) — jamaah
+                  sekarang gak pernah sampai ke bagian render ini sama sekali
+                  buat dokumen fisik, langsung di-redirect ke scan_fisik_path
+                  duluan (lihat useEffect redirect + early return di atas),
+                  "jangan dikasih tau yang kosongan, langsung aja yang
+                  scannan only" — bukan ditampilin tombol "Lihat Scan" di
+                  tengah halaman placeholder lagi kayak sebelumnya. Tombol
+                  ini sekarang murni alat admin buat cek ulang/kirim ulang WA. */}
               <a href={dokumen.scan_fisik_path} target="_blank" rel="noopener noreferrer"
                 style={{ background: '#1A4FA0', color: '#fff', padding: '8px 16px', borderRadius: 20, fontWeight: 700, fontSize: 12, textDecoration: 'none' }}>
                 👁️ Lihat Scan
@@ -226,7 +267,7 @@ export default function CetakInvoiceKwitansi() {
               </div>
               <UploadScanDokumen label="Scan fisik (materai + TTD)" uploadUrl={`/api/admin/invoice-kwitansi/${dokumen.id}/scan-fisik`}
                 userId={dokumen.id} path={dokumen.scan_fisik_path} uploadedAt={dokumen.scan_fisik_uploaded_at}
-                onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path }))} />
+                onUploaded={(path) => setDokumen(d => ({ ...d, scan_fisik_path: path, scan_fisik_uploaded_at: new Date().toISOString() }))} />
             </>
           ) : (
             <div style={{ fontSize: 11, color: '#666', marginBottom: 10 }}>Nominal &lt; Rp5.000.000, gak perlu materai — tinggal kirim.</div>
@@ -248,10 +289,16 @@ export default function CetakInvoiceKwitansi() {
         // gak perlu info soal batas Rp5jt lagi (itu cuma relevan buat
         // dokumen yang BENERAN jadi bukti penerimaan uang).
         <div className="no-print" style={{ textAlign: 'center', marginBottom: 12 }}>
-          <button onClick={setujui} disabled={menyetujui || pengaturanLoading}
-            style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading) ? 0.6 : 1 }}>
-            {menyetujui ? 'Memproses...' : pengaturanLoading ? 'Memuat cap/TTD...' : '✅ Setuju'}
-          </button>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button onClick={setujui} disabled={menyetujui || pengaturanLoading || membatalkan}
+              style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || pengaturanLoading || membatalkan) ? 0.6 : 1 }}>
+              {menyetujui ? 'Memproses...' : pengaturanLoading ? 'Memuat cap/TTD...' : '✅ Setuju'}
+            </button>
+            <button onClick={batalkanInvoice} disabled={menyetujui || membatalkan}
+              style={{ background: '#fff', color: '#dc2626', border: '1px solid #dc2626', padding: '10px 24px', borderRadius: 20, fontWeight: 700, cursor: 'pointer', fontSize: 13, opacity: (menyetujui || membatalkan) ? 0.6 : 1 }}>
+              {membatalkan ? 'Membatalkan...' : '✕ Batalkan Invoice'}
+            </button>
+          </div>
         </div>
       )}
 

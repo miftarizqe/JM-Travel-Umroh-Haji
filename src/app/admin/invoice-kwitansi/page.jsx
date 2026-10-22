@@ -322,6 +322,20 @@ function InvoiceKwitansiPageInner() {
     setBuktiLunasNama(null);
   }
 
+  // Batalkan Invoice yang BELUM dikirim — dikonfirmasi user 2026-10-22,
+  // "invoice tuh bisa di cancel gak sih kalo belum dikirim". Cuma jenis
+  // 'invoice' (server juga nggerbang ini, lihat DELETE route) — Kwitansi/TTU
+  // lahir otomatis dari status pembayaran, beda siklus hidup.
+  async function batalkanInvoice(d) {
+    if (!confirm(`Batalkan Invoice ${d.nomor || '(belum dikirim)'} — ${d.nama}, ${rp(d.nominal)}? Gak bisa dikembalikan lagi.`)) return;
+    try {
+      const res = await fetch(`/api/admin/invoice-kwitansi/${d.id}`, { method: 'DELETE' });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(j.error || 'Gagal membatalkan Invoice'); return; }
+      muat(q);
+    } catch { alert('Terjadi kesalahan'); }
+  }
+
   async function konfirmasiTandaiPaid() {
     if (!modalTandaiPaid || !buktiLunasPath) return;
     setSubmittingBuktiLunas(true);
@@ -613,6 +627,15 @@ function InvoiceKwitansiPageInner() {
                     <div className="flex gap-2 flex-wrap">
                       <button onClick={() => window.open(`/admin/cetak-invoice/${d.id}`, '_blank')}
                         className="text-[#1A4FA0] font-bold hover:underline text-xs">🖨️ Cetak</button>
+                      {/* "Batalkan" cuma buat Invoice yang BELUM dikirim
+                          (dikonfirmasi user 2026-10-22) -- Kwitansi/TTU
+                          lahir otomatis dari status pembayaran, gak relevan
+                          dibatalkan manual dari sini (server juga nggerbang
+                          jenis+terkirim, lihat DELETE route). */}
+                      {d.jenis === 'invoice' && !d.terkirim && (
+                        <button onClick={() => batalkanInvoice(d)}
+                          className="text-red-600 font-bold hover:underline text-xs">✕ Batalkan</button>
+                      )}
                       {/* Link langsung ke scan materai+TTD -- SEBELUMNYA list ini
                           sama sekali gak nunjukin ada scan apa enggak, admin harus
                           buka halaman detail dulu (ditemukan via pertanyaan user

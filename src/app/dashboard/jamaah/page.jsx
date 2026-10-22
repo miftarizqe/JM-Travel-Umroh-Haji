@@ -70,28 +70,34 @@ export default function DashboardJamaah() {
   // dashboard) — jamaah tetap perlu lihat booking yang pengajuan batalnya
   // sedang ditinjau admin.
   const active = bookings.filter(b => b.status === 'active' || b.status === 'menunggu_batal');
-  // Booking aktif dikelompokin per 1x checkout (checkout_batch_id, lihat
-  // GET /api/bookings) -- urutan grup ikut urutan booking pertamanya,
-  // booking tanpa batch tetap grup sendiri (1 kartu).
-  const grupAktif = [];
-  {
+  // Booking dikelompokin per 1x checkout (checkout_batch_id, lihat GET
+  // /api/bookings) -- urutan grup ikut urutan booking pertamanya, booking
+  // tanpa batch tetap grup sendiri (1 kartu). Dipakai buat Aktif MAUPUN
+  // Riwayat (dikonfirmasi user 2026-10-22) -- sebelumnya cuma Aktif yang
+  // dikelompokin, begitu status booking pindah ke selesai/dibatalkan,
+  // kartu yang tadinya 1 grup pecah lagi jadi N kartu terpisah di Riwayat.
+  function kelompokkanPerBatch(list) {
+    const grup2 = [];
     const perBatch = new Map();
-    for (const b of active) {
+    for (const b of list) {
       const key = b.checkout_batch_id;
       if (key && perBatch.has(key)) { perBatch.get(key).push(b); continue; }
       const grup = [b];
       if (key) perBatch.set(key, grup);
-      grupAktif.push(grup);
+      grup2.push(grup);
     }
     // Di dalam grup diurut sesuai urutan kartu pas checkout. created_at
     // booking/payment 1 batch sama persis detiknya & id booking random --
     // id payment = UUID() MySQL (v1, segmen depan = timestamp naik), jadi
     // dibandingin string-nya buat payment yang di-insert beruntun dalam
     // hitungan milidetik 1 transaksi.
-    for (const grup of grupAktif) grup.sort((x, y) => String(x.dp_payments[0]?.id || '').localeCompare(String(y.dp_payments[0]?.id || '')));
+    for (const grup of grup2) grup.sort((x, y) => String(x.dp_payments[0]?.id || '').localeCompare(String(y.dp_payments[0]?.id || '')));
+    return grup2;
   }
+  const grupAktif = kelompokkanPerBatch(active);
   // Booking dibatalkan tetap masuk histori, bukan hilang begitu saja.
   const done = bookings.filter(b => b.status === 'selesai' || b.status === 'dibatalkan');
+  const grupDone = kelompokkanPerBatch(done);
 
   function pembatalanJamaahPending(bookingId) {
     return pembatalanMenunggu.find(p => p.booking_id === bookingId && p.jamaah_idx != null) || null;
@@ -571,6 +577,53 @@ export default function DashboardJamaah() {
     );
   };
 
+  // Kartu Riwayat (booking selesai/dibatalkan) -- diekstrak dari dalam
+  // .map() biar bisa dipakai juga di dalam card parent 1x checkout
+  // (grupDone, dikonfirmasi user 2026-10-22).
+  const kartuRiwayat = (b) => {
+    const dibatalkan = b.status === 'dibatalkan';
+    return (
+      <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
+        <div onClick={() => setExpandRiwayat(expandRiwayat === b.id ? null : b.id)}
+          className={`p-4 text-white flex justify-between items-start cursor-pointer ${
+          dibatalkan ? 'bg-gradient-to-r from-gray-500 to-gray-600' : 'bg-gradient-to-r from-[#C9952A] to-[#f59e0b]'
+        }`}>
+          <div>
+            <div className="font-bold">{b.prog_name}</div>
+            {namaJamaahUtama(b) && (
+              <div className="text-sm font-semibold mt-0.5">📛 {namaJamaahUtama(b)}</div>
+            )}
+            <div className="text-xs opacity-80 mt-0.5 font-mono font-bold">{b.id}</div>
+            <div className="text-xs opacity-80">{b.paket} · {b.jumlah_jamaah} jamaah</div>
+          </div>
+          <span className="bg-white/20 text-white text-xs font-bold px-2 py-1 rounded-full">
+            {dibatalkan ? '❌ Dibatalkan' : '✅ Selesai'}
+          </span>
+        </div>
+        <div className="p-4">
+          <div className="flex justify-between items-center text-sm">
+            <span className="text-gray-500">Total Harga</span>
+            <span className="font-bold text-[#0E2F6E]">Rp {b.total_harga?.toLocaleString('id-ID')}</span>
+          </div>
+          {dibatalkan && b.refund && (
+            <div className="flex justify-between items-center text-sm mt-1.5">
+              <span className="text-gray-500">💰 Refund</span>
+              <span className="font-bold text-[#0E2F6E]">
+                Rp {Number(b.refund.nominal || 0).toLocaleString('id-ID')} ({b.refund.persen}%)
+                {b.refund.bukti_path ? (
+                  <a href={b.refund.bukti_path} target="_blank" rel="noopener noreferrer" className="ml-2 text-[#1A4FA0] underline font-normal">Lihat Bukti</a>
+                ) : (
+                  <span className="ml-2 text-yellow-600 font-normal">— diproses</span>
+                )}
+              </span>
+            </div>
+          )}
+          {expandRiwayat === b.id && <DokumenSayaList bookingId={b.id} booking={b} />}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Layout title={user.role !== 'jamaah' ? '📦 Booking Saya' : undefined} showBack={user.role !== 'jamaah'}>
       {/* Welcome Banner + Aksi Cepat itu konten BERANDA role jamaah — begitu
@@ -685,49 +738,20 @@ export default function DashboardJamaah() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {done.map(b => {
-                const dibatalkan = b.status === 'dibatalkan';
-                return (
-                <div key={b.id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
-                  <div onClick={() => setExpandRiwayat(expandRiwayat === b.id ? null : b.id)}
-                    className={`p-4 text-white flex justify-between items-start cursor-pointer ${
-                    dibatalkan ? 'bg-gradient-to-r from-gray-500 to-gray-600' : 'bg-gradient-to-r from-[#C9952A] to-[#f59e0b]'
-                  }`}>
-                    <div>
-                      <div className="font-bold">{b.prog_name}</div>
-                      {namaJamaahUtama(b) && (
-                        <div className="text-sm font-semibold mt-0.5">📛 {namaJamaahUtama(b)}</div>
-                      )}
-                      <div className="text-xs opacity-80 mt-0.5 font-mono font-bold">{b.id}</div>
-                      <div className="text-xs opacity-80">{b.paket} · {b.jumlah_jamaah} jamaah</div>
-                    </div>
-                    <span className="bg-white/20 text-white text-xs font-bold px-2 py-1 rounded-full">
-                      {dibatalkan ? '❌ Dibatalkan' : '✅ Selesai'}
-                    </span>
+              {grupDone.map(grup => grup.length === 1 ? kartuRiwayat(grup[0]) : (
+                // 1x checkout banyak jamaah -- dibungkus 1 card parent, span
+                // 2 kolom grid, pola sama kayak grupAktif (dikonfirmasi user
+                // 2026-10-22).
+                <div key={grup[0].checkout_batch_id} className="md:col-span-2 rounded-2xl border border-gray-200 bg-gray-50 p-3 sm:p-4 space-y-3">
+                  <div className="px-1">
+                    <div className="font-bold text-[#0E2F6E] truncate">🛒 {grup[0].prog_name}</div>
+                    <div className="text-[11px] text-gray-500">1x checkout · {grup.length} jamaah</div>
                   </div>
-                  <div className="p-4">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-500">Total Harga</span>
-                      <span className="font-bold text-[#0E2F6E]">Rp {b.total_harga?.toLocaleString('id-ID')}</span>
-                    </div>
-                    {dibatalkan && b.refund && (
-                      <div className="flex justify-between items-center text-sm mt-1.5">
-                        <span className="text-gray-500">💰 Refund</span>
-                        <span className="font-bold text-[#0E2F6E]">
-                          Rp {Number(b.refund.nominal || 0).toLocaleString('id-ID')} ({b.refund.persen}%)
-                          {b.refund.bukti_path ? (
-                            <a href={b.refund.bukti_path} target="_blank" rel="noopener noreferrer" className="ml-2 text-[#1A4FA0] underline font-normal">Lihat Bukti</a>
-                          ) : (
-                            <span className="ml-2 text-yellow-600 font-normal">— diproses</span>
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    {expandRiwayat === b.id && <DokumenSayaList bookingId={b.id} booking={b} />}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {grup.map(b => kartuRiwayat(b))}
                   </div>
                 </div>
-                );
-              })}
+              ))}
             </div>
           )}
         </CollapsibleSection>
