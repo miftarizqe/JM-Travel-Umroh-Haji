@@ -1,7 +1,7 @@
 import pool from '@/lib/db';
 import { wajibLogin } from '@/lib/auth';
 import { ringkasanPaketKamar, resolveJamaahHarga } from '@/lib/jamaahHarga';
-import { hitungJamaahBreakdownTtu, pastikanNomorDokumen } from '@/lib/invoiceKwitansi';
+import { hitungJamaahBreakdownTtu, pastikanNomorDokumen, pastikanJudulKwitansiSahabat } from '@/lib/invoiceKwitansi';
 import { hitungSisaBayar } from '@/lib/pelunasan';
 
 // Sama persis BATAS_MATERAI/butuhMaterai di halaman cetak
@@ -42,6 +42,17 @@ export async function GET(request, { params }) {
       if (butuhMaterai) {
         dokumen.nomor = await pastikanNomorDokumen(pool, dokumen);
       }
+    }
+
+    // Backfill `judul` Kwitansi setoran pendaftaran Sahabat Baitullah
+    // (dikonfirmasi user 2026-10-22, gap ditemukan: dokumen yang kadung
+    // dibuat SEBELUM kolom ini dipakai, atau pas program_id/tanggal_
+    // berangkat belum keisi, nampilin "Pembayaran Total Paket" selamanya
+    // tanpa ini). Cuma relevan buat Kwitansi bookingless -- yang nempel
+    // booking gak pernah lewat sini (label dari dokumen.judul juga, tapi
+    // dihitung beda sama sekali, bukan dari sahabat_pendaftaran).
+    if (isAdmin && dokumen.jenis === 'kwitansi' && !dokumen.booking_id && !dokumen.judul) {
+      dokumen.judul = await pastikanJudulKwitansiSahabat(pool, dokumen);
     }
 
     // Tanda Terima Uang nempel ke 1 payment spesifik — ambil tipe pembayaran

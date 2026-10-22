@@ -295,6 +295,41 @@ export async function generateTandaTerimaUntukPayment(pool, paymentId, actorUser
 // booking/payment row sama sekali, jadi booking_id & payment_id-nya NULL.
 // Idempoten lewat sahabat_pendaftaran.kwitansi_setoran_pendaftaran_id
 // (migration 246) — dipanggil ulang pas GANTI bukti TF gak bikin dobel.
+// Label baris item Kwitansi setoran pendaftaran Sahabat Baitullah
+// (dikonfirmasi user 2026-10-21) — DP buat target keberangkatan yang
+// dipilih pas wizard pendaftaran (bukan "Pembayaran Total Paket" generik,
+// itu kalimat buat kwitansi closing booking beneran lunas). Dipisah jadi
+// fungsi sendiri (sebelumnya inline di generateKwitansiSetoranPendaftaran
+// Sahabat) biar bisa dipakai ULANG buat backfill dokumen LAMA yang
+// program_id-nya belum keisi pas pertama kali digenerate (lihat
+// pastikanJudulKwitansiSahabat di bawah, dipanggil dari GET
+// /api/admin/invoice-kwitansi/[id] — ditemukan user 2026-10-22, dokumen
+// yang kadung dibuat SEBELUM kolom judul ini ada tetep nampilin label lama
+// selamanya kalau gak ada jalur backfill).
+async function hitungJudulDpSetoranPendaftaranSahabat(pool, programId) {
+  if (!programId) return null;
+  const [[prog]] = await pool.query('SELECT tanggal_berangkat FROM programs WHERE id = ?', [programId]);
+  if (!prog?.tanggal_berangkat) return null;
+  const bulanTahun = new Date(prog.tanggal_berangkat).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  return `DP Program Umroh Exclusive Sahabat Baitullah Keberangkatan ${bulanTahun}`;
+}
+
+// GET /api/admin/invoice-kwitansi/[id] manggil ini tiap admin buka halaman
+// cetak Kwitansi bookingless (mirror pola pastikanNomorDokumen) — kalau
+// `judul` masih NULL (dokumen lama, atau program_id/tanggal_berangkat
+// belum keisi pas pertama generate) TAPI sekarang udah bisa dihitung,
+// langsung dibakar ke DB biar gak keulang terus tiap dibuka. Idempotent &
+// aman dipanggil berkali-kali.
+export async function pastikanJudulKwitansiSahabat(pool, dokumen) {
+  if (dokumen.judul) return dokumen.judul;
+  const [[sp]] = await pool.query(
+    'SELECT program_id FROM sahabat_pendaftaran WHERE kwitansi_setoran_pendaftaran_id = ?', [dokumen.id]
+  );
+  const judul = await hitungJudulDpSetoranPendaftaranSahabat(pool, sp?.program_id);
+  if (judul) await pool.query('UPDATE invoice_kwitansi SET judul = ? WHERE id = ?', [judul, dokumen.id]);
+  return judul;
+}
+
 export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId) {
   const [[pendaftaran]] = await pool.query(
     'SELECT kwitansi_setoran_pendaftaran_id, program_id FROM sahabat_pendaftaran WHERE user_id = ?',
@@ -309,20 +344,10 @@ export async function generateKwitansiSetoranPendaftaranSahabat(pool, userId) {
   const [[user]] = await pool.query('SELECT name FROM users WHERE id = ?', [userId]);
   if (!user) return null;
 
-  // Label baris item (dikonfirmasi user 2026-10-21) — DP buat target
-  // keberangkatan yang dipilih pas wizard pendaftaran (bukan "Pembayaran
-  // Total Paket" generik, itu kalimat buat kwitansi closing booking beneran
-  // lunas). Reuse kolom `judul` yang sebelumnya cuma dipakai Invoice (lihat
+  // Reuse kolom `judul` yang sebelumnya cuma dipakai Invoice (lihat
   // migrations/111) -- DokumenCetak fallback ke LABEL_BARIS.kwitansi kalau
   // kolom ini NULL (mis. program_id belum keisi), jadi aman.
-  let judul = null;
-  if (pendaftaran.program_id) {
-    const [[prog]] = await pool.query('SELECT tanggal_berangkat FROM programs WHERE id = ?', [pendaftaran.program_id]);
-    if (prog?.tanggal_berangkat) {
-      const bulanTahun = new Date(prog.tanggal_berangkat).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-      judul = `DP Program Umroh Exclusive Sahabat Baitullah Keberangkatan ${bulanTahun}`;
-    }
-  }
+  const judul = await hitungJudulDpSetoranPendaftaranSahabat(pool, pendaftaran.program_id);
 
   // `dibuat_oleh` DIPAKSA selalu si jamaah sendiri (BUKAN admin yang
   // mungkin mencet tombol Generate manual) -- kolom ini dipakai GANDA
