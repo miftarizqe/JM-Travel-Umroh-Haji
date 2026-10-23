@@ -81,6 +81,30 @@ export default function AdminSkemaPembayaranPage() {
         ]}
         kolomTampil={{ judul: 'nama', sub: 'deskripsi' }}
       />
+
+      <DaftarEditor
+        judul="💬 Testimoni Jamaah"
+        deskripsiHalaman="Testimoni asli jamaah (nama + kutipan + foto opsional) — tampil di landing page sebelum section Kemitraan, jadi bukti sosial sebelum mengajak orang jadi mitra."
+        adminApiUrl="/api/admin/testimoni-jamaah"
+        imageUploadUrl="/api/admin/testimoni-jamaah/upload-gambar"
+        fields={[
+          { key: 'nama', label: 'Nama Jamaah', placeholder: 'Mis. Budi Santoso', wajib: true },
+          { key: 'asal_program', label: 'Asal/Program (opsional)', placeholder: 'Mis. Umroh Reguler 9 Hari, Jakarta' },
+          { key: 'kutipan', label: 'Kutipan Testimoni', placeholder: 'Tulis ulang kata-kata jamaah...', wajib: true, textarea: true },
+        ]}
+        kolomTampil={{ judul: 'nama', sub: 'kutipan' }}
+      />
+
+      <DaftarEditor
+        judul="❓ FAQ"
+        deskripsiHalaman="Pertanyaan yang sering ditanyakan jamaah — tampil sebagai accordion di landing page sebelum section Kontak."
+        adminApiUrl="/api/admin/faq"
+        fields={[
+          { key: 'pertanyaan', label: 'Pertanyaan', placeholder: 'Mis. Berapa lama proses pendaftaran?', wajib: true },
+          { key: 'jawaban', label: 'Jawaban', placeholder: 'Jawaban lengkapnya...', wajib: true, textarea: true },
+        ]}
+        kolomTampil={{ judul: 'pertanyaan', sub: 'jawaban' }}
+      />
     </Layout>
   );
 }
