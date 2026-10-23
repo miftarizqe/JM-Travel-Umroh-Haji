@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { PESAN_PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 
 /**
@@ -43,4 +44,21 @@ const PESAN_ERROR_GOOGLE = {
 export function pesanErrorGoogle(kode) {
   if (!kode) return '';
   return PESAN_ERROR_GOOGLE[kode] || PESAN_ERROR_GOOGLE.gagal;
+}
+
+/**
+ * Pesan ?google_error=<kode> buat login/register — dibaca SEKALI saat halaman kebuka, lalu
+ * param-nya langsung dibuang dari URL (history.replaceState, tanpa reload) biar pas di-refresh
+ * pesannya gak nongol terus. Disimpan di state karena useSearchParams ikut berubah setelah
+ * replaceState.
+ */
+export function useErrorGoogle(searchParams) {
+  const [pesan] = useState(() => pesanErrorGoogle(searchParams.get('google_error')));
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has('google_error')) return;
+    url.searchParams.delete('google_error');
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+  return pesan;
 }

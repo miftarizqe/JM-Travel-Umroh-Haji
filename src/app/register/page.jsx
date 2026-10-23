@@ -7,7 +7,7 @@ import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
 import { tangkapRefPerwakilan, ambilRefPerwakilan, ambilRefAgenId } from '@/lib/referralCapture';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
-import TombolGoogle, { pesanErrorGoogle } from '@/app/components/TombolGoogle';
+import TombolGoogle, { useErrorGoogle } from '@/app/components/TombolGoogle';
 
 export default function RegisterPage() {
   return (
@@ -151,7 +151,7 @@ function RegisterPageInner() {
   // server, /api/auth/register juga nolak tanpa Google). Password tetap wajib
   // (dipakai konfirmasi bayar dari saldo).
   const [googleDaftar, setGoogleDaftar] = useState(null);
-  const errorGoogle = pesanErrorGoogle(searchParams.get('google_error'));
+  const errorGoogle = useErrorGoogle(searchParams);
   const pakaiGoogle = searchParams.get('google') === '1';
   const [memuatGoogle, setMemuatGoogle] = useState(pakaiGoogle);
   const [googleKedaluwarsa, setGoogleKedaluwarsa] = useState(false);
