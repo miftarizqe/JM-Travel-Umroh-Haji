@@ -7,6 +7,7 @@ import PasswordInput from '@/app/components/PasswordInput';
 import StatusPendaftaranModal from '@/app/components/StatusPendaftaranModal';
 import BankInput from '@/app/components/BankInput';
 import { bersihkanDataLokalAkun } from '@/lib/dataLokal';
+import { hanyaAngka, bersihkanPaspor, WA_MAKS } from '@/lib/dataJamaah';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -395,7 +396,7 @@ export default function ProfilPage() {
               <div>
                 <label className={lbl}>Email</label>
                 {isAdminSelf ? (
-                  <input value={form.email} onChange={e => setForm({...form, email: e.target.value})} className={inp}/>
+                  <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value.trim()})} className={inp}/>
                 ) : (
                   <div className={`${inp} bg-gray-50 text-gray-400`}>{form.email || '-'}</div>
                 )}
@@ -403,7 +404,7 @@ export default function ProfilPage() {
               <div>
                 <label className={lbl}>No. WhatsApp *</label>
                 {isAdminSelf ? (
-                  <input value={form.wa} onChange={e => setForm({...form, wa: e.target.value})} className={inp}/>
+                  <input value={form.wa} onChange={e => setForm({...form, wa: hanyaAngka(e.target.value)})} inputMode="numeric" maxLength={WA_MAKS} className={inp}/>
                 ) : (
                   <div className={`${inp} bg-gray-50 text-gray-400`}>{form.wa || '-'}</div>
                 )}
@@ -505,7 +506,7 @@ export default function ProfilPage() {
                       </div>
                       <div>
                         <label className={lbl}>No. Rekening</label>
-                        <input value={formRekening.no_rekening} onChange={e => setFormRekening({...formRekening, no_rekening: e.target.value})} className={inp}/>
+                        <input value={formRekening.no_rekening} onChange={e => setFormRekening({...formRekening, no_rekening: hanyaAngka(e.target.value, 20)})} inputMode="numeric" maxLength={20} className={inp}/>
                       </div>
                       <div>
                         <label className={lbl}>Nama Pemilik Rekening</label>
@@ -521,13 +522,13 @@ export default function ProfilPage() {
               )}
               <div>
                 <label className={lbl}>No. Paspor <span className="text-gray-400 font-normal">(opsional, boleh menyusul)</span></label>
-                <input value={formRekening.no_paspor} onChange={e => setFormRekening({...formRekening, no_paspor: e.target.value})} className={inp}/>
+                <input value={formRekening.no_paspor} onChange={e => setFormRekening({...formRekening, no_paspor: bersihkanPaspor(e.target.value)})} maxLength={9} placeholder="Contoh: C1234567" className={inp}/>
               </div>
               {isAdminSelf && user.role === 'sahabat_baitullah' && user.no_rekening_tabungan_umroh && (
                 <>
                   <div>
                     <label className={lbl}>No. Rekening {labelTabungan}</label>
-                    <input value={formRekening.no_rekening_tabungan_umroh} onChange={e => setFormRekening({...formRekening, no_rekening_tabungan_umroh: e.target.value})} className={inp}/>
+                    <input value={formRekening.no_rekening_tabungan_umroh} onChange={e => setFormRekening({...formRekening, no_rekening_tabungan_umroh: hanyaAngka(e.target.value, 20)})} inputMode="numeric" maxLength={20} className={inp}/>
                   </div>
                   <div>
                     <label className={lbl}>Nama Pemilik Rekening ({labelTabungan})</label>

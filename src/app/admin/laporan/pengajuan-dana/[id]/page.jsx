@@ -3,6 +3,7 @@ import { useEffect, useState, use as usePromise } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -248,7 +249,7 @@ export default function PengajuanDanaDetailPage({ params }) {
                       <option value="">— Kategori —</option>
                       {kategoriList.map(k => <option key={k.id} value={k.id}>{k.nama}</option>)}
                     </select>
-                    <input type="number" value={it.nominal} onChange={e => ubahItem(i, { nominal: e.target.value })}
+                    <InputNominal value={it.nominal} onChange={e => ubahItem(i, { nominal: e.target.value })}
                       placeholder="Nominal" className={`${inpSm} w-32`} />
                     <button onClick={() => hapusItem(i)} className="text-red-500 text-xs font-bold hover:underline shrink-0">Hapus</button>
                   </>

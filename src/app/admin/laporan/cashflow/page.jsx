@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 const rp = (n) => `Rp ${Number(n || 0).toLocaleString('id-ID')}`;
 const tgl = (t) => t ? new Date(t).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
@@ -44,11 +46,11 @@ function FormAkun({ value, onChange, onSimpan, onBatal }) {
       </div>
       <div>
         <label className={lbl}>Urutan Kolom</label>
-        <input type="number" value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
+        <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
       </div>
       <div>
         <label className={lbl}>Saldo Awal{value.id ? ' (akun lama)' : ''}</label>
-        <input type="number" value={value.saldo_awal ?? 0} onChange={e => onChange({ ...value, saldo_awal: e.target.value })} className={inp} />
+        <InputNominal bolehMinus value={value.saldo_awal ?? 0} onChange={e => onChange({ ...value, saldo_awal: e.target.value })} className={inp} />
       </div>
       <button onClick={onSimpan} className="bg-[#1A4FA0] hover:bg-[#0E2F6E] text-white text-sm font-bold px-5 py-2.5 rounded-xl">💾 Simpan</button>
       <button onClick={onBatal} className="bg-gray-100 hover:bg-gray-200 text-gray-600 text-sm font-bold px-5 py-2.5 rounded-xl">Batal</button>
@@ -78,7 +80,7 @@ function FormKategori({ value, onChange, onSimpan, onBatal }) {
         </div>
         <div>
           <label className={lbl}>Urutan</label>
-          <input type="number" value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
+          <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.urutan} onChange={e => onChange({ ...value, urutan: e.target.value })} className={inp} />
         </div>
         <label className="flex items-center gap-2 text-xs font-semibold text-gray-600 pb-2.5">
           <input type="checkbox" checked={value.termasuk_laba_rugi} onChange={e => onChange({ ...value, termasuk_laba_rugi: e.target.checked })} />
@@ -222,7 +224,7 @@ export default function CashflowHubPage() {
               {akunList.filter(a => a.aktif).map(a => (
                 <div key={a.id}>
                   <label className={lbl}>{a.nama}</label>
-                  <input type="number" value={saldoAwalManual[a.id] || ''} placeholder="0"
+                  <InputNominal bolehMinus value={saldoAwalManual[a.id] || ''} placeholder="0"
                     onChange={e => setSaldoAwalManual(s => ({ ...s, [a.id]: e.target.value }))} className={inp} />
                 </div>
               ))}

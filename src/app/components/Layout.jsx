@@ -399,7 +399,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       alert('Gagal ganti mode. Coba lagi.');
     }
   }
-  const roleLabel = { perwakilan: 'Perwakilan', sahabat: 'Sahabat Baitullah' };
+  const roleLabel = { perwakilan: 'Perwakilan', sahabat_baitullah: 'Sahabat Baitullah' };
   const modeSwitcher = user?.role_kedua && (
     <div className="relative">
       <button

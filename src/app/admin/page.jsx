@@ -24,6 +24,7 @@ import { formLengkap, perjanjianSelesai } from '@/lib/bookingStage';
 import { DOC_LIST, STATUS_DOKUMEN, statusDokumen } from '@/lib/dokumenPendukung';
 import { porsiRefund } from '@/lib/danaRefund';
 import { refreshSidebarBadges } from '@/lib/sidebarBadges';
+import InputNominal from '@/app/components/InputNominal';
 
 function parseJamaahData(raw) {
   if (!raw) return [];
@@ -3197,7 +3198,7 @@ function AdminPageInner() {
                               {KAMAR_OPSI.map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
                           </div>
-                          <input type="number" value={editPaketForm.harga_custom} onChange={e => setEditPaketForm({ ...editPaketForm, harga_custom: e.target.value })}
+                          <InputNominal value={editPaketForm.harga_custom} onChange={e => setEditPaketForm({ ...editPaketForm, harga_custom: e.target.value })}
                             placeholder="Custom harga per jamaah (kosongkan = ikut harga program)"
                             className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
                           <div className="text-[10px] text-gray-400">Total harga booking dihitung ulang otomatis (harga per jamaah × jumlah jamaah), opsi tambahan tetap dipertahankan.</div>
@@ -3330,7 +3331,7 @@ function AdminPageInner() {
                                             {KAMAR_OPSI.map(k => <option key={k} value={k}>{k}</option>)}
                                           </select>
                                         </div>
-                                        <input type="number" value={editJamaahForm.harga_custom} onChange={e => setEditJamaahForm({ ...editJamaahForm, harga_custom: e.target.value })}
+                                        <InputNominal value={editJamaahForm.harga_custom} onChange={e => setEditJamaahForm({ ...editJamaahForm, harga_custom: e.target.value })}
                                           placeholder="Custom harga jamaah ini (kosongkan = ikut harga program)"
                                           className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 text-sm" />
                                         <div className="text-[10px] text-gray-400">Jamaah lain di booking ini gak kesentuh. Total harga booking dihitung ulang otomatis.</div>

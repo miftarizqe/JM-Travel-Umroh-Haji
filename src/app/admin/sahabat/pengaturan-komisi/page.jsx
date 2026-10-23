@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useIsHop } from '@/lib/useIsHop';
+import InputNominal from '@/app/components/InputNominal';
 
 const TEKS_KONFIRMASI = 'UBAH NOMINAL';
 
@@ -109,7 +110,7 @@ export default function PengaturanKomisiSahabatBaitullahPage() {
           {['gen1', 'gen2', 'gen3', 'gen4', 'gen5'].map((k, i) => (
             <div key={k}>
               <label className="block text-[10px] font-semibold text-gray-500 mb-1">Gen{i + 1} (Rp)</label>
-              <input type="number" value={sahabat[k]} onChange={e => setSahabat(s => ({ ...s, [k]: e.target.value }))}
+              <InputNominal value={sahabat[k]} onChange={e => setSahabat(s => ({ ...s, [k]: e.target.value }))}
                 disabled={isHop} readOnly={isHop}
                 className="w-full px-2 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm disabled:bg-gray-50 disabled:text-gray-500" />
             </div>
@@ -118,13 +119,13 @@ export default function PengaturanKomisiSahabatBaitullahPage() {
         <div className="grid grid-cols-2 gap-3 mb-3">
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Tabungan Awal Jemaah Baru (Rp)</label>
-            <input type="number" value={sahabat.tabunganAwal} onChange={e => setSahabat(s => ({ ...s, tabunganAwal: e.target.value }))}
+            <InputNominal value={sahabat.tabunganAwal} onChange={e => setSahabat(s => ({ ...s, tabunganAwal: e.target.value }))}
               disabled={isHop} readOnly={isHop}
               className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm disabled:bg-gray-50 disabled:text-gray-500" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-500 mb-1">Head of Program — per Registrasi (Rp)</label>
-            <input type="number" value={sahabat.hopNominal} onChange={e => setSahabat(s => ({ ...s, hopNominal: e.target.value }))}
+            <InputNominal value={sahabat.hopNominal} onChange={e => setSahabat(s => ({ ...s, hopNominal: e.target.value }))}
               disabled={isHop} readOnly={isHop}
               className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm disabled:bg-gray-50 disabled:text-gray-500" />
           </div>

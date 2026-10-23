@@ -6,6 +6,7 @@ import UploadBukti from '@/app/components/UploadBukti';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
+import InputNominal from '@/app/components/InputNominal';
 
 export default function PelunasanPage() {
   return (
@@ -298,7 +299,7 @@ function PelunasanPageInner() {
             )}
             {modeBayar === 'custom' && (
               <div>
-                <input type="number" min="1" max={maksBayarSekarang}
+                <InputNominal
                   value={nominalCustom}
                   onChange={e => setNominalCustom(e.target.value)}
                   placeholder={`Maks Rp ${maksBayarSekarang.toLocaleString('id-ID')}`}

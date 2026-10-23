@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
+import { hanyaAngka, WA_MAKS } from '@/lib/dataJamaah';
 
 // Isi ulang form registrasi setelah admin "Minta Perbaikan" di antrian
 // Verifikasi Akun (dikonfirmasi user 2026-10-11) — user tetap bisa login,
@@ -83,7 +84,7 @@ export default function PerbaikiDataAkunPage() {
                 <input value={form.nik} maxLength={16} inputMode="numeric"
                   onChange={e => setF('nik', e.target.value.replace(/\D/g, ''))} className={inp} /></div>
               <div><label className={lbl}>No. WhatsApp *</label>
-                <input value={form.wa} inputMode="tel" placeholder="081234567890" onChange={e => setF('wa', e.target.value)} className={inp} /></div>
+                <input value={form.wa} inputMode="numeric" maxLength={WA_MAKS} placeholder="081234567890" onChange={e => setF('wa', hanyaAngka(e.target.value))} className={inp} /></div>
               <div><label className={lbl}>Email *</label>
                 <input value={form.email} type="email" onChange={e => setF('email', e.target.value)} className={inp} /></div>
               <div><label className={lbl}>Agama *</label>

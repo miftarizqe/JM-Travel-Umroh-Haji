@@ -106,6 +106,20 @@ interface BeritaPost {
   foto: string[];
 }
 
+interface Testimoni {
+  id: number;
+  nama: string;
+  asal_program: string | null;
+  kutipan: string;
+  gambar: string | null;
+}
+
+interface Faq {
+  id: number;
+  pertanyaan: string;
+  jawaban: string;
+}
+
 // Logo asli (bukan emoji) — path SVG standar simple-icons, monokrom putih
 // biar konsisten sama tema section Kontak yang gelap.
 function IconInstagram({ className }: { className?: string }) {
@@ -141,6 +155,9 @@ export default function Home() {
   const [modal, setModal] = useState<null | 'perwakilan'>(null);
   const [galeriBatches, setGaleriBatches] = useState<GaleriBatch[]>([]);
   const [beritaPosts, setBeritaPosts] = useState<BeritaPost[]>([]);
+  const [testimoniList, setTestimoniList] = useState<Testimoni[]>([]);
+  const [faqList, setFaqList] = useState<Faq[]>([]);
+  const [faqOpenId, setFaqOpenId] = useState<number | null>(null);
   const [promo, setPromo] = useState<Promo | null>(null);
   const [promoModalOpen, setPromoModalOpen] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -241,6 +258,12 @@ export default function Home() {
     fetch('/api/perlengkapan-jamaah')
       .then(r => r.json())
       .then(d => setPerlengkapan(d.perlengkapan || []));
+    fetch('/api/testimoni-jamaah')
+      .then(r => r.json())
+      .then(d => setTestimoniList(d.testimoni || []));
+    fetch('/api/faq')
+      .then(r => r.json())
+      .then(d => setFaqList(d.faq || []));
     fetch('/api/kalkulator-publik/template')
       .then(r => r.json())
       .then(d => { setKalkulatorTemplate(d.template || []); setKalkulatorBaseline(d.baseline || []); });
@@ -291,6 +314,7 @@ export default function Home() {
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-6 text-sm">
+            <a href="#tentang-kami" className="opacity-80 hover:opacity-100 transition-opacity">Tentang Kami</a>
             <a href="#fasilitas" className="opacity-80 hover:opacity-100 transition-opacity">Fasilitas</a>
             <a href="#programs" className="opacity-80 hover:opacity-100 transition-opacity">Program</a>
             {!viaAgenLink && <a href="#kemitraan" className="opacity-80 hover:opacity-100 transition-opacity">Kemitraan</a>}
@@ -333,6 +357,8 @@ export default function Home() {
       {/* HERO */}
       <section className="bg-gradient-to-br from-[#0E2F6E] via-[#1A4FA0] to-[#2060C0] text-white py-20 px-4 text-center">
         <div className="max-w-3xl mx-auto">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo/jm-travel-icon.png" alt="JM Travel" className="w-20 h-20 object-contain mx-auto mb-5" />
           <div className="inline-block bg-white/15 border border-white/30 rounded-full px-4 py-1 text-xs mb-4">
             {teks.hero_badge || '✨ Perjalanan Ibadah Eksklusif'}
           </div>
@@ -355,6 +381,24 @@ export default function Home() {
               className="bg-white/15 border border-white/40 text-white font-semibold px-6 py-3 rounded-full hover:bg-white/25 transition-colors">
               💬 Konsultasi Gratis
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* TENTANG KAMI — sejarah + legalitas & angka pencapaian digabung 1
+          section (dikonfirmasi user 2026-10-23), ditaruh sebelum Fasilitas
+          biar jamaah kenal JM Travel dulu sebelum masuk fitur teknis. */}
+      <section className="py-12 px-4" id="tentang-kami">
+        <div className="max-w-3xl mx-auto text-center">
+          <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.tentang_eyebrow || 'Tentang Kami'}</div>
+          <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E] mb-4">{teks.tentang_headline || 'Perjalanan JM Travel'}</h2>
+          <p className="text-sm md:text-base text-gray-500 whitespace-pre-line mb-8">
+            {teks.tentang_cerita || 'JM Travel hadir untuk membimbing jamaah menuju Baitullah dengan pelayanan yang dekat dan personal, bukan sekadar transaksi.'}
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {parseBaris(teks.tentang_angka_items || 'SK PPIU No.921 Tahun 2017\nSK PIHK No.35 Tahun 2019\nPT. Alkhalid Jaya Megah Tours & Travel').map(t => (
+              <div key={t} className="bg-[#E8F0FB] text-[#0E2F6E] text-sm font-semibold py-2 px-4 rounded-full whitespace-nowrap">{t}</div>
+            ))}
           </div>
         </div>
       </section>
@@ -593,6 +637,40 @@ export default function Home() {
         </div>
       </section>
 
+      {/* TESTIMONI JAMAAH — ditaruh SEBELUM Kemitraan (dikonfirmasi user
+          2026-10-23) biar jamaah lihat bukti sosial dulu sebelum masuk
+          pitch rekrutmen mitra. Sengaja gak render apa-apa kalau kosong,
+          sama pola kayak Berita (bukan konten wajib). */}
+      {testimoniList.length > 0 && (
+        <section className="py-12 px-4" id="testimoni">
+          <div className="max-w-5xl mx-auto">
+            <div className="text-center mb-10">
+              <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">Testimoni</div>
+              <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Kata Mereka yang Sudah Berangkat</h2>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {testimoniList.map(t => (
+                <div key={t.id} className="bg-white rounded-2xl border border-[#e0e8f0] p-5">
+                  <p className="text-sm text-gray-600 italic mb-4">&quot;{t.kutipan}&quot;</p>
+                  <div className="flex items-center gap-3">
+                    {t.gambar ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={t.gambar} alt={t.nama} className="w-10 h-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#E8F0FB] text-[#0E2F6E] font-bold flex items-center justify-center">{t.nama.charAt(0)}</div>
+                    )}
+                    <div>
+                      <div className="text-sm font-bold text-[#0E2F6E]">{t.nama}</div>
+                      {t.asal_program && <div className="text-xs text-gray-400">{t.asal_program}</div>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* KEMITRAAN — disembunyikan buat pengunjung via link referral agen
           (dikonfirmasi user 2026-10-20), lihat viaAgenLink di atas. */}
       {!viaAgenLink && (
@@ -732,6 +810,34 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* FAQ — accordion 1-terbuka pakai faqOpenId, ditaruh sebelum Kontak
+          buat kurangi gesekan sebelum orang chat WA (dikonfirmasi user
+          2026-10-23). Sengaja gak render apa-apa kalau kosong. */}
+      {faqList.length > 0 && (
+        <section className="py-12 px-4 bg-[#F8F9FD]" id="faq">
+          <div className="max-w-2xl mx-auto">
+            <div className="text-center mb-8">
+              <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">FAQ</div>
+              <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Pertanyaan yang Sering Ditanyakan</h2>
+            </div>
+            <div className="space-y-3">
+              {faqList.map(f => (
+                <div key={f.id} className="bg-white rounded-xl border border-[#e0e8f0] overflow-hidden">
+                  <button onClick={() => setFaqOpenId(id => id === f.id ? null : f.id)}
+                    className="w-full text-left px-5 py-4 flex items-center justify-between gap-3">
+                    <span className="text-sm font-bold text-[#0E2F6E]">{f.pertanyaan}</span>
+                    <span className="text-[#1A4FA0] shrink-0">{faqOpenId === f.id ? '−' : '+'}</span>
+                  </button>
+                  {faqOpenId === f.id && (
+                    <div className="px-5 pb-4 text-sm text-gray-500 whitespace-pre-line">{f.jawaban}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* PROMO — reminder promo yang lagi aktif buat yang udah nutup popup-nya
           (lihat popup auto-open di atas). Sumber datanya sama (satu promo

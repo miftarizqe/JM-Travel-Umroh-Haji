@@ -4,6 +4,7 @@ import InputTanggal from '@/app/components/InputTanggal';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import { useCurrentUser } from '@/lib/useCurrentUser';
+import InputNominal from '@/app/components/InputNominal';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 function fmtTanggalJam(iso) {
@@ -139,7 +140,9 @@ export default function RekeningDashboardPage() {
     return <div className="flex items-center justify-center min-h-screen text-gray-400">Loading...</div>;
   }
 
-  function RekeningCard({ kode, label, icon, warna, ringkasan }) {
+  // Dipanggil sebagai fungsi (bukan <RekeningCard/>) — kalau jadi komponen di dalam
+  // render, tiap ketikan di input Saldo Awal bikin kartu di-mount ulang & fokus hilang.
+  function renderRekeningCard({ kode, label, icon, warna, ringkasan }) {
     const isOpen = expand === kode;
     if (!ringkasan) return null;
     return (
@@ -176,7 +179,7 @@ export default function RekeningDashboardPage() {
                 Saldo awal rekening ini (akan kehitung mulai tanggal yang dipilih). Kalau sudah pernah diisi, nilai lama otomatis tampil &amp; bisa dikoreksi.
               </div>
               <div className="flex gap-2">
-                <input type="number" value={editSaldoAwal.nominal} placeholder="0"
+                <InputNominal bolehMinus value={editSaldoAwal.nominal} placeholder="0"
                   onChange={e => setEditSaldoAwal(s => ({ ...s, nominal: e.target.value }))}
                   className="flex-1 px-2 py-1.5 rounded-lg border-2 border-gray-200 text-xs focus:border-[#1A4FA0] focus:outline-none" />
                 <InputTanggal value={editSaldoAwal.tanggal}
@@ -264,8 +267,8 @@ export default function RekeningDashboardPage() {
       ) : (
         <div className="space-y-3">
           <CekDanaJamaah cek={data?.cek_dana_jamaah} bulan={bulan} />
-          <RekeningCard kode="alkhalid" label="Alkhalid Jaya Megah" icon="🏢" warna="border-blue-200" ringkasan={data?.alkhalid} />
-          <RekeningCard kode="sahabat_baitullah" label="Sahabat Baitullah" icon="🤝" warna="border-amber-200" ringkasan={data?.sahabat_baitullah} />
+          {renderRekeningCard({ kode: 'alkhalid', label: 'Alkhalid Jaya Megah', icon: '🏢', warna: 'border-blue-200', ringkasan: data?.alkhalid })}
+          {renderRekeningCard({ kode: 'sahabat_baitullah', label: 'Sahabat Baitullah', icon: '🤝', warna: 'border-amber-200', ringkasan: data?.sahabat_baitullah })}
 
           <div className="border border-emerald-200 rounded-xl bg-white p-4">
             <div className="text-xs font-bold text-gray-500 mb-1">💵 Cashflow (Operasional Kantor)</div>

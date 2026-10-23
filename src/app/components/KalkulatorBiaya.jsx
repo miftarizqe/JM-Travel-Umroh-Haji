@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { BASIS_KATEGORI, toggleBasisToken, nilaiItem, itemAktif, cariTierModulNegara, dimsUntukModul, TRIGGER_KUNCI_LIST, FREKUENSI_LIST, tlShareTiket, tlShareVisa } from '@/lib/kalkulatorBiaya';
+import InputNominal from '@/app/components/InputNominal';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 // Kalkulator biaya/budgeting program v2 — selaras ke Master Sheet Costing
 // asli (multi-currency + daftar harga acuan yang bisa dipilih ulang, bukan
@@ -185,12 +187,12 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
           <div className="text-xs font-bold text-gray-500">🕋 Hotel Mekkah (per kamar/malam)</div>
           <input value={value.hotel_mekkah_nama} onChange={e => set({ hotel_mekkah_nama: e.target.value })} placeholder="Nama hotel" className={inp} />
           <div className="grid grid-cols-3 gap-2">
-            <input type="number" value={value.hotel_mekkah_rate_double} onChange={e => set({ hotel_mekkah_rate_double: e.target.value })} placeholder="Rate Double" className={inp} />
-            <input type="number" value={value.hotel_mekkah_rate_triple} onChange={e => set({ hotel_mekkah_rate_triple: e.target.value })} placeholder="Rate Triple" className={inp} />
-            <input type="number" value={value.hotel_mekkah_rate_quad} onChange={e => set({ hotel_mekkah_rate_quad: e.target.value })} placeholder="Rate Quad" className={inp} />
+            <InputNominal desimal value={value.hotel_mekkah_rate_double} onChange={e => set({ hotel_mekkah_rate_double: e.target.value })} placeholder="Rate Double" className={inp} />
+            <InputNominal desimal value={value.hotel_mekkah_rate_triple} onChange={e => set({ hotel_mekkah_rate_triple: e.target.value })} placeholder="Rate Triple" className={inp} />
+            <InputNominal desimal value={value.hotel_mekkah_rate_quad} onChange={e => set({ hotel_mekkah_rate_quad: e.target.value })} placeholder="Rate Quad" className={inp} />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={value.hotel_mekkah_malam} onChange={e => set({ hotel_mekkah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
+            <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.hotel_mekkah_malam} onChange={e => set({ hotel_mekkah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
             <select value={value.hotel_mekkah_mata_uang} onChange={e => set({ hotel_mekkah_mata_uang: e.target.value })} className={inp}>
               {MATA_UANG_LIST.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
@@ -200,12 +202,12 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
           <div className="text-xs font-bold text-gray-500">🕌 Hotel Madinah (per kamar/malam)</div>
           <input value={value.hotel_madinah_nama} onChange={e => set({ hotel_madinah_nama: e.target.value })} placeholder="Nama hotel" className={inp} />
           <div className="grid grid-cols-3 gap-2">
-            <input type="number" value={value.hotel_madinah_rate_double} onChange={e => set({ hotel_madinah_rate_double: e.target.value })} placeholder="Rate Double" className={inp} />
-            <input type="number" value={value.hotel_madinah_rate_triple} onChange={e => set({ hotel_madinah_rate_triple: e.target.value })} placeholder="Rate Triple" className={inp} />
-            <input type="number" value={value.hotel_madinah_rate_quad} onChange={e => set({ hotel_madinah_rate_quad: e.target.value })} placeholder="Rate Quad" className={inp} />
+            <InputNominal desimal value={value.hotel_madinah_rate_double} onChange={e => set({ hotel_madinah_rate_double: e.target.value })} placeholder="Rate Double" className={inp} />
+            <InputNominal desimal value={value.hotel_madinah_rate_triple} onChange={e => set({ hotel_madinah_rate_triple: e.target.value })} placeholder="Rate Triple" className={inp} />
+            <InputNominal desimal value={value.hotel_madinah_rate_quad} onChange={e => set({ hotel_madinah_rate_quad: e.target.value })} placeholder="Rate Quad" className={inp} />
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <input type="number" value={value.hotel_madinah_malam} onChange={e => set({ hotel_madinah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
+            <input type="number" onKeyDown={tolakTandaAngka} min={0} value={value.hotel_madinah_malam} onChange={e => set({ hotel_madinah_malam: e.target.value })} placeholder="Jml malam" className={inp} />
             <select value={value.hotel_madinah_mata_uang} onChange={e => set({ hotel_madinah_mata_uang: e.target.value })} className={inp}>
               {MATA_UANG_LIST.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
@@ -254,7 +256,7 @@ export default function KalkulatorBiaya({ value, onChange, showNama = true, hide
                       </>
                     ) : (
                       <>
-                        <input type="number" value={it.nominal} onChange={e => ubahItem(it.idx, { nominal: e.target.value })} placeholder="Nominal" className={`${inpSm} w-24`} />
+                        <InputNominal desimal value={it.nominal} onChange={e => ubahItem(it.idx, { nominal: e.target.value })} placeholder="Nominal" className={`${inpSm} w-24`} />
                         <select value={it.mata_uang} onChange={e => ubahItem(it.idx, { mata_uang: e.target.value })} className={inpSm}>
                           {MATA_UANG_LIST.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>

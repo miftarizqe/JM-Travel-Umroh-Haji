@@ -200,7 +200,7 @@ export default function AdminAgenPage() {
           </div>
           <div>
             <label className={lbl}>No. WhatsApp</label>
-            <input value={wa} onChange={e => { setWa(e.target.value.replace(/\D/g, '')); clearErr('wa'); }} placeholder="08xxxxxxxxxx (opsional)" inputMode="numeric" className={c('wa')} />
+            <input value={wa} onChange={e => { setWa(e.target.value.replace(/\D/g, '').slice(0, 13)); clearErr('wa'); }} placeholder="08xxxxxxxxxx (opsional)" inputMode="numeric" maxLength={13} className={c('wa')} />
           </div>
           <div>
             {/* Dipakai nentuin sapaan "Ibu"/"Bapak" + nama di pesan WA
@@ -239,7 +239,7 @@ export default function AdminAgenPage() {
           </div>
           <div>
             <label className={lbl}>No. Rekening Ujroh</label>
-            <input value={noRekening} onChange={e => setNoRekening(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="Opsional" className={inp} />
+            <input value={noRekening} onChange={e => setNoRekening(e.target.value.replace(/\D/g, '').slice(0, 20))} maxLength={20} inputMode="numeric" placeholder="Opsional" className={inp} />
           </div>
           <div className="sm:col-span-2">
             <label className={lbl}>Nama Pemilik Rekening</label>
@@ -275,7 +275,7 @@ export default function AdminAgenPage() {
                 <div className="space-y-2">
                   <div className="grid sm:grid-cols-3 gap-2">
                     <input value={editNama} onChange={e => setEditNama(e.target.value)} placeholder="Nama" className={inp} />
-                    <input value={editWa} onChange={e => setEditWa(e.target.value.replace(/\D/g, ''))} placeholder="No. WhatsApp" inputMode="numeric" className={inp} />
+                    <input value={editWa} onChange={e => setEditWa(e.target.value.replace(/\D/g, '').slice(0, 13))} placeholder="No. WhatsApp" inputMode="numeric" maxLength={13} className={inp} />
                     <select value={editJk} onChange={e => setEditJk(e.target.value)} className={inp}>
                       <option value="">— Jenis Kelamin —</option>
                       <option value="Laki-Laki">Laki-Laki</option>

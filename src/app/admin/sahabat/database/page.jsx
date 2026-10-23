@@ -7,6 +7,9 @@ import { useIsHop } from '@/lib/useIsHop';
 import ModalTolakPermanen from '@/app/components/ModalTolakPermanen';
 import { persenKesiapan, warnaProgress } from '@/lib/kesiapanTabungan';
 import { downloadExcel } from '@/lib/downloadExcel';
+import InputNominal from '@/app/components/InputNominal';
+import { hanyaAngka } from '@/lib/dataJamaah';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 function fmtRp(n) { return 'Rp' + Number(n || 0).toLocaleString('id-ID'); }
 
@@ -696,10 +699,10 @@ export default function DatabaseJamaahPage() {
                       <input value={form.target_minat} onChange={e => setForm(f => ({ ...f, target_minat: e.target.value }))}
                         placeholder="Tujuan/paket incaran (mis. Umroh 9 Hari)"
                         className="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
-                      <input type="number" value={form.target_estimasi_harga} onChange={e => setForm(f => ({ ...f, target_estimasi_harga: e.target.value }))}
+                      <InputNominal value={form.target_estimasi_harga} onChange={e => setForm(f => ({ ...f, target_estimasi_harga: e.target.value }))}
                         placeholder="Estimasi harga (Rp)"
                         className="w-full sm:w-40 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
-                      <input type="number" value={form.target_bulan} onChange={e => setForm(f => ({ ...f, target_bulan: e.target.value }))}
+                      <input type="number" onKeyDown={tolakTandaAngka} min={0} value={form.target_bulan} onChange={e => setForm(f => ({ ...f, target_bulan: e.target.value }))}
                         placeholder="Target (bulan)"
                         className="w-full sm:w-32 px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm" />
                       <div className="flex gap-2">
@@ -851,7 +854,7 @@ export default function DatabaseJamaahPage() {
                         <div className="grid grid-cols-2 gap-2">
                           <div>
                             <label className="block text-gray-400 mb-0.5">No. Rek. Tabungan Umroh (BSI)</label>
-                            <input value={formData.no_rekening_tabungan_umroh} onChange={e => setFormData(f => ({ ...f, no_rekening_tabungan_umroh: e.target.value }))}
+                            <input value={formData.no_rekening_tabungan_umroh} onChange={e => setFormData(f => ({ ...f, no_rekening_tabungan_umroh: hanyaAngka(e.target.value, 20) }))} inputMode="numeric" maxLength={20}
                               className="w-full px-2 py-1.5 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none" />
                           </div>
                           <div>
@@ -1223,7 +1226,7 @@ export default function DatabaseJamaahPage() {
                         <div className="mt-2 pt-2 border-t border-gray-100">
                           <div className="text-[10px] text-gray-500 mb-1">➕ Catat setoran mandiri (hasil cek mutasi rekening sore ini)</div>
                           <div className="flex gap-1.5">
-                            <input type="number" placeholder="Nominal" value={setoranForm[j.user_id]?.nominal || ''}
+                            <InputNominal placeholder="Nominal" value={setoranForm[j.user_id]?.nominal || ''}
                               onChange={e => setSetoranForm(prev => ({ ...prev, [j.user_id]: { ...prev[j.user_id], nominal: e.target.value } }))}
                               className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-[10px]" />
                             <input type="text" placeholder="Catatan (opsional)" value={setoranForm[j.user_id]?.keterangan || ''}
@@ -1253,7 +1256,7 @@ export default function DatabaseJamaahPage() {
                             <option value="tambah_management">Tambah ke Operasional Management (dana pendaftaran tak tercatat)</option>
                           </select>
                           <div className="flex gap-1.5">
-                            <input type="number" placeholder="Nominal" value={koreksiForm[j.user_id]?.nominal || ''}
+                            <InputNominal placeholder="Nominal" value={koreksiForm[j.user_id]?.nominal || ''}
                               onChange={e => setKoreksiForm(prev => ({ ...prev, [j.user_id]: { ...prev[j.user_id], nominal: e.target.value } }))}
                               className="w-28 border border-gray-200 rounded-lg px-2 py-1 text-[10px]" />
                             <input type="text" placeholder="Alasan koreksi (wajib)" value={koreksiForm[j.user_id]?.keterangan || ''}

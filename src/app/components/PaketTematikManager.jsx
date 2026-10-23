@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { KOSONG_BREAKDOWN } from '@/app/components/KalkulatorBiaya';
 import KalkulatorTerpadu from '@/app/components/KalkulatorTerpadu';
+import { tolakTandaAngka } from '@/lib/nominal';
 
 const inp = "w-full px-3 py-2 rounded-lg border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm";
 const lbl = "block text-xs font-semibold text-gray-500 mb-1";
@@ -175,7 +176,7 @@ export default function PaketTematikManager() {
             </div>
             <div>
               <label className={lbl}>Urutan Tampil</label>
-              <input type="number" value={urutan} onChange={e => setUrutan(e.target.value)} className={inp} />
+              <input type="number" onKeyDown={tolakTandaAngka} min={0} value={urutan} onChange={e => setUrutan(e.target.value)} className={inp} />
             </div>
           </div>
           <div className="mb-3">
