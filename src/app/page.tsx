@@ -314,7 +314,6 @@ export default function Home() {
 
           {/* Desktop links */}
           <div className="hidden md:flex items-center gap-6 text-sm">
-            <a href="#tentang-kami" className="opacity-80 hover:opacity-100 transition-opacity">Tentang Kami</a>
             <a href="#fasilitas" className="opacity-80 hover:opacity-100 transition-opacity">Fasilitas</a>
             <a href="#programs" className="opacity-80 hover:opacity-100 transition-opacity">Program</a>
             {!viaAgenLink && <a href="#kemitraan" className="opacity-80 hover:opacity-100 transition-opacity">Kemitraan</a>}
@@ -358,7 +357,7 @@ export default function Home() {
       <section className="bg-gradient-to-br from-[#0E2F6E] via-[#1A4FA0] to-[#2060C0] text-white py-20 px-4 text-center">
         <div className="max-w-3xl mx-auto">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo/jm-travel-icon.png" alt="JM Travel" className="w-20 h-20 object-contain mx-auto mb-5" />
+          <img src="/logo/jm-travel-logo-lengkap.png" alt="JM Travel — Umrah dan Haji" className="w-40 md:w-48 h-auto object-contain mx-auto mb-5" />
           <div className="inline-block bg-white/15 border border-white/30 rounded-full px-4 py-1 text-xs mb-4">
             {teks.hero_badge || '✨ Perjalanan Ibadah Eksklusif'}
           </div>
@@ -385,29 +384,17 @@ export default function Home() {
         </div>
       </section>
 
-      {/* TENTANG KAMI — sejarah + legalitas & angka pencapaian digabung 1
-          section (dikonfirmasi user 2026-10-23), ditaruh sebelum Fasilitas
-          biar jamaah kenal JM Travel dulu sebelum masuk fitur teknis. */}
-      <section className="py-12 px-4" id="tentang-kami">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.tentang_eyebrow || 'Tentang Kami'}</div>
-          <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E] mb-4">{teks.tentang_headline || 'Perjalanan JM Travel'}</h2>
-          <p className="text-sm md:text-base text-gray-500 whitespace-pre-line mb-8">
-            {teks.tentang_cerita || 'JM Travel hadir untuk membimbing jamaah menuju Baitullah dengan pelayanan yang dekat dan personal, bukan sekadar transaksi.'}
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            {parseBaris(teks.tentang_angka_items || 'SK PPIU No.921 Tahun 2017\nSK PIHK No.35 Tahun 2019\nPT. Alkhalid Jaya Megah Tours & Travel').map(t => (
-              <div key={t} className="bg-[#E8F0FB] text-[#0E2F6E] text-sm font-semibold py-2 px-4 rounded-full whitespace-nowrap">{t}</div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* KENAPA JM TRAVEL — card bisa diklik, buka modal foto+deskripsi */}
+      {/* KENAPA JM TRAVEL — digabung sama cerita "Tentang Kami" jadi 1 intro
+          (dikonfirmasi user 2026-10-23: gak perlu eyebrow "Tentang Kami"
+          atau "Kenapa JM Travel?" sendiri-sendiri, langsung ke headline
+          "Dipercaya..." lalu cerita, baru card-card ini). Card bisa diklik,
+          buka modal foto+deskripsi. */}
       <section className="bg-[#F8F9FD] py-12 px-4" id="fasilitas">
         <div className="max-w-5xl mx-auto text-center">
-          <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.kenapa_eyebrow || 'Kenapa JM Travel?'}</div>
-          <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E] mb-8">{teks.kenapa_headline || 'Dipercaya untuk Perjalanan Paling Mulia'}</h2>
+          <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E] mb-4">{teks.kenapa_headline || 'Dipercaya untuk Perjalanan Paling Mulia'}</h2>
+          <p className="text-sm md:text-base text-gray-500 max-w-2xl mx-auto whitespace-pre-line mb-10">
+            {teks.tentang_cerita || 'JM Travel hadir sejak tahun 2004, membimbing jamaah umroh dan haji dengan pelayanan yang dekat dan penuh ketulusan.'}
+          </p>
           {kenapaCards.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
               {kenapaCards.map(k => (
