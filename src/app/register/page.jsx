@@ -8,7 +8,6 @@ import { tangkapRefPerwakilan, ambilRefPerwakilan, ambilRefAgenId } from '@/lib/
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import TombolGoogle, { useErrorGoogle } from '@/app/components/TombolGoogle';
-import RecaptchaCheckbox from '@/app/components/RecaptchaCheckbox';
 
 export default function RegisterPage() {
   return (
@@ -152,13 +151,6 @@ function RegisterPageInner() {
   // Password tetap wajib di dua jalur (login & konfirmasi bayar dari saldo).
   const [googleDaftar, setGoogleDaftar] = useState(null);
   const [daftarManual, setDaftarManual] = useState(false);
-  // Token "Saya bukan robot" — cuma jalur form manual (Google udah nyaring
-  // bot). Widget gak dirender kalau NEXT_PUBLIC_RECAPTCHA_SITE_KEY kosong,
-  // server juga ngelewatin verifikasi kalau RECAPTCHA_SECRET_KEY kosong.
-  const [captchaToken, setCaptchaToken] = useState('');
-  // Token reCAPTCHA sekali pakai — kalau submit ditolak (mis. NIK dobel),
-  // widget di-remount lewat key biar user bisa centang ulang.
-  const [captchaKey, setCaptchaKey] = useState(0);
   const errorGoogle = useErrorGoogle(searchParams);
   const pakaiGoogle = searchParams.get('google') === '1';
   const [memuatGoogle, setMemuatGoogle] = useState(pakaiGoogle);
@@ -381,9 +373,6 @@ function RegisterPageInner() {
     if (form.nik.length !== 16) { setError('NIK harus 16 digit'); return; }
     if (form.password.length < 8) { setError('Password min. 8 karakter'); return; }
     if (form.password !== form.confirmPassword) { setError('Password tidak cocok'); return; }
-    if (!googleDaftar && process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !captchaToken) {
-      setError('Mohon centang verifikasi "Saya bukan robot" terlebih dahulu.'); return;
-    }
     setLoading(true);
     try {
       // role='jamaah' TIDAK PERNAH kirim perekrut_id (itu khusus rantai
@@ -408,14 +397,10 @@ function RegisterPageInner() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(googleDaftar ? payload : { ...payload, captchaToken })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Pendaftaran gagal.');
-        if (!googleDaftar) { setCaptchaToken(''); setCaptchaKey(k => k + 1); }
-        return;
-      }
+      if (!res.ok) { setError(data.error || 'Pendaftaran gagal.'); return; }
 
       // Server langsung login-in (cookie sesi httpOnly di-set di respons
       // register) — FE cuma simpan data user.
@@ -615,7 +600,6 @@ function RegisterPageInner() {
                   onChange={e => setForm({...form, confirmPassword: e.target.value})}
                 />
               </div>
-              {!googleDaftar && <RecaptchaCheckbox key={captchaKey} onChange={setCaptchaToken} />}
               {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">⚠️ {error}</div>}
               <div className="flex gap-2">
                 <button onClick={() => setStep(1)}
