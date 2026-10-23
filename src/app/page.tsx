@@ -897,35 +897,6 @@ export default function Home() {
         </Reveal>
       </section>
 
-      {/* LOKASI — foto kantor + Google Maps embed (dikonfirmasi user
-          2026-10-23, nyontek kompetitor). Maps pakai query alamat polos,
-          gak butuh API key. Foto kantor admin-upload, fallback placeholder
-          kalau belum diisi. */}
-      <section className="py-12 px-4 bg-[#F8F9FD]" id="lokasi">
-        <Reveal className="max-w-5xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">Kunjungi Kami</div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Kantor JM Travel</h2>
-          </div>
-          <div className="grid md:grid-cols-2 rounded-2xl overflow-hidden border border-[#e0e8f0]">
-            {pengaturan.foto_kantor_path ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={pengaturan.foto_kantor_path} alt="Kantor JM Travel" className="w-full h-64 md:h-full object-cover" />
-            ) : (
-              <div className="w-full h-64 md:h-full bg-white flex items-center justify-center text-gray-400 text-sm p-6 text-center">
-                🏢 Foto kantor akan segera hadir di sini.
-              </div>
-            )}
-            {pengaturan.alamat_kantor && (
-              <iframe
-                src={`https://maps.google.com/maps?q=${encodeURIComponent(pengaturan.alamat_kantor)}&output=embed`}
-                title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-64 md:h-full" style={{ border: 'none' }} />
-            )}
-          </div>
-          {pengaturan.alamat_kantor && <p className="text-center text-sm text-gray-500 mt-4">📍 {pengaturan.alamat_kantor}</p>}
-        </Reveal>
-      </section>
-
       {/* CTA + KONTAK */}
       <section className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white py-14 px-4 text-center" id="kontak">
         <Reveal className="max-w-2xl mx-auto">
@@ -956,15 +927,30 @@ export default function Home() {
               </div>
             </div>
           )}
+          <div className="flex justify-center gap-3">
+            {[
+              { label: 'Instagram', Icon: IconInstagram, href: pengaturan.ig_url },
+              { label: 'TikTok', Icon: IconTikTok, href: pengaturan.tiktok_url },
+              { label: 'Facebook', Icon: IconFacebook, href: pengaturan.fb_url },
+            ].filter(s => s.href).map(s => (
+              <button key={s.label} onClick={() => window.open(s.href, '_blank')}
+                title={s.label}
+                className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
+                <s.Icon className="w-5 h-5" />
+              </button>
+            ))}
+          </div>
         </Reveal>
       </section>
 
-      {/* FOOTER — 3 kolom (Kontak Kami / Menu / Ikuti Kami), nyontek
-          kompetitor tapi kolom ketiga diadaptasi jadi sosial media
-          (dikonfirmasi user 2026-10-23) karena JM Travel gak punya roster
-          "Marketing" per-orang kayak referensinya. */}
+      {/* FOOTER — 2 kolom (Kontak Kami / Lokasi). Menu & Ikuti Kami
+          dihapus (dikonfirmasi user 2026-10-23: ikon sosmed udah balik ke
+          section Kontak di atas, Menu dianggap gak perlu). Kolom Lokasi
+          gantiin section Lokasi standalone yang dihapus — foto kantor +
+          Maps dipindah ke sini, nempel sama Kontak Kami yang udah ada
+          alamatnya (dikonfirmasi user, biar gak dobel teks alamat). */}
       <footer className="bg-[#0E2F6E] text-white py-12 px-4">
-        <div className="max-w-5xl mx-auto grid sm:grid-cols-3 gap-6 mb-8">
+        <div className="max-w-5xl mx-auto grid sm:grid-cols-2 gap-6 mb-8">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
             <div className="font-bold mb-3">Kontak Kami</div>
             <div className="space-y-2.5 text-sm text-white/70">
@@ -975,34 +961,23 @@ export default function Home() {
               {pengaturan.jam_operasional && <div className="flex gap-2"><span>🕐</span><span>{pengaturan.jam_operasional}</span></div>}
             </div>
           </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-            <div className="font-bold mb-3">Menu</div>
-            <div className="space-y-2.5 text-sm text-white/70">
-              <a href="#fasilitas" className="block hover:text-white transition-colors">Fasilitas</a>
-              <a href="#programs" className="block hover:text-white transition-colors">Program</a>
-              <a href="#dokumentasi" className="block hover:text-white transition-colors">Dokumentasi</a>
-              <a href="#testimoni" className="block hover:text-white transition-colors">Testimoni</a>
-              <a href="#kontak" className="block hover:text-white transition-colors">Kontak</a>
+          <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+            <div className="font-bold p-5 pb-3">Lokasi</div>
+            <div className="grid grid-cols-2 gap-px bg-white/10">
+              {pengaturan.foto_kantor_path ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={pengaturan.foto_kantor_path} alt="Kantor JM Travel" className="w-full h-32 object-cover" />
+              ) : (
+                <div className="w-full h-32 bg-white/5 flex items-center justify-center text-white/40 text-xs text-center p-2">
+                  🏢 Foto kantor segera hadir
+                </div>
+              )}
+              {pengaturan.alamat_kantor && (
+                <iframe
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(pengaturan.alamat_kantor)}&output=embed`}
+                  title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-32" style={{ border: 'none' }} />
+              )}
             </div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-            <div className="font-bold mb-3">Ikuti Kami</div>
-            <div className="flex gap-3 mb-4">
-              {[
-                { label: 'Instagram', Icon: IconInstagram, href: pengaturan.ig_url },
-                { label: 'TikTok', Icon: IconTikTok, href: pengaturan.tiktok_url },
-                { label: 'Facebook', Icon: IconFacebook, href: pengaturan.fb_url },
-              ].filter(s => s.href).map(s => (
-                <button key={s.label} onClick={() => window.open(s.href, '_blank')} title={s.label}
-                  className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-                  <s.Icon className="w-4 h-4" />
-                </button>
-              ))}
-            </div>
-            <button onClick={() => window.open(waLink(waTarget, `${salam}, saya ingin bertanya seputar umroh dengan JM Travel, apakah bisa dibantu?`) || '#', '_blank')}
-              className="w-full bg-[#25D366] hover:bg-green-600 text-white font-bold text-sm py-2.5 rounded-full transition-colors">
-              💬 WhatsApp Kami
-            </button>
           </div>
         </div>
         <div className="text-center text-white/50 text-xs pt-6 border-t border-white/10">
