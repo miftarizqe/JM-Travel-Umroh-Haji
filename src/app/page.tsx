@@ -927,6 +927,19 @@ export default function Home() {
               </div>
             </div>
           )}
+          {/* Kontak Kami dipindah ke sini, di bawah Partner & Pembiayaan
+              Resmi (dikonfirmasi user 2026-10-23) — sebelumnya di footer. */}
+          {(pengaturan.alamat_kantor || pengaturan.telepon_kantor || pengaturan.email_kantor || pengaturan.jam_operasional) && (
+            <div className="mb-6">
+              <div className="text-xs font-bold tracking-widest text-white/60 uppercase mb-3">Kontak Kami</div>
+              <div className="text-sm text-white/80 space-y-1.5">
+                {pengaturan.alamat_kantor && <div>📍 {pengaturan.alamat_kantor}</div>}
+                {pengaturan.telepon_kantor && <div>📞 {pengaturan.telepon_kantor}</div>}
+                {pengaturan.email_kantor && <div>✉️ {pengaturan.email_kantor}</div>}
+                {pengaturan.jam_operasional && <div>🕐 {pengaturan.jam_operasional}</div>}
+              </div>
+            </div>
+          )}
           <div className="flex justify-center gap-3">
             {[
               { label: 'Instagram', Icon: IconInstagram, href: pengaturan.ig_url },
@@ -943,37 +956,25 @@ export default function Home() {
         </Reveal>
       </section>
 
-      {/* FOOTER — 2 kolom (Kontak Kami / Lokasi). Menu & Ikuti Kami
-          dihapus (dikonfirmasi user 2026-10-23: ikon sosmed udah balik ke
-          section Kontak di atas, Menu dianggap gak perlu). Kolom Lokasi
-          gantiin section Lokasi standalone yang dihapus — foto kantor +
-          Maps dipindah ke sini, nempel sama Kontak Kami yang udah ada
-          alamatnya (dikonfirmasi user, biar gak dobel teks alamat). */}
+      {/* FOOTER — cuma Lokasi (Kontak Kami pindah ke section Kontak di
+          atas, dikonfirmasi user 2026-10-23). Lokasi dilebarin full-width,
+          foto+maps balik sebelahan (kanan-kiri) karena ruangnya udah lega. */}
       <footer className="bg-[#0E2F6E] text-white py-12 px-4">
-        <div className="max-w-5xl mx-auto grid sm:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-            <div className="font-bold mb-3">Kontak Kami</div>
-            <div className="space-y-2.5 text-sm text-white/70">
-              {pengaturan.alamat_kantor && <div className="flex gap-2"><span>📍</span><span>{pengaturan.alamat_kantor}</span></div>}
-              {pengaturan.telepon_kantor && <div className="flex gap-2"><span>📞</span><span>{pengaturan.telepon_kantor}</span></div>}
-              {pengaturan.wa_kantor && <div className="flex gap-2"><span>💬</span><span>{waDisplay(pengaturan.wa_kantor)}</span></div>}
-              {pengaturan.email_kantor && <div className="flex gap-2"><span>✉️</span><span>{pengaturan.email_kantor}</span></div>}
-              {pengaturan.jam_operasional && <div className="flex gap-2"><span>🕐</span><span>{pengaturan.jam_operasional}</span></div>}
-            </div>
-          </div>
+        <div className="max-w-5xl mx-auto mb-8">
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             <div className="font-bold p-5 pb-3">Lokasi</div>
-            {/* Foto kantor di-hardcode (bukan dari pengaturan.foto_kantor_path
-                lagi) — dikonfirmasi user 2026-10-23, sistem upload+DB
-                kerasa gak perlu buat 1 foto doang. Ditumpuk (foto atas,
-                maps bawah), bukan sebelahan. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/foto-kantor.jpg" alt="Kantor JM Travel" className="w-full h-40 object-cover" />
-            {pengaturan.alamat_kantor && (
-              <iframe
-                src={`https://maps.google.com/maps?q=${encodeURIComponent(pengaturan.alamat_kantor)}&output=embed`}
-                title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-40" style={{ border: 'none' }} />
-            )}
+            <div className="grid sm:grid-cols-2">
+              {/* Foto kantor di-hardcode (bukan dari pengaturan.foto_kantor_path
+                  lagi) — dikonfirmasi user 2026-10-23, sistem upload+DB
+                  kerasa gak perlu buat 1 foto doang. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/foto-kantor.jpg" alt="Kantor JM Travel" className="w-full h-56 sm:h-64 object-cover" />
+              {pengaturan.alamat_kantor && (
+                <iframe
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(pengaturan.alamat_kantor)}&output=embed`}
+                  title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-56 sm:h-64" style={{ border: 'none' }} />
+              )}
+            </div>
           </div>
         </div>
         <div className="text-center text-white/50 text-xs pt-6 border-t border-white/10">
