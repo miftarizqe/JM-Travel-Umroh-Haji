@@ -963,21 +963,17 @@ export default function Home() {
           </div>
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
             <div className="font-bold p-5 pb-3">Lokasi</div>
-            <div className="grid grid-cols-2 gap-px bg-white/10">
-              {pengaturan.foto_kantor_path ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={pengaturan.foto_kantor_path} alt="Kantor JM Travel" className="w-full h-32 object-cover" />
-              ) : (
-                <div className="w-full h-32 bg-white/5 flex items-center justify-center text-white/40 text-xs text-center p-2">
-                  🏢 Foto kantor segera hadir
-                </div>
-              )}
-              {pengaturan.alamat_kantor && (
-                <iframe
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(pengaturan.alamat_kantor)}&output=embed`}
-                  title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-32" style={{ border: 'none' }} />
-              )}
-            </div>
+            {/* Foto kantor di-hardcode (bukan dari pengaturan.foto_kantor_path
+                lagi) — dikonfirmasi user 2026-10-23, sistem upload+DB
+                kerasa gak perlu buat 1 foto doang. Ditumpuk (foto atas,
+                maps bawah), bukan sebelahan. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/foto-kantor.jpg" alt="Kantor JM Travel" className="w-full h-40 object-cover" />
+            {pengaturan.alamat_kantor && (
+              <iframe
+                src={`https://maps.google.com/maps?q=${encodeURIComponent(pengaturan.alamat_kantor)}&output=embed`}
+                title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-40" style={{ border: 'none' }} />
+            )}
           </div>
         </div>
         <div className="text-center text-white/50 text-xs pt-6 border-t border-white/10">
