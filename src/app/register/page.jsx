@@ -4,10 +4,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useUnsavedGuard } from '@/lib/useUnsavedGuard';
 import PasswordInput from '@/app/components/PasswordInput';
 import PasswordStrengthMeter from '@/app/components/PasswordStrengthMeter';
-import RecaptchaCheckbox from '@/app/components/RecaptchaCheckbox';
 import { tangkapRefPerwakilan, ambilRefPerwakilan, ambilRefAgenId } from '@/lib/referralCapture';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
+import TombolGoogle, { pesanErrorGoogle } from '@/app/components/TombolGoogle';
 
 export default function RegisterPage() {
   return (
@@ -143,11 +143,42 @@ function RegisterPageInner() {
   const kodeReferralSahabatChecking = !!kodeSahabatTrim && cekKodeSahabat.kode !== kodeSahabatTrim;
   const kodeReferralSahabatInvalid = !!kodeSahabatTrim && !kodeReferralSahabatChecking && cekKodeSahabat.valid === false;
   const [kodeInviteSahabatDariLink, setKodeInviteSahabatDariLink] = useState(false);
-  // Token widget "Saya bukan robot" (dikonfirmasi user 2026-09-27) — kosong
-  // terus kalau NEXT_PUBLIC_RECAPTCHA_SITE_KEY belum diisi (RecaptchaCheckbox
-  // gak render apa-apa), makanya validasinya di handleRegister juga
-  // dilewatin kalau site key kosong.
-  const [captchaToken, setCaptchaToken] = useState('');
+  // Pendaftaran HANYA lewat Google (dikonfirmasi user 2026-10-23, gantiin
+  // reCAPTCHA) — cegah satu orang bikin banyak akun lewat form. Tanpa data
+  // Google, halaman cuma nampilin tombol "Daftar dengan Google";
+  // /api/auth/google/callback balik ke sini dengan ?google=1 kalau email
+  // Google belum punya akun. Nama & email diisi dari Google (email dikunci
+  // server, /api/auth/register juga nolak tanpa Google). Password tetap wajib
+  // (dipakai konfirmasi bayar dari saldo).
+  const [googleDaftar, setGoogleDaftar] = useState(null);
+  const errorGoogle = pesanErrorGoogle(searchParams.get('google_error'));
+  const pakaiGoogle = searchParams.get('google') === '1';
+  const [memuatGoogle, setMemuatGoogle] = useState(pakaiGoogle);
+  const [googleKedaluwarsa, setGoogleKedaluwarsa] = useState(false);
+  useEffect(() => {
+    if (!pakaiGoogle) return;
+    fetch('/api/auth/google/daftar', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        if (!d.aktif) { setGoogleKedaluwarsa(true); return; }
+        setGoogleDaftar({ email: d.email, name: d.name });
+        setForm(f => ({ ...f, email: d.email, name: f.name || d.name || '' }));
+      })
+      .catch(() => setGoogleKedaluwarsa(true))
+      .finally(() => setMemuatGoogle(false));
+  }, [pakaiGoogle]);
+  // Balik ke URL /register yang sama (role/ref dari link undangan tetap kebawa).
+  const kembaliGoogle = (() => {
+    const q = new URLSearchParams(searchParams.toString());
+    q.delete('google'); q.delete('google_error');
+    const qs = q.toString();
+    return qs ? `/register?${qs}` : '/register';
+  })();
+  async function batalGoogle() {
+    await fetch('/api/auth/google/daftar', { method: 'DELETE' }).catch(() => {});
+    lepasGuard();
+    window.location.replace(kembaliGoogle);
+  }
 
   const isDirty = step > 1 || !!(form.name || form.nik || form.wa || form.email || form.password);
   const lepasGuard = useUnsavedGuard(isDirty);
@@ -333,7 +364,7 @@ function RegisterPageInner() {
     }
   }
 
-  // step 2 sekarang "Data Diri" — validasi field akun + captcha + submit
+  // step 2 sekarang "Data Diri" — validasi field akun + submit
   // beneran, dipindah dari nextStep() lama (dikonfirmasi user 2026-10-17).
   async function handleRegister() {
     if (!form.name || !form.nik || !form.wa || !form.email || !form.agama || !form.password || !form.confirmPassword) {
@@ -342,12 +373,6 @@ function RegisterPageInner() {
     if (form.nik.length !== 16) { setError('NIK harus 16 digit'); return; }
     if (form.password.length < 8) { setError('Password min. 8 karakter'); return; }
     if (form.password !== form.confirmPassword) { setError('Password tidak cocok'); return; }
-    // Captcha cuma wajib kalau widget-nya beneran dirender (site key udah
-    // diisi) — RecaptchaCheckbox gak render apa-apa kalau belum, biar dev
-    // lokal/deploy awal sebelum key didaftarkan tetap bisa jalan.
-    if (process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && !captchaToken) {
-      setError('Mohon centang verifikasi "Saya bukan robot" terlebih dahulu.'); return;
-    }
     setLoading(true);
     try {
       // role='jamaah' TIDAK PERNAH kirim perekrut_id (itu khusus rantai
@@ -364,12 +389,11 @@ function RegisterPageInner() {
             // perlu lookup/verifikasi tambahan kayak kode Perwakilan/
             // Sahabat (itu string kode_unik yang butuh dicocokin ke akun,
             // ini udah id akun hasil capture di /a/[kode]).
-            ref_agen_jamaah_id: ambilRefAgenId() || undefined,
-            captchaToken }
+            ref_agen_jamaah_id: ambilRefAgenId() || undefined }
         : form.role === 'sahabat_baitullah'
           // Sahabat: kirim KODE undangan saja, perekrut ditentukan server.
-          ? { ...form, perekrut_id: undefined, setuju_data_pribadi: setujuDataPribadi, captchaToken }
-          : { ...form, captchaToken };
+          ? { ...form, perekrut_id: undefined, setuju_data_pribadi: setujuDataPribadi }
+          : form;
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -378,26 +402,9 @@ function RegisterPageInner() {
       const data = await res.json();
       if (!res.ok) { setError(data.error || 'Pendaftaran gagal.'); return; }
 
-      // Auto login. Cookie di-set SERVER (httpOnly) — jangan set manual.
-      // BUG LAMA: dulu memakai loginData.token yang kini undefined,
-      // sehingga cookie menjadi "token=undefined" dan SEMUA request API gagal.
-      const loginRes = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: form.email.trim(),
-          password: form.password.trim(),
-        }),
-      });
-      const loginData = await loginRes.json();
-
-      if (!loginRes.ok) {
-        setError('Akun dibuat, tetapi login otomatis gagal. Silakan login manual.');
-        router.push('/login');
-        return;
-      }
-
-      localStorage.setItem('user', JSON.stringify(loginData.user));
+      // Server langsung login-in (cookie sesi httpOnly di-set di respons
+      // register) — FE cuma simpan data user.
+      localStorage.setItem('user', JSON.stringify(data.user));
 
       // OTP dihapus (2026-09-23) — langsung ke upload-foto (langkah wajib
       // berikutnya yang dulu dituju /verifikasi setelah kode benar).
@@ -438,6 +445,26 @@ function RegisterPageInner() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-lg p-8">
+          {memuatGoogle ? (
+            <div className="text-center text-sm text-gray-400 py-8">Memuat data akun Google...</div>
+          ) : !googleDaftar ? (
+            <div className="space-y-4">
+              <div className="text-center">
+                <h2 className="text-lg font-bold text-[#0E2F6E]">Daftar Akun JM Travel</h2>
+                <p className="text-sm text-gray-400 mt-1">Pendaftaran akun baru menggunakan akun Google Anda.</p>
+              </div>
+              {(errorGoogle || googleKedaluwarsa) && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
+                  ⚠️ {errorGoogle || 'Sesi daftar Google sudah berakhir. Silakan klik "Daftar dengan Google" lagi.'}
+                </div>
+              )}
+              <TombolGoogle label="Daftar dengan Google" kembali={kembaliGoogle} />
+              <p className="text-center text-sm text-gray-400">
+                Sudah punya akun?{' '}
+                <span className="text-[#1A4FA0] font-semibold cursor-pointer hover:underline" onClick={() => router.push(loginUrl)}>Masuk</span>
+              </p>
+            </div>
+          ) : (<>
           {/* Steps */}
           <div className="flex items-center mb-8">
             {steps.map((s, i) => (
@@ -490,6 +517,16 @@ function RegisterPageInner() {
                 // NIK Perwakilan udah dikunci & dicek di step 1 (Tipe Akun,
                 // dikonfirmasi user 2026-10-17) — read-only di sini, "Ubah"
                 // balik ke step 1 buat ganti.
+                if (f.id === 'email' && googleDaftar) {
+                  return (
+                    <div key={f.id}>
+                      <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">{f.label}</label>
+                      <div className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-sm text-gray-600">
+                        {googleDaftar.email} <span className="text-xs text-gray-400">(dari Google)</span>
+                      </div>
+                    </div>
+                  );
+                }
                 if (f.id === 'nik' && form.role === 'perwakilan') {
                   return (
                     <div key={f.id}>
@@ -536,6 +573,9 @@ function RegisterPageInner() {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-[#0E2F6E] mb-1.5">Password *</label>
+                {googleDaftar && (
+                  <p className="text-xs text-gray-400 mb-1.5">Tetap wajib dibuat — dipakai untuk konfirmasi pembayaran. Untuk masuk, Anda bisa pakai Google.</p>
+                )}
                 <PasswordInput
                   className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#1A4FA0] focus:outline-none text-sm transition-colors"
                   placeholder="Min. 8 karakter"
@@ -553,7 +593,6 @@ function RegisterPageInner() {
                   onChange={e => setForm({...form, confirmPassword: e.target.value})}
                 />
               </div>
-              <RecaptchaCheckbox onChange={setCaptchaToken} />
               {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">⚠️ {error}</div>}
               <div className="flex gap-2">
                 <button onClick={() => setStep(1)}
@@ -589,6 +628,11 @@ function RegisterPageInner() {
                 <p className="text-sm text-gray-400">
                   {tampilkanPilihan ? 'Satu langkah lagi — pilih peran Anda.' : 'Sesuai pilihan Anda sebelumnya.'}
                 </p>
+              </div>
+
+              <div className="bg-[#E8F0FB] border border-[#1A4FA0]/20 rounded-xl px-4 py-2.5 text-xs text-[#1A4FA0] flex items-center justify-between gap-2">
+                <span>✓ Mendaftar dengan akun Google <b>{googleDaftar.email}</b></span>
+                <button type="button" onClick={batalGoogle} className="font-bold hover:underline flex-shrink-0">Ganti akun</button>
               </div>
 
               {!tampilkanPilihan ? (
@@ -785,6 +829,7 @@ function RegisterPageInner() {
               </button>
             </div>
           )}
+          </>)}
         </div>
 
         <div className="text-center mt-4">
