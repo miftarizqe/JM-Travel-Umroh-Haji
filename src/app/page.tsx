@@ -352,19 +352,20 @@ export default function Home() {
       {/* HERO */}
       <section className="bg-gradient-to-br from-[#0E2F6E] via-[#1A4FA0] to-[#2060C0] text-white py-20 px-4 text-center">
         <div className="max-w-3xl mx-auto">
-          {/* Logo icon-only (bukan lockup lengkap) — versi lengkap sempat
-              dicoba tapi bagian biru (wordmark+ribbon)-nya nyaris invisible
-              di atas gradient Hero yang juga biru (dikonfirmasi user via
-              screenshot 2026-10-23). Icon emas dominan, terbukti kebaca
-              (asset yang sama dipakai nav/footer). */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo/jm-travel-icon.png" alt="JM Travel" className="w-24 h-24 object-contain mx-auto mb-5" />
+          {/* Logo dihapus dari Hero (dikonfirmasi user 2026-10-23) — nav
+              udah cukup nunjukin brand, Hero fokus ke headline. */}
           {/* Headline digabung jadi 1 kalimat bridging (sebelumnya badge
               pill "Perjalanan Ibadah Eksklusif" + H1 terpisah terasa gak
-              nyambung, dikonfirmasi user 2026-10-23) — gak ada lagi split
-              warna per-baris, teksnya sendiri udah nyebut "JM Travel". */}
-          <h1 className="text-3xl md:text-5xl font-black leading-tight mb-4">
-            {teks.hero_headline || 'Raih Panggilan Allah dengan mengikuti program ibadah eksklusif bersama JM Travel'}
+              nyambung) — "JM Travel" di-highlight warna emas brand biar
+              ada aksen, bukan flat putih semua (dikonfirmasi user
+              2026-10-23, "percantik"). */}
+          <h1 className="text-3xl md:text-5xl font-black leading-[1.15] tracking-tight mb-5">
+            {(teks.hero_headline || 'Raih Panggilan Allah dengan mengikuti program ibadah eksklusif bersama JM Travel')
+              .split(/(JM Travel)/).map((bagian: string, i: number) => (
+                bagian === 'JM Travel'
+                  ? <span key={i} className="text-[#C9952A]">{bagian}</span>
+                  : <span key={i}>{bagian}</span>
+              ))}
           </h1>
           <p className="text-sm md:text-base opacity-85 mb-8 italic">
             &quot;{teks.hero_tagline || 'Melayani dengan Kedekatan, Membimbing dengan Ketulusan.'}&quot;
