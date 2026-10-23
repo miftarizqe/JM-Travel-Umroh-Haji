@@ -629,7 +629,6 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '🎟️', label: 'Voucher', path: '/admin?tab=voucher' },
       { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
       { icon: '🖼️', label: 'Galeri', path: '/admin/galeri' },
-      { icon: '📰', label: 'Berita & Kegiatan', path: '/admin/berita' },
       { icon: '🏠', label: 'Konten Landing Page', path: '/admin/pengaturan/skema-pembayaran' },
       { icon: '✏️', label: 'Teks Landing Page', path: '/admin/pengaturan/teks-landing' },
     ] },

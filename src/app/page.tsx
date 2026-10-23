@@ -7,6 +7,7 @@ import { usePengaturan, waLink, waDisplay } from '@/lib/usePengaturan';
 import { useMetodePembayaran } from '@/lib/useMetodePembayaran';
 import { useLandingTeks } from '@/lib/useLandingTeks';
 import Slideshow from '@/app/components/Slideshow';
+import Reveal from '@/app/components/Reveal';
 import { PERWAKILAN_COMING_SOON } from '@/lib/fiturSementara';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
 import { ambilWaReferral, ambilRefAgenId, salamReferral } from '@/lib/referralCapture';
@@ -24,8 +25,11 @@ interface Program {
 }
 
 interface GaleriBatch {
+  id: number;
+  tipe: 'keberangkatan' | 'kegiatan';
   judul: string;
   tanggal: string | null;
+  cerita: string | null;
   foto: string[];
 }
 
@@ -97,15 +101,6 @@ interface KalkulatorBaselineCard {
   label: string;
 }
 
-interface BeritaPost {
-  id: number;
-  judul: string;
-  deskripsi: string | null;
-  tanggal: string | null;
-  status: 'akan_datang' | 'sudah_berlangsung';
-  foto: string[];
-}
-
 interface Testimoni {
   id: number;
   nama: string;
@@ -154,18 +149,18 @@ export default function Home() {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [modal, setModal] = useState<null | 'perwakilan'>(null);
   const [galeriBatches, setGaleriBatches] = useState<GaleriBatch[]>([]);
-  const [beritaPosts, setBeritaPosts] = useState<BeritaPost[]>([]);
+  const [galeriOpen, setGaleriOpen] = useState<GaleriBatch | null>(null);
   const [testimoniList, setTestimoniList] = useState<Testimoni[]>([]);
   const [faqList, setFaqList] = useState<Faq[]>([]);
   const [faqOpenId, setFaqOpenId] = useState<number | null>(null);
   const [promo, setPromo] = useState<Promo | null>(null);
   const [promoModalOpen, setPromoModalOpen] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
-  const [beritaOpen, setBeritaOpen] = useState<BeritaPost | null>(null);
   const [perlengkapanModalOpen, setPerlengkapanModalOpen] = useState(false);
   const [skemaModalOpen, setSkemaModalOpen] = useState(false);
   const [kenapaCards, setKenapaCards] = useState<KenapaCard[]>([]);
   const [kenapaOpen, setKenapaOpen] = useState<KenapaCard | null>(null);
+  const [infoOpen, setInfoOpen] = useState<'visi_misi' | 'syarat_ketentuan' | null>(null);
   const [fasilitasAllIn, setFasilitasAllIn] = useState<FasilitasItem[]>([]);
   const snapwidgetId = process.env.NEXT_PUBLIC_SNAPWIDGET_ID;
   const [pengaturan] = usePengaturan();
@@ -215,12 +210,6 @@ export default function Home() {
   // Field "1 baris = 1 item" (lihat migration-landing-teks.sql) — parse
   // jadi array, buang baris kosong.
   const parseBaris = (s: string | undefined) => (s || '').split('\n').map(x => x.trim()).filter(Boolean);
-  // Digabung dari semua batch (bukan per-batch grid lagi) buat 1 slideshow
-  // yang geser kanan-kiri, disandingkan sama kolom Instagram. Tiap foto
-  // bawa judul+tanggal batch asalnya (dikonfirmasi user 2026-10-21, "kenapa
-  // gak dibuat kayak IG, ada caption judul batch" — sebelumnya di-flatten
-  // jadi string polos, keterangan batch-nya ilang sama sekali di landing).
-  const semuaFotoKeberangkatan = galeriBatches.flatMap(b => b.foto.map(src => ({ src, judul: b.judul, tanggal: b.tanggal })));
   // Kelompokkan perlengkapan berdasarkan foto yang sama (mis. koper+tag+ransel
   // 1 foto, slayer+paspor+idcard foto lain) — biar modal-nya nampilin tiap
   // foto sekali aja diikuti daftar item yang ada di foto itu, bukan
@@ -240,9 +229,6 @@ export default function Home() {
     fetch('/api/galeri')
       .then(r => r.json())
       .then(d => setGaleriBatches(d.batches || []));
-    fetch('/api/berita')
-      .then(r => r.json())
-      .then(d => setBeritaPosts(d.rows || []));
     fetch('/api/kenapa-jm-travel')
       .then(r => r.json())
       .then(d => setKenapaCards(d.kenapa || []));
@@ -392,7 +378,7 @@ export default function Home() {
           "Dipercaya..." lalu cerita, baru card-card ini). Card bisa diklik,
           buka modal foto+deskripsi. */}
       <section className="bg-[#F8F9FD] py-12 px-4" id="fasilitas">
-        <div className="max-w-5xl mx-auto text-center">
+        <Reveal className="max-w-5xl mx-auto text-center">
           <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E] mb-4">{teks.kenapa_headline || 'Dipercaya untuk Perjalanan Paling Mulia'}</h2>
           <p className="text-sm md:text-base text-gray-500 max-w-2xl mx-auto whitespace-pre-line mb-10">
             {teks.tentang_cerita || 'JM Travel hadir sejak tahun 2004, membimbing jamaah umroh dan haji dengan pelayanan yang dekat dan penuh ketulusan.'}
@@ -412,20 +398,35 @@ export default function Home() {
           {fasilitasAllIn.length > 0 && (
             <>
               <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-4">Fasilitas All-In</div>
-              <div className="flex flex-wrap justify-center gap-3 max-w-2xl mx-auto">
+              <div className="flex flex-wrap justify-center gap-3 max-w-2xl mx-auto mb-8">
                 {fasilitasAllIn.map(f => (
                   <div key={f.id} className="bg-[#E8F0FB] text-[#0E2F6E] text-sm font-semibold py-2 px-4 rounded-full whitespace-nowrap">{f.icon} {f.teks}</div>
                 ))}
               </div>
             </>
           )}
-        </div>
+
+          {/* Visi & Misi / Syarat & Ketentuan — card kecil buka popup,
+              BUKAN halaman terpisah (user koreksi 2026-10-23, awalnya mau
+              /tentang-kami + /syarat-ketentuan). Reuse pola modal
+              "Kenapa JM Travel" yang sudah ada, isi dari landing_page_teks. */}
+          <div className="flex flex-wrap justify-center gap-3">
+            <button onClick={() => setInfoOpen('visi_misi')}
+              className="bg-white border border-[#e0e8f0] hover:border-[#1A4FA0] text-[#0E2F6E] text-sm font-semibold py-2 px-4 rounded-full whitespace-nowrap transition-colors">
+              🎯 Visi &amp; Misi
+            </button>
+            <button onClick={() => setInfoOpen('syarat_ketentuan')}
+              className="bg-white border border-[#e0e8f0] hover:border-[#1A4FA0] text-[#0E2F6E] text-sm font-semibold py-2 px-4 rounded-full whitespace-nowrap transition-colors">
+              📜 Syarat &amp; Ketentuan
+            </button>
+          </div>
+        </Reveal>
       </section>
 
       {/* ALUR PENDAFTARAN */}
       {alurPendaftaran.length > 0 && (
         <section className="py-12 px-4" id="alur-pendaftaran">
-          <div className="max-w-5xl mx-auto">
+          <Reveal className="max-w-5xl mx-auto">
             <div className="text-center mb-10">
               <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.alur_eyebrow || 'Gambaran Prosesnya'}</div>
               <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">{teks.alur_headline || '🚀 Alur Pendaftaran'}</h2>
@@ -452,13 +453,13 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </div>
+          </Reveal>
         </section>
       )}
 
       {/* PROGRAM */}
       <section className="py-12 px-4" id="programs">
-        <div className="max-w-5xl mx-auto">
+        <Reveal className="max-w-5xl mx-auto">
           <div className="text-center mb-8">
             <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.program_eyebrow || 'Program Pilihan'}</div>
             <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">{teks.program_headline || 'Program Umroh JM Travel 🕋'}</h2>
@@ -532,7 +533,7 @@ export default function Home() {
             ))}
           </div>
 
-        </div>
+        </Reveal>
       </section>
 
       {/* UMROH SEMI PRIVATE / PRIVATE / FULL CUSTOMIZED — paket private/custom
@@ -542,7 +543,7 @@ export default function Home() {
           "Konsultasi Umroh Private" di section Program di atas nge-push ke
           /kalkulator/custom, sama kayak CTA "Full Customized" di bawah. */}
       <section className="py-12 px-4 bg-[#F8F9FD]" id="umroh-private">
-        <div className="max-w-5xl mx-auto">
+        <Reveal className="max-w-5xl mx-auto">
           {kalkulatorTemplate.length > 0 && (
             <div className="mb-12">
               <div className="text-center mb-8">
@@ -623,7 +624,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* TESTIMONI JAMAAH — ditaruh SEBELUM Kemitraan (dikonfirmasi user
@@ -632,7 +633,7 @@ export default function Home() {
           sama pola kayak Berita (bukan konten wajib). */}
       {testimoniList.length > 0 && (
         <section className="py-12 px-4" id="testimoni">
-          <div className="max-w-5xl mx-auto">
+          <Reveal className="max-w-5xl mx-auto">
             <div className="text-center mb-10">
               <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">Testimoni</div>
               <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Kata Mereka yang Sudah Berangkat</h2>
@@ -656,7 +657,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </div>
+          </Reveal>
         </section>
       )}
 
@@ -664,7 +665,7 @@ export default function Home() {
           (dikonfirmasi user 2026-10-20), lihat viaAgenLink di atas. */}
       {!viaAgenLink && (
       <section className="bg-[#F8F9FD] py-12 px-4" id="kemitraan">
-        <div className="max-w-5xl mx-auto text-center">
+        <Reveal className="max-w-5xl mx-auto text-center">
           <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.kemitraan_eyebrow || 'Program Kemitraan'}</div>
           <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E] mb-3">{teks.kemitraan_headline || 'Ubah Niat Baik Jadi Penghasilan Berkah'}</h2>
           <p className="text-sm text-gray-500 max-w-xl mx-auto mb-8">
@@ -697,68 +698,24 @@ export default function Home() {
               </div>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
       )}
 
-      {/* BERITA & KEGIATAN — section SENDIRI, BUKAN bagian dari Kemitraan
-          (dikonfirmasi user 2026-10-23: beda logika, berita harus tetap
-          kelihatan buat SEMUA pengunjung, termasuk yang datang via link
-          referral agen — sebelumnya ke-ikut gate viaAgenLink karena nempel
-          di dalam section Kemitraan, itu bug). Feed kronologis (bukan grid
-          foto polos), isinya bisa recap kegiatan LAMA atau pengumuman event
-          AKAN DATANG (status dihitung dari tanggal, lihat /api/berita).
-          Sumbernya /admin/berita. Sengaja gak ditampilin sama sekali kalau
-          kosong (bukan konten wajib kayak Dokumentasi). */}
-      {beritaPosts.length > 0 && (
-        <section className="py-12 px-4" id="berita">
-          <div className="max-w-5xl mx-auto text-left">
-            <h2 className="text-lg font-bold text-[#0E2F6E] mb-1 text-center md:text-left">📰 Berita &amp; Kegiatan</h2>
-            <p className="text-sm text-gray-500 mb-6 text-center md:text-left">Pelatihan, booth, dan event bareng perwakilan — yang sudah maupun akan datang.</p>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {beritaPosts.map(b => (
-                <button key={b.id} onClick={() => setBeritaOpen(b)}
-                  className="text-left bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-lg transition-all group">
-                  {b.foto.length > 0 && (
-                    <div className="relative aspect-video bg-gray-100">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={b.foto[0]} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      {b.foto.length > 1 && (
-                        <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          +{b.foto.length - 1} foto
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <div className="p-3.5">
-                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${b.status === 'akan_datang' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                        {b.status === 'akan_datang' ? '🔜 Akan Datang' : '✅ Sudah Berlangsung'}
-                      </span>
-                      {b.tanggal && (
-                        <span className="text-[10px] text-gray-400">
-                          {new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-sm font-bold text-[#0E2F6E] mb-1">{b.judul}</div>
-                    {b.deskripsi && <p className="text-xs text-gray-500 line-clamp-2">{b.deskripsi}</p>}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* DOKUMENTASI — Instagram (kiri) disandingkan sama slideshow galeri
-          keberangkatan (kanan), 2 kolom seimbang biar gak "menclok" sendirian
-          di tengah kayak sebelumnya. Sumbernya diurus admin lewat /admin/galeri. */}
+      {/* DOKUMENTASI / GALERI — Instagram (kiri) + galeri per-batch (kanan).
+          Sebelumnya ini Berita (kaku, nempel di Kemitraan) + Dokumentasi
+          (slideshow foto polos tanpa cerita) terpisah — digabung jadi 1
+          galeri kronologis, tiap batch (keberangkatan ATAU kegiatan) PUNYA
+          CERITA (dikonfirmasi user 2026-10-23: "dokumentasi yg skrg tuh
+          kaku bgt... gue maunya dibuat perbatch... ada ceritanya").
+          Sumbernya diurus admin lewat /admin/galeri (lihat migration
+          258_galeri_batch.sql). Diklik buka modal cerita lengkap + semua
+          foto batch itu. */}
       <section className="py-12 px-4" id="dokumentasi">
-        <div className="max-w-5xl mx-auto">
+        <Reveal className="max-w-5xl mx-auto">
           <div className="text-center mb-8">
             <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">{teks.dokumentasi_eyebrow || 'Dokumentasi'}</div>
-            <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">{teks.dokumentasi_headline || 'Momen Keberangkatan & Konten Kami'}</h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">{teks.dokumentasi_headline || 'Momen Keberangkatan & Kegiatan Kami'}</h2>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 items-start">
@@ -789,21 +746,47 @@ export default function Home() {
               )}
             </div>
 
-            {/* KANAN — semua foto keberangkatan digabung jadi 1 slideshow
-                (bukan grid per-batch kayak sebelumnya), biar seimbang sama
-                kolom kiri & geser kanan-kiri aja sesuai permintaan. */}
+            {/* KANAN — grid card per-batch (bukan 1 slideshow digabung lagi),
+                biar tiap momen kebaca judul+cerita-nya sendiri, bukan cuma
+                foto lewat tanpa konteks. */}
             <div>
-              <h3 className="font-bold text-[#0E2F6E] mb-3 text-center md:text-left">🕋 Dokumentasi Keberangkatan</h3>
-              {semuaFotoKeberangkatan.length > 0 ? (
-                <Slideshow images={semuaFotoKeberangkatan} aspect="aspect-square" />
+              <h3 className="font-bold text-[#0E2F6E] mb-3 text-center md:text-left">🕋 Galeri Perjalanan</h3>
+              {galeriBatches.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {galeriBatches.map(b => (
+                    <button key={b.id} onClick={() => setGaleriOpen(b)}
+                      className="text-left bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-lg transition-all group">
+                      <div className="relative aspect-square bg-gray-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={b.foto[0]} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-2 py-0.5 rounded-full bg-black/60 text-white">
+                          {b.tipe === 'kegiatan' ? '📰 Kegiatan' : '🕋 Keberangkatan'}
+                        </span>
+                        {b.foto.length > 1 && (
+                          <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            +{b.foto.length - 1} foto
+                          </span>
+                        )}
+                      </div>
+                      <div className="p-2.5">
+                        <div className="text-xs font-bold text-[#0E2F6E] line-clamp-1">{b.judul}</div>
+                        {b.tanggal && (
+                          <div className="text-[10px] text-gray-400">
+                            {new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               ) : (
                 <div className="bg-[#F8F9FD] rounded-xl aspect-square flex items-center justify-center text-gray-400 text-sm p-6 text-center">
-                  🕋 Dokumentasi keberangkatan akan segera hadir di sini.
+                  🕋 Dokumentasi perjalanan akan segera hadir di sini.
                 </div>
               )}
             </div>
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* FAQ — accordion 1-terbuka pakai faqOpenId, ditaruh sebelum Kontak
@@ -811,7 +794,7 @@ export default function Home() {
           2026-10-23). Sengaja gak render apa-apa kalau kosong. */}
       {faqList.length > 0 && (
         <section className="py-12 px-4 bg-[#F8F9FD]" id="faq">
-          <div className="max-w-2xl mx-auto">
+          <Reveal className="max-w-2xl mx-auto">
             <div className="text-center mb-8">
               <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">FAQ</div>
               <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Pertanyaan yang Sering Ditanyakan</h2>
@@ -830,7 +813,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          </div>
+          </Reveal>
         </section>
       )}
 
@@ -839,7 +822,7 @@ export default function Home() {
           aktif terbaru dari /api/promo), bukan daftar/arsip promo. */}
       {promo && (
         <section className="bg-[#FFF8E7] py-12 px-4" id="promo">
-          <div className="max-w-3xl mx-auto">
+          <Reveal className="max-w-3xl mx-auto">
             <div className="text-center mb-6">
               <div className="text-xs font-bold tracking-widest text-[#C9952A] uppercase mb-2">Promo</div>
               <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Jangan Sampai Kelewatan</h2>
@@ -871,13 +854,13 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </div>
+          </Reveal>
         </section>
       )}
 
       {/* CTA + KONTAK */}
       <section className="bg-gradient-to-r from-[#0E2F6E] to-[#1A4FA0] text-white py-14 px-4 text-center" id="kontak">
-        <div className="max-w-2xl mx-auto">
+        <Reveal className="max-w-2xl mx-auto">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo/jm-travel-icon.png" alt="JM Travel" className="w-14 h-14 object-contain mx-auto mb-4" />
           <h2 className="text-2xl md:text-3xl font-bold mb-3">{teks.kontak_headline || 'Siap Menjawab Panggilan-Nya?'}</h2>
@@ -918,7 +901,7 @@ export default function Home() {
               </button>
             ))}
           </div>
-        </div>
+        </Reveal>
       </section>
 
       {/* FOOTER */}
@@ -996,27 +979,27 @@ export default function Home() {
         </div>
       )}
 
-      {/* DETAIL BERITA & KEGIATAN — deskripsi lengkap + slideshow foto (kalau ada) */}
-      {beritaOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={() => setBeritaOpen(null)}>
+      {/* DETAIL GALERI — cerita lengkap + slideshow semua foto batch itu */}
+      {galeriOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={() => setGaleriOpen(null)}>
           <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3 mb-3">
               <div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${beritaOpen.status === 'akan_datang' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                  {beritaOpen.status === 'akan_datang' ? '🔜 Akan Datang' : '✅ Sudah Berlangsung'}
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap bg-blue-100 text-blue-700">
+                  {galeriOpen.tipe === 'kegiatan' ? '📰 Kegiatan' : '🕋 Keberangkatan'}
                 </span>
-                <h3 className="font-bold text-[#0E2F6E] mt-1.5">{beritaOpen.judul}</h3>
-                {beritaOpen.tanggal && (
+                <h3 className="font-bold text-[#0E2F6E] mt-1.5">{galeriOpen.judul}</h3>
+                {galeriOpen.tanggal && (
                   <div className="text-xs text-gray-400 mt-0.5">
-                    {new Date(beritaOpen.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                    {new Date(galeriOpen.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
                   </div>
                 )}
               </div>
-              <button onClick={() => setBeritaOpen(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0">×</button>
+              <button onClick={() => setGaleriOpen(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0">×</button>
             </div>
-            {beritaOpen.foto.length > 0 && <Slideshow images={beritaOpen.foto} aspect="aspect-video" />}
-            {beritaOpen.deskripsi && (
-              <p className="text-sm text-gray-600 whitespace-pre-line mt-3">{beritaOpen.deskripsi}</p>
+            {galeriOpen.foto.length > 0 && <Slideshow images={galeriOpen.foto} aspect="aspect-video" />}
+            {galeriOpen.cerita && (
+              <p className="text-sm text-gray-600 whitespace-pre-line mt-3">{galeriOpen.cerita}</p>
             )}
           </div>
         </div>
@@ -1039,6 +1022,36 @@ export default function Home() {
                 <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{kenapaOpen.deskripsi}</p>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* DETAIL VISI & MISI / SYARAT & KETENTUAN — reuse shell modal yang
+          sama kayak Kenapa JM Travel, isinya dari landing_page_teks (grup
+          "Visi Misi" & "Syarat Ketentuan", migration 260). */}
+      {infoOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4" onClick={() => setInfoOpen(null)}>
+          <div className="bg-white rounded-2xl max-w-md w-full max-h-[85vh] overflow-y-auto p-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <h3 className="font-bold text-[#0E2F6E]">{infoOpen === 'visi_misi' ? '🎯 Visi & Misi' : '📜 Syarat & Ketentuan'}</h3>
+              <button onClick={() => setInfoOpen(null)} className="text-gray-400 hover:text-gray-600 text-xl leading-none shrink-0">×</button>
+            </div>
+            {infoOpen === 'visi_misi' ? (
+              <div className="space-y-4">
+                <div>
+                  <div className="text-xs font-bold text-[#C9952A] uppercase mb-1">Visi</div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{teks.visi_misi_visi || '-'}</p>
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-[#C9952A] uppercase mb-1">Misi</div>
+                  <ul className="text-sm text-gray-600 leading-relaxed space-y-1">
+                    {parseBaris(teks.visi_misi_misi_items).map(m => <li key={m}>✔ {m}</li>)}
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-line">{teks.syarat_ketentuan_isi || '-'}</p>
+            )}
           </div>
         </div>
       )}
