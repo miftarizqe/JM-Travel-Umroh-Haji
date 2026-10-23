@@ -955,19 +955,6 @@ export default function Home() {
               </div>
             </div>
           )}
-          <div className="flex justify-center gap-3">
-            {[
-              { label: 'Instagram', Icon: IconInstagram, href: pengaturan.ig_url },
-              { label: 'TikTok', Icon: IconTikTok, href: pengaturan.tiktok_url },
-              { label: 'Facebook', Icon: IconFacebook, href: pengaturan.fb_url },
-            ].filter(s => s.href).map(s => (
-              <button key={s.label} onClick={() => window.open(s.href, '_blank')}
-                title={s.label}
-                className="w-10 h-10 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center transition-colors">
-                <s.Icon className="w-5 h-5" />
-              </button>
-            ))}
-          </div>
         </Reveal>
       </section>
 
