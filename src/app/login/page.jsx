@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import PasswordInput from '@/app/components/PasswordInput';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
+import TombolGoogle, { pesanErrorGoogle } from '@/app/components/TombolGoogle';
 
 export default function LoginPage() {
   return (
@@ -23,6 +24,9 @@ function LoginPageInner() {
   // Diarahkan ke sini karena sesi 4 jam habis (src/proxy.js /
   // useCurrentUser) — kasih tau alasannya.
   const sesiHabis = searchParams.get('sesi') === 'habis';
+  // Dibalikin /api/auth/google/callback kalau login Google gagal.
+  const errorGoogle = pesanErrorGoogle(searchParams.get('google_error'));
+  const tujuanSetelahLogin = searchParams.get('redirect') || searchParams.get('from');
   // Cek sesi ke server dulu, baru putusin (2026-10-15). Proxy emang ngelempar
   // yang masih login dari /login ke `/`, TAPI halaman ini bisa juga kebuka
   // dari Client Cache Next tanpa lewat proxy — dulu cache user langsung
@@ -160,9 +164,9 @@ function LoginPageInner() {
                 ⏰ Sesi login Anda sudah berakhir (berlaku 4 jam). Silakan login kembali.
               </div>
             )}
-            {error && (
+            {(error || errorGoogle) && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
-                ⚠️ {error}
+                ⚠️ {error || errorGoogle}
               </div>
             )}
 
@@ -173,6 +177,11 @@ function LoginPageInner() {
             >
               {loading ? 'Memproses...' : 'Masuk'}
             </button>
+
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <div className="flex-1 h-px bg-gray-200" />atau<div className="flex-1 h-px bg-gray-200" />
+            </div>
+            <TombolGoogle kembali={tujuanSetelahLogin || undefined} />
           </div>
 
           <div className="text-center mt-6 text-sm text-gray-400">
