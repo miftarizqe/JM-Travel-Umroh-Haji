@@ -10,7 +10,7 @@ const FIELDS = [
   { key: 'email_kantor', label: 'Email Kantor', placeholder: 'Mis. headoffice@jmtourtravel.com', group: 'Kop Surat (Dokumen Cetak)' },
   { key: 'wa_kantor', label: 'Nomor WhatsApp Kantor', placeholder: 'Mis. 6282310572050', group: 'Kontak' },
   { key: 'alamat_kantor', label: 'Alamat Kantor', placeholder: 'Jl. ...', group: 'Kontak', textarea: true },
-  { key: 'jam_operasional', label: 'Jam Operasional', placeholder: 'Mis. Senin–Jumat 08:30–17:00 WIB', group: 'Kontak' },
+  { key: 'jam_operasional', label: 'Jam Operasional', placeholder: 'Mis. Senin–Jumat 09.00–17.00, Sabtu 09.00–15.00', group: 'Kontak' },
   { key: 'ig_url', label: 'Link Instagram', placeholder: 'https://www.instagram.com/...', group: 'Media Sosial' },
   { key: 'tiktok_url', label: 'Link TikTok', placeholder: 'https://www.tiktok.com/@...', group: 'Media Sosial' },
   { key: 'fb_url', label: 'Link Facebook', placeholder: 'https://www.facebook.com/...', group: 'Media Sosial' },

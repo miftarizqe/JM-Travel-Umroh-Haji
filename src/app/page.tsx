@@ -927,20 +927,11 @@ export default function Home() {
               </div>
             </div>
           )}
-          {/* Kontak Kami dipindah ke sini, di bawah Partner & Pembiayaan
-              Resmi (dikonfirmasi user 2026-10-23) — sebelumnya di footer. */}
-          {(pengaturan.alamat_kantor || pengaturan.telepon_kantor || pengaturan.email_kantor || pengaturan.jam_operasional) && (
-            <div className="mb-6">
-              <div className="text-xs font-bold tracking-widest text-white/60 uppercase mb-3">Kontak Kami</div>
-              <div className="text-sm text-white/80 space-y-1.5">
-                {pengaturan.alamat_kantor && <div>📍 {pengaturan.alamat_kantor}</div>}
-                {pengaturan.telepon_kantor && <div>📞 {pengaturan.telepon_kantor}</div>}
-                {pengaturan.email_kantor && <div>✉️ {pengaturan.email_kantor}</div>}
-                {pengaturan.jam_operasional && <div>🕐 {pengaturan.jam_operasional}</div>}
-              </div>
-            </div>
-          )}
-          <div className="flex justify-center gap-3">
+          {/* Urutan: Partner & Pembiayaan -> ikon sosmed -> Kontak Kami
+              (dikonfirmasi user 2026-10-23). Kontak Kami gak nampilin
+              alamat lagi -- alamat udah ada di kartu Lokasi footer, biar
+              gak dobel. */}
+          <div className="flex justify-center gap-3 mb-6">
             {[
               { label: 'Instagram', Icon: IconInstagram, href: pengaturan.ig_url },
               { label: 'TikTok', Icon: IconTikTok, href: pengaturan.tiktok_url },
@@ -953,6 +944,16 @@ export default function Home() {
               </button>
             ))}
           </div>
+          {(pengaturan.telepon_kantor || pengaturan.email_kantor || pengaturan.jam_operasional) && (
+            <div>
+              <div className="text-xs font-bold tracking-widest text-white/60 uppercase mb-3">Kontak Kami</div>
+              <div className="text-sm text-white/80 space-y-1.5">
+                {pengaturan.email_kantor && <div>✉️ {pengaturan.email_kantor}</div>}
+                {pengaturan.telepon_kantor && <div>📞 {pengaturan.telepon_kantor}</div>}
+                {pengaturan.jam_operasional && <div>🕐 {pengaturan.jam_operasional}</div>}
+              </div>
+            </div>
+          )}
         </Reveal>
       </section>
 
@@ -962,17 +963,21 @@ export default function Home() {
       <footer className="bg-[#0E2F6E] text-white py-12 px-4">
         <div className="max-w-5xl mx-auto mb-8">
           <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-            <div className="font-bold p-5 pb-3">Lokasi</div>
+            {/* Label "Lokasi" diganti alamat beneran (dikonfirmasi user
+                2026-10-23). Foto pakai object-contain (bukan cover) +
+                tinggi lebih lega biar gak kepotong -- foto aslinya 4:3,
+                sebelumnya ke-crop parah di slot pendek. */}
+            {pengaturan.alamat_kantor && <div className="font-bold p-5 pb-3">📍 {pengaturan.alamat_kantor}</div>}
             <div className="grid sm:grid-cols-2">
               {/* Foto kantor di-hardcode (bukan dari pengaturan.foto_kantor_path
                   lagi) — dikonfirmasi user 2026-10-23, sistem upload+DB
                   kerasa gak perlu buat 1 foto doang. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/foto-kantor.jpg" alt="Kantor JM Travel" className="w-full h-56 sm:h-64 object-cover" />
+              <img src="/foto-kantor.jpg" alt="Kantor JM Travel" className="w-full h-72 sm:h-80 object-contain bg-black/20" />
               {pengaturan.alamat_kantor && (
                 <iframe
                   src={`https://maps.google.com/maps?q=${encodeURIComponent(pengaturan.alamat_kantor)}&output=embed`}
-                  title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-56 sm:h-64" style={{ border: 'none' }} />
+                  title="Lokasi Kantor JM Travel" loading="lazy" className="w-full h-72 sm:h-80" style={{ border: 'none' }} />
               )}
             </div>
           </div>
