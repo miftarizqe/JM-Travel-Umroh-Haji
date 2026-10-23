@@ -84,13 +84,14 @@ export default function AdminSkemaPembayaranPage() {
 
       <DaftarEditor
         judul="💬 Testimoni Jamaah"
-        deskripsiHalaman="Testimoni asli jamaah (nama + kutipan + foto opsional) — tampil di landing page sebelum section Kemitraan, jadi bukti sosial sebelum mengajak orang jadi mitra."
+        deskripsiHalaman="Testimoni asli jamaah (nama + kutipan + foto/video opsional) — tampil di landing page sebelum section Kemitraan, jadi bukti sosial sebelum mengajak orang jadi mitra. Video pakai link (YouTube/Instagram/TikTok), bukan upload file."
         adminApiUrl="/api/admin/testimoni-jamaah"
         imageUploadUrl="/api/admin/testimoni-jamaah/upload-gambar"
         fields={[
           { key: 'nama', label: 'Nama Jamaah', placeholder: 'Mis. Budi Santoso', wajib: true },
           { key: 'asal_program', label: 'Asal/Program (opsional)', placeholder: 'Mis. Umroh Reguler 9 Hari, Jakarta' },
           { key: 'kutipan', label: 'Kutipan Testimoni', placeholder: 'Tulis ulang kata-kata jamaah...', wajib: true, textarea: true },
+          { key: 'video_url', label: 'Link Video (opsional — YouTube/Instagram/TikTok)', placeholder: 'https://youtube.com/watch?v=...' },
         ]}
         kolomTampil={{ judul: 'nama', sub: 'kutipan' }}
       />

@@ -107,6 +107,7 @@ interface Testimoni {
   asal_program: string | null;
   kutipan: string;
   gambar: string | null;
+  video_url: string | null;
 }
 
 interface Faq {
@@ -210,6 +211,15 @@ export default function Home() {
   // Field "1 baris = 1 item" (lihat migration-landing-teks.sql) — parse
   // jadi array, buang baris kosong.
   const parseBaris = (s: string | undefined) => (s || '').split('\n').map(x => x.trim()).filter(Boolean);
+  // Video testimoni cuma link (YouTube/Instagram/TikTok), bukan upload file
+  // (dikonfirmasi user 2026-10-23, biar ringan buat server). YouTube bisa
+  // di-embed langsung (iframe polos, gak perlu script tambahan); platform
+  // lain (Instagram/TikTok) oEmbed-nya butuh widget JS yang lebih ribet,
+  // jadi cukup link-out "Tonton Video" di tab baru.
+  const youtubeEmbedUrl = (url: string): string | null => {
+    const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+    return m ? `https://www.youtube.com/embed/${m[1]}` : null;
+  };
   // Kelompokkan perlengkapan berdasarkan foto yang sama (mis. koper+tag+ransel
   // 1 foto, slayer+paspor+idcard foto lain) — biar modal-nya nampilin tiap
   // foto sekali aja diikuti daftar item yang ada di foto itu, bukan
@@ -639,8 +649,24 @@ export default function Home() {
               <h2 className="text-2xl md:text-3xl font-bold text-[#0E2F6E]">Kata Mereka yang Sudah Berangkat</h2>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {testimoniList.map(t => (
-                <div key={t.id} className="bg-white rounded-2xl border border-[#e0e8f0] p-5">
+              {testimoniList.map(t => {
+                const ytEmbed = t.video_url ? youtubeEmbedUrl(t.video_url) : null;
+                return (
+                <div key={t.id} className="bg-white rounded-2xl border border-[#e0e8f0] overflow-hidden">
+                  {t.video_url && (
+                    ytEmbed ? (
+                      <div className="aspect-video bg-black">
+                        <iframe src={ytEmbed} title={`Video testimoni ${t.nama}`} allowFullScreen
+                          className="w-full h-full" style={{ border: 'none' }} />
+                      </div>
+                    ) : (
+                      <a href={t.video_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 aspect-video bg-[#0E2F6E] text-white font-bold text-sm hover:bg-[#1A4FA0] transition-colors">
+                        ▶️ Tonton Video
+                      </a>
+                    )
+                  )}
+                  <div className="p-5">
                   <p className="text-sm text-gray-600 italic mb-4">&quot;{t.kutipan}&quot;</p>
                   <div className="flex items-center gap-3">
                     {t.gambar ? (
@@ -654,8 +680,10 @@ export default function Home() {
                       {t.asal_program && <div className="text-xs text-gray-400">{t.asal_program}</div>}
                     </div>
                   </div>
+                  </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </Reveal>
         </section>
