@@ -695,52 +695,58 @@ export default function Home() {
               </div>
             ))}
           </div>
-
-          {/* Berita & Kegiatan — feed kronologis (bukan grid foto polos),
-              isinya bisa recap kegiatan LAMA atau pengumuman event AKAN
-              DATANG (status dihitung dari tanggal, lihat /api/berita).
-              Sumbernya /admin/berita. Sengaja gak ditampilin sama sekali
-              kalau kosong (bukan konten wajib kayak Dokumentasi). */}
-          {beritaPosts.length > 0 && (
-            <div className="mt-14 text-left">
-              <h3 className="text-lg font-bold text-[#0E2F6E] mb-1 text-center md:text-left">📰 Berita &amp; Kegiatan</h3>
-              <p className="text-sm text-gray-500 mb-6 text-center md:text-left">Pelatihan, booth, dan event bareng perwakilan — yang sudah maupun akan datang.</p>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {beritaPosts.map(b => (
-                  <button key={b.id} onClick={() => setBeritaOpen(b)}
-                    className="text-left bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-lg transition-all group">
-                    {b.foto.length > 0 && (
-                      <div className="relative aspect-video bg-gray-100">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={b.foto[0]} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                        {b.foto.length > 1 && (
-                          <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            +{b.foto.length - 1} foto
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    <div className="p-3.5">
-                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${b.status === 'akan_datang' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-                          {b.status === 'akan_datang' ? '🔜 Akan Datang' : '✅ Sudah Berlangsung'}
-                        </span>
-                        {b.tanggal && (
-                          <span className="text-[10px] text-gray-400">
-                            {new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-sm font-bold text-[#0E2F6E] mb-1">{b.judul}</div>
-                      {b.deskripsi && <p className="text-xs text-gray-500 line-clamp-2">{b.deskripsi}</p>}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </section>
+      )}
+
+      {/* BERITA & KEGIATAN — section SENDIRI, BUKAN bagian dari Kemitraan
+          (dikonfirmasi user 2026-10-23: beda logika, berita harus tetap
+          kelihatan buat SEMUA pengunjung, termasuk yang datang via link
+          referral agen — sebelumnya ke-ikut gate viaAgenLink karena nempel
+          di dalam section Kemitraan, itu bug). Feed kronologis (bukan grid
+          foto polos), isinya bisa recap kegiatan LAMA atau pengumuman event
+          AKAN DATANG (status dihitung dari tanggal, lihat /api/berita).
+          Sumbernya /admin/berita. Sengaja gak ditampilin sama sekali kalau
+          kosong (bukan konten wajib kayak Dokumentasi). */}
+      {beritaPosts.length > 0 && (
+        <section className="py-12 px-4" id="berita">
+          <div className="max-w-5xl mx-auto text-left">
+            <h2 className="text-lg font-bold text-[#0E2F6E] mb-1 text-center md:text-left">📰 Berita &amp; Kegiatan</h2>
+            <p className="text-sm text-gray-500 mb-6 text-center md:text-left">Pelatihan, booth, dan event bareng perwakilan — yang sudah maupun akan datang.</p>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {beritaPosts.map(b => (
+                <button key={b.id} onClick={() => setBeritaOpen(b)}
+                  className="text-left bg-white rounded-xl border border-[#e0e8f0] overflow-hidden hover:shadow-lg transition-all group">
+                  {b.foto.length > 0 && (
+                    <div className="relative aspect-video bg-gray-100">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={b.foto[0]} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      {b.foto.length > 1 && (
+                        <span className="absolute bottom-1.5 right-1.5 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          +{b.foto.length - 1} foto
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <div className="p-3.5">
+                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${b.status === 'akan_datang' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                        {b.status === 'akan_datang' ? '🔜 Akan Datang' : '✅ Sudah Berlangsung'}
+                      </span>
+                      {b.tanggal && (
+                        <span className="text-[10px] text-gray-400">
+                          {new Date(b.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-sm font-bold text-[#0E2F6E] mb-1">{b.judul}</div>
+                    {b.deskripsi && <p className="text-xs text-gray-500 line-clamp-2">{b.deskripsi}</p>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
       )}
 
       {/* DOKUMENTASI — Instagram (kiri) disandingkan sama slideshow galeri
