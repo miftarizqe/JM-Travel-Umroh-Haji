@@ -10,6 +10,7 @@ const FIELDS = [
   { key: 'email_kantor', label: 'Email Kantor', placeholder: 'Mis. headoffice@jmtourtravel.com', group: 'Kop Surat (Dokumen Cetak)' },
   { key: 'wa_kantor', label: 'Nomor WhatsApp Kantor', placeholder: 'Mis. 6282310572050', group: 'Kontak' },
   { key: 'alamat_kantor', label: 'Alamat Kantor', placeholder: 'Jl. ...', group: 'Kontak', textarea: true },
+  { key: 'jam_operasional', label: 'Jam Operasional', placeholder: 'Mis. Senin–Jumat 08:30–17:00 WIB', group: 'Kontak' },
   { key: 'ig_url', label: 'Link Instagram', placeholder: 'https://www.instagram.com/...', group: 'Media Sosial' },
   { key: 'tiktok_url', label: 'Link TikTok', placeholder: 'https://www.tiktok.com/@...', group: 'Media Sosial' },
   { key: 'fb_url', label: 'Link Facebook', placeholder: 'https://www.facebook.com/...', group: 'Media Sosial' },
@@ -23,6 +24,7 @@ export default function AdminPengaturanPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
 
   useEffect(() => {
     // user null krn localStorage belum kebaca di render pertama — bukan
@@ -42,6 +44,21 @@ export default function AdminPengaturanPage() {
   function ubah(key, val) {
     setForm(f => ({ ...f, [key]: val }));
     setSaved(false);
+  }
+
+  async function uploadFotoKantor(file) {
+    if (!file) return;
+    setUploadingFoto(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('kolom', 'foto_kantor_path');
+      const res = await fetch('/api/admin/pengaturan/upload-gambar', { method: 'POST', body: fd });
+      const d = await res.json();
+      if (!res.ok) { alert(d.error || 'Gagal mengunggah foto'); return; }
+      setForm(f => ({ ...f, foto_kantor_path: d.path }));
+    } catch { alert('Terjadi kesalahan saat mengunggah'); }
+    setUploadingFoto(false);
   }
 
   async function simpan() {
@@ -86,6 +103,22 @@ export default function AdminPengaturanPage() {
                   )}
                 </div>
               ))}
+              {group === 'Kontak' && (
+                <div className="sm:col-span-2">
+                  <label className={lbl}>Foto Kantor (tampil di landing page section Lokasi)</label>
+                  <div className="flex items-center gap-3">
+                    {form.foto_kantor_path && (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={form.foto_kantor_path} alt="" className="w-20 h-20 object-cover rounded-lg border border-gray-200" />
+                    )}
+                    <label className="text-xs font-bold text-[#1A4FA0] bg-[#E8F0FB] hover:bg-[#d5e4f8] px-3 py-2 rounded-full cursor-pointer whitespace-nowrap">
+                      {uploadingFoto ? 'Mengunggah...' : form.foto_kantor_path ? 'Ganti Foto' : 'Unggah Foto'}
+                      <input type="file" accept=".jpg,.jpeg,.png" className="hidden" disabled={uploadingFoto}
+                        onChange={e => uploadFotoKantor(e.target.files?.[0])} />
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         ))}

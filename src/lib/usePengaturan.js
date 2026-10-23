@@ -5,7 +5,7 @@ const DEFAULT = {
   wa_kantor: '', bank_nama: '', bank_rekening: '', bank_atas_nama: '',
   alamat_kantor: '', ig_url: '', tiktok_url: '', fb_url: '',
   nama_penandatangan: '', jabatan_penandatangan: '',
-  nama_perusahaan: '', telepon_kantor: '', email_kantor: '',
+  nama_perusahaan: '', telepon_kantor: '', email_kantor: '', jam_operasional: '', foto_kantor_path: '',
   nama_penandatangan_keuangan: '', jabatan_penandatangan_keuangan: '',
   ttd_penandatangan_keuangan_path: '', cap_perusahaan_path: '',
   panduan_buka_rekening_bsi_path: '', panduan_buka_tabungan_umroh_path: '',
