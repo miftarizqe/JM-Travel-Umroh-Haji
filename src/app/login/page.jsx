@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import PasswordInput from '@/app/components/PasswordInput';
 import { usePengaturan, waLink } from '@/lib/usePengaturan';
 import { dashboardPathForRole } from '@/lib/dashboardPath';
-import TombolGoogle, { pesanErrorGoogle } from '@/app/components/TombolGoogle';
+import TombolGoogle, { useErrorGoogle } from '@/app/components/TombolGoogle';
 
 export default function LoginPage() {
   return (
@@ -25,7 +25,7 @@ function LoginPageInner() {
   // useCurrentUser) — kasih tau alasannya.
   const sesiHabis = searchParams.get('sesi') === 'habis';
   // Dibalikin /api/auth/google/callback kalau login Google gagal.
-  const errorGoogle = pesanErrorGoogle(searchParams.get('google_error'));
+  const errorGoogle = useErrorGoogle(searchParams);
   const tujuanSetelahLogin = searchParams.get('redirect') || searchParams.get('from');
   // Cek sesi ke server dulu, baru putusin (2026-10-15). Proxy emang ngelempar
   // yang masih login dari /login ke `/`, TAPI halaman ini bisa juga kebuka
