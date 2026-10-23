@@ -356,17 +356,19 @@ export default function Home() {
       {/* HERO */}
       <section className="bg-gradient-to-br from-[#0E2F6E] via-[#1A4FA0] to-[#2060C0] text-white py-20 px-4 text-center">
         <div className="max-w-3xl mx-auto">
+          {/* Logo icon-only (bukan lockup lengkap) — versi lengkap sempat
+              dicoba tapi bagian biru (wordmark+ribbon)-nya nyaris invisible
+              di atas gradient Hero yang juga biru (dikonfirmasi user via
+              screenshot 2026-10-23). Icon emas dominan, terbukti kebaca
+              (asset yang sama dipakai nav/footer). */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo/jm-travel-logo-lengkap.png" alt="JM Travel — Umrah dan Haji" className="w-40 md:w-48 h-auto object-contain mx-auto mb-5" />
-          <div className="inline-block bg-white/15 border border-white/30 rounded-full px-4 py-1 text-xs mb-4">
-            {teks.hero_badge || '✨ Perjalanan Ibadah Eksklusif'}
-          </div>
+          <img src="/logo/jm-travel-icon.png" alt="JM Travel" className="w-24 h-24 object-contain mx-auto mb-5" />
+          {/* Headline digabung jadi 1 kalimat bridging (sebelumnya badge
+              pill "Perjalanan Ibadah Eksklusif" + H1 terpisah terasa gak
+              nyambung, dikonfirmasi user 2026-10-23) — gak ada lagi split
+              warna per-baris, teksnya sendiri udah nyebut "JM Travel". */}
           <h1 className="text-3xl md:text-5xl font-black leading-tight mb-4">
-            {parseBaris(teks.hero_headline || 'Raih Panggilan Allah\nbersama JM Travel').map((line, i, arr) => (
-              <span key={i} className={i === arr.length - 1 ? 'text-[#C9952A]' : ''}>
-                {line}{i < arr.length - 1 && <br />}
-              </span>
-            ))}
+            {teks.hero_headline || 'Raih Panggilan Allah dengan mengikuti program ibadah eksklusif bersama JM Travel'}
           </h1>
           <p className="text-sm md:text-base opacity-85 mb-8 italic">
             &quot;{teks.hero_tagline || 'Melayani dengan Kedekatan, Membimbing dengan Ketulusan.'}&quot;
