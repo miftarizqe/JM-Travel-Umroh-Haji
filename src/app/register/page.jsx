@@ -143,14 +143,14 @@ function RegisterPageInner() {
   const kodeReferralSahabatChecking = !!kodeSahabatTrim && cekKodeSahabat.kode !== kodeSahabatTrim;
   const kodeReferralSahabatInvalid = !!kodeSahabatTrim && !kodeReferralSahabatChecking && cekKodeSahabat.valid === false;
   const [kodeInviteSahabatDariLink, setKodeInviteSahabatDariLink] = useState(false);
-  // Pendaftaran HANYA lewat Google (dikonfirmasi user 2026-10-23, gantiin
-  // reCAPTCHA) — cegah satu orang bikin banyak akun lewat form. Tanpa data
-  // Google, halaman cuma nampilin tombol "Daftar dengan Google";
-  // /api/auth/google/callback balik ke sini dengan ?google=1 kalau email
-  // Google belum punya akun. Nama & email diisi dari Google (email dikunci
-  // server, /api/auth/register juga nolak tanpa Google). Password tetap wajib
-  // (dipakai konfirmasi bayar dari saldo).
+  // Dua jalur daftar (dikonfirmasi user 2026-10-23, revisi dari "HANYA
+  // Google" pagi harinya): "Daftar dengan Google" — /api/auth/google/callback
+  // balik ke sini dengan ?google=1, nama & email diisi dari Google (email
+  // dikunci server) — ATAU form manual tanpa SSO (daftarManual), email
+  // diketik sendiri, buat bikinin akun orang lain pakai email orang itu.
+  // Password tetap wajib di dua jalur (login & konfirmasi bayar dari saldo).
   const [googleDaftar, setGoogleDaftar] = useState(null);
+  const [daftarManual, setDaftarManual] = useState(false);
   const errorGoogle = useErrorGoogle(searchParams);
   const pakaiGoogle = searchParams.get('google') === '1';
   const [memuatGoogle, setMemuatGoogle] = useState(pakaiGoogle);
@@ -447,11 +447,11 @@ function RegisterPageInner() {
         <div className="bg-white rounded-2xl shadow-lg p-8">
           {memuatGoogle ? (
             <div className="text-center text-sm text-gray-400 py-8">Memuat data akun Google...</div>
-          ) : !googleDaftar ? (
+          ) : !googleDaftar && !daftarManual ? (
             <div className="space-y-4">
               <div className="text-center">
                 <h2 className="text-lg font-bold text-[#0E2F6E]">Daftar Akun JM Travel</h2>
-                <p className="text-sm text-gray-400 mt-1">Pendaftaran akun baru menggunakan akun Google Anda.</p>
+                <p className="text-sm text-gray-400 mt-1">Daftar pakai akun Google, atau isi form dengan email biasa.</p>
               </div>
               {(errorGoogle || googleKedaluwarsa) && (
                 <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
@@ -459,6 +459,13 @@ function RegisterPageInner() {
                 </div>
               )}
               <TombolGoogle label="Daftar dengan Google" kembali={kembaliGoogle} />
+              <div className="flex items-center gap-3 text-xs text-gray-400">
+                <div className="flex-1 h-px bg-gray-200" />atau<div className="flex-1 h-px bg-gray-200" />
+              </div>
+              <button type="button" onClick={() => setDaftarManual(true)}
+                className="w-full border-2 border-[#1A4FA0] text-[#1A4FA0] hover:bg-[#E8F0FB] font-bold py-3 rounded-full transition-colors text-sm">
+                Daftar dengan Email (isi form)
+              </button>
               <p className="text-center text-sm text-gray-400">
                 Sudah punya akun?{' '}
                 <span className="text-[#1A4FA0] font-semibold cursor-pointer hover:underline" onClick={() => router.push(loginUrl)}>Masuk</span>
@@ -630,10 +637,17 @@ function RegisterPageInner() {
                 </p>
               </div>
 
-              <div className="bg-[#E8F0FB] border border-[#1A4FA0]/20 rounded-xl px-4 py-2.5 text-xs text-[#1A4FA0] flex items-center justify-between gap-2">
-                <span>✓ Mendaftar dengan akun Google <b>{googleDaftar.email}</b></span>
-                <button type="button" onClick={batalGoogle} className="font-bold hover:underline flex-shrink-0">Ganti akun</button>
-              </div>
+              {googleDaftar ? (
+                <div className="bg-[#E8F0FB] border border-[#1A4FA0]/20 rounded-xl px-4 py-2.5 text-xs text-[#1A4FA0] flex items-center justify-between gap-2">
+                  <span>✓ Mendaftar dengan akun Google <b>{googleDaftar.email}</b></span>
+                  <button type="button" onClick={batalGoogle} className="font-bold hover:underline flex-shrink-0">Ganti akun</button>
+                </div>
+              ) : (
+                <div className="bg-[#E8F0FB] border border-[#1A4FA0]/20 rounded-xl px-4 py-2.5 text-xs text-[#1A4FA0] flex items-center justify-between gap-2">
+                  <span>✓ Mendaftar dengan email (tanpa Google)</span>
+                  <button type="button" onClick={() => setDaftarManual(false)} className="font-bold hover:underline flex-shrink-0">Pakai Google</button>
+                </div>
+              )}
 
               {!tampilkanPilihan ? (
                 // Role udah kebawa dari link/popup kemitraan — SENGAJA gak ada
