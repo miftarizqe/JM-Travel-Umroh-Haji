@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Layout from '@/app/components/Layout';
 import DaftarEditor from '@/app/components/DaftarEditor';
+import Reveal from '@/app/components/Reveal';
 import { useCurrentUser } from '@/lib/useCurrentUser';
 
 export default function AdminSkemaPembayaranPage() {
@@ -22,90 +23,123 @@ export default function AdminSkemaPembayaranPage() {
 
   return (
     <Layout title="🏠 Konten Landing Page" backHref="/admin/pengaturan/dokumen">
-      <DaftarEditor
-        judul="⭐ Kenapa JM Travel"
-        deskripsiHalaman="4 card 'Kenapa JM Travel?' di landing page — bisa diklik pengunjung, buka modal berisi deskripsi + foto (mis. scan izin resmi, foto hotel, foto mutawwif, dll)."
-        adminApiUrl="/api/admin/kenapa-jm-travel"
-        imageUploadUrl="/api/admin/kenapa-jm-travel/upload-gambar"
-        fields={[
-          { key: 'judul', label: 'Judul Card', placeholder: 'Mis. Izin Resmi', wajib: true },
-          { key: 'icon', label: 'Icon (emoji)', placeholder: 'Mis. 📋' },
-          { key: 'deskripsi', label: 'Deskripsi (tampil di modal saat diklik)', placeholder: 'Jelaskan lebih detail...', textarea: true },
-        ]}
-        kolomTampil={{ judul: 'judul', sub: 'deskripsi' }}
-      />
+      {/* Tiap blok dikasih id + Reveal — id buat deep-link dari sidebar
+          (mis. #testimoni, dikonfirmasi user 2026-10-24 "biar gue tau
+          letaknya"), Reveal buat animasi fade+slide pas discroll (reuse
+          komponen yang sama kayak landing page publik, "biar gak lempeng
+          scrollingnya"). */}
+      <div id="kenapa-jm-travel">
+        <Reveal>
+          <DaftarEditor
+            judul="⭐ Kenapa JM Travel"
+            deskripsiHalaman="4 card 'Kenapa JM Travel?' di landing page — bisa diklik pengunjung, buka modal berisi deskripsi + foto (mis. scan izin resmi, foto hotel, foto mutawwif, dll)."
+            adminApiUrl="/api/admin/kenapa-jm-travel"
+            imageUploadUrl="/api/admin/kenapa-jm-travel/upload-gambar"
+            fields={[
+              { key: 'judul', label: 'Judul Card', placeholder: 'Mis. Izin Resmi', wajib: true },
+              { key: 'icon', label: 'Icon (emoji)', placeholder: 'Mis. 📋' },
+              { key: 'deskripsi', label: 'Deskripsi (tampil di modal saat diklik)', placeholder: 'Jelaskan lebih detail...', textarea: true },
+            ]}
+            kolomTampil={{ judul: 'judul', sub: 'deskripsi' }}
+          />
+        </Reveal>
+      </div>
 
-      <DaftarEditor
-        judul="🎫 Fasilitas All-In"
-        deskripsiHalaman="Daftar fasilitas yang tampil sebagai pill kecil di landing page (Tiket, Visa, Transportasi, dst)."
-        adminApiUrl="/api/admin/fasilitas-all-in"
-        fields={[
-          { key: 'teks', label: 'Teks', placeholder: 'Mis. Full Handling Airport', wajib: true },
-          { key: 'icon', label: 'Icon (emoji)', placeholder: 'Mis. 🛬' },
-        ]}
-        kolomTampil={{ judul: 'teks' }}
-      />
+      <div id="fasilitas-all-in">
+        <Reveal>
+          <DaftarEditor
+            judul="🎫 Fasilitas All-In"
+            deskripsiHalaman="Daftar fasilitas yang tampil sebagai pill kecil di landing page (Tiket, Visa, Transportasi, dst)."
+            adminApiUrl="/api/admin/fasilitas-all-in"
+            fields={[
+              { key: 'teks', label: 'Teks', placeholder: 'Mis. Full Handling Airport', wajib: true },
+              { key: 'icon', label: 'Icon (emoji)', placeholder: 'Mis. 🛬' },
+            ]}
+            kolomTampil={{ judul: 'teks' }}
+          />
+        </Reveal>
+      </div>
 
-      <DaftarEditor
-        judul="🚀 Alur Pendaftaran"
-        deskripsiHalaman="Langkah-langkah proses pendaftaran, ditampilkan di landing page SEBELUM section Program. Sengaja singkat per langkah (mis. 'DP Rp 5.000.000' tanpa rincian skema) — detail cara bayar ada di Skema Pembayaran di bawah, biar gak dobel."
-        adminApiUrl="/api/admin/alur-pendaftaran"
-        fields={[
-          { key: 'judul', label: 'Judul Langkah', placeholder: 'Mis. Pilih Program', wajib: true },
-          { key: 'deskripsi', label: 'Deskripsi Singkat', placeholder: 'Satu kalimat singkat...', wajib: true },
-          { key: 'icon', label: 'Icon (emoji, opsional)', placeholder: 'Mis. 🕌' },
-        ]}
-        kolomTampil={{ judul: 'judul', sub: 'deskripsi' }}
-      />
+      <div id="alur-pendaftaran">
+        <Reveal>
+          <DaftarEditor
+            judul="🚀 Alur Pendaftaran"
+            deskripsiHalaman="Langkah-langkah proses pendaftaran, ditampilkan di landing page SEBELUM section Program. Sengaja singkat per langkah (mis. 'DP Rp 5.000.000' tanpa rincian skema) — detail cara bayar ada di Skema Pembayaran di bawah, biar gak dobel."
+            adminApiUrl="/api/admin/alur-pendaftaran"
+            fields={[
+              { key: 'judul', label: 'Judul Langkah', placeholder: 'Mis. Pilih Program', wajib: true },
+              { key: 'deskripsi', label: 'Deskripsi Singkat', placeholder: 'Satu kalimat singkat...', wajib: true },
+              { key: 'icon', label: 'Icon (emoji, opsional)', placeholder: 'Mis. 🕌' },
+            ]}
+            kolomTampil={{ judul: 'judul', sub: 'deskripsi' }}
+          />
+        </Reveal>
+      </div>
 
-      <DaftarEditor
-        judul="💰 Skema Pembayaran"
-        deskripsiHalaman="Cara-cara bayar yang ditawarkan (lunas/DP, tabungan umroh, jadi mitra, cicilan syariah, dst) — beda dari Metode Pembayaran yang soal rekening tujuan. Ini konten penjelasan + tombol WA, gak ada proses otomatis di sistem."
-        adminApiUrl="/api/admin/skema-pembayaran"
-        fields={[
-          { key: 'judul', label: 'Judul', placeholder: 'Mis. Tabungan Umroh', wajib: true },
-          { key: 'deskripsi', label: 'Deskripsi', placeholder: 'Jelaskan skemanya...', wajib: true, textarea: true },
-          { key: 'pesan_wa', label: 'Pesan WhatsApp (opsional, custom)', placeholder: 'Kosongkan buat pesan default' },
-        ]}
-        kolomTampil={{ judul: 'judul', sub: 'deskripsi' }}
-      />
+      <div id="skema-pembayaran">
+        <Reveal>
+          <DaftarEditor
+            judul="💰 Skema Pembayaran"
+            deskripsiHalaman="Cara-cara bayar yang ditawarkan (lunas/DP, tabungan umroh, jadi mitra, cicilan syariah, dst) — beda dari Metode Pembayaran yang soal rekening tujuan. Ini konten penjelasan + tombol WA, gak ada proses otomatis di sistem."
+            adminApiUrl="/api/admin/skema-pembayaran"
+            fields={[
+              { key: 'judul', label: 'Judul', placeholder: 'Mis. Tabungan Umroh', wajib: true },
+              { key: 'deskripsi', label: 'Deskripsi', placeholder: 'Jelaskan skemanya...', wajib: true, textarea: true },
+              { key: 'pesan_wa', label: 'Pesan WhatsApp (opsional, custom)', placeholder: 'Kosongkan buat pesan default' },
+            ]}
+            kolomTampil={{ judul: 'judul', sub: 'deskripsi' }}
+          />
+        </Reveal>
+      </div>
 
-      <DaftarEditor
-        judul="🎒 Perlengkapan Jamaah"
-        deskripsiHalaman="Daftar perlengkapan yang dikirim ke jamaah setelah DP dikonfirmasi — tampil di landing page."
-        adminApiUrl="/api/admin/perlengkapan-jamaah"
-        imageUploadUrl="/api/admin/perlengkapan-jamaah/upload-gambar"
-        fields={[
-          { key: 'nama', label: 'Nama Item', placeholder: 'Mis. Koper, Kain Ihram', wajib: true },
-          { key: 'deskripsi', label: 'Deskripsi (opsional)', placeholder: 'Mis. ukuran, bahan, dll' },
-        ]}
-        kolomTampil={{ judul: 'nama', sub: 'deskripsi' }}
-      />
+      <div id="perlengkapan-jamaah">
+        <Reveal>
+          <DaftarEditor
+            judul="🎒 Perlengkapan Jamaah"
+            deskripsiHalaman="Daftar perlengkapan yang dikirim ke jamaah setelah DP dikonfirmasi — tampil di landing page."
+            adminApiUrl="/api/admin/perlengkapan-jamaah"
+            imageUploadUrl="/api/admin/perlengkapan-jamaah/upload-gambar"
+            fields={[
+              { key: 'nama', label: 'Nama Item', placeholder: 'Mis. Koper, Kain Ihram', wajib: true },
+              { key: 'deskripsi', label: 'Deskripsi (opsional)', placeholder: 'Mis. ukuran, bahan, dll' },
+            ]}
+            kolomTampil={{ judul: 'nama', sub: 'deskripsi' }}
+          />
+        </Reveal>
+      </div>
 
-      <DaftarEditor
-        judul="💬 Testimoni Jamaah"
-        deskripsiHalaman="Testimoni asli jamaah (nama + kutipan + foto/video opsional) — tampil di landing page sebelum section Kemitraan, jadi bukti sosial sebelum mengajak orang jadi mitra. Video pakai link (YouTube/Instagram/TikTok), bukan upload file."
-        adminApiUrl="/api/admin/testimoni-jamaah"
-        imageUploadUrl="/api/admin/testimoni-jamaah/upload-gambar"
-        fields={[
-          { key: 'nama', label: 'Nama Jamaah', placeholder: 'Mis. Budi Santoso', wajib: true },
-          { key: 'asal_program', label: 'Asal/Program (opsional)', placeholder: 'Mis. Umroh Reguler 9 Hari, Jakarta' },
-          { key: 'kutipan', label: 'Kutipan Testimoni', placeholder: 'Tulis ulang kata-kata jamaah...', wajib: true, textarea: true },
-          { key: 'video_url', label: 'Link Video (opsional — YouTube/Instagram/TikTok)', placeholder: 'https://youtube.com/watch?v=...' },
-        ]}
-        kolomTampil={{ judul: 'nama', sub: 'kutipan' }}
-      />
+      <div id="testimoni">
+        <Reveal>
+          <DaftarEditor
+            judul="💬 Testimoni Jamaah"
+            deskripsiHalaman="Testimoni asli jamaah (nama + kutipan + foto/video opsional) — tampil di landing page sebelum section Kemitraan, jadi bukti sosial sebelum mengajak orang jadi mitra. Video pakai link (YouTube/Instagram/TikTok), bukan upload file."
+            adminApiUrl="/api/admin/testimoni-jamaah"
+            imageUploadUrl="/api/admin/testimoni-jamaah/upload-gambar"
+            fields={[
+              { key: 'nama', label: 'Nama Jamaah', placeholder: 'Mis. Budi Santoso', wajib: true },
+              { key: 'asal_program', label: 'Asal/Program (opsional)', placeholder: 'Mis. Umroh Reguler 9 Hari, Jakarta' },
+              { key: 'kutipan', label: 'Kutipan Testimoni', placeholder: 'Tulis ulang kata-kata jamaah...', wajib: true, textarea: true },
+              { key: 'video_url', label: 'Link Video (opsional — YouTube/Instagram/TikTok)', placeholder: 'https://youtube.com/watch?v=...' },
+            ]}
+            kolomTampil={{ judul: 'nama', sub: 'kutipan' }}
+          />
+        </Reveal>
+      </div>
 
-      <DaftarEditor
-        judul="❓ FAQ"
-        deskripsiHalaman="Pertanyaan yang sering ditanyakan jamaah — tampil sebagai accordion di landing page sebelum section Kontak."
-        adminApiUrl="/api/admin/faq"
-        fields={[
-          { key: 'pertanyaan', label: 'Pertanyaan', placeholder: 'Mis. Berapa lama proses pendaftaran?', wajib: true },
-          { key: 'jawaban', label: 'Jawaban', placeholder: 'Jawaban lengkapnya...', wajib: true, textarea: true },
-        ]}
-        kolomTampil={{ judul: 'pertanyaan', sub: 'jawaban' }}
-      />
+      <div id="faq">
+        <Reveal>
+          <DaftarEditor
+            judul="❓ FAQ"
+            deskripsiHalaman="Pertanyaan yang sering ditanyakan jamaah — tampil sebagai accordion di landing page sebelum section Kontak."
+            adminApiUrl="/api/admin/faq"
+            fields={[
+              { key: 'pertanyaan', label: 'Pertanyaan', placeholder: 'Mis. Berapa lama proses pendaftaran?', wajib: true },
+              { key: 'jawaban', label: 'Jawaban', placeholder: 'Jawaban lengkapnya...', wajib: true, textarea: true },
+            ]}
+            kolomTampil={{ judul: 'pertanyaan', sub: 'jawaban' }}
+          />
+        </Reveal>
+      </div>
     </Layout>
   );
 }

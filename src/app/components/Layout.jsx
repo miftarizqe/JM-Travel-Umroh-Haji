@@ -630,6 +630,7 @@ export default function Layout({ children, title, backHref, showBack, confirmLea
       { icon: '📣', label: 'Banner Promo', path: '/admin/promo' },
       { icon: '🖼️', label: 'Galeri', path: '/admin/galeri' },
       { icon: '🏠', label: 'Konten Landing Page', path: '/admin/pengaturan/skema-pembayaran' },
+      { icon: '💬', label: 'Testimoni Jamaah', path: '/admin/pengaturan/skema-pembayaran#testimoni' },
       { icon: '✏️', label: 'Teks Landing Page', path: '/admin/pengaturan/teks-landing' },
     ] },
   ].filter(g => g.children.length > 0);
